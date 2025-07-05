@@ -9,19 +9,20 @@ st.set_page_config(
 
 st.sidebar.title("FidSync")
 
-# Grouped navigation options
+# --- Sidebar Navigation ---
+st.sidebar.markdown("### Info")
+info_pages = ["About", "How to Use"]
+
+st.sidebar.markdown("### Tools")
+tool_pages = ["Fund Scorecard", "User Requests"]
+
 navigation = st.sidebar.radio(
-    "Navigation",
-    [
-        "About",
-        "How to Use",
-        "——",
-        "Fund Scorecard",
-        "User Requests"
-    ]
+    "Go to",
+    options=info_pages + tool_pages,
+    label_visibility="collapsed"
 )
 
-# --- PAGE ROUTING ---
+# --- Routing ---
 if navigation == "About":
     st.title("About FidSync")
     st.markdown("""
