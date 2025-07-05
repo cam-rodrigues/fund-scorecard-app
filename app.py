@@ -1,3 +1,9 @@
+import sys
+import os
+
+# Add repo root (where app.py lives) to Python path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 import streamlit as st
 from app_pages import fund_scorecard, user_requests
 
