@@ -9,17 +9,20 @@ st.set_page_config(
 
 st.sidebar.title("FidSync")
 
-# --- NAVIGATION: Collapsible Sections ---
-with st.sidebar.expander("Info", expanded=True):
-    info_selection = st.radio("Info Pages", ["About", "How to Use"], label_visibility="collapsed")
-
-with st.sidebar.expander("Tools", expanded=False):
-    tool_selection = st.radio("Tools", ["Fund Scorecard", "User Requests"], label_visibility="collapsed")
+# Grouped navigation options
+navigation = st.sidebar.radio(
+    "Navigation",
+    [
+        "About",
+        "How to Use",
+        "——",
+        "Fund Scorecard",
+        "User Requests"
+    ]
+)
 
 # --- PAGE ROUTING ---
-
-# Info Pages
-if info_selection == "About":
+if navigation == "About":
     st.title("About FidSync")
     st.markdown("""
 FidSync is an internal web application built for our team to make working with fund documents easier and faster.
@@ -38,7 +41,7 @@ It’s secure, internal-only, and designed specifically for wealth management wo
 If you ever have questions, ideas, or issues — use the **User Requests** tab to get support.
 """)
 
-elif info_selection == "How to Use":
+elif navigation == "How to Use":
     st.title("How to Use FidSync")
     st.markdown("""
 This guide walks you through using the **Fund Scorecard** tool.
@@ -80,9 +83,8 @@ If everything looks good, download your updated Excel file.
 Use the **User Requests** tab to submit feedback or request a new feature.
 """)
 
-# Tool Pages
-if tool_selection == "Fund Scorecard":
+elif navigation == "Fund Scorecard":
     fund_scorecard.run()
 
-elif tool_selection == "User Requests":
+elif navigation == "User Requests":
     user_requests.run()
