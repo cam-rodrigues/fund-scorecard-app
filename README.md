@@ -45,7 +45,7 @@ fund-scorecard-app/
 ├── app.py                  ← Main app script
 ├── requirements.txt        ← List of needed Python packages
 ├── README.md               ← You're reading this!
-├── pages/
+├── app_pages/
 │   ├── fund_scorecard.py   ← Fund scorecard workflow
 │   └── user_requests.py    ← Request submission tab
 ├── .streamlit/
