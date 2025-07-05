@@ -1,10 +1,9 @@
-# fund_scorecard.py
 import streamlit as st
 import pandas as pd
 
-# Absolute imports assuming app is run from project root
 from utils.excel_utils import update_excel_with_template
 from utils.pdf_utils import extract_data_from_pdf
+
 
 
 def run():
