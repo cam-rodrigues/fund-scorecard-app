@@ -1,13 +1,8 @@
 # fund_scorecard.py
-
 import streamlit as st
 import pandas as pd
-import sys
-import os
 
-# --- Ensure project root is in Python path ---
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
+# Absolute imports assuming app is run from project root
 from utils.excel_utils import update_excel_with_template
 from utils.pdf_utils import extract_data_from_pdf
 
@@ -16,12 +11,10 @@ def run():
     st.header("📊 Fund Scorecard")
     st.markdown("Upload an investment PDF and update the corresponding Excel scorecard with one click.")
 
-    # --- Upload Section ---
     with st.expander("🔍 Upload Files", expanded=True):
         pdf_file = st.file_uploader("Upload Fund PDF", type=["pdf"])
         excel_file = st.file_uploader("Upload Excel Template", type=["xlsx"])
 
-    # --- Processing Section ---
     if st.button("Generate Scorecard"):
         if not pdf_file or not excel_file:
             st.warning("Please upload both a PDF and Excel file.")
@@ -35,7 +28,6 @@ def run():
                 st.success("✅ Scorecard updated successfully!")
                 st.dataframe(updated_df, use_container_width=True)
 
-                # Download
                 st.download_button(
                     label="⬇️ Download Updated Excel",
                     data=updated_df.to_excel(index=False, engine='openpyxl'),
