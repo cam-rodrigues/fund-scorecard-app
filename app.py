@@ -12,37 +12,6 @@ from datetime import datetime
 import gc
 
 # ======================
-#   DARK MODE CSS INJECTION
-# ======================
-def inject_dark_mode():
-    dark_css = """
-    <style>
-    body, .main, .stApp {
-        background-color: #1E1E1E !important;
-        color: #FFFFFF !important;
-    }
-    .stTextInput > div > div > input,
-    .stNumberInput input,
-    .stTextArea textarea,
-    .stFileUploader,
-    .stSelectbox,
-    .stTextInput,
-    .stTextArea,
-    .stCheckbox,
-    .stButton button {
-        background-color: #2D2D2D !important;
-        color: #FFFFFF !important;
-        border-color: #444 !important;
-    }
-    .stButton button:hover {
-        background-color: #003865 !important;
-        color: white !important;
-    }
-    </style>
-    """
-    st.markdown(dark_css, unsafe_allow_html=True)
-
-# ======================
 #   STYLING + STATE
 # ======================
 st.set_page_config(page_title="FidSync", layout="wide")
