@@ -6,7 +6,7 @@ import os
 # 🔧 Fix for Streamlit Cloud: make sure the app can find the utils folder
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from utils.excel_utils import update_excel_with_template
+from utils.excel_utils import update_excel_with_status
 from utils.pdf_utils import extract_data_from_pdf
 
 
