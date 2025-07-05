@@ -1,50 +1,49 @@
-# app.py
 import streamlit as st
 from datetime import datetime
 
 # ======================
-# Page Config
+#   PAGE CONFIG
 # ======================
 st.set_page_config(page_title="FidSync", layout="wide")
 
 # ======================
-# Sidebar Navigation
+#   SIDEBAR NAVIGATION
 # ======================
 st.sidebar.title("FidSync")
 st.sidebar.markdown("---")
 st.sidebar.subheader("Navigate")
 page = st.sidebar.radio("", ["About FidSync", "How to Use", "Fund Scorecard"], label_visibility="collapsed")
-
 st.sidebar.markdown("---")
-st.sidebar.subheader("Tools")
+# Future tools will go here
+
 st.sidebar.caption(f"Version 1.1 • Updated {datetime.today().strftime('%b %d, %Y')}")
 
 # ======================
-# Page Routing
+#   PAGE ROUTING
 # ======================
 if page == "About FidSync":
     st.title("About FidSync")
     st.markdown("""
-FidSync is a scalable, secure platform for financial documentation automation.  
-Initially designed for Fund Scorecard processing, it is growing to include:
+FidSync streamlines fund documentation review, automates Excel scorecard updates, and lays the groundwork for upcoming compliance and audit workflows.
 
-- ✅ Scorecard Parsing  
-- ✅ Excel Updates  
-- 🔒 Compliance Checks (Coming Soon)  
-- 📊 Plan Comparisons  
-- 🕵️‍♂️ Audit Logging  
-    """)
+**Key Features:**
+- Automated fund matching using fuzzy logic
+- PDF-to-Excel status updates with conditional formatting
+- Future-ready structure for compliance tools, plan comparison, and audit logging
+""")
+
 elif page == "How to Use":
     st.title("How to Use FidSync")
     st.markdown("""
-**Step-by-Step Guide**  
-1. Upload your Fund Scorecard PDF and the target Excel workbook.  
-2. Provide the sheet name, starting row, and column where statuses should go.  
-3. Paste your list of investment options (one per line).  
-4. Click **Run Status Update** to process and download the results.
+**Step-by-step:**
+1. Go to **Fund Scorecard** from the sidebar.
+2. Upload your scorecard PDF and Excel workbook.
+3. Input sheet name, starting row, and column for status.
+4. Add each investment name on its own line.
+5. Click **Run Status Update** to extract and match.
 
-Use **Dry Run** to preview results without modifying the Excel file.
-    """)
+**Dry Run Option:** See what would change without editing the Excel file.
+""")
+
 elif page == "Fund Scorecard":
-    from pages.fund_scorecard import render_fund_scorecard
-    render_fund_scorecard()
+    from pages import fund_scorecard
