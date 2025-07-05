@@ -10,31 +10,25 @@ st.set_page_config(
 # --- SIDEBAR NAVIGATION ---
 st.sidebar.title("FidSync")
 
-# Top section: Help & Info
-st.sidebar.markdown("**Info**")
-info_page = st.sidebar.radio(
-    "",
-    options=["About", "How to Use"],
-    index=0,
-    key="info_page"
-)
-
-# Divider line
-st.sidebar.markdown("---")
-
-# Bottom section: Core tools
-st.sidebar.markdown("**Tools**")
-tool_page = st.sidebar.radio(
-    "",
-    options=["Fund Scorecard", "User Requests"],
-    index=0,
-    key="tool_page"
+# All pages in one radio — for proper Streamlit routing
+navigation = st.sidebar.radio(
+    "Navigation",
+    [
+        "About",
+        "How to Use",
+        "---",  # visual divider (won’t be selectable)
+        "Fund Scorecard",
+        "User Requests"
+    ]
 )
 
 # --- PAGE ROUTING ---
 
-# Info Pages
-if info_page == "About":
+# Visual divider: do nothing if it's selected (defensive fallback)
+if navigation == "---":
+    st.empty()
+
+elif navigation == "About":
     st.title("About FidSync")
 
     st.markdown("""
@@ -54,7 +48,7 @@ It’s secure, internal-only, and designed specifically for wealth management wo
 If you ever have questions, ideas, or issues — use the **User Requests** tab to get support.
 """)
 
-elif info_page == "How to Use":
+elif navigation == "How to Use":
     st.title("How to Use FidSync")
 
     st.markdown("""
@@ -64,7 +58,7 @@ This guide walks you through using the **Fund Scorecard** tool.
 
 ### Step 1: Upload Files
 Upload:
-- A **fund report PDF** (usually 2–5 pages)
+- A **fund report PDF** (usually 30–40 pages)
 - An **Excel template** (your firm's scorecard file)
 
 Make sure you're using the correct template — ask your manager if you're not sure.
@@ -97,9 +91,8 @@ If everything looks good, download your updated Excel file.
 Use the **User Requests** tab to submit feedback or request a new feature.
 """)
 
-# Tool Pages
-elif tool_page == "Fund Scorecard":
+elif navigation == "Fund Scorecard":
     fund_scorecard.run()
 
-elif tool_page == "User Requests":
+elif navigation == "User Requests":
     user_requests.run()
