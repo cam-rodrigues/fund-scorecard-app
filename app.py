@@ -6,7 +6,8 @@ from pages import fund_scorecard
 #   PAGE CONFIGURATION
 # ======================
 st.set_page_config(page_title="FidSync", layout="wide")
-st.markdown("""
+st.markdown(
+    """
     <style>
         .block-container { padding: 2rem 2rem 2rem 2rem; }
         h1, h2, h3, h4, h5, h6 { color: #003865; }
@@ -26,9 +27,20 @@ st.markdown("""
             margin: 1rem 0 0.5rem 0;
             color: #6c757d;
         }
+        .stButton > button {
+            background-color: #003865;
+            color: white;
+            font-size: 18px;
+            padding: 0.4rem 1.25rem;
+        }
+        .stButton > button:hover {
+            background-color: #005399;
+        }
         footer { visibility: hidden; }
     </style>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True,
+)
 
 # ======================
 #   SIDEBAR NAVIGATION
@@ -36,9 +48,10 @@ st.markdown("""
 st.sidebar.markdown('<div class="sidebar-title">FidSync</div>', unsafe_allow_html=True)
 st.sidebar.markdown('<div class="sidebar-section">Navigate</div>', unsafe_allow_html=True)
 
-page = st.sidebar.radio("",
-    ["About FidSync", "How to Use", "Fund Scorecard"],
-    label_visibility="collapsed"
+page = st.sidebar.radio(
+    "",
+    ["📖 About FidSync", "🛠 How to Use", "📝 Fund Scorecard"],
+    label_visibility="collapsed",
 )
 
 st.sidebar.caption(f"Version 1.2 • Updated {datetime.today().strftime('%b %d, %Y')}")
@@ -46,7 +59,7 @@ st.sidebar.caption(f"Version 1.2 • Updated {datetime.today().strftime('%b %d, 
 # ======================
 #   ROUTING
 # ======================
-if page == "About FidSync":
+if page == "📖 About FidSync":
     st.title("About FidSync")
     st.markdown("""
     FidSync is a modern productivity tool designed for investment professionals.
@@ -60,7 +73,7 @@ if page == "About FidSync":
     - Professional polish and usability
     """)
 
-elif page == "How to Use":
+elif page == "🛠 How to Use":
     st.title("How to Use FidSync")
     st.markdown("""
     **📥 Uploads**
@@ -86,5 +99,5 @@ elif page == "How to Use":
     You can add more tools over time — this app is built to grow.
     """)
 
-elif page == "Fund Scorecard":
+elif page == "📝 Fund Scorecard":
     fund_scorecard.show()
