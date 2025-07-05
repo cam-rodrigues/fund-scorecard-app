@@ -16,8 +16,14 @@ from datetime import datetime
 import gc
 
 # --- Page Config ---
-st.set_page_config(page_title="FidSync | Fund Status Tool", layout="wide")
-st.title("FidSync | Fund Scorecard Status Tool")
+st.set_page_config(page_title="FidSync", layout="wide")
+
+# --- Sidebar Title ---
+st.sidebar.title("Fund Scorecard Status Tool")
+
+# --- Page Main Header ---
+st.title("FidSync")
+
 
 # --- Excel formatting ---
 GREEN_FILL = PatternFill(fill_type="solid", start_color="C6EFCE", end_color="C6EFCE")
