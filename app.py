@@ -125,9 +125,8 @@ def update_excel_with_status(pdf_bytes, excel_bytes, sheet_name, status_col, sta
 
 # === Reset App Button ===
 if st.button("Reset App"):
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
-    st.experimental_rerun()
+    st.session_state.clear()
+    st.rerun()
 
 # === Upload and Settings Form ===
 with st.form("upload_form"):
