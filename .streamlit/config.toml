@@ -1,10 +1,10 @@
 [theme]
 base = "light"
-primaryColor = "#1F4E79"         # Navy blue
-backgroundColor = "#F9FBFC"      # Soft white-blue
-secondaryBackgroundColor = "#E8F0F9"  # Light blue-gray
-textColor = "#1A1A1A"            # Dark gray for readability
-font = "sans serif"              # Professional default
+primaryColor = "#1F4E79"
+backgroundColor = "#F9FBFC"
+secondaryBackgroundColor = "#E8F0F9"
+textColor = "#1A1A1A"
+font = "sans serif"
 
 [server]
 headless = true
