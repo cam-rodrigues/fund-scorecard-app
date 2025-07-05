@@ -1,5 +1,6 @@
 # ============================== #
-#     Fund Scorecard App (Secure)
+#          FidSync App          #
+#    Scorecard Status Updater   #
 # ============================== #
 
 import streamlit as st
@@ -15,8 +16,8 @@ from datetime import datetime
 import gc
 
 # --- Page Config ---
-st.set_page_config(page_title="Fund Scorecard Status Tool", layout="wide")
-st.title("📊 Fund Scorecard Status Updater")
+st.set_page_config(page_title="FidSync | Fund Status Tool", layout="wide")
+st.title("📊 FidSync | Fund Scorecard Status Tool")
 
 # --- Excel formatting ---
 GREEN_FILL = PatternFill(fill_type="solid", start_color="C6EFCE", end_color="C6EFCE")
@@ -90,7 +91,7 @@ if st.button("🔄 Reset App"):
 
 # --- Main Upload Form ---
 with st.form("upload_form"):
-    st.subheader("🔼 Upload Files")
+    st.subheader("🔼 Upload Scorecard and Workbook")
     pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type=["pdf"])
     excel_file = st.file_uploader("Upload Excel Workbook", type=["xlsx", "xlsm"])
 
@@ -104,8 +105,8 @@ with st.form("upload_form"):
     start_page = col4.number_input("Start Page in PDF (0-indexed)", min_value=0, value=19)
     end_page = col5.number_input("End Page in PDF (0-indexed)", min_value=0, value=29)
 
-    fund_names_input = st.text_area("Investment Option Names (One Per Line)", height=200)
-    dry_run = st.checkbox("🧪 Dry Run (preview match only, don't modify Excel)", value=False)
+    fund_names_input = st.text_area("📋 Investment Option Names (One Per Line)", height=200)
+    dry_run = st.checkbox("🧪 Dry Run (Preview Only — Don’t Modify Excel)", value=False)
 
     submitted = st.form_submit_button("🚀 Run Status Update")
 
@@ -136,11 +137,11 @@ if submitted:
                     st.success(f"✅ Successfully updated {count} row(s).")
 
                     b64 = base64.b64encode(updated_excel.getvalue()).decode()
-                    link = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="Updated_Investment_Status.xlsx">📥 Download Updated Excel</a>'
+                    link = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="Updated_Fund_Status.xlsx">📥 Download Updated Excel</a>'
                     st.markdown(link, unsafe_allow_html=True)
 
                 # Match Log Table
-                st.markdown("### 📋 Match Log")
+                st.markdown("### 📄 Match Log")
                 df_log = pd.DataFrame(match_log, columns=["Input Name", "Matched Name", "Match Score", "Status"])
                 st.dataframe(df_log)
 
@@ -151,17 +152,14 @@ if submitted:
                 csv_link = f'<a href="data:file/csv;base64,{csv_b64}" download="match_log.csv">🧾 Download Match Log CSV</a>'
                 st.markdown(csv_link, unsafe_allow_html=True)
 
-                # Optional: clear session data to free memory
                 del pdf_bytes, excel_bytes, updated_excel, df_log
                 gc.collect()
 
             except Exception as e:
-                st.error("❌ Something went wrong. Please check the following:")
-                st.markdown("- ✅ PDF pages are within range")
-                st.markdown("- ✅ Excel sheet name is correct")
-                st.markdown("- ✅ Fund names are formatted properly")
-                st.markdown("- ✅ You're not missing any required inputs")
+                st.error("❌ Something went wrong during processing.")
+                st.markdown("- Check sheet name, column letter, and page range")
+                st.markdown("- Ensure investment options are entered correctly")
                 st.exception(e)
 
 # --- Footer ---
-st.sidebar.caption(f"🔖 Version 1.1 • Updated {datetime.today().strftime('%b %d, %Y')}")
+st.sidebar.caption(f"🔖 FidSync v1.1 • Last updated {datetime.today().strftime('%b %d, %Y')}")
