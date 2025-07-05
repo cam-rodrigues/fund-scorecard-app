@@ -23,11 +23,6 @@ st.sidebar.subheader("Navigate")
 page = st.sidebar.radio("", ["About FidSync", "How to Use", "Fund Scorecard"], label_visibility="collapsed")
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("Theme")
-dark_mode = st.sidebar.checkbox("Dark Mode")
-
-if dark_mode:
-    inject_dark_mode()
 
 # Excel styles
 GREEN_FILL = PatternFill(fill_type="solid", start_color="C6EFCE", end_color="C6EFCE")
