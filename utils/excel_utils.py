@@ -13,7 +13,7 @@ def update_excel_with_status(pdf_bytes, excel_bytes, sheet_name, status_col, sta
     fund_status_map = extract_fund_status(pdf_bytes, start_page, end_page)
     pdf_names = list(fund_status_map.keys())
 
-    wb = load_workbook(io.BytesIO(excel_bytes))
+    wb = load_workbook(io.BytesIO(excel_bytes), keep_vba=True)
     if sheet_name not in wb.sheetnames:
         raise ValueError(f"Sheet '{sheet_name}' not found.")
     ws = wb[sheet_name]
