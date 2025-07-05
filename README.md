@@ -33,6 +33,7 @@ A secure, company-branded web app that updates Excel files with fund status resu
   - Write “Pass” or “Fail” into the Excel sheet
   - Color-code the cells (green/red)
   - Skip formula cells automatically
+  - Collect feature requests via a dedicated tab
 
 ---
 
@@ -43,6 +44,9 @@ fund-scorecard-app/
 ├── app.py                  ← Main app script
 ├── requirements.txt        ← List of needed Python packages
 ├── README.md               ← You're reading this!
+├── pages/
+│   ├── fund_scorecard.py   ← Fund scorecard workflow
+│   └── user_requests.py    ← Request submission tab
 ├── .streamlit/
 │   ├── config.toml         ← Custom color theme
 │   └── secrets.toml        ← Access password

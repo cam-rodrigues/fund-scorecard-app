@@ -1,6 +1,6 @@
 import streamlit as st
 from datetime import datetime
-from pages import fund_scorecard
+from pages import fund_scorecard, user_requests
 
 # ======================
 #   PAGE CONFIGURATION
@@ -56,7 +56,7 @@ st.sidebar.markdown('<div class="sidebar-section">Navigate</div>', unsafe_allow_
 
 page = st.sidebar.radio(
     "",
-    ["📖 About FidSync", "🛠 How to Use", "📝 Fund Scorecard"],
+    ["📖 About FidSync", "🛠 How to Use", "📝 Fund Scorecard", "📋 Requests"],
     label_visibility="collapsed",
 )
 
@@ -107,3 +107,6 @@ elif page == "🛠 How to Use":
 
 elif page == "📝 Fund Scorecard":
     fund_scorecard.show()
+
+elif page == "📋 Requests":
+    user_requests.show()
