@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 
 # Additional utilities would be imported here
 
@@ -37,5 +38,6 @@ def show():
         submitted = st.form_submit_button("Run Status Update")
 
     if submitted:
-        # Placeholder for real match/update logic
+        with st.spinner("Running analysis..."):
+            time.sleep(2)  # placeholder for processing
         st.success("Processing complete!")
