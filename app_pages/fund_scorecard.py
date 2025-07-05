@@ -5,7 +5,6 @@ from utils.excel_utils import update_excel_with_template
 from utils.pdf_utils import extract_data_from_pdf
 
 
-
 def run():
     st.header("📊 Fund Scorecard")
     st.markdown("Upload an investment PDF and update the corresponding Excel scorecard with one click.")
