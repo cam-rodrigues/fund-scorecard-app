@@ -1,6 +1,6 @@
 # ============================== #
-#          FidSync App          #
-#    Scorecard Status Updater   #
+#           FidSync             #
+#     Fund Scorecard Platform   #
 # ============================== #
 
 import streamlit as st
@@ -18,23 +18,58 @@ import gc
 # --- Page Config ---
 st.set_page_config(page_title="FidSync", layout="wide")
 
-# --- Sidebar Title ---
-st.sidebar.title("Fund Scorecard Status Tool")
+# --- Sidebar Navigation ---
+st.sidebar.title("FidSync")
+page = st.sidebar.radio("Navigation", ["About", "Fund Scorecard Tool"])
 
-# --- Page Main Header ---
-st.title("FidSync")
+# --- Dark Mode Toggle ---
+dark_mode = st.sidebar.checkbox("Dark Mode")
+if dark_mode:
+    st.markdown("""
+        <style>
+        body, .stApp {
+            background-color: #1E1E1E;
+            color: #FFFFFF;
+        }
+        .css-18e3th9 {
+            background-color: #2E2E2E;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
+# === About Page ===
+if page == "About":
+    st.title("Welcome to FidSync")
+    st.markdown("""
+FidSync is a secure, professional tool designed for retirement plan and investment advisors to automate manual processes.
 
-# --- Excel formatting ---
+### Features
+- Extract fund statuses from scorecard PDFs
+- Match investment options using fuzzy logic
+- Update Excel sheets with pass/fail results
+- Download updated Excel and logs
+
+### Coming Soon
+- Compliance checks
+- Plan comparisons
+- Audit logs
+
+---
+
+Built with Streamlit. Version 1.1 • Updated """ + datetime.today().strftime('%b %d, %Y'))
+    st.stop()
+
+# === Fund Scorecard Tool ===
+st.title("Fund Scorecard Status Tool")
+
+# === Excel Formatting Styles ===
 GREEN_FILL = PatternFill(fill_type="solid", start_color="C6EFCE", end_color="C6EFCE")
 RED_FILL = PatternFill(fill_type="solid", start_color="FFC7CE", end_color="FFC7CE")
 
-# --- Normalization ---
 def normalize_name(name):
     name = name.lower().translate(str.maketrans('', '', string.punctuation))
     return " ".join(name.split())
 
-# --- Extract statuses from PDF ---
 def extract_fund_status(pdf_bytes, start_page, end_page):
     fund_status = {}
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
@@ -54,7 +89,6 @@ def extract_fund_status(pdf_bytes, start_page, end_page):
                         fund_status[normalize_name(name)] = "Fail"
     return fund_status
 
-# --- Process and update Excel ---
 def update_excel_with_status(pdf_bytes, excel_bytes, sheet_name, status_col, start_row, fund_names, start_page, end_page, dry_run=False):
     fund_status_map = extract_fund_status(pdf_bytes, start_page, end_page)
     pdf_names = list(fund_status_map.keys())
@@ -89,19 +123,19 @@ def update_excel_with_status(pdf_bytes, excel_bytes, sheet_name, status_col, sta
     out_bytes.seek(0)
     return out_bytes, updated_count, match_log
 
-# --- Reset Button ---
-if st.button("🔄 Reset App"):
+# === Reset App Button ===
+if st.button("Reset App"):
     for key in list(st.session_state.keys()):
         del st.session_state[key]
     st.experimental_rerun()
 
-# --- Main Upload Form ---
+# === Upload and Settings Form ===
 with st.form("upload_form"):
-    st.subheader("🔼 Upload Scorecard and Workbook")
+    st.header("Upload Documents")
     pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type=["pdf"])
     excel_file = st.file_uploader("Upload Excel Workbook", type=["xlsx", "xlsm"])
 
-    st.subheader("⚙️ Settings")
+    st.header("Matching Configuration")
     col1, col2, col3 = st.columns(3)
     sheet_name = col1.text_input("Excel Sheet Name", value="Current Period")
     status_col = col2.text_input("Column Letter for Status", value="U").strip().upper()
@@ -111,12 +145,12 @@ with st.form("upload_form"):
     start_page = col4.number_input("Start Page in PDF (0-indexed)", min_value=0, value=19)
     end_page = col5.number_input("End Page in PDF (0-indexed)", min_value=0, value=29)
 
-    fund_names_input = st.text_area("📋 Investment Option Names (One Per Line)", height=200)
-    dry_run = st.checkbox("🧪 Dry Run (Preview Only — Don’t Modify Excel)", value=False)
+    fund_names_input = st.text_area("Investment Option Names (One Per Line)", height=200)
+    dry_run = st.checkbox("Dry Run (preview only, no Excel changes)", value=False)
 
-    submitted = st.form_submit_button("🚀 Run Status Update")
+    submitted = st.form_submit_button("Run Status Update")
 
-# --- Run Processing ---
+# === Process Run ===
 if submitted:
     if not pdf_file or not excel_file:
         st.warning("Please upload both PDF and Excel files.")
@@ -138,34 +172,31 @@ if submitted:
                 )
 
                 if dry_run:
-                    st.info("🧪 Dry run complete. No changes were made to the Excel file.")
+                    st.info("Dry run complete. No Excel file was modified.")
                 else:
-                    st.success(f"✅ Successfully updated {count} row(s).")
-
+                    st.success(f"Successfully updated {count} row(s).")
                     b64 = base64.b64encode(updated_excel.getvalue()).decode()
-                    link = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="Updated_Fund_Status.xlsx">📥 Download Updated Excel</a>'
+                    link = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="Updated_Investment_Status.xlsx">Download Updated Excel</a>'
                     st.markdown(link, unsafe_allow_html=True)
 
-                # Match Log Table
-                st.markdown("### 📄 Match Log")
+                # Show Match Log
+                st.subheader("Match Log")
                 df_log = pd.DataFrame(match_log, columns=["Input Name", "Matched Name", "Match Score", "Status"])
                 st.dataframe(df_log)
 
-                # Log Download
+                # Log CSV Download
                 csv_buffer = io.StringIO()
                 df_log.to_csv(csv_buffer, index=False)
                 csv_b64 = base64.b64encode(csv_buffer.getvalue().encode()).decode()
-                csv_link = f'<a href="data:file/csv;base64,{csv_b64}" download="match_log.csv">🧾 Download Match Log CSV</a>'
+                csv_link = f'<a href="data:file/csv;base64,{csv_b64}" download="match_log.csv">Download Match Log CSV</a>'
                 st.markdown(csv_link, unsafe_allow_html=True)
 
                 del pdf_bytes, excel_bytes, updated_excel, df_log
                 gc.collect()
 
             except Exception as e:
-                st.error("❌ Something went wrong during processing.")
-                st.markdown("- Check sheet name, column letter, and page range")
-                st.markdown("- Ensure investment options are entered correctly")
+                st.error("Something went wrong. Please check your inputs and try again.")
                 st.exception(e)
 
-# --- Footer ---
-st.sidebar.caption(f"🔖 FidSync v1.1 • Last updated {datetime.today().strftime('%b %d, %Y')}")
+# === Footer ===
+st.sidebar.caption(f"Version 1.1 • Updated {datetime.today().strftime('%b %d, %Y')}")
