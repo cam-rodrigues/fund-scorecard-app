@@ -1,9 +1,3 @@
-
-# ============================== #
-#            FidSync            #
-#    Fund Scorecard Tool v1.2   #
-# ============================== #
-
 import streamlit as st
 import io
 import pdfplumber
@@ -11,37 +5,20 @@ import pandas as pd
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
 from rapidfuzz import process, fuzz
-import base64
-import string
 from datetime import datetime
+import string
 import gc
 
-# --- Page Config ---
-st.set_page_config(page_title="FidSync | Fund Scorecard Tool", layout="wide")
-
-# --- Sidebar Layout ---
-st.sidebar.title("FidSync")
-st.sidebar.markdown("---")
-
-st.sidebar.markdown("#### Navigate")
-page = st.sidebar.radio(" ", ["About FidSync"], label_visibility="collapsed")
-st.sidebar.markdown("---")
-
-tool_selection = st.sidebar.radio(" ", ["Fund Scorecard Tool"], label_visibility="collapsed")
-st.sidebar.markdown("---")
-
-dark_mode = st.sidebar.checkbox("Dark Mode (beta)")
-
-# --- Excel formatting ---
+# === Excel formatting ===
 GREEN_FILL = PatternFill(fill_type="solid", start_color="C6EFCE", end_color="C6EFCE")
 RED_FILL = PatternFill(fill_type="solid", start_color="FFC7CE", end_color="FFC7CE")
 
-# --- Normalization ---
+# === Normalize fund names ===
 def normalize_name(name):
     name = name.lower().translate(str.maketrans('', '', string.punctuation))
     return " ".join(name.split())
 
-# --- Extract statuses from PDF ---
+# === Extract statuses from PDF ===
 def extract_fund_status(pdf_bytes, start_page, end_page):
     fund_status = {}
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
@@ -61,7 +38,7 @@ def extract_fund_status(pdf_bytes, start_page, end_page):
                         fund_status[normalize_name(name)] = "Fail"
     return fund_status
 
-# --- Process and update Excel ---
+# === Update Excel ===
 def update_excel_with_status(pdf_bytes, excel_bytes, sheet_name, status_col, start_row, fund_names, start_page, end_page, dry_run=False):
     fund_status_map = extract_fund_status(pdf_bytes, start_page, end_page)
     pdf_names = list(fund_status_map.keys())
@@ -96,10 +73,25 @@ def update_excel_with_status(pdf_bytes, excel_bytes, sheet_name, status_col, sta
     out_bytes.seek(0)
     return out_bytes, updated_count, match_log
 
-# --- Page Routing ---
+# === Sidebar Layout ===
+st.set_page_config(page_title="FidSync", layout="wide")
+st.sidebar.title("FidSync")
+st.sidebar.markdown("---")
+
+st.sidebar.markdown("#### Navigate")
+page = st.sidebar.radio(" ", ["About FidSync"], label_visibility="collapsed")
+st.sidebar.markdown("---")
+
+tool_selection = st.sidebar.radio(" ", ["Fund Scorecard Tool"], label_visibility="collapsed")
+st.sidebar.markdown("---")
+
+dark_mode = st.sidebar.checkbox("Dark Mode (beta)")
+
+# === Main Layout ===
 if tool_selection == "Fund Scorecard Tool":
     st.title("Fund Scorecard Status Tool")
 
+    # === Reset Button ===
     if st.button("Reset App"):
         for key in ["sheet_name", "status_col", "start_row", "start_page", "end_page", "fund_names_input", "dry_run"]:
             if key in st.session_state:
@@ -142,52 +134,48 @@ if tool_selection == "Fund Scorecard Tool":
 
                     updated_excel, count, match_log = update_excel_with_status(
                         pdf_bytes, excel_bytes, sheet_name, status_col,
-                        start_row, fund_names, start_page - 1, end_page - 1, dry_run
+                        start_row, fund_names, start_page - 1, end_page - 1,
+                        dry_run
                     )
 
                     if dry_run:
                         st.info("Dry run complete. No changes were made to the Excel file.")
                     else:
                         st.success(f"Successfully updated {count} row(s).")
-                        b64 = base64.b64encode(updated_excel.getvalue()).decode()
-                        link = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="Updated_Investment_Status.xlsx">Download Updated Excel</a>'
-                        st.markdown(link, unsafe_allow_html=True)
+
+                        # Excel download
+                        b64 = io.BytesIO(updated_excel.getvalue()).getvalue()
+                        st.download_button("Download Updated Excel", data=b64, file_name="Updated_Investment_Status.xlsx")
 
                     # Match Log Table
-                    st.markdown("### Match Log")
+                    st.subheader("Match Log")
                     df_log = pd.DataFrame(match_log, columns=["Input Name", "Matched Name", "Match Score", "Status"])
                     st.dataframe(df_log)
 
-                    # Log Download
-                    csv_buffer = io.StringIO()
-                    df_log.to_csv(csv_buffer, index=False)
-                    csv_b64 = base64.b64encode(csv_buffer.getvalue().encode()).decode()
-                    csv_link = f'<a href="data:file/csv;base64,{csv_b64}" download="match_log.csv">Download Match Log CSV</a>'
-                    st.markdown(csv_link, unsafe_allow_html=True)
+                    # Match log download
+                    csv = df_log.to_csv(index=False).encode()
+                    st.download_button("Download Match Log CSV", data=csv, file_name="match_log.csv")
 
+                    # Clean up
                     del pdf_bytes, excel_bytes, updated_excel, df_log
                     gc.collect()
 
                 except Exception as e:
-                    st.error("Something went wrong. Please check your inputs.")
+                    st.error("Something went wrong. Please check:")
+                    st.markdown("- PDF page numbers must match the document")
+                    st.markdown("- Excel sheet name must be correct")
+                    st.markdown("- Fund names must be properly formatted")
                     st.exception(e)
 
 elif page == "About FidSync":
     st.title("About FidSync")
-    st.markdown("""
-**FidSync** is a secure platform designed to help retirement and investment advisors streamline due diligence workflows.
+    st.write("""
+    FidSync is a secure, modular platform for streamlining investment operations.  
+    It currently supports fund scorecard parsing and Excel status updates, and will soon include:
+    - Compliance checks  
+    - Plan comparisons  
+    - Audit logs  
+    """)
 
-This app currently supports:
-- Parsing PDF scorecards
-- Matching fund names using fuzzy logic
-- Updating Excel templates with pass/fail statuses
-- Generating match logs for documentation
-
-Coming soon:
-- Compliance automation
-- Plan comparisons
-- Audit log tracking
-
-Created by Cam Rodrigues
-""")
-    st.caption(f"Version 1.2 • Updated {datetime.today().strftime('%b %d, %Y')}")
+# === Footer ===
+st.sidebar.caption(f"Version 1.1 • Updated {datetime.today().strftime('%b %d, %Y')}")
