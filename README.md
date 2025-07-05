@@ -17,7 +17,8 @@ A secure, company-branded web app that updates Excel files with fund status resu
 ## 🎨 Company Branding
 
 - Custom color scheme using `.streamlit/config.toml`
- - Polished, professional UI with modern typography
+- Polished, professional UI with modern typography
+- Wider layout and large hero heading
 - Ready for enterprise deployment
 
 ---
