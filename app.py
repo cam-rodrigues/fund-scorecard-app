@@ -14,20 +14,6 @@ import string
 from datetime import datetime
 import gc
 
-# --- Access Gate ---
-def login():
-    st.markdown("### 🔐 Secure Login")
-    password = st.text_input("Enter password:", type="password")
-    if password == st.secrets["access_password"]:
-        st.session_state["authenticated"] = True
-        st.experimental_rerun()
-    elif password:
-        st.error("Incorrect password.")
-
-if "authenticated" not in st.session_state:
-    login()
-    st.stop()
-
 # --- Page Config ---
 st.set_page_config(page_title="Fund Scorecard Status Tool", layout="wide")
 st.title("📊 Fund Scorecard Status Updater")
