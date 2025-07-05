@@ -1,6 +1,6 @@
 import streamlit as st
 from datetime import datetime
-from pages import fund_scorecard, user_requests
+from sections import fund_scorecard, user_requests
 
 # ======================
 #   PAGE CONFIGURATION
