@@ -4,6 +4,8 @@ import pandas as pd
 from utils.excel_utils import update_excel_with_template
 from utils.pdf_utils import extract_data_from_pdf
 
+from utils.pdf_utils import extract_data_from_pdf
+
 
 def run():
     st.header("📊 Fund Scorecard")
