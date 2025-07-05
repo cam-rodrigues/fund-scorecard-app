@@ -1,24 +1,13 @@
 import streamlit as st
 import sys
 import os
+
+# Add utils to path if needed
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+# Example: from utils.logger import log_something
+# Implement your page logic here
 
-def show():
-    """Display the user request submission form."""
-    st.title("Submit a Request")
-    st.write(
-        "Have an idea or need a new feature? Let us know how FidSync can help you."
-    )
-
-    with st.form("request_form"):
-        request_text = st.text_area("Describe what you need the program to do", height=200)
-        contact_email = st.text_input("Your email (optional)")
-        submitted = st.form_submit_button("Send Request")
-
-    if submitted:
-        if request_text.strip():
-            st.success("Thank you for your feedback!")
-        else:
-            st.warning("Please enter a description before submitting.")
-
+def run():
+    st.header("📝 User Requests")
+    st.markdown("This is a placeholder for future tools, like client-side uploads or compliance logs.")
