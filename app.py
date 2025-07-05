@@ -93,20 +93,54 @@ def update_excel_with_status(pdf_bytes, excel_bytes, sheet_name, status_col, sta
     return out_bytes, updated_count, match_log
 
 # --- Pages ---
-if nav_selection == "About FidSync":
-    st.title("Welcome to FidSync")
-    st.write("FidSync is your all-in-one hub for fund scorecard parsing, Excel automation, and future tools like compliance checks, plan comparisons, and audit logs.")
-
-elif nav_selection == "How to Use":
-    st.title("How to Use FidSync")
+elif page == "About FidSync":
+    st.header("About FidSync")
     st.markdown("""
-    1. **Upload your Fund Scorecard PDF** – this is the source of fund statuses.
-    2. **Upload your Excel file** – this file will be updated with Pass/Fail indicators.
-    3. **Input configuration settings** such as sheet name, column letter, and page numbers.
-    4. **Paste investment names** in the box provided, one per line.
-    5. Optionally use **Dry Run** to preview matches before making changes.
-    6. Click **Run Status Update** to apply and download the updated Excel file.
+    **FidSync** is a secure and intelligent web platform designed to streamline fiduciary tasks for financial professionals, retirement plan consultants, and compliance teams.
+
+    Our goal is to simplify the process of reviewing fund data, documenting due diligence, and staying compliant — all in one centralized place.
+
+    **Current capabilities include:**
+    - 🟢 Extracting statuses from Fund Scorecard PDFs
+    - 🟢 Auto-updating Excel workbooks with pass/fail results
+    - 🟡 Easy match verification logs for transparency
+
+    **Coming soon:**
+    - 🔍 Plan comparisons and benchmarking tools
+    - 🛡️ Compliance audit checks
+    - 📁 Automated audit logs
+
+    FidSync is designed with security, accuracy, and scale in mind. Built by advisors, for advisors.
     """)
+
+elif page == "How to Use":
+    st.header("User Manual")
+    st.markdown("""
+    **Step 1: Upload Your Files**
+    - Upload a **Fund Scorecard PDF**
+    - Upload the corresponding **Excel workbook** where results should be written
+
+    **Step 2: Configure Settings**
+    - Enter the sheet name (e.g., `Current Period`)
+    - Choose the **starting column letter** where statuses should be entered (e.g., `U`)
+    - Enter the **starting row number** (e.g., `5`)
+    - Select the **page numbers** in the PDF to scan (e.g., 20–30)
+
+    **Step 3: Provide Investment Names**
+    - Paste your list of investment options (one per line) from the Excel file
+
+    **Step 4: Run the Update**
+    - Click `Run Status Update`
+    - Results will populate into the Excel file and be available for download
+    - A match log will be shown and downloadable as a CSV
+
+    **Pro Tips:**
+    - Use “Dry Run” mode to preview without editing Excel
+    - Check the match score column for fuzzy match accuracy
+    - Always double-check Excel formulas aren’t being overwritten (formulas are skipped)
+
+    """)
+
 
 elif tool_selection == "Fund Scorecard":
     st.title("Fund Scorecard Status Tool")
