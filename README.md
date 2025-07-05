@@ -39,7 +39,7 @@ A secure, company-branded web app that updates Excel files with fund status resu
 ## 📦 Files & Folders
 
 ```
-fund_status_app/
+fund-scorecard-app/
 ├── app.py                  ← Main app script
 ├── requirements.txt        ← List of needed Python packages
 ├── README.md               ← You're reading this!
@@ -61,7 +61,7 @@ conda activate fund_status_env
 2. **Navigate to the project folder**:
 
 ```bash
-cd path/to/fund_status_app
+cd path/to/fund-scorecard-app
 ```
 
 3. **Run the app**:
