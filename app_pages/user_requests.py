@@ -1,13 +1,19 @@
 import streamlit as st
-import sys
-import os
-
-# Add utils to path if needed
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-# Example: from utils.logger import log_something
-# Implement your page logic here
 
 def run():
-    st.header("📝 User Requests")
-    st.markdown("This is a placeholder for future tools, like client-side uploads or compliance logs.")
+    st.header("📬 Submit a Request")
+    st.markdown("Use this form to request a new feature, tool, or report.")
+
+    with st.form("request_form"):
+        email = st.text_input("Your Email")
+        request = st.text_area("Your Request")
+
+        submitted = st.form_submit_button("Submit")
+
+    if submitted:
+        if not email or not request:
+            st.warning("Please fill out both fields.")
+        else:
+            st.success("✅ Request submitted successfully!")
+            # Here you'd log it, email it, or store it
+            st.write("We'll follow up at:", email)
