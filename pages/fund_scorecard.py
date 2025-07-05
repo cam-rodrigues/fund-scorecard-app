@@ -7,17 +7,45 @@ from openpyxl.styles import PatternFill
 from rapidfuzz import process, fuzz
 import base64
 import string
+from datetime import datetime
 import gc
 
-# ======================
-#   Excel Cell Styles
-# ======================
+st.set_page_config(page_title="Fund Scorecard • FidSync", layout="wide")
+
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 2rem;
+        }
+        .stDownloadButton>button {
+            color: white;
+            background-color: #003865;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .stButton>button {
+            border-radius: 6px;
+        }
+        .status-pass {
+            background-color: #C6EFCE;
+            color: #006100;
+            padding: 2px 8px;
+            border-radius: 5px;
+            font-weight: 500;
+        }
+        .status-fail {
+            background-color: #FFC7CE;
+            color: #9C0006;
+            padding: 2px 8px;
+            border-radius: 5px;
+            font-weight: 500;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 GREEN_FILL = PatternFill(fill_type="solid", start_color="C6EFCE", end_color="C6EFCE")
 RED_FILL = PatternFill(fill_type="solid", start_color="FFC7CE", end_color="FFC7CE")
 
-# ======================
-#   Utility Functions
-# ======================
 def normalize_name(name):
     name = name.lower().translate(str.maketrans('', '', string.punctuation))
     return " ".join(name.split())
@@ -25,7 +53,7 @@ def normalize_name(name):
 def extract_fund_status(pdf_bytes, start_page, end_page):
     fund_status = {}
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        for page_num in range(start_page - 1, end_page):  # 1-based input
+        for page_num in range(start_page - 1, end_page):
             if page_num >= len(pdf.pages):
                 continue
             text = pdf.pages[page_num].extract_text() or ""
@@ -75,21 +103,13 @@ def update_excel_with_status(pdf_bytes, excel_bytes, sheet_name, status_col, sta
     out_bytes.seek(0)
     return out_bytes, updated_count, match_log
 
-# ======================
-#   Page UI
-# ======================
 st.title("Fund Scorecard Status Tool")
 
-if st.button("Reset Form"):
-    st.experimental_set_query_params(reset="true")
-    st.experimental_rerun()
-
 with st.form("upload_form"):
-    st.subheader("Upload Files")
+    st.header("📄 Upload & Settings")
     pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type=["pdf"])
     excel_file = st.file_uploader("Upload Excel Workbook", type=["xlsx", "xlsm"])
 
-    st.subheader("Settings")
     col1, col2, col3 = st.columns(3)
     sheet_name = col1.text_input("Excel Sheet Name")
     status_col = col2.text_input("Starting Column Letter").strip().upper()
@@ -100,7 +120,7 @@ with st.form("upload_form"):
     end_page = col5.number_input("End Page in PDF", min_value=1)
 
     fund_names_input = st.text_area("Investment Option Names (One Per Line)", height=200)
-    dry_run = st.checkbox("Dry Run (Preview only, don’t update Excel)", value=False)
+    dry_run = st.checkbox("Dry Run (preview only, don't update Excel)", value=False)
 
     submitted = st.form_submit_button("Run Status Update")
 
@@ -124,26 +144,34 @@ if submitted:
                     dry_run
                 )
 
-                if dry_run:
-                    st.info("Dry run complete. No changes were made to the Excel file.")
-                else:
-                    st.success(f"Successfully updated {count} row(s).")
+                st.success(f"Updated {count} row(s)" if not dry_run else "Dry run complete. No changes made.")
 
+                if not dry_run:
+                    timestamp = datetime.now().strftime("%b-%d-%Y_%H%M")
                     b64 = base64.b64encode(updated_excel.getvalue()).decode()
-                    link = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="Updated_Investment_Status.xlsx">Download Updated Excel</a>'
+                    link = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="Updated_Status_{timestamp}.xlsx">📥 Download Updated Excel</a>'
                     st.markdown(link, unsafe_allow_html=True)
 
-                st.markdown("### Match Log")
-                df_log = pd.DataFrame(match_log, columns=["Input Name", "Matched Name", "Match Score", "Status"])
-                st.dataframe(df_log)
+                with st.expander("Match Log", expanded=True):
+                    st.markdown("**Matched Results:**")
+                    styled_log = []
+                    for name, matched, score, status in match_log:
+                        badge = ""
+                        if status == "Pass":
+                            badge = f"<span class='status-pass'>{status}</span>"
+                        elif status == "Fail":
+                            badge = f"<span class='status-fail'>{status}</span>"
+                        styled_log.append([name, matched, score, badge])
+                    df = pd.DataFrame(styled_log, columns=["Input Name", "Matched Name", "Match Score", "Status"])
+                    st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-                csv_buffer = io.StringIO()
-                df_log.to_csv(csv_buffer, index=False)
-                csv_b64 = base64.b64encode(csv_buffer.getvalue().encode()).decode()
-                csv_link = f'<a href="data:file/csv;base64,{csv_b64}" download="match_log.csv">Download Match Log CSV</a>'
-                st.markdown(csv_link, unsafe_allow_html=True)
+                    csv_buffer = io.StringIO()
+                    pd.DataFrame(match_log, columns=["Input Name", "Matched Name", "Match Score", "Status"]).to_csv(csv_buffer, index=False)
+                    csv_b64 = base64.b64encode(csv_buffer.getvalue().encode()).decode()
+                    csv_link = f'<a href="data:file/csv;base64,{csv_b64}" download="match_log.csv">📤 Download Match Log CSV</a>'
+                    st.markdown(csv_link, unsafe_allow_html=True)
 
-                del pdf_bytes, excel_bytes, updated_excel, df_log
+                del pdf_bytes, excel_bytes, updated_excel
                 gc.collect()
 
             except Exception as e:
