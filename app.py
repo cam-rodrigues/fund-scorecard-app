@@ -17,7 +17,7 @@ import gc
 
 # --- Page Config ---
 st.set_page_config(page_title="FidSync | Fund Status Tool", layout="wide")
-st.title("📊 FidSync | Fund Scorecard Status Tool")
+st.title("FidSync | Fund Scorecard Status Tool")
 
 # --- Excel formatting ---
 GREEN_FILL = PatternFill(fill_type="solid", start_color="C6EFCE", end_color="C6EFCE")
