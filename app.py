@@ -10,7 +10,7 @@ st.set_page_config(
 # --- SIDEBAR NAVIGATION ---
 st.sidebar.title("FidSync")
 
-# First group: help pages
+# Top section: Help & Info
 st.sidebar.markdown("**Info**")
 info_page = st.sidebar.radio(
     "",
@@ -19,10 +19,10 @@ info_page = st.sidebar.radio(
     key="info_page"
 )
 
-# Divider
+# Divider line
 st.sidebar.markdown("---")
 
-# Second group: tools
+# Bottom section: Core tools
 st.sidebar.markdown("**Tools**")
 tool_page = st.sidebar.radio(
     "",
@@ -32,26 +32,72 @@ tool_page = st.sidebar.radio(
 )
 
 # --- PAGE ROUTING ---
+
+# Info Pages
 if info_page == "About":
     st.title("About FidSync")
+
     st.markdown("""
-FidSync is an internal platform built to help wealth advisors extract, organize, and sync fund data quickly and reliably.  
-It automates scorecard updates, streamlines audits, and reduces manual tracking effort.
+FidSync is an internal web application built for our team to make working with fund documents easier and faster.
+
+Traditionally, updating fund scorecards means:
+- Reading through long PDF investment reports
+- Manually copying fund status data
+- Finding the correct cells in Excel templates
+- Hoping you didn’t miss anything
+
+**FidSync automates all of that.**  
+It reads the reports for you, finds the fund statuses, matches them to the right rows in Excel, and color-codes them with Pass/Fail — all in one click.
+
+It’s secure, internal-only, and designed specifically for wealth management workflows like ours.
+
+If you ever have questions, ideas, or issues — use the **User Requests** tab to get support.
 """)
 
 elif info_page == "How to Use":
     st.title("How to Use FidSync")
-    st.markdown("""
-**Fund Scorecard Tool**
-- Upload the relevant PDF and Excel files
-- Enter configuration options (sheet name, column, row, page range)
-- Click "Generate Scorecard" to extract and apply fund statuses
-- Download the updated Excel file
 
-**User Requests**
-- Use this form to suggest a new tool or improvement
+    st.markdown("""
+This guide walks you through using the **Fund Scorecard** tool.
+
+---
+
+### Step 1: Upload Files
+Upload:
+- A **fund report PDF** (usually 2–5 pages)
+- An **Excel template** (your firm's scorecard file)
+
+Make sure you're using the correct template — ask your manager if you're not sure.
+
+---
+
+### Step 2: Fill In the Form
+Enter:
+- The **sheet name** in the Excel file (usually "Scorecard")
+- The column name where statuses go (like `"Status"`)
+- The **first row** where fund data starts (like row `2`)
+- The **page range** in the PDF (where fund info appears)
+- The list of **fund names**, one per line (copy from Excel if needed)
+
+> Not sure what to put in? Ask a teammate or submit a question in the **User Requests** tab.
+
+---
+
+### Step 3: Generate Scorecard
+Click **"Generate Scorecard"**. The app will:
+- Extract the right data from the PDF
+- Match it to the fund names in the Excel
+- Fill in Pass/Fail with color-coding
+
+If everything looks good, download your updated Excel file.
+
+---
+
+### Need Something Else?
+Use the **User Requests** tab to submit feedback or request a new feature.
 """)
 
+# Tool Pages
 elif tool_page == "Fund Scorecard":
     fund_scorecard.run()
 
