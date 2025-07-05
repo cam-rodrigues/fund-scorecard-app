@@ -9,8 +9,12 @@ st.set_page_config(page_title="FidSync", layout="wide")
 st.markdown(
     """
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+        html, body, [class*='css']  {
+            font-family: 'Roboto', sans-serif;
+        }
         .block-container { padding: 2rem 2rem 2rem 2rem; }
-        h1, h2, h3, h4, h5, h6 { color: #003865; }
+        h1, h2, h3, h4, h5, h6 { color: #003865; font-weight: 700; }
         .stTextInput > label, .stNumberInput > label, .stTextArea > label, .stCheckbox > label {
             font-weight: 500;
         }
@@ -28,13 +32,15 @@ st.markdown(
             color: #6c757d;
         }
         .stButton > button {
-            background-color: #003865;
+            background: linear-gradient(90deg, #003865 0%, #005399 100%);
             color: white;
             font-size: 18px;
             padding: 0.4rem 1.25rem;
+            border-radius: 4px;
+            border: none;
         }
         .stButton > button:hover {
-            background-color: #005399;
+            background: linear-gradient(90deg, #005399 0%, #0070cc 100%);
         }
         footer { visibility: hidden; }
     </style>
@@ -54,7 +60,7 @@ page = st.sidebar.radio(
     label_visibility="collapsed",
 )
 
-st.sidebar.caption(f"Version 1.2 • Updated {datetime.today().strftime('%b %d, %Y')}")
+st.sidebar.caption(f"Version 1.3 • Updated {datetime.today().strftime('%b %d, %Y')}")
 
 # ======================
 #   ROUTING
