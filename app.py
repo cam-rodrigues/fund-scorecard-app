@@ -1,50 +1,50 @@
 import streamlit as st
 from datetime import datetime
-from pages.fund_scorecard import render_scorecard_tool
 
+# ======================
+#   PAGE CONFIG
+# ======================
 st.set_page_config(page_title="FidSync", layout="wide")
 
-# Sidebar Layout
+# ======================
+#   SIDEBAR NAVIGATION
+# ======================
 st.sidebar.title("FidSync")
 st.sidebar.markdown("---")
 st.sidebar.subheader("Navigate")
 page = st.sidebar.radio("", ["About FidSync", "How to Use", "Fund Scorecard"], label_visibility="collapsed")
+st.sidebar.markdown("---")
+st.sidebar.subheader("Tools")
+# Future tools will go here
 
 st.sidebar.caption(f"Version 1.1 • Updated {datetime.today().strftime('%b %d, %Y')}")
 
-# Route to page
+# ======================
+#   PAGE ROUTING
+# ======================
 if page == "About FidSync":
     st.title("About FidSync")
     st.markdown("""
-FidSync is a lightweight, secure platform for streamlining fund documentation workflows.
-It enables fast and accurate parsing of investment reports, efficient Excel updates, and is
-designed to scale with future tools for compliance, audits, and plan comparisons.
+FidSync streamlines fund documentation review, automates Excel scorecard updates, and lays the groundwork for upcoming compliance and audit workflows.
 
-**Current Capabilities:**
-- Fund Scorecard Parsing
-- Excel Status Updating
-
-**Coming Soon:**
-- Compliance Checks
-- Audit Log Tracking
-- Plan Comparisons
-    """)
+**Key Features:**
+- Automated fund matching using fuzzy logic
+- PDF-to-Excel status updates with conditional formatting
+- Future-ready structure for compliance tools, plan comparison, and audit logging
+""")
 
 elif page == "How to Use":
     st.title("How to Use FidSync")
     st.markdown("""
-**Step-by-Step Instructions:**
-1. Upload a Fund Scorecard PDF.
-2. Upload the Excel workbook.
-3. Specify the sheet name, starting row number, and starting column.
-4. Paste in a list of investment option names.
+**Step-by-step:**
+1. Go to **Fund Scorecard** from the sidebar.
+2. Upload your scorecard PDF and Excel workbook.
+3. Input sheet name, starting row, and column for status.
+4. Add each investment name on its own line.
 5. Click **Run Status Update** to extract and match.
-6. Download the updated Excel and optional match log.
 
-**Tips:**
-- PDF pages match the printed page numbers.
-- Use the Dry Run checkbox to test matches before writing anything to Excel.
+**Dry Run Option:** See what would change without editing the Excel file.
 """)
 
 elif page == "Fund Scorecard":
-    render_scorecard_tool()
+    from pages import fund_scorecard
