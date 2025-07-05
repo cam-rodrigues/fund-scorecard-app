@@ -130,10 +130,10 @@ def update_excel_with_status(pdf_bytes, excel_bytes, sheet_name, status_col, sta
 if page == "About FidSync":
     st.title("About FidSync")
     st.write("FidSync is a tool built to streamline fund documentation review, automate scorecard updates, and prepare for broader compliance tracking and plan analysis workflows.")
-        st.markdown("""
-        - Ready to scale with your needs.
-        - Secure and simple.")
-        """)
+    st.markdown("""
+    - Ready to scale with your needs.
+    - Secure and simple.")
+    """)
 elif page == "How to Use":
     st.title("How to Use FidSync")
     st.markdown("""
