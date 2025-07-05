@@ -41,7 +41,6 @@ page = st.sidebar.radio("",
     label_visibility="collapsed"
 )
 
-st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
 st.sidebar.caption(f"Version 1.2 • Updated {datetime.today().strftime('%b %d, %Y')}")
 
 # ======================
