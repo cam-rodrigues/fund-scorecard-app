@@ -9,7 +9,7 @@ def normalize_name(name):
 def extract_fund_status(pdf_bytes, start_page, end_page):
     fund_status = {}
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        for page_num in range(start_page - 1, end_page):  # Adjust for 1-based input
+        for page_num in range(start_page - 1, end_page):
             if page_num >= len(pdf.pages):
                 continue
             text = pdf.pages[page_num].extract_text() or ""
