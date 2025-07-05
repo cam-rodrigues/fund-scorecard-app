@@ -1,6 +1,6 @@
 # ============================== #
 #            FidSync            #
-#   Scorecard Automation Tool   #
+#   Fund Scorecard Status Tool  #
 # ============================== #
 
 import streamlit as st
@@ -16,60 +16,44 @@ from datetime import datetime
 import gc
 
 # --- Page Config ---
-st.set_page_config(page_title="FidSync", layout="wide")
+st.set_page_config(page_title="FidSync | Fund Scorecard Tool", layout="wide")
 
 # --- Sidebar Navigation ---
 st.sidebar.title("FidSync")
-page = st.sidebar.radio("Navigation", ["About FidSync", "Fund Scorecard Tool"])
-dark_mode = st.sidebar.checkbox("Enable Dark Mode")
+page = st.sidebar.radio("Navigate", ["About FidSync", "Fund Scorecard Tool"])
+st.sidebar.markdown("---")  # Separator line
 
-# Apply Dark Mode Style
-if dark_mode:
-    st.markdown(
-        """
-        <style>
-        html, body, [class*="css"]  {
-            background-color: #1E1E1E !important;
-            color: #FFFFFF !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-# === ABOUT PAGE ===
 if page == "About FidSync":
     st.title("Welcome to FidSync")
     st.markdown("""
-    FidSync is a professional tool designed to process Fund Scorecard PDFs, match investment statuses, and update Excel workbooks automatically.
+    FidSync is a secure web-based tool for updating investment fund statuses in Excel using PDF scorecards.
 
-    ### Current Features
-    - Extracts fund statuses from Scorecard PDFs
-    - Matches fund names using fuzzy logic
-    - Updates Excel cells with color-coded pass/fail results
-    - Dry Run mode for previewing updates
+    ### Features
+    - Extracts fund status from PDF
+    - Fuzzy matches fund names
+    - Updates Excel status cells with color-coded results
+    - Dry run mode for previewing results
 
-    ### Coming Soon
+    ### Roadmap
     - Compliance checks
     - Plan comparisons
     - Audit logs
 
-    ---
-    Built with Python + Streamlit • Version 1.1
+    Built with Streamlit.
     """)
+    st.caption("Version 1.1 • Last updated " + datetime.today().strftime('%b %d, %Y'))
     st.stop()
 
-# === SCORECARD TOOL PAGE ===
-
-# --- Excel Formatting Styles ---
+# --- Excel formatting ---
 GREEN_FILL = PatternFill(fill_type="solid", start_color="C6EFCE", end_color="C6EFCE")
 RED_FILL = PatternFill(fill_type="solid", start_color="FFC7CE", end_color="FFC7CE")
 
-# --- Utility Functions ---
+# --- Normalization ---
 def normalize_name(name):
     name = name.lower().translate(str.maketrans('', '', string.punctuation))
     return " ".join(name.split())
 
+# --- Extract statuses from PDF ---
 def extract_fund_status(pdf_bytes, start_page, end_page):
     fund_status = {}
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
@@ -89,6 +73,7 @@ def extract_fund_status(pdf_bytes, start_page, end_page):
                         fund_status[normalize_name(name)] = "Fail"
     return fund_status
 
+# --- Update Excel with PDF matches ---
 def update_excel_with_status(pdf_bytes, excel_bytes, sheet_name, status_col, start_row, fund_names, start_page, end_page, dry_run=False):
     fund_status_map = extract_fund_status(pdf_bytes, start_page, end_page)
     pdf_names = list(fund_status_map.keys())
@@ -123,7 +108,7 @@ def update_excel_with_status(pdf_bytes, excel_bytes, sheet_name, status_col, sta
     out_bytes.seek(0)
     return out_bytes, updated_count, match_log
 
-# --- Reset Button ---
+# --- Reset App Button ---
 if st.button("Reset App"):
     for key in ["sheet_name", "status_col", "start_row", "start_page", "end_page", "fund_names_input", "dry_run"]:
         if key in st.session_state:
@@ -132,26 +117,26 @@ if st.button("Reset App"):
 
 # --- Upload Form ---
 with st.form("upload_form"):
-    st.header("Fund Scorecard Status Tool")
-
+    st.header("Upload Files")
     pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type=["pdf"])
     excel_file = st.file_uploader("Upload Excel Workbook", type=["xlsx", "xlsm"])
 
+    st.header("Settings")
     col1, col2, col3 = st.columns(3)
     sheet_name = col1.text_input("Excel Sheet Name", key="sheet_name")
     status_col = col2.text_input("Column Letter for Status", key="status_col")
     start_row = col3.number_input("Starting Row Number", min_value=1, key="start_row")
 
     col4, col5 = st.columns(2)
-    start_page = col4.number_input("Start Page in PDF (0-indexed)", min_value=0, key="start_page")
-    end_page = col5.number_input("End Page in PDF (0-indexed)", min_value=0, key="end_page")
+    start_page = col4.number_input("Start Page in PDF (as shown in document)", min_value=1, key="start_page")
+    end_page = col5.number_input("End Page in PDF (as shown in document)", min_value=1, key="end_page")
 
     fund_names_input = st.text_area("Investment Option Names (One Per Line)", height=200, key="fund_names_input")
     dry_run = st.checkbox("Dry Run (preview only, no Excel changes)", value=False, key="dry_run")
 
     submitted = st.form_submit_button("Run Status Update")
 
-# --- Run Processing ---
+# --- Process Submitted Form ---
 if submitted:
     if not pdf_file or not excel_file:
         st.warning("Please upload both PDF and Excel files.")
@@ -168,7 +153,8 @@ if submitted:
 
                 updated_excel, count, match_log = update_excel_with_status(
                     pdf_bytes, excel_bytes, sheet_name, status_col,
-                    start_row, fund_names, start_page, end_page, dry_run
+                    start_row, fund_names, start_page - 1, end_page - 1,
+                    dry_run
                 )
 
                 if dry_run:
@@ -179,12 +165,10 @@ if submitted:
                     link = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="Updated_Investment_Status.xlsx">Download Updated Excel</a>'
                     st.markdown(link, unsafe_allow_html=True)
 
-                # Match Log
                 st.subheader("Match Log")
                 df_log = pd.DataFrame(match_log, columns=["Input Name", "Matched Name", "Match Score", "Status"])
                 st.dataframe(df_log)
 
-                # Log download
                 csv_buffer = io.StringIO()
                 df_log.to_csv(csv_buffer, index=False)
                 csv_b64 = base64.b64encode(csv_buffer.getvalue().encode()).decode()
@@ -195,9 +179,8 @@ if submitted:
                 gc.collect()
 
             except Exception as e:
-                st.error("Something went wrong. Please check:")
-                st.markdown("- PDF page range is valid\n- Sheet name is correct\n- Fund names are properly formatted")
+                st.error("Something went wrong. Please check your inputs.")
                 st.exception(e)
 
 # --- Footer ---
-st.sidebar.caption(f"FidSync • Updated {datetime.today().strftime('%b %d, %Y')}")
+st.sidebar.caption(f"Version 1.1 • Updated {datetime.today().strftime('%b %d, %Y')}")
