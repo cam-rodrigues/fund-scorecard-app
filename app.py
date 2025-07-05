@@ -1,5 +1,6 @@
 import streamlit as st
 from datetime import datetime
+from pages import fund_scorecard
 
 # ======================
 #   PAGE CONFIGURATION
@@ -85,3 +86,6 @@ elif page == "How to Use":
 
     You can add more tools over time — this app is built to grow.
     """)
+
+elif page == "Fund Scorecard":
+    fund_scorecard.show()
