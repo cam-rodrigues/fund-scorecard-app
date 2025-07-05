@@ -3,20 +3,22 @@ import pandas as pd
 import sys
 import os
 
-# 🔧 Make sure utils can be imported (works on Streamlit Cloud)
+# ✅ Fix import path for Streamlit Cloud
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from utils.excel_utils import update_excel_with_status
-from utils.pdf_utils import extract_data_from_pdf  # keep this if you're still using it
+
 
 def run():
     st.header("📊 Fund Scorecard")
     st.markdown("Upload a PDF and Excel file, and update the fund status columns based on matches.")
 
+    # --- File Upload Section ---
     with st.expander("🔍 Upload Files", expanded=True):
         pdf_file = st.file_uploader("Upload Fund PDF", type=["pdf"])
         excel_file = st.file_uploader("Upload Excel Template", type=["xlsx"])
 
+    # --- Configuration Section ---
     with st.expander("⚙️ Configuration", expanded=True):
         sheet_name = st.text_input("Sheet name in Excel", value="Scorecard")
         status_col = st.text_input("Column name for status updates", value="Status")
@@ -29,6 +31,7 @@ def run():
 
         dry_run = st.checkbox("Dry run (show results without saving to file)", value=False)
 
+    # --- Process Button ---
     if st.button("Generate Scorecard"):
         if not pdf_file or not excel_file:
             st.warning("Please upload both a PDF and an Excel file.")
