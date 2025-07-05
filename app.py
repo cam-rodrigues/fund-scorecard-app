@@ -1,15 +1,23 @@
-
 import streamlit as st
 import io
 import pdfplumber
-import pandas as pd
-from openpyxl import load_workbook
-from openpyxl.styles import PatternFill
-from rapidfuzz import process, fuzz
-import base64
-import string
-from datetime import datetime
-import gc
+# ... other imports ...
+
+# --- Include Procyon Font ---
+st.markdown(
+    """
+    <style>
+    @import url('https://db.onlinewebfonts.com/c/bd880a73463b23e880644f5a817c584f?family=Procyon+V2');
+    html, body, [class*="css"] {
+      font-family: 'Procyon V2', sans-serif;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# --- Page Setup ---
+st.set_page_config(page_title="FidSync", layout="wide")
 
 # --- Theme Control ---
 if "dark_mode" not in st.session_state:
