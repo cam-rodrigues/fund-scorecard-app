@@ -1,7 +1,11 @@
+# fund_scorecard.py
+
 import streamlit as st
 import pandas as pd
 import sys
 import os
+
+# --- Ensure project root is in Python path ---
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from utils.excel_utils import update_excel_with_template
