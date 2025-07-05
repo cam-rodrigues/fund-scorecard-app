@@ -2,53 +2,52 @@ import streamlit as st
 import io
 import base64
 import pandas as pd
+import gc
 from utils.pdf_utils import extract_fund_status
 from utils.excel_utils import update_excel_with_status
-import gc
 
-def render_scorecard_tool():
+# Sidebar route logic handled in app.py
+
+def show():
     st.title("Fund Scorecard Status Tool")
 
-    # Initialize session state values for form persistence
-    for key in ["sheet_name", "status_col", "start_row", "start_page", "end_page", "fund_names_input"]:
-        if key not in st.session_state:
-            st.session_state[key] = ""
-
-    # Reset Form Logic
+    # --- Reset Mechanism ---
     if st.button("Reset Form"):
-        for key in ["sheet_name", "status_col", "start_row", "start_page", "end_page", "fund_names_input"]:
-            st.session_state[key] = ""
-        st.session_state["pdf_file"] = None
-        st.session_state["excel_file"] = None
+        st.session_state.clear()
         st.experimental_rerun()
 
+    # --- Upload Form ---
     with st.form("upload_form"):
         st.subheader("Upload Files")
-        pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type=["pdf"], key="pdf_file")
-        excel_file = st.file_uploader("Upload Excel Workbook", type=["xlsx", "xlsm"], key="excel_file")
+        pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type=["pdf"], key="pdf")
+        excel_file = st.file_uploader("Upload Excel Workbook", type=["xlsx", "xlsm"], key="excel")
 
         st.subheader("Settings")
         col1, col2, col3 = st.columns(3)
-        sheet_name = col1.text_input("Excel Sheet Name", value=st.session_state.get("sheet_name", ""), key="sheet_name")
-        status_col = col2.text_input("Starting Column Letter", value=st.session_state.get("status_col", ""), key="status_col").strip().upper()
-        start_row = col3.number_input("Starting Row Number", min_value=1, value=int(st.session_state.get("start_row") or 1), key="start_row")
+        sheet_name = col1.text_input("Excel Sheet Name", value=st.session_state.get("sheet_name", ""))
+        status_col = col2.text_input("Starting Column Letter", value=st.session_state.get("status_col", "")).strip().upper()
+        start_row = col3.number_input("Starting Row Number", min_value=1, value=st.session_state.get("start_row", 1))
 
         col4, col5 = st.columns(2)
-        start_page = col4.number_input("Start Page in PDF", min_value=1, value=int(st.session_state.get("start_page") or 20), key="start_page")
-        end_page = col5.number_input("End Page in PDF", min_value=1, value=int(st.session_state.get("end_page") or 30), key="end_page")
+        start_page = col4.number_input("Start Page in PDF", min_value=1, value=st.session_state.get("start_page", 1))
+        end_page = col5.number_input("End Page in PDF", min_value=1, value=st.session_state.get("end_page", 1))
 
-        fund_names_input = st.text_area(
-            "Investment Option Names (One Per Line)",
-            value=st.session_state.get("fund_names_input", ""),
-            height=200,
-            key="fund_names_input"
-        )
-
-        dry_run = st.checkbox("Dry Run (preview only, don't update Excel)", value=False)
+        fund_names_input = st.text_area("Investment Option Names (One Per Line)", height=200,
+                                        value=st.session_state.get("fund_names_input", ""))
+        dry_run = st.checkbox("Dry Run (preview only, don't update Excel)", value=st.session_state.get("dry_run", False))
 
         submitted = st.form_submit_button("Run Status Update")
 
     if submitted:
+        # Save inputs to session state for persistence
+        st.session_state["sheet_name"] = sheet_name
+        st.session_state["status_col"] = status_col
+        st.session_state["start_row"] = start_row
+        st.session_state["start_page"] = start_page
+        st.session_state["end_page"] = end_page
+        st.session_state["fund_names_input"] = fund_names_input
+        st.session_state["dry_run"] = dry_run
+
         if not pdf_file or not excel_file:
             st.warning("Please upload both PDF and Excel files.")
         elif start_page > end_page:
@@ -72,6 +71,7 @@ def render_scorecard_tool():
                         st.info("Dry run complete. No changes were made to the Excel file.")
                     else:
                         st.success(f"Successfully updated {count} row(s).")
+
                         b64 = base64.b64encode(updated_excel.getvalue()).decode()
                         link = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="Updated_Investment_Status.xlsx">Download Updated Excel</a>'
                         st.markdown(link, unsafe_allow_html=True)
