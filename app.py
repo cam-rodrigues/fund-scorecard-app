@@ -9,26 +9,37 @@ st.set_page_config(
 
 # --- SIDEBAR NAVIGATION ---
 st.sidebar.title("FidSync")
-page = st.sidebar.radio(
-    "Navigation",
-    options=["Fund Scorecard", "User Requests", "About", "How to Use"]
+
+# First group: help pages
+st.sidebar.markdown("**Info**")
+info_page = st.sidebar.radio(
+    "",
+    options=["About", "How to Use"],
+    index=0,
+    key="info_page"
+)
+
+# Divider
+st.sidebar.markdown("---")
+
+# Second group: tools
+st.sidebar.markdown("**Tools**")
+tool_page = st.sidebar.radio(
+    "",
+    options=["Fund Scorecard", "User Requests"],
+    index=0,
+    key="tool_page"
 )
 
 # --- PAGE ROUTING ---
-if page == "Fund Scorecard":
-    fund_scorecard.run()
-
-elif page == "User Requests":
-    user_requests.run()
-
-elif page == "About":
+if info_page == "About":
     st.title("About FidSync")
     st.markdown("""
 FidSync is an internal platform built to help wealth advisors extract, organize, and sync fund data quickly and reliably.  
 It automates scorecard updates, streamlines audits, and reduces manual tracking effort.
 """)
 
-elif page == "How to Use":
+elif info_page == "How to Use":
     st.title("How to Use FidSync")
     st.markdown("""
 **Fund Scorecard Tool**
@@ -40,3 +51,9 @@ elif page == "How to Use":
 **User Requests**
 - Use this form to suggest a new tool or improvement
 """)
+
+elif tool_page == "Fund Scorecard":
+    fund_scorecard.run()
+
+elif tool_page == "User Requests":
+    user_requests.run()
