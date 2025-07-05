@@ -1,80 +1,14 @@
-# pages/fund_scorecard.py
 import streamlit as st
-import io
-import pdfplumber
-import pandas as pd
-from openpyxl import load_workbook
-from openpyxl.styles import PatternFill
-from rapidfuzz import process, fuzz
 import base64
-import string
+import io
 import gc
+import pandas as pd
+from utils.pdf_utils import extract_fund_status
+from utils.excel_utils import update_excel_with_status
 
-def render_fund_scorecard():
+def render_scorecard_tool():
     st.title("Fund Scorecard Status Tool")
 
-    # Excel formatting
-    GREEN_FILL = PatternFill(fill_type="solid", start_color="C6EFCE", end_color="C6EFCE")
-    RED_FILL = PatternFill(fill_type="solid", start_color="FFC7CE", end_color="FFC7CE")
-
-    def normalize_name(name):
-        name = name.lower().translate(str.maketrans('', '', string.punctuation))
-        return " ".join(name.split())
-
-    def extract_fund_status(pdf_bytes, start_page, end_page):
-        fund_status = {}
-        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-            for page_num in range(start_page - 1, end_page):  # adjust to actual page numbers
-                if page_num >= len(pdf.pages):
-                    continue
-                text = pdf.pages[page_num].extract_text() or ""
-                lines = text.split('\n')
-                for i, line in enumerate(lines):
-                    if "manager tenure" in line.lower() and i > 0:
-                        fund_line = lines[i - 1].strip()
-                        if "Fund Meets Watchlist Criteria." in fund_line:
-                            name = fund_line.split("Fund Meets Watchlist Criteria.")[0].strip()
-                            fund_status[normalize_name(name)] = "Pass"
-                        elif "Fund has been placed on watchlist" in fund_line:
-                            name = fund_line.split("Fund has been placed on watchlist")[0].strip()
-                            fund_status[normalize_name(name)] = "Fail"
-        return fund_status
-
-    def update_excel_with_status(pdf_bytes, excel_bytes, sheet_name, status_col, start_row, fund_names, start_page, end_page, dry_run=False):
-        fund_status_map = extract_fund_status(pdf_bytes, start_page, end_page)
-        pdf_names = list(fund_status_map.keys())
-        wb = load_workbook(io.BytesIO(excel_bytes))
-        if sheet_name not in wb.sheetnames:
-            raise ValueError(f"Sheet '{sheet_name}' not found.")
-        ws = wb[sheet_name]
-
-        updated_count = 0
-        match_log = []
-
-        for i, fund_name in enumerate(fund_names):
-            normalized = normalize_name(fund_name)
-            match = process.extractOne(normalized, pdf_names, scorer=fuzz.token_sort_ratio)
-            row = start_row + i
-            if match and match[1] >= 70:
-                matched_name, score = match
-                status = fund_status_map.get(matched_name)
-                if not dry_run:
-                    cell = ws[f"{status_col}{row}"]
-                    if cell.data_type != 'f':
-                        cell.value = status
-                        cell.fill = GREEN_FILL if status == "Pass" else RED_FILL if status == "Fail" else PatternFill()
-                        cell.number_format = 'General'
-                        updated_count += 1
-                match_log.append((fund_name, matched_name, score, status))
-            else:
-                match_log.append((fund_name, "No match", 0, "N/A"))
-
-        out_bytes = io.BytesIO()
-        wb.save(out_bytes)
-        out_bytes.seek(0)
-        return out_bytes, updated_count, match_log
-
-    # UI Form
     if st.button("Reset"):
         st.experimental_set_query_params(reset="true")
         st.experimental_rerun()
@@ -123,7 +57,6 @@ def render_fund_scorecard():
                         st.info("Dry run complete. No changes were made to the Excel file.")
                     else:
                         st.success(f"Successfully updated {count} row(s).")
-
                         b64 = base64.b64encode(updated_excel.getvalue()).decode()
                         link = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="Updated_Investment_Status.xlsx">Download Updated Excel</a>'
                         st.markdown(link, unsafe_allow_html=True)
