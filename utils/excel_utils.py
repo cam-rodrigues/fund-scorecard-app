@@ -1,7 +1,7 @@
-import io
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
 from rapidfuzz import process, fuzz
+import io
 
 GREEN_FILL = PatternFill(fill_type="solid", start_color="C6EFCE", end_color="C6EFCE")
 RED_FILL = PatternFill(fill_type="solid", start_color="FFC7CE", end_color="FFC7CE")
