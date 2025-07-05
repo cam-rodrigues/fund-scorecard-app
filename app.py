@@ -14,7 +14,6 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("Navigate")
 page = st.sidebar.radio("", ["About FidSync", "How to Use", "Fund Scorecard"], label_visibility="collapsed")
 st.sidebar.markdown("---")
-st.sidebar.subheader("Tools")
 # Future tools will go here
 
 st.sidebar.caption(f"Version 1.1 • Updated {datetime.today().strftime('%b %d, %Y')}")
