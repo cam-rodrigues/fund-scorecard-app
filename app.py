@@ -93,22 +93,51 @@ def update_excel_with_status(pdf_bytes, excel_bytes, sheet_name, status_col, sta
 # ======================
 if page == "About FidSync":
     st.title("About FidSync")
-    st.write("FidSync is a tool built to streamline fund documentation review, automate scorecard updates, and prepare for broader compliance tracking and plan analysis workflows.")
     st.markdown("""
-    - Ready to scale with your needs.
-    - Secure and simple.")
-    """)
+FidSync is a secure, cloud-based platform designed to automate and simplify fund monitoring, documentation tracking, and investment analysis workflows.
+
+#### What it does now:
+- Parses fund scorecard PDFs and extracts investment performance statuses.
+- Automatically updates Excel workbooks with fuzzy-matched fund names and results.
+- Provides a downloadable match log and Excel output for audit and reporting.
+
+#### What it's built for:
+- Fiduciary oversight and compliance workflows.
+- Analysts and consultants managing large volumes of fund data.
+- Teams looking to streamline manual reporting into a single, intuitive hub.
+
+FidSync is scalable by design and will soon support additional modules for:
+
+- 🛡️ Compliance checklist automation  
+- 📊 Plan benchmarking and comparisons  
+- 📁 Audit-ready activity logs
+""")
+
 elif page == "How to Use":
     st.title("How to Use FidSync")
     st.markdown("""
-    **Step-by-step:**
-    1. Upload your Fund Scorecard PDF and the Excel workbook.
-    2. Provide sheet name, starting row, and column for status updates.
-    3. Enter each investment name on a new line.
-    4. Run the update and download your updated file.
+Here’s how to get started using the **Fund Scorecard** tool:
 
-    **Dry Run Option:** Preview matches before committing changes.
-    """)
+#### Step 1: Upload your files
+- **PDF**: Upload the Fund Scorecard (usually generated from MPI).
+- **Excel**: Upload your master workbook that will receive the updated status values.
+
+#### Step 2: Configure settings
+- Enter the **worksheet name** (default is *Current Period*).
+- Choose the **starting row number** (usually 5).
+- Enter the **starting column letter** where statuses like “Pass” or “Fail” should appear.
+- Set the **start and end page numbers** of the scorecard section in the PDF.
+
+#### Step 3: Input fund names
+- Paste your investment options into the large text box — one fund name per line.
+- These are used to match against what's parsed from the PDF.
+
+#### Step 4: Run
+- Click **Run Status Update**.
+- You’ll receive a downloadable Excel file and a match log in CSV format.
+
+> ✅ **Dry Run Mode**: Check your matches without making changes to your Excel file.
+""")
 
 elif page == "Fund Scorecard":
     st.title("Fund Scorecard Status Tool")
