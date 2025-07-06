@@ -18,7 +18,7 @@ def similar(a, b):
 def run():
     st.header("Fund Scorecard")
 
-    # --- Full Help Section ---
+    # --- Help Section ---
     with st.expander("📘 How to Use This Tool", expanded=False):
         st.markdown("""
 The Fund Scorecard lets you:
@@ -146,7 +146,7 @@ Please paste them one per line in order.
                 st.dataframe(preview_df, use_container_width=True)
 
     # --- Step 4: Generate ---
-    dry_run = st.checkbox("Dry Run (Preview Only)", value=True)
+    dry_run = st.checkbox("Preview Only (Dry Run) — disables download", value=True)
 
     if st.button("Generate Scorecard"):
         if len(fund_names) != len(investment_options):
@@ -154,7 +154,9 @@ Please paste them one per line in order.
             return
 
         try:
+            progress = st.progress(0)
             with st.spinner("Processing your files..."):
+                progress.progress(30)
                 result_df = update_excel_with_template(
                     pdf_bytes=pdf_file.read(),
                     excel_bytes=excel_file.read(),
@@ -166,10 +168,11 @@ Please paste them one per line in order.
                     end_page=end_page,
                     dry_run=dry_run,
                 )
-                st.success("✅ Done!")
+                progress.progress(90)
+                st.success("✅ Preview generated successfully (no file created)." if dry_run else "✅ File updated successfully.")
                 st.dataframe(result_df)
-
                 if not dry_run:
+                    progress.progress(100)
                     st.download_button(
                         "Download Updated Excel",
                         data=result_df.to_excel(index=False, engine="openpyxl"),
