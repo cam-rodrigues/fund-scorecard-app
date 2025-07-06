@@ -10,7 +10,7 @@ def similar(a, b):
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 def run():
-    st.markdown("## 🎯 FidSync: Fund Scorecard")
+    st.markdown("## FidSync: Fund Scorecard")
 
     st.markdown("""
         <style>
@@ -91,7 +91,7 @@ def run():
             if len(fund_names) != len(investment_options):
                 st.warning(f"⚠️ Fund count ({len(fund_names)}) ≠ Investment options ({len(investment_options)}) — review before matching.")
             else:
-                st.success(f"✅ {len(fund_names)} funds matched {len(investment_options)} options.")
+                st.success(f" {len(fund_names)} funds matched {len(investment_options)} options.")
 
             if st.button("🔍 Run Match"):
                 matches = []
@@ -118,7 +118,7 @@ def run():
                 st.markdown("### 📊 Match Summary")
                 pass_count = sum(1 for m in matches if m["Status"] == "Pass")
                 fail_count = sum(1 for m in matches if m["Status"] == "Fail")
-                st.info(f"✅ Passed: {pass_count} | ❌ Failed: {fail_count} | Total: {len(matches)}")
+                st.info(f" Passed: {pass_count} | ❌ Failed: {fail_count} | Total: {len(matches)}")
 
                 st.markdown("### 🔍 Match Preview Table")
                 st.dataframe(
