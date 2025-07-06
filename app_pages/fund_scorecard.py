@@ -40,7 +40,7 @@ def run():
         start_page = st.number_input("Start Page in PDF", min_value=1)
         end_page = st.number_input("End Page in PDF", min_value=1)
 
-    # --- Fund Name Extraction and Investment Options Input ---
+    # --- Fund Name Extraction + Investment Options ---
     with st.expander("3. Fund Names + Investment Options"):
         extracted_names = []
         try:
@@ -58,24 +58,39 @@ def run():
 
             with col1:
                 st.markdown("**Fund Names Extracted from PDF**")
-                fund_names_input = st.text_area("Fund Names", "\n".join(unique_names), height=200)
+                fund_names_input = st.text_area(
+                    "Fund Names",
+                    "\n".join(unique_names),
+                    height=200
+                )
 
             with col2:
                 st.markdown("**Paste Investment Options from Excel**")
-                st.caption("ⓘ These must be pasted manually because investment option names can't be reliably extracted from the PDF.")
+                with st.expander("Why do I have to paste these manually?"):
+                    st.markdown("""
+Investment option names can’t be automatically pulled from Excel templates because:
+- They're often stored in merged cells
+- Their locations aren't consistent
+- There's no clear header or pattern
+
+To avoid incorrect matches, we ask you to copy them manually here — just one per line.
+""")
+
                 investment_input = st.text_area(
                     "Investment Options",
                     "",
                     height=200,
-                    help="Copy the list of investment option names from the Excel file. "
-                         "We can't extract these automatically because they aren’t clearly labeled or structured in the PDF."
+                    help="Copy/paste exactly one investment option per line. Match order with fund names shown on the left."
                 )
+
+                st.caption(f"📝 {len(investment_input.splitlines())} investment option(s) entered.")
 
             fund_names = [name.strip() for name in fund_names_input.splitlines() if name.strip()]
             investment_options = [opt.strip() for opt in investment_input.splitlines() if opt.strip()]
 
         except Exception as e:
             st.error("Failed to extract text from PDF. Try adjusting the page range.")
+            st.exception(e)
             st.stop()
 
     # --- Preview Mode ---
@@ -95,7 +110,7 @@ def run():
                     sheet_name=sheet_name,
                     status_col=start_col,
                     start_row=start_row,
-                    fund_names=investment_options,  # match using pasted options
+                    fund_names=investment_options,
                     start_page=start_page,
                     end_page=end_page,
                     dry_run=dry_run,
