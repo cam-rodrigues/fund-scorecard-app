@@ -33,10 +33,5 @@ def run():
                 Upload fund PDF reports, match them against your investment options, and output a clean Excel scorecard 
                 — all in a few clicks, without dealing with messy formulas or formatting.
             </p>
-            <hr style="margin: 2rem 0;">
-            <p>
-                Whether you're running due diligence, preparing for investment committee reviews, or just need to keep 
-                your documentation consistent, FidSync ensures you're ready — fast, clean, and error-free.
-            </p>
         </div>
     """, unsafe_allow_html=True)
