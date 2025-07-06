@@ -15,33 +15,37 @@ def similar(a, b):
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 
-def run():
-    st.title("FidSync Fund Scorecard")
+def show():
+    st.title("📊 FidSync Fund Scorecard")
     st.markdown(
-        "A clean, accurate way to extract fund names from PDF reports, align them with investment options, and update your Excel templates — no Excel hacks required."
+        """
+        A clean, professional-grade tool to extract fund names from PDF reports,
+        match them to investment options, and generate an Excel scorecard.
+
+        ---
+        """
     )
-    st.divider()
 
-    # ───────────────────────────────────────────────────────────────────────────────
-    # HELP SECTION
-    # ───────────────────────────────────────────────────────────────────────────────
-    with st.expander("ℹ️ How this tool works", expanded=False):
+    # ─────────────────────────────────────────────────────────────────────────────
+    # ⓘ Help / How it Works
+    # ─────────────────────────────────────────────────────────────────────────────
+    with st.expander("ℹ️ How this tool works"):
         st.markdown("""
-This app performs 3 core tasks:
-1. **Extracts fund names** from PDF reports (usually 30–40 pages)
-2. **Lets you paste or upload matching investment options**
-3. **Writes results** into a structured Excel scorecard
+        **FidSync** performs three core tasks:
+        1. 🔍 Extracts fund names from PDF reports (20–40 pages).
+        2. 🧩 Lets you paste or upload matching investment options.
+        3. 📈 Writes results into a structured Excel scorecard.
 
-> **Why do I need to paste investment options?**  
-They’re stored as **formulas** (e.g. `=A1`) and live in **merged** or **unpredictable cells** in Excel. That makes them hard to extract automatically.  
-Instead, just paste them — one per line — in the same order as the funds.
-""")
+        > **Why paste investment options?**  
+        They're stored as formulas (e.g. `=A1`) or spread across merged, inconsistent cells — making automatic extraction unreliable.  
+        Just paste one per line, in order.
+        """)
 
-    # ───────────────────────────────────────────────────────────────────────────────
-    # STEP 1: Upload Files
-    # ───────────────────────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 🗂 Step 1: Upload Files
+    # ─────────────────────────────────────────────────────────────────────────────
     with st.container():
-        st.subheader("Step 1: Upload Files")
+        st.subheader("🗂 Step 1: Upload Files")
         col1, col2 = st.columns(2)
         with col1:
             pdf_file = st.file_uploader("Upload PDF Report", type=["pdf"])
@@ -49,36 +53,32 @@ Instead, just paste them — one per line — in the same order as the funds.
             excel_file = st.file_uploader("Upload Excel Template", type=["xlsx"])
 
         if not pdf_file or not excel_file:
-            st.info("Please upload both files to proceed.")
+            st.info("Please upload both files to continue.")
             return
 
-    # ───────────────────────────────────────────────────────────────────────────────
-    # STEP 2: Configure Excel and PDF Settings
-    # ───────────────────────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────────────────
+    # ⚙️ Step 2: Configure Settings
+    # ─────────────────────────────────────────────────────────────────────────────
     with st.container():
-        st.subheader("Step 2: Configure Target Sheet")
+        st.subheader("⚙️ Step 2: Configure Sheet & Page Settings")
         col1, col2, col3 = st.columns(3)
-        with col1:
-            sheet_name = st.text_input("Excel Sheet Name")
-        with col2:
-            start_col = st.text_input("Start Column (e.g. B)", max_chars=1).upper().strip()
-            if start_col and (not start_col.isalpha() or len(start_col) != 1):
-                st.warning("Start Column must be a single letter.")
-                return
-        with col3:
-            start_row = st.number_input("Start Row", min_value=1, step=1)
+        sheet_name = col1.text_input("Excel Sheet Name")
+        start_col = col2.text_input("Start Column (e.g. B)", max_chars=1).upper().strip()
+        start_row = col3.number_input("Start Row", min_value=1, step=1)
+
+        if start_col and (not start_col.isalpha() or len(start_col) != 1):
+            st.warning("Start Column must be a single letter.")
+            return
 
         col4, col5 = st.columns(2)
-        with col4:
-            start_page = st.number_input("PDF Start Page", min_value=1, step=1)
-        with col5:
-            end_page = st.number_input("PDF End Page", min_value=1, step=1)
+        start_page = col4.number_input("PDF Start Page", min_value=1, step=1)
+        end_page = col5.number_input("PDF End Page", min_value=1, step=1)
 
-    # ───────────────────────────────────────────────────────────────────────────────
-    # STEP 3: Extract Fund Names from PDF
-    # ───────────────────────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 📤 Step 3: Extract Fund Names
+    # ─────────────────────────────────────────────────────────────────────────────
     with st.container():
-        st.subheader("Step 3: Extract Fund Names from PDF")
+        st.subheader("📤 Step 3: Extract Fund Names from PDF")
         fund_names = []
 
         try:
@@ -93,59 +93,58 @@ Instead, just paste them — one per line — in the same order as the funds.
             fund_names = sorted(set(fund_names))
             st.success(f"✅ {len(fund_names)} fund name(s) extracted.")
 
-            if st.checkbox("Edit Extracted Fund Names"):
-                raw_text = st.text_area("Fund Names", "\n".join(fund_names), height=180)
+            if st.checkbox("✏️ Edit Extracted Fund Names"):
+                raw_text = st.text_area("Edit Fund Names", "\n".join(fund_names), height=180)
                 fund_names = [line.strip() for line in raw_text.splitlines() if line.strip()]
         except Exception as e:
-            st.error("Failed to extract text from PDF. Please check the page range.")
+            st.error("❌ Failed to extract text from PDF.")
             st.exception(e)
             return
 
-    # ───────────────────────────────────────────────────────────────────────────────
-    # STEP 4: Add Investment Options
-    # ───────────────────────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────────────────
+    # ➕ Step 4: Provide Investment Options
+    # ─────────────────────────────────────────────────────────────────────────────
     with st.container():
-        st.subheader("Step 4: Provide Matching Investment Options")
-
-        input_mode = st.radio("Choose how to enter investment options:", ["Paste Manually", "Upload CSV"], horizontal=True)
+        st.subheader("➕ Step 4: Provide Matching Investment Options")
+        input_mode = st.radio("Input Method", ["Paste Manually", "Upload CSV"], horizontal=True)
         investment_options = []
 
         if input_mode == "Upload CSV":
-            csv_file = st.file_uploader("Upload CSV with Investment Options", type="csv")
+            csv_file = st.file_uploader("Upload CSV", type="csv")
             if csv_file:
                 try:
                     df = pd.read_csv(csv_file)
-                    selected_column = st.selectbox("Select Column Containing Options", df.columns)
+                    selected_column = st.selectbox("Select Column", df.columns)
                     investment_options = df[selected_column].dropna().astype(str).tolist()
-                    st.success(f"{len(investment_options)} options loaded from CSV.")
+                    st.success(f"✅ {len(investment_options)} options loaded.")
                 except Exception as e:
-                    st.error("Error reading CSV.")
+                    st.error("❌ Error reading CSV.")
                     st.exception(e)
         else:
-            with st.expander("Why manual paste?"):
+            with st.expander("💡 Why paste manually?"):
                 st.markdown("""
-- Excel stores investment names as **formulas** (not text)
-- Layout is inconsistent (merged or scattered cells)
-- We can't reliably extract them automatically
+                - Excel often stores data as formulas, not plain text.
+                - Layouts are unpredictable (merged cells, scattered rows).
+                - Manual paste is cleanest & safest.
 
-✅ Just paste one investment option per line, in the same order as the funds.
-""")
-            pasted = st.text_area("Paste One Option Per Line", "", height=180)
+                ✅ Just paste one investment option per line.
+                """)
+            pasted = st.text_area("Paste Options", "", height=180)
             investment_options = [line.strip() for line in pasted.splitlines() if line.strip()]
             if any(line.startswith("=") for line in investment_options):
-                st.warning("Looks like a formula — paste plain text instead.")
+                st.warning("⚠️ Looks like a formula — paste plain text instead.")
 
-    # ───────────────────────────────────────────────────────────────────────────────
-    # STEP 5: Preview Mapping
-    # ───────────────────────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 🔍 Step 5: Preview Mapping
+    # ─────────────────────────────────────────────────────────────────────────────
     if fund_names and investment_options:
         with st.container():
-            st.subheader("Step 5: Preview Fund Matches")
+            st.subheader("🔍 Step 5: Preview Fund Matches")
             if len(fund_names) != len(investment_options):
                 st.error(f"Mismatch: {len(fund_names)} fund names vs {len(investment_options)} options.")
                 preview = pd.DataFrame({
                     "Fund Name": fund_names,
-                    "Closest Match (Fuzzy)": [max(investment_options, key=lambda o: similar(f, o)) for f in fund_names]
+                    "Closest Match": [max(investment_options, key=lambda o: similar(f, o)) for f in fund_names]
                 })
             else:
                 preview = pd.DataFrame({
@@ -154,23 +153,22 @@ Instead, just paste them — one per line — in the same order as the funds.
                 })
             st.dataframe(preview, use_container_width=True)
 
-    # ───────────────────────────────────────────────────────────────────────────────
-    # STEP 6: Generate Scorecard
-    # ───────────────────────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────────────────
+    # ✅ Step 6: Generate Scorecard
+    # ─────────────────────────────────────────────────────────────────────────────
     with st.container():
-        st.subheader("Step 6: Generate Scorecard")
+        st.subheader("✅ Step 6: Generate Scorecard")
+        dry_run = st.checkbox("Dry Run (Preview Only)", value=True)
 
-        dry_run = st.checkbox("Dry Run (Preview only — does not modify Excel)", value=True)
-
-        if st.button("Generate Scorecard"):
+        if st.button("🚀 Generate"):
             if len(fund_names) != len(investment_options):
-                st.error("Number of funds and options must match.")
+                st.error("❌ Fund and option counts must match.")
                 return
 
             try:
                 progress = st.progress(0)
                 with st.spinner("Working..."):
-                    progress.progress(30)
+                    progress.progress(25)
                     result_df = update_excel_with_template(
                         pdf_bytes=pdf_file.read(),
                         excel_bytes=excel_file.read(),
@@ -183,17 +181,17 @@ Instead, just paste them — one per line — in the same order as the funds.
                         dry_run=dry_run,
                     )
                     progress.progress(90)
-                    st.success("✅ Scorecard ready!" if not dry_run else "✅ Preview complete.")
+                    st.success("✅ Done!" if not dry_run else "✅ Dry run complete.")
                     st.dataframe(result_df)
 
                     if not dry_run:
                         st.download_button(
-                            label="📥 Download Updated Excel",
+                            "📥 Download Excel",
                             data=result_df.to_excel(index=False, engine="openpyxl"),
                             file_name="updated_scorecard.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
                     progress.progress(100)
             except Exception as e:
-                st.error("Something went wrong.")
+                st.error("❌ Something went wrong.")
                 st.exception(e)
