@@ -60,7 +60,6 @@ You'll upload files, configure where to write data, and paste or upload the inve
     with st.expander("Step 3: Match Fund Names to Investment Options", expanded=True):
         fund_names = []
 
-        # Extract fund names from PDF
         try:
             with pdfplumber.open(pdf_file) as pdf:
                 text_lines = []
@@ -69,24 +68,21 @@ You'll upload files, configure where to write data, and paste or upload the inve
                     text = page.extract_text()
                     if text:
                         text_lines += [line.strip() for line in text.split("\n") if "fund" in line.lower()]
-
                 fund_names = sorted(set(text_lines))
 
-            st.caption(f"Extracted {len(fund_names)} fund name(s) from the PDF.")
-
-            show_funds = st.checkbox("Show/Edit Extracted Fund Names", value=True)
-            if show_funds:
-                fund_text = st.text_area("Fund Names", value="\n".join(fund_names), height=200)
+            st.caption(f"✅ Extracted {len(fund_names)} fund name(s) from PDF.")
+            if st.checkbox("Show/edit fund names", value=True):
+                fund_text = st.text_area("Fund Names (edit if needed)", value="\n".join(fund_names), height=200)
                 fund_names = [line.strip() for line in fund_text.splitlines() if line.strip()]
 
         except Exception as e:
-            st.error("Failed to extract fund names from the PDF.")
+            st.error("Failed to extract fund names from PDF.")
             st.exception(e)
             return
 
         # Investment Options Input
-        st.markdown("### Provide Investment Options")
-        method = st.radio("Choose Input Method", ["Paste Manually", "Upload CSV"], horizontal=True)
+        st.markdown("**Provide Investment Options**")
+        method = st.radio("", ["Paste Manually", "Upload CSV"], horizontal=True, label_visibility="collapsed")
 
         investment_options = []
 
@@ -95,36 +91,31 @@ You'll upload files, configure where to write data, and paste or upload the inve
             if csv_file:
                 try:
                     df = pd.read_csv(csv_file)
-                    col = st.selectbox("Select Column", df.columns)
+                    col = st.selectbox("Choose column with investment options", df.columns)
                     investment_options = df[col].dropna().astype(str).tolist()
                     st.success(f"Loaded {len(investment_options)} investment options from CSV.")
                 except Exception as e:
-                    st.error("Error reading the CSV file.")
+                    st.error("Could not read CSV.")
                     st.exception(e)
         else:
             with st.expander("Why do I have to paste these manually?"):
                 st.markdown("""
-Investment options can’t be auto-extracted from Excel because:
-- They’re often stored as **formulas** (e.g. `=A1`)
-- Layouts vary too much
-- Merged cells and inconsistent headers make detection unreliable
+Investment options can’t be pulled from Excel because:
+- They're often stored as **formulas** (like `=A1`)
+- Layouts vary, cells may be merged or headers missing
 
-To avoid incorrect matches, paste them here — **one per line**, in the same order as the fund names.
+So paste them here, one per line, in the same order as fund names.
 """)
-
-            options_text = st.text_area("Paste Investment Options", "", height=200, help="One per line, in the same order as fund names.")
+            options_text = st.text_area("Paste Investment Options", "", height=200, help="One per line.")
             investment_options = [line.strip() for line in options_text.splitlines() if line.strip()]
             if any(line.startswith("=") for line in investment_options):
                 st.warning("Some lines look like formulas. Paste plain text only.")
 
-        # --- Preview Match ---
+        # Preview
         if fund_names and investment_options:
-            st.markdown("### Match Preview")
-
+            st.markdown("**Preview Match**")
             if len(fund_names) != len(investment_options):
                 st.error(f"⚠️ Fund and option counts don’t match ({len(fund_names)} vs {len(investment_options)}).")
-                st.caption("We’ll show the closest match guesses below:")
-
                 preview_df = pd.DataFrame({
                     "Fund Name": fund_names,
                     "Closest Match": [
@@ -132,25 +123,24 @@ To avoid incorrect matches, paste them here — **one per line**, in the same or
                         for fund in fund_names
                     ]
                 })
-                st.dataframe(preview_df, use_container_width=True)
             else:
                 preview_df = pd.DataFrame({
                     "Fund Name": fund_names,
                     "Investment Option": investment_options
                 })
-                st.dataframe(preview_df, use_container_width=True)
+            st.dataframe(preview_df, use_container_width=True)
 
     # --- Step 4: Generate ---
     dry_run = st.checkbox("Preview Only (Dry Run) — disables download", value=True)
 
     if st.button("Generate Scorecard"):
         if len(fund_names) != len(investment_options):
-            st.error("Line mismatch — make sure every fund has one matching investment option.")
+            st.error("Fund name and option counts must match.")
             return
 
         try:
             progress = st.progress(0)
-            with st.spinner("Processing your files..."):
+            with st.spinner("Processing..."):
                 progress.progress(30)
                 result_df = update_excel_with_template(
                     pdf_bytes=pdf_file.read(),
