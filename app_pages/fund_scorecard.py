@@ -3,6 +3,7 @@ import pandas as pd
 import pdfplumber
 import os
 import sys
+import io
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -24,18 +25,11 @@ def run():
 
     # --- Configuration ---
     with st.expander("2. Configure Settings", expanded=True):
-        sheet_name = st.text_input("Excel Sheet Name", st.session_state.get("sheet_name", "Scorecard"))
-        status_col = st.text_input("Column Name for Status", st.session_state.get("status_col", "Status"))
-        start_row = st.number_input("Start Row (where data begins)", min_value=1, value=st.session_state.get("start_row", 2))
-        start_page = st.number_input("Start Page in PDF", min_value=1, value=st.session_state.get("start_page", 1))
-        end_page = st.number_input("End Page in PDF", min_value=1, value=st.session_state.get("end_page", 3))
-
-        # Save to session
-        st.session_state["sheet_name"] = sheet_name
-        st.session_state["status_col"] = status_col
-        st.session_state["start_row"] = start_row
-        st.session_state["start_page"] = start_page
-        st.session_state["end_page"] = end_page
+        sheet_name = st.text_input("Excel Sheet Name")
+        status_col = st.text_input("Column Name for Status")
+        start_row = st.number_input("Start Row (where data begins)", min_value=1)
+        start_page = st.number_input("Start Page in PDF", min_value=1)
+        end_page = st.number_input("End Page in PDF", min_value=1)
 
     # --- Extracted Fund Name Preview ---
     with st.expander("3. Preview Fund Names from PDF"):
@@ -90,4 +84,3 @@ def run():
             except Exception as e:
                 st.error("Something went wrong while generating the scorecard.")
                 st.exception(e)
-
