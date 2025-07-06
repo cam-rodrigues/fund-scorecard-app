@@ -82,7 +82,7 @@ To avoid errors, paste investment options manually — one per line in the same 
 
 📌 *Example:*
 Growth Fund A,
-Stable Value Option,
+Stable Value Option &
 International Equity Fund""")
 
             investment_input = st.text_area(
