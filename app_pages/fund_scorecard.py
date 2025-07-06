@@ -40,7 +40,7 @@ def run():
         start_page = st.number_input("Start Page in PDF", min_value=1)
         end_page = st.number_input("End Page in PDF", min_value=1)
 
-    # --- Fund Name Extraction ---
+    # --- Fund Name Extraction and Investment Options Input ---
     with st.expander("3. Fund Names + Investment Options"):
         extracted_names = []
         try:
@@ -59,9 +59,17 @@ def run():
             with col1:
                 st.markdown("**Fund Names Extracted from PDF**")
                 fund_names_input = st.text_area("Fund Names", "\n".join(unique_names), height=200)
+
             with col2:
-                st.markdown("**Paste Matching Investment Options**")
-                investment_input = st.text_area("Investment Options", "", height=200)
+                st.markdown("**Paste Investment Options from Excel**")
+                st.caption("ⓘ These must be pasted manually because investment option names can't be reliably extracted from the PDF.")
+                investment_input = st.text_area(
+                    "Investment Options",
+                    "",
+                    height=200,
+                    help="Copy the list of investment option names from the Excel file. "
+                         "We can't extract these automatically because they aren’t clearly labeled or structured in the PDF."
+                )
 
             fund_names = [name.strip() for name in fund_names_input.splitlines() if name.strip()]
             investment_options = [opt.strip() for opt in investment_input.splitlines() if opt.strip()]
@@ -73,7 +81,7 @@ def run():
     # --- Preview Mode ---
     dry_run = st.checkbox("Dry Run (preview changes only)", value=True)
 
-    # --- Generate ---
+    # --- Generate Button ---
     if st.button("Generate Scorecard"):
         if len(fund_names) != len(investment_options):
             st.error("The number of investment options must match the number of fund names.")
@@ -87,7 +95,7 @@ def run():
                     sheet_name=sheet_name,
                     status_col=start_col,
                     start_row=start_row,
-                    fund_names=investment_options,  # Use investment options for Excel match
+                    fund_names=investment_options,  # match using pasted options
                     start_page=start_page,
                     end_page=end_page,
                     dry_run=dry_run,
