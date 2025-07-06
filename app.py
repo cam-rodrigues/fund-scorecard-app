@@ -20,7 +20,7 @@ with st.sidebar:
 
 # --- Page Routing ---
 page_modules = {
-    "About FidSync": "app_pages.About_FidSync",    # file names should use underscores
+    "About FidSync": "app_pages.About_FidSync",
     "How to Use": "app_pages.How_to_Use",
     "Fund Scorecard": "app_pages.fund_scorecard"
 }
