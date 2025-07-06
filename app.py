@@ -2,31 +2,32 @@ import streamlit as st
 import importlib
 
 # --- Page Setup ---
-st.set_page_config(page_title="FidSync", layout="wide")
+st.set_page_config(page_title="FidSync", page_icon="🔄", layout="wide")
 
-# --- Sidebar Layout ---
+# --- Sidebar ---
 with st.sidebar:
-    # Use your logo — you can replace this URL with your hosted PNG if needed
     st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Sync_icon.svg/1200px-Sync_icon.svg.png", width=80)
-    st.markdown("### FidSync")
+    st.markdown("## FidSync")
     
+    # Ordered navigation
     page = st.selectbox(
-        "Navigate",
-        ("About FidSync", "How to Use", "Fund Scorecard")
+        "📂 Navigate",
+        options=["About FidSync", "How to Use", "Fund Scorecard"]
     )
 
     st.markdown("---")
     st.markdown("Built for clarity, trust, and automation.")
 
-# --- Dynamic Page Loading ---
+# --- Page Routing ---
 page_modules = {
-    "About FidSync": "app_pages.About FidSync",
-    "How to Use": "app_pages.How to Use",
+    "About FidSync": "app_pages.About_FidSync",    # file names should use underscores
+    "How to Use": "app_pages.How_to_Use",
     "Fund Scorecard": "app_pages.fund_scorecard"
 }
 
 try:
-    mod = importlib.import_module(page_modules[page])
+    module_name = page_modules[page]
+    mod = importlib.import_module(module_name)
     mod.run()
 except Exception as e:
-    st.error(f"Error loading page '{page}': {e}")
+    st.error(f"🚨 Error loading '{page}': {e}")
