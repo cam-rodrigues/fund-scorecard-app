@@ -81,8 +81,8 @@ We can't automatically extract investment option names from Excel because:
 To avoid errors, paste investment options manually — one per line in the same order as the fund names.
 
 📌 *Example:*
-Growth Fund A
-Stable Value Option
+Growth Fund A,
+Stable Value Option,
 International Equity Fund""")
 
             investment_input = st.text_area(
