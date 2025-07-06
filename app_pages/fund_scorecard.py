@@ -16,8 +16,11 @@ def run():
 
     # --- File Upload ---
     with st.expander("1. Upload Files", expanded=True):
-        pdf_file = st.file_uploader("Upload Fund PDF", type=["pdf"])
-        excel_file = st.file_uploader("Upload Excel Template", type=["xlsx"])
+        col1, col2 = st.columns(2)
+        with col1:
+            pdf_file = st.file_uploader("Upload Fund PDF", type=["pdf"], key="pdf_upload")
+        with col2:
+            excel_file = st.file_uploader("Upload Excel Template", type=["xlsx"], key="excel_upload")
 
     if not pdf_file or not excel_file:
         st.info("Please upload both a PDF and an Excel file to continue.")
@@ -26,7 +29,14 @@ def run():
     # --- Configuration ---
     with st.expander("2. Configure Settings", expanded=True):
         sheet_name = st.text_input("Excel Sheet Name")
-        status_col = st.text_input("Column Name for Status")
+        
+        # Only allow single letter for column input
+        raw_col = st.text_input("Start Column (e.g. 'B')", max_chars=1)
+        start_col = raw_col.upper().strip() if raw_col else ""
+        if raw_col and (not start_col.isalpha() or len(start_col) != 1):
+            st.warning("Please enter a single letter column (A-Z).")
+            start_col = ""
+
         start_row = st.number_input("Start Row (where data begins)", min_value=1)
         start_page = st.number_input("Start Page in PDF", min_value=1)
         end_page = st.number_input("End Page in PDF", min_value=1)
@@ -63,7 +73,7 @@ def run():
                     pdf_bytes=pdf_file.read(),
                     excel_bytes=excel_file.read(),
                     sheet_name=sheet_name,
-                    status_col=status_col,
+                    status_col=start_col,
                     start_row=start_row,
                     fund_names=fund_names,
                     start_page=start_page,
