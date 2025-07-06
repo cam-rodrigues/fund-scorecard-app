@@ -21,17 +21,12 @@ def run():
     # --- Help Section ---
     with st.expander("📘 How to Use This Tool", expanded=False):
         st.markdown("""
-The Fund Scorecard lets you:
+This tool helps you:
 - Extract fund names from a PDF
-- Manually or automatically match them to investment options
-- Update your Excel template with a pass/fail status
+- Match them to investment options (manually or from CSV)
+- Update an Excel template with pass/fail results
 
-**Why investment options can’t be extracted from Excel:**
-- They’re often formulas (`=A1`) instead of text
-- The layout is inconsistent (merged cells, scattered rows)
-- Headers may be missing
-
-So you’ll need to paste investment options manually — one per line in the same order as the funds.
+You'll upload files, configure where to write data, and paste or upload the investment option names.
 """)
 
     # --- Step 1: Upload Files ---
@@ -110,11 +105,11 @@ So you’ll need to paste investment options manually — one per line in the sa
             with st.expander("Why do I have to paste these manually?"):
                 st.markdown("""
 Investment options can’t be auto-extracted from Excel because:
-- They’re stored as **formulas** (e.g. `=A1`)
+- They’re often stored as **formulas** (e.g. `=A1`)
 - Layouts vary too much
-- Headers and cell formatting aren't consistent
+- Merged cells and inconsistent headers make detection unreliable
 
-Please paste them one per line in order.
+To avoid incorrect matches, paste them here — **one per line**, in the same order as the fund names.
 """)
 
             options_text = st.text_area("Paste Investment Options", "", height=200, help="One per line, in the same order as fund names.")
