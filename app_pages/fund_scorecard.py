@@ -30,7 +30,6 @@ def run():
     with st.expander("2. Configure Settings", expanded=True):
         sheet_name = st.text_input("Excel Sheet Name")
         
-        # Only allow single letter for column input
         raw_col = st.text_input("Start Column (e.g. 'B')", max_chars=1)
         start_col = raw_col.upper().strip() if raw_col else ""
         if raw_col and (not start_col.isalpha() or len(start_col) != 1):
@@ -41,8 +40,8 @@ def run():
         start_page = st.number_input("Start Page in PDF", min_value=1)
         end_page = st.number_input("End Page in PDF", min_value=1)
 
-    # --- Extracted Fund Name Preview ---
-    with st.expander("3. Preview Fund Names from PDF"):
+    # --- Fund Name Extraction ---
+    with st.expander("3. Fund Names + Investment Options"):
         extracted_names = []
         try:
             with pdfplumber.open(pdf_file) as pdf:
@@ -55,8 +54,17 @@ def run():
                                 extracted_names.append(line.strip())
 
             unique_names = sorted(set(extracted_names))
-            fund_names_input = st.text_area("Edit Fund Names (one per line)", "\n".join(unique_names))
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("**Fund Names Extracted from PDF**")
+                fund_names_input = st.text_area("Fund Names", "\n".join(unique_names), height=200)
+            with col2:
+                st.markdown("**Paste Matching Investment Options**")
+                investment_input = st.text_area("Investment Options", "", height=200)
+
             fund_names = [name.strip() for name in fund_names_input.splitlines() if name.strip()]
+            investment_options = [opt.strip() for opt in investment_input.splitlines() if opt.strip()]
 
         except Exception as e:
             st.error("Failed to extract text from PDF. Try adjusting the page range.")
@@ -65,8 +73,12 @@ def run():
     # --- Preview Mode ---
     dry_run = st.checkbox("Dry Run (preview changes only)", value=True)
 
-    # --- Run Button ---
+    # --- Generate ---
     if st.button("Generate Scorecard"):
+        if len(fund_names) != len(investment_options):
+            st.error("The number of investment options must match the number of fund names.")
+            return
+
         with st.spinner("Processing..."):
             try:
                 result_df = update_excel_with_template(
@@ -75,7 +87,7 @@ def run():
                     sheet_name=sheet_name,
                     status_col=start_col,
                     start_row=start_row,
-                    fund_names=fund_names,
+                    fund_names=investment_options,  # Use investment options for Excel match
                     start_page=start_page,
                     end_page=end_page,
                     dry_run=dry_run,
