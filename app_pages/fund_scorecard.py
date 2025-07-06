@@ -16,7 +16,7 @@ def similar(a, b):
 
 
 def run():
-    st.title("🧮 FidSync Fund Scorecard")
+    st.title("FidSync Fund Scorecard")
     st.markdown(
         "A clean, accurate way to extract fund names from PDF reports, align them with investment options, and update your Excel templates — no Excel hacks required."
     )
@@ -162,7 +162,7 @@ Instead, just paste them — one per line — in the same order as the funds.
 
         dry_run = st.checkbox("Dry Run (Preview only — does not modify Excel)", value=True)
 
-        if st.button("🚀 Generate Scorecard"):
+        if st.button("Generate Scorecard"):
             if len(fund_names) != len(investment_options):
                 st.error("Number of funds and options must match.")
                 return
