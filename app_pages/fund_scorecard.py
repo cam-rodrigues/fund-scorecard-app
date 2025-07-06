@@ -5,6 +5,7 @@ import os
 import sys
 import io
 
+# Add utils path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from utils.excel_utils import update_excel_with_template
@@ -29,7 +30,7 @@ def run():
     # --- Configuration ---
     with st.expander("2. Configure Settings", expanded=True):
         sheet_name = st.text_input("Excel Sheet Name")
-        
+
         raw_col = st.text_input("Start Column (e.g. 'B')", max_chars=1)
         start_col = raw_col.upper().strip() if raw_col else ""
         if raw_col and (not start_col.isalpha() or len(start_col) != 1):
@@ -40,64 +41,73 @@ def run():
         start_page = st.number_input("Start Page in PDF", min_value=1)
         end_page = st.number_input("End Page in PDF", min_value=1)
 
-    # --- Fund Name Extraction + Investment Options ---
-    with st.expander("3. Fund Names + Investment Options"):
+    # --- Fund Matching Section ---
+    with st.expander("3. Match Fund Names with Investment Options", expanded=True):
         extracted_names = []
+        fund_names = []
+        investment_options = []
+
         try:
             with pdfplumber.open(pdf_file) as pdf:
-                pages = pdf.pages[int(start_page)-1:int(end_page)]
+                pages = pdf.pages[int(start_page) - 1:int(end_page)]
                 for page in pages:
                     text = page.extract_text()
                     if text:
                         for line in text.split("\n"):
                             if "fund" in line.lower() and len(line.strip()) < 80:
                                 extracted_names.append(line.strip())
+            fund_names = sorted(set(extracted_names))
 
-            unique_names = sorted(set(extracted_names))
-            col1, col2 = st.columns(2)
+            st.subheader("📄 Extracted Fund Names from PDF")
+            fund_names_input = st.text_area(
+                "Fund Names",
+                "\n".join(fund_names),
+                height=200,
+                key="fund_names_input"
+            )
+            fund_names = [name.strip() for name in fund_names_input.splitlines() if name.strip()]
+            st.caption(f"{len(fund_names)} fund name(s) listed.")
 
-            with col1:
-                st.markdown("**Fund Names Extracted from PDF**")
-                fund_names_input = st.text_area(
-                    "Fund Names",
-                    "\n".join(unique_names),
-                    height=200
-                )
-
-            with col2:
-                st.markdown("**Paste Investment Options from Excel**")
-                with st.expander("Why do I have to paste these manually?"):
-                    st.markdown("""
+            st.subheader("📋 Paste Investment Options from Excel")
+            with st.expander("Why do I have to paste these manually?"):
+                st.markdown("""
 We can't automatically extract investment option names from Excel because:
 
-- The names are often stored as **formulas** (like `=A1`) instead of plain text, which this app can’t read
-- The layout of the Excel files is often inconsistent
-- Headers are missing or unclear
-- Cells may be **merged** or scattered across the sheet
+- The names are often stored as **formulas** (like `=A1`) instead of plain text  
+- The layout of Excel files is inconsistent  
+- Headers may be missing or unclear  
+- Cells may be **merged** or scattered  
 
-To ensure accuracy, please paste the investment options manually — one per line, in the same order as the fund names.
+To avoid errors, paste investment options manually — one per line in the same order as the fund names.
 
-📌 *Example from Excel:*
+📌 *Example:*
 Growth Fund A
 Stable Value Option
 International Equity Fund""")
 
-                investment_input = st.text_area(
-                    "Investment Options",
-                    "",
-                    height=200,
-                    help="Paste exactly one investment option per line. Match the order of fund names shown on the left."
-                )
+            investment_input = st.text_area(
+                "Investment Options",
+                "",
+                height=200,
+                help="Paste one option per line, matching the order of fund names."
+            )
+            investment_options = [line.strip() for line in investment_input.splitlines() if line.strip()]
+            st.caption(f"{len(investment_options)} investment option(s) entered.")
 
-                # 🧠 Live Count and Formula Warning
-                investment_lines = [line.strip() for line in investment_input.splitlines() if line.strip()]
-                st.caption(f"📝 {len(investment_lines)} investment option(s) entered.")
+            if any(line.startswith("=") for line in investment_options):
+                st.warning("Some lines look like Excel formulas (e.g. `=A1`). Please paste plain text instead.")
 
-                if any(line.startswith("=") for line in investment_lines):
-                    st.warning("Some lines look like Excel formulas (e.g. `=A1`). Please paste plain text instead.")
-
-            fund_names = [name.strip() for name in fund_names_input.splitlines() if name.strip()]
-            investment_options = investment_lines
+            # --- Preview Table ---
+            if fund_names and investment_options:
+                st.subheader("🔍 Preview Match")
+                if len(fund_names) != len(investment_options):
+                    st.error("Mismatch: Fund names and investment options must have the same number of lines.")
+                else:
+                    preview_df = pd.DataFrame({
+                        "Fund Name": fund_names,
+                        "Investment Option": investment_options
+                    })
+                    st.dataframe(preview_df, use_container_width=True)
 
         except Exception as e:
             st.error("Failed to extract text from PDF. Try adjusting the page range.")
@@ -140,5 +150,3 @@ International Equity Fund""")
             except Exception as e:
                 st.error("Something went wrong while generating the scorecard.")
                 st.exception(e)
-
-
