@@ -1,39 +1,28 @@
 import streamlit as st
 
 def run():
-    st.title("📖 How to Use FidSync")
+    st.title("How to Use FidSync")
 
     st.markdown("""
-    Follow these 3 simple steps to update your fund scorecard:
+    ### Step-by-Step Guide
+
+    **1. Upload Your Files**
+    - Upload your PDF report (e.g., MPI, Mercer)
+    - Upload your Excel workbook for scorecard updates
+
+    **2. Select Page Range**
+    - Choose the page numbers from the PDF where fund names appear
+
+    **3. Input Investment Options**
+    - Paste one option per line _or_ upload a CSV with a single column
+    - Ensure the order matches the funds extracted
+
+    **4. Run the Scorecard**
+    - Review matched results
+    - Download your updated Excel workbook
 
     ---
-    ### 1️⃣ Upload Your Files
-    - **PDF Report** (e.g., MPI, Callan, Mercer): Contains fund names.
-    - **Excel Template**: Your customized workbook where Pass/Fail logic will be applied.
-
-    ---
-    ### 2️⃣ Set the Page Range
-    - Choose the **start** and **end** pages from your PDF where fund names appear.
-
-    ---
-    ### 3️⃣ Provide Investment Options
-    You must supply the investment options manually:
-    - ✍️ **Paste**: One per line
-    - 📁 **Upload**: A CSV with a single column
-
-    These should follow the **same order** as the extracted fund names.
-
-    ---
-    After clicking **“🚀 Run Scorecard”**, you’ll be able to:
-    - ✅ Preview the fund–option pairs
-    - 📥 Download your updated Excel file
-
-    ---
-    ⚠️ **Important**
-    - Investment options **cannot** be extracted automatically from Excel or PDF.
-    - This is due to inconsistent formatting: formulas, merged cells, or scattered layouts.
-    - You must input or upload them **manually each time**.
-
-    ---
-    📬 Need help? Reach out to the FidSync team or submit feedback (feature coming soon).
+    ### Important Notes
+    - Investment options cannot be auto-extracted due to layout inconsistencies in Excel/PDFs
+    - You must manually input or upload them in the correct order for each session
     """)
