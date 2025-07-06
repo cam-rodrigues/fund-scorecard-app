@@ -6,30 +6,34 @@ def run():
     st.markdown("""
     Follow these 3 simple steps to update your fund scorecard:
 
+    ---
     ### 1️⃣ Upload Your Files
-    - **PDF Report**: This is usually a fund report like MPI or other investment research.
-    - **Excel Template**: Your formatted workbook that will receive the updated Pass/Fail statuses.
-
-    ### 2️⃣ Set Page Range
-    - Select the **start** and **end** page numbers from the PDF where the fund names appear.
-
-    ### 3️⃣ Input Investment Options
-    - You can either:
-        - **Paste** one option per line
-        - **Upload** a simple CSV with a single column
-    - These should be in the same order as the fund names in the PDF.
+    - **PDF Report** (e.g., MPI, Callan, Mercer): Contains fund names.
+    - **Excel Template**: Your customized workbook where Pass/Fail logic will be applied.
 
     ---
-    After clicking **"Run Scorecard"**, you'll be able to:
-    - Preview the matches
-    - Download the updated Excel file with Pass/Fail flags
+    ### 2️⃣ Set the Page Range
+    - Choose the **start** and **end** pages from your PDF where fund names appear.
 
     ---
-    ⚠️ **Important Notes**
-    - The tool does not extract investment options from Excel or PDF automatically.
-    - This is because investment options are often in formulas, inconsistent layouts, or scattered cells.
-    - That’s why you need to input or upload them manually — once per run.
+    ### 3️⃣ Provide Investment Options
+    You must supply the investment options manually:
+    - ✍️ **Paste**: One per line
+    - 📁 **Upload**: A CSV with a single column
+
+    These should follow the **same order** as the extracted fund names.
 
     ---
-    Need help? Reach out to the FidSync team or submit a request on the "User Requests" tab (coming soon).
+    After clicking **“🚀 Run Scorecard”**, you’ll be able to:
+    - ✅ Preview the fund–option pairs
+    - 📥 Download your updated Excel file
+
+    ---
+    ⚠️ **Important**
+    - Investment options **cannot** be extracted automatically from Excel or PDF.
+    - This is due to inconsistent formatting: formulas, merged cells, or scattered layouts.
+    - You must input or upload them **manually each time**.
+
+    ---
+    📬 Need help? Reach out to the FidSync team or submit feedback (feature coming soon).
     """)
