@@ -2,21 +2,24 @@ import streamlit as st
 
 def run():
     st.title("📘 About FidSync")
+
     st.markdown("""
-    **FidSync** is a modern investment data toolkit designed for fund analysts, financial advisors, and institutions.
+    **FidSync** is a smart investment toolkit designed for fund analysts, financial advisors, and institutional consultants.
 
-    Our mission is to simplify and standardize:
+    ---
+    ### 🎯 Our Mission
+    To simplify and standardize:
     - 🔍 Extracting fund names from professional PDF reports
-    - ✅ Matching them against investment options
-    - 📈 Updating Excel scorecards automatically
+    - ✅ Matching them to your investment options
+    - 📈 Updating Excel scorecards automatically and accurately
 
     ---
-    **Why FidSync?**
+    ### 🚀 Why FidSync?
     - No messy Excel formulas
-    - No manual copy/paste
-    - Fully auditable updates
-    - Intuitive UI for both beginners and professionals
+    - No manual copy/paste errors
+    - Fully auditable output
+    - Intuitive UI for both beginners and power users
 
     ---
-    Developed with 💼 precision and 🌐 clarity in mind.
+    Built with 💼 precision and 🌐 clarity in mind.
     """)
