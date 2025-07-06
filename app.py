@@ -2,21 +2,20 @@ import streamlit as st
 import importlib
 
 # --- Page Setup ---
-st.set_page_config(page_title="FidSync", page_icon="🔄", layout="wide")
+st.set_page_config(page_title="FidSync", layout="wide")
 
 # --- Sidebar ---
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Sync_icon.svg/1200px-Sync_icon.svg.png", width=80)
     st.markdown("## FidSync")
-    
-    # Ordered navigation
+    st.caption("Built for clarity, trust, and automation.")
+
     page = st.selectbox(
-        "📂 Navigate",
+        "Navigation",
         options=["About FidSync", "How to Use", "Fund Scorecard"]
     )
 
     st.markdown("---")
-    st.markdown("Built for clarity, trust, and automation.")
+    st.caption("© 2025 FidSync Technologies")
 
 # --- Page Routing ---
 page_modules = {
@@ -26,8 +25,7 @@ page_modules = {
 }
 
 try:
-    module_name = page_modules[page]
-    mod = importlib.import_module(module_name)
+    mod = importlib.import_module(page_modules[page])
     mod.run()
 except Exception as e:
-    st.error(f"🚨 Error loading '{page}': {e}")
+    st.error(f"Error loading page '{page}': {e}")
