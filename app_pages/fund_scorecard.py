@@ -18,6 +18,60 @@ def similar(a, b):
 def run():
     st.header("Fund Scorecard")
 
+    with st.expander("📘 How to Use the Fund Scorecard Tool", expanded=False):
+        st.markdown("""
+The Fund Scorecard helps you sync fund names from PDF reports with investment options in Excel templates — used for compliance or reporting.
+
+---
+
+### 1. Upload Required Files
+You must upload:
+- 📄 A **PDF** fund report (30–40 pages)
+- 📊 An **Excel** template to update
+
+---
+
+### 2. Configure Matching Parameters
+Set:
+- **Sheet Name**: Which Excel tab to update  
+- **Start Column**: Where to write 'Start' values (e.g., B)  
+- **Start Row**: Which row contains the first data  
+- **PDF Page Range**: Pages to extract fund names from
+
+---
+
+### 3. Match Fund Names with Investment Options
+
+📄 Fund names are pulled from the PDF.  
+📋 Investment options must be **pasted manually** or uploaded via CSV.
+
+> Why can't the app read investment options from Excel?
+- They're often stored as formulas (`=A1`)
+- Layouts are inconsistent
+- Merged cells or missing headers break detection
+
+Paste **one per line** in the same order as the fund names.
+
+---
+
+### Mismatch Preview
+If your fund name and investment option counts differ:
+- You'll see a warning
+- We'll show the **closest matching guesses** to help troubleshoot
+
+---
+
+### Dry Run Mode
+Use this to preview changes before updating Excel.
+
+---
+
+### Download Result
+If the preview looks good, hit **Generate**.  
+You’ll get a download link to your updated Excel scorecard.
+        """)
+
+
     # --- Upload Files ---
     with st.expander("1. Upload Required Files", expanded=True):
         col1, col2 = st.columns(2)
