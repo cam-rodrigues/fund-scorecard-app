@@ -80,7 +80,7 @@ Need help? Use the **User Requests** tab.
 """)
 
 elif page == "Tool: Fund Scorecard":
-    fund_scorecard.run()
+    fund_scorecard.show()
 
 elif page == "Tool: User Requests":
     user_requests.run()
