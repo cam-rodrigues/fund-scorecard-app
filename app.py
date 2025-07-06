@@ -21,7 +21,7 @@ st.markdown(
 )
 
 # === Sidebar Navigation ===
-st.sidebar.title("📘 Navigation")
+st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["About FidSync", "How to Use", "Fund Scorecard"])
 
 # === Dynamic Page Loader ===
