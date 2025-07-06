@@ -78,4 +78,67 @@ We can't automatically extract investment option names from Excel because:
 To ensure accuracy, please paste the investment options manually — one per line, in the same order as the fund names.
 
 📌 *Example from Excel:*
+Growth Fund A
+Stable Value Option
+International Equity Fund""")
+
+                investment_input = st.text_area(
+                    "Investment Options",
+                    "",
+                    height=200,
+                    help="Paste exactly one investment option per line. Match the order of fund names shown on the left."
+                )
+
+                # 🧠 Live Count and Formula Warning
+                investment_lines = [line.strip() for line in investment_input.splitlines() if line.strip()]
+                st.caption(f"📝 {len(investment_lines)} investment option(s) entered.")
+
+                if any(line.startswith("=") for line in investment_lines):
+                    st.warning("Some lines look like Excel formulas (e.g. `=A1`). Please paste plain text instead.")
+
+            fund_names = [name.strip() for name in fund_names_input.splitlines() if name.strip()]
+            investment_options = investment_lines
+
+        except Exception as e:
+            st.error("Failed to extract text from PDF. Try adjusting the page range.")
+            st.exception(e)
+            st.stop()
+
+    # --- Preview Mode ---
+    dry_run = st.checkbox("Dry Run (preview changes only)", value=True)
+
+    # --- Generate Button ---
+    if st.button("Generate Scorecard"):
+        if len(fund_names) != len(investment_options):
+            st.error("The number of investment options must match the number of fund names.")
+            return
+
+        with st.spinner("Processing..."):
+            try:
+                result_df = update_excel_with_template(
+                    pdf_bytes=pdf_file.read(),
+                    excel_bytes=excel_file.read(),
+                    sheet_name=sheet_name,
+                    status_col=start_col,
+                    start_row=start_row,
+                    fund_names=investment_options,
+                    start_page=start_page,
+                    end_page=end_page,
+                    dry_run=dry_run,
+                )
+
+                st.success("Done! See preview below." if dry_run else "File updated successfully.")
+                st.dataframe(result_df, use_container_width=True)
+
+                if not dry_run:
+                    st.download_button(
+                        label="Download Updated Excel",
+                        data=result_df.to_excel(index=False, engine="openpyxl"),
+                        file_name="updated_scorecard.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+            except Exception as e:
+                st.error("Something went wrong while generating the scorecard.")
+                st.exception(e)
+
 
