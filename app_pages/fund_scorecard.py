@@ -82,7 +82,7 @@ def run():
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # === Preview and Match ===
+    # === Match Logic ===
     if pdf_file and investment_options:
         try:
             pdf_data = io.BytesIO(pdf_file.read())
