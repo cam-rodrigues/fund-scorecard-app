@@ -1,20 +1,22 @@
 import streamlit as st
 
-st.title("About FidSync")
+def run():
+    st.title("📘 About FidSync")
+    st.markdown("""
+    **FidSync** is a modern investment data toolkit designed for fund analysts, financial advisors, and institutions.
 
-st.markdown("""
-FidSync is an internal web application built for our team to make working with fund documents easier and faster.
+    Our mission is to simplify and standardize:
+    - 🔍 Extracting fund names from professional PDF reports
+    - ✅ Matching them against investment options
+    - 📈 Updating Excel scorecards automatically
 
-Traditionally, updating fund scorecards means:
-- Reading through long PDF investment reports
-- Manually copying fund status data
-- Finding the correct cells in Excel templates
-- Hoping you didn’t miss anything
+    ---
+    **Why FidSync?**
+    - No messy Excel formulas
+    - No manual copy/paste
+    - Fully auditable updates
+    - Intuitive UI for both beginners and professionals
 
-**FidSync automates all of that.**  
-It reads the reports for you, finds the fund statuses, matches them to the right rows in Excel, and color-codes them with Pass/Fail — all in one click.
-
-It’s secure, internal-only, and designed specifically for wealth management workflows like ours.
-
-If you ever have questions, ideas, or issues — use the **User Requests** tab to get support.
-""")
+    ---
+    Developed with 💼 precision and 🌐 clarity in mind.
+    """)
