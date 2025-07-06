@@ -1,31 +1,32 @@
 import streamlit as st
-import importlib
+from pages import About_FidSync, How_to_Use, fund_scorecard
 
-# --- Page Setup ---
-st.set_page_config(page_title="FidSync", layout="wide")
+# === PAGE CONFIGURATION ===
+st.set_page_config(
+    page_title="FidSync",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# --- Sidebar ---
-with st.sidebar:
-    st.markdown("## FidSync")
-    st.caption("Built for clarity, trust, and automation.")
+# === LOGO + HEADER ===
+st.markdown(
+    """
+    <div style="display: flex; align-items: center; gap: 1rem;">
+        <img src="https://i.imgur.com/VB0K4JG.png" alt="FidSync Logo" width="48"/>
+        <h1 style="margin-bottom: 0;">FidSync</h1>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-    page = st.selectbox(
-        "Navigation",
-        options=["About FidSync", "How to Use", "Fund Scorecard"]
-    )
+# === SIDEBAR NAVIGATION ===
+st.sidebar.title("📘 Navigation")
+page = st.sidebar.radio("Go to", ["About FidSync", "How to Use", "Fund Scorecard"])
 
-    st.markdown("---")
-    st.caption("© 2025 FidSync Technologies")
-
-# --- Page Routing ---
-page_modules = {
-    "About FidSync": "app_pages.About_FidSync",
-    "How to Use": "app_pages.How_to_Use",
-    "Fund Scorecard": "app_pages.fund_scorecard"
-}
-
-try:
-    mod = importlib.import_module(page_modules[page])
-    mod.run()
-except Exception as e:
-    st.error(f"Error loading page '{page}': {e}")
+# === RENDER SELECTED PAGE ===
+if page == "About FidSync":
+    About_FidSync.run()
+elif page == "How to Use":
+    How_to_Use.run()
+elif page == "Fund Scorecard":
+    fund_scorecard.run()
