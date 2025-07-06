@@ -1,13 +1,14 @@
 [theme]
-base = "light"
-primaryColor = "#1F4E79"
-backgroundColor = "#F9FBFC"
-secondaryBackgroundColor = "#E8F0F9"
-textColor = "#1A1A1A"
+primaryColor = "#1E3A8A"         # Deep blue
+backgroundColor = "#F9FAFB"      # Soft gray
+secondaryBackgroundColor = "#E5E7EB"  # Slight contrast
+textColor = "#111827"            # Very dark gray (not pure black)
 font = "sans serif"
 
 [server]
-headless = true
 runOnSave = true
-enableCORS = false
-enableXsrfProtection = false
+
+[client]
+showSidebarNavigation = true
+toolbarMode = "minimal"
+showErrorDetails = true
