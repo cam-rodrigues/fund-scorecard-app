@@ -1,70 +1,47 @@
-import pandas as pd
-import io
 import openpyxl
-from difflib import get_close_matches
-import pdfplumber
+from openpyxl.styles import PatternFill
+import pandas as pd
+from typing import Union
 
-def update_excel_with_template(
-    pdf_bytes,
-    excel_bytes,
-    sheet_name,
-    status_col,
-    start_row,
-    fund_names,
-    start_page,
-    end_page,
-    dry_run=False
-):
-    # Extract PDF text
-    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        text = ""
-        for page in pdf.pages[start_page - 1:end_page]:
-            text += page.extract_text() + "\n"
 
-    # Match fund names and assign Pass/Fail
-    matches = {}
-    for name in fund_names:
-        match = get_close_matches(name, text.splitlines(), n=1, cutoff=0.5)
-        matches[name] = "Pass" if match else "Fail"
+def update_excel_with_template(file_path: str, match_df: pd.DataFrame) -> None:
+    """
+    Updates an Excel workbook in-place with Pass/Fail results based on name matching.
 
-    # Load Excel
-    wb = openpyxl.load_workbook(io.BytesIO(excel_bytes))
-    ws = wb[sheet_name]
+    Args:
+        file_path (str): Path to the Excel file.
+        match_df (pd.DataFrame): DataFrame with "Extracted Fund Name" and "Investment Option".
+    """
+    try:
+        wb = openpyxl.load_workbook(file_path)
+        sheet = wb.active
 
-    # Build a DataFrame from Excel to find column indexes
-    df = pd.DataFrame(ws.values)
-    headers = df.iloc[start_row - 2].tolist()
+        green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+        red_fill = PatternFill(start_color="F2DCDB", end_color="F2DCDB", fill_type="solid")
 
-    if status_col not in headers:
-        raise ValueError(f"Column '{status_col}' not found in Excel.")
+        # Clear previous formatting in case of re-run
+        for row in sheet.iter_rows():
+            for cell in row:
+                cell.fill = PatternFill()  # Reset to default
 
-    status_col_idx = headers.index(status_col) + 1
+        # Map: Investment Option → Result
+        results = []
+        for _, row in match_df.iterrows():
+            extracted = str(row["Extracted Fund Name"]).strip().lower()
+            expected = str(row["Investment Option"]).strip().lower()
+            passed = extracted == expected
+            results.append("Pass" if passed else "Fail")
 
-    updated_rows = []
+        # Write results into Excel (append to the right)
+        start_row = 2  # Skip header
+        result_col = sheet.max_column + 1
+        sheet.cell(row=1, column=result_col, value="Status")
 
-    for i, row in enumerate(ws.iter_rows(min_row=start_row), start=start_row):
-        fund_cell = row[0]  # assuming fund name is in column A
-        fund = str(fund_cell.value).strip()
-        if not fund:
-            continue
+        for i, result in enumerate(results):
+            cell = sheet.cell(row=start_row + i, column=result_col, value=result)
+            cell.fill = green_fill if result == "Pass" else red_fill
 
-        result = matches.get(fund, "Fail")
-        if not dry_run:
-            cell = ws.cell(row=i, column=status_col_idx)
-            cell.value = result
-            fill_color = "C6EFCE" if result == "Pass" else "FFC7CE"
-            font_color = "006100" if result == "Pass" else "9C0006"
-            cell.fill = openpyxl.styles.PatternFill(start_color=fill_color, end_color=fill_color, fill_type="solid")
-            cell.font = openpyxl.styles.Font(color=font_color)
+        wb.save(file_path)
 
-        updated_rows.append({"Fund": fund, "Status": result})
-
-    if dry_run:
-        return pd.DataFrame(updated_rows)
-
-    # Save to memory
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-
-    return output
+    except Exception as e:
+        raise RuntimeError(f"Excel update failed: {e}")
