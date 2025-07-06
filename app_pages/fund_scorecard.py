@@ -81,7 +81,7 @@ You'll upload files, configure where to write data, and paste or upload the inve
             return
 
         # Investment Options Input
-        st.markdown("**Provide Investment Options**")
+        st.caption("Provide Investment Options")
         method = st.radio("", ["Paste Manually", "Upload CSV"], horizontal=True, label_visibility="collapsed")
 
         investment_options = []
@@ -113,7 +113,7 @@ So paste them here, one per line, in the same order as fund names.
 
         # Preview
         if fund_names and investment_options:
-            st.markdown("**Preview Match**")
+            st.caption("Preview Match")
             if len(fund_names) != len(investment_options):
                 st.error(f"⚠️ Fund and option counts don’t match ({len(fund_names)} vs {len(investment_options)}).")
                 preview_df = pd.DataFrame({
