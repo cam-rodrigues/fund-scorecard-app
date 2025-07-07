@@ -15,47 +15,27 @@ def run():
                 font-size: 1.4rem;
                 font-weight: 600;
                 margin-bottom: 0.3rem;
-                color: #1e88e5;
             }
             .step-body {
-                font-size: 1.05rem;
+                font-size: 1rem;
                 color: #333;
-                line-height: 1.6;
             }
         </style>
 
         <div class="step-card">
-            <div class="step-title">Step 1: Upload Your Files</div>
-            <div class="step-body">
-                Upload the PDF fund report and your Excel template with existing formatting.
-            </div>
+            <div class="step-title">Step 1: Log In</div>
+            <div class="step-body">Use the password stored in <code>.streamlit/secrets.toml</code> to unlock the app.</div>
         </div>
-
         <div class="step-card">
-            <div class="step-title">Step 2: Select PDF Page Range</div>
-            <div class="step-body">
-                Choose start and end pages where fund names appear in the PDF report.
-            </div>
+            <div class="step-title">Step 2: Upload Files</div>
+            <div class="step-body">You’ll need a PDF fund scorecard, an Excel template, and a list of investment options.</div>
         </div>
-
         <div class="step-card">
-            <div class="step-title">Step 3: Enter Investment Options</div>
-            <div class="step-body">
-                Paste or upload a CSV of investment options in the order they should align with the PDF.
-                <br><br>
-                <strong>Note:</strong> We do not extract investment names from Excel because:
-                <ul>
-                    <li>Cells may contain formulas (e.g., <code>=A1</code>)</li>
-                    <li>Structure varies across sheets</li>
-                    <li>Headers may be missing or inconsistent</li>
-                </ul>
-            </div>
+            <div class="step-title">Step 3: Paste Investment Options</div>
+            <div class="step-body">Paste them one per line — matching the fund order.</div>
         </div>
-
         <div class="step-card">
-            <div class="step-title">Step 4: Match + Export</div>
-            <div class="step-body">
-                Run the matcher to align fund names with your options. View pass/fail results and export to Excel or CSV.
-            </div>
+            <div class="step-title">Step 4: Run and Download</div>
+            <div class="step-body">Click Run, review matches, and download your updated Excel file.</div>
         </div>
     """, unsafe_allow_html=True)
