@@ -9,7 +9,7 @@ SCOPE = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-ADMIN_EMAIL = "your.email@example.com"  # <- Change this
+ADMIN_EMAIL = "crods611@gmail.com"  # <- Change this
 
 # Connect to the Google Sheet
 @st.cache_resource
