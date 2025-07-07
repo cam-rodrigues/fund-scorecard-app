@@ -1,3 +1,4 @@
+""
 import streamlit as st
 import os
 import importlib.util
@@ -10,13 +11,12 @@ ACTIVE_CONFIG_PATH = ".streamlit/config.toml"
 
 st.set_page_config(page_title="FidSync", layout="wide")
 
-# === Force light sidebar styling regardless of main theme ===
+# === Force light sidebar styles even in dark mode ===
 st.markdown("""
     <style>
         [data-testid="stSidebar"] {
             background-color: #f0f2f6 !important;
             border-right: 1px solid #ccc !important;
-            color: #1c2e4a !important;
         }
         [data-testid="stSidebar"] .stButton>button {
             background-color: #ffffff !important;
@@ -47,7 +47,11 @@ st.markdown("""
             letter-spacing: 0.5px;
         }
         label[for^='radio-'] {
-            color: #555 !important;
+            color: #1c2e4a !important;
+            font-weight: 500;
+        }
+        .stRadio > div {
+            color: #1c2e4a !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -93,7 +97,7 @@ st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_htm
 nav_button("Fund Scorecard", "fund_scorecard.py")
 nav_button("User Requests", "user_requests.py")
 
-# === Routing logic ===
+# === Routing ===
 query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
