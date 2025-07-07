@@ -26,32 +26,13 @@ FidSync is a professional-grade tool that helps financial teams extract fund nam
 
 ---
 
-## 📁 Folder Structure
-
-```bash
-fydsync/
-├── app.py                       # Main Streamlit app
-├── app_pages/                  # Modular Streamlit page files
-│   ├── fund_scorecard.py
-│   ├── user_requests.py
-│   ├── admin_view_requests.py
-│   └── ...
-├── requests/                   # Saved user submissions (.txt, attachments)
-│   └── .gitkeep
-├── .streamlit/
-│   └── config.toml             # Theme & credentials (optional)
-├── README.md
-└── requirements.txt
-
-
----
-
 ## 📄 Submission Log
 
 All user request submissions are viewable here (admin only):  
 👉 [FidSync Submissions Sheet](https://docs.google.com/spreadsheets/d/1NByeYVPB0oX8i2ct9cEt3cQat7Dyp-uZxBbw17QiQeY)
 
-> _Only shared with the developer or authorized team members._
+_Only shared with the developer or authorized team members._
+
 ---
 
 ## 🔒 Data & Privacy
@@ -78,5 +59,27 @@ Want to contribute or build your own version? Fork this repo and start customizi
 - Submission email alerts
 
 ---
+
+---
+
+## 📁 Folder Structure
+
+```bash
+fydsync/
+├── app.py                       # Main Streamlit app
+├── app_pages/                  # Modular Streamlit page files
+│   ├── fund_scorecard.py
+│   ├── user_requests.py
+│   ├── admin_view_requests.py
+│   └── ...
+├── requests/                   # Saved user submissions (.txt, attachments)
+│   └── .gitkeep
+├── .streamlit/
+│   └── config.toml             # Theme & credentials (optional)
+├── README.md
+└── requirements.txt
+
+
+
 
 _© 2025 Cam Rodrigues — Built with ❤️ using Streamlit_
