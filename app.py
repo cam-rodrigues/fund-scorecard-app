@@ -46,21 +46,20 @@ st.markdown("""
 # Sidebar header
 st.sidebar.markdown('<div class="sidebar-title">FidSync</div>', unsafe_allow_html=True)
 
-# Query param-safe sidebar nav
+# Sidebar buttons using query params
 def nav_button(label, page):
     if st.sidebar.button(label, key=label):
         st.query_params.update({"page": page})
 
-# Sidebar content
+# Sidebar structure
 st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
-nav_button("About", "About_FidSync.py")
-nav_button("How to Use", "How_to_Use.py")
+nav_button("User Manual", "How_to_Use.py")
 
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
 nav_button("Fund Scorecard", "fund_scorecard.py")
 nav_button("User Requests", "user_requests.py")
 
-# Handle dynamic routing via query params (new API)
+# Routing logic
 query_params = st.query_params
 selected_page = query_params.get("page")
 
@@ -79,5 +78,14 @@ if selected_page:
     else:
         st.error(f"❌ Page not found: {selected_page}")
 else:
-    st.markdown("### Welcome to FidSync")
-    st.markdown("Use the sidebar to navigate between sections.")
+    st.markdown("# Welcome to FidSync")
+    st.markdown("""
+    FidSync is your tool for updating fund status reports with ease.
+
+    Use the sidebar to:
+    - Read the **User Manual**
+    - Run the **Fund Scorecard** updater
+    - Submit **User Requests**
+
+    Everything is processed securely and in-memory — no data is stored or shared.
+    """)
