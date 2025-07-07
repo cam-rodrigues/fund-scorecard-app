@@ -1,10 +1,19 @@
 [theme]
 base = "light"
-primaryColor = "#1c2e4a"
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f0f2f6"
-textColor = "#1c2e4a"
+primaryColor = "#1c2e4a"               # FidSync navy
+backgroundColor = "#ffffff"            # Clean white
+secondaryBackgroundColor = "#eef2f7"   # Soft cool-gray background for layout cards/containers
+textColor = "#1c2e4a"                  # Consistent deep blue text
 font = "sans serif"
+
+# Optional: highlight color for focused/active UI elements
+[theme.accent]
+color = "#2d5a91"                      # Slightly lighter blue for hover/focus highlights
+
+# Optional: for charts/tables if using custom styles later
+[theme.chart]
+labelColor = "#1c2e4a"
+gridColor = "#dce3ec"
 
 [server]
 headless = true
@@ -13,6 +22,7 @@ maxUploadSize = 100
 
 [client]
 toolbarMode = "minimal"
+showErrorDetails = false
 
 [browser]
 gatherUsageStats = false
