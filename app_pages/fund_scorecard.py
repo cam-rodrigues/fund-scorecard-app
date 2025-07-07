@@ -10,9 +10,9 @@ def similar(a, b):
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 def run():
-    st.markdown("## 🎯 FidSync: Fund Scorecard")
+    st.markdown("## FidSync: Fund Scorecard")
 
-    with st.expander("📘 Instructions"):
+    with st.expander("Instructions"):
         st.markdown("""
         1. Upload your **PDF fund scorecard** and **Excel file**.
         2. Paste in your **investment options** (one per line).
@@ -20,7 +20,7 @@ def run():
         4. Download your updated Excel file.
         """)
 
-    with st.expander("💡 Tips & Notes"):
+    with st.expander("Tips & Notes"):
         st.markdown("""
         - Investment options must be pasted manually due to Excel formatting (formulas, merged cells, etc.).
         - Paste in plain text only.
@@ -32,10 +32,10 @@ def run():
     col1, col2 = st.columns(2)
 
     with col1:
-        pdf_file = st.file_uploader("📄 Upload PDF Fund Scorecard", type=["pdf"])
+        pdf_file = st.file_uploader("Upload PDF Fund Scorecard", type=["pdf"])
 
     with col2:
-        excel_file = st.file_uploader("📊 Upload Excel Template", type=["xlsx"])
+        excel_file = st.file_uploader("Upload Excel Template", type=["xlsx"])
 
     # --- Investment Options Input ---
     st.markdown("### Provide Investment Options")
@@ -45,7 +45,7 @@ def run():
         placeholder="Large Cap Equity Fund\nSmall Cap Growth\nMid Cap Value\n..."
     )
 
-    if st.button("🚀 Run"):
+    if st.button("Run"):
         if not pdf_file or not excel_file or not investment_input.strip():
             st.error("Please upload both files and provide investment options.")
             return
