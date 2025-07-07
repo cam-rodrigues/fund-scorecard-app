@@ -17,7 +17,8 @@ def run():
         1. Upload your **PDF fund scorecard** and **Excel file**.
         2. Paste in your **investment options** (one per line).
         3. Click **Run** to process and match fund names.
-        4. Download your updated Excel file.
+        4. Sort, filter, or tweak the results directly in the table.
+        5. Download your updated Excel or CSV file.
         """)
 
     with st.expander("Tips & Notes"):
@@ -66,13 +67,19 @@ def run():
                 best_match = max(fund_statuses.items(), key=lambda x: similar(option, x[0]), default=None)
                 matched_funds.append((option, best_match[1] if best_match else "Not Found"))
 
-            # Display preview
-            st.markdown("### 🔍 Match Preview")
+            # Display filterable, editable table
+            st.markdown("### 🔍 Match Preview (Editable)")
             preview_df = pd.DataFrame(matched_funds, columns=["Investment Option", "Fund Status"])
-            st.dataframe(preview_df, use_container_width=True)
+            editable_df = st.data_editor(
+                preview_df,
+                use_container_width=True,
+                num_rows="fixed",
+                hide_index=True,
+                key="editable_table"
+            )
 
-            # Download CSV option
-            csv_data = preview_df.to_csv(index=False).encode("utf-8")
+            # Download CSV
+            csv_data = editable_df.to_csv(index=False).encode("utf-8")
             st.download_button(
                 label="📄 Download Results as CSV",
                 data=csv_data,
@@ -82,7 +89,7 @@ def run():
 
             # Update Excel
             try:
-                updated_excel = update_excel_with_template(excel_file, matched_funds)
+                updated_excel = update_excel_with_template(excel_file, editable_df.values.tolist())
                 st.success("✅ Excel updated successfully!")
                 st.download_button("📥 Download Updated Excel", data=updated_excel, file_name="updated_funds.xlsx")
             except Exception as e:
