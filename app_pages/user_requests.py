@@ -1,5 +1,6 @@
 import streamlit as st
 import datetime
+import os
 
 def run():
     st.markdown("## User Feedback & Feature Requests")
@@ -17,6 +18,7 @@ def run():
     email = st.text_input("Email Address", placeholder="your.email@example.com")
     request_type = st.selectbox("Type of Request", ["Feature Request", "Bug Report", "UI Improvement", "Other"])
     message = st.text_area("Your Message", height=150)
+    uploaded_file = st.file_uploader("Optional Screenshot or Supporting File", type=["png", "jpg", "jpeg", "pdf", "txt"])
 
     # --- Submit button ---
     if st.button("Submit Request"):
@@ -31,3 +33,13 @@ def run():
             st.markdown(f"**Request Type:** {request_type}")
             st.markdown(f"**Message:**\n{message}")
             st.markdown(f"**Submitted At:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+            if uploaded_file:
+                file_ext = os.path.splitext(uploaded_file.name)[-1]
+                st.markdown(f"**Uploaded File:** `{uploaded_file.name}`")
+                
+                if file_ext.lower() in [".png", ".jpg", ".jpeg"]:
+                    st.image(uploaded_file, caption="Screenshot Preview", use_column_width=True)
+                else:
+                    st.info("File uploaded successfully.")
+
