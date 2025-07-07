@@ -1,56 +1,20 @@
-import streamlit as st
-import docx2txt
-import pdfplumber
+import spacy
+from heapq import nlargest
+
+# Load English model
+nlp = spacy.load("en_core_web_sm")
 
 def summarize_text(text, max_sentences=5):
-    import re
-    from heapq import nlargest
-    from collections import defaultdict
+    doc = nlp(text)
 
-    # Basic cleanup
-    text = re.sub(r'\s+', ' ', text)
-    sentences = re.split(r'(?<=[.!?]) +', text)
+    sentence_scores = {}
+    for sent in doc.sents:
+        score = 0
+        for token in sent:
+            if token.ent_type_ or token.pos_ in ["NOUN", "VERB", "PROPN"]:
+                score += 1
+        if len(sent.text.strip()) > 20:
+            sentence_scores[sent.text] = score
 
-    # Simple scoring: count word frequency
-    word_freq = defaultdict(int)
-    for word in re.findall(r'\w+', text.lower()):
-        word_freq[word] += 1
-
-    # Score sentences based on word frequency
-    sent_scores = {}
-    for sent in sentences:
-        for word in re.findall(r'\w+', sent.lower()):
-            if word in word_freq:
-                sent_scores[sent] = sent_scores.get(sent, 0) + word_freq[word]
-
-    summary = ' '.join(nlargest(max_sentences, sent_scores, key=sent_scores.get))
-    return summary
-
-def extract_text_from_file(uploaded_file):
-    if uploaded_file.name.endswith(".pdf"):
-        with pdfplumber.open(uploaded_file) as pdf:
-            return "\n".join(page.extract_text() for page in pdf.pages if page.extract_text())
-    elif uploaded_file.name.endswith((".docx", ".doc")):
-        return docx2txt.process(uploaded_file)
-    else:
-        return None
-
-def run():
-    st.markdown("## Document Summary Tool")
-    st.markdown("Upload a PDF or Word document and get a quick summary.")
-
-    uploaded_file = st.file_uploader("Upload a document", type=["pdf", "docx", "doc"])
-
-    if uploaded_file:
-        with st.spinner("Extracting and summarizing text..."):
-            text = extract_text_from_file(uploaded_file)
-            if not text:
-                st.error("Could not extract text from this file.")
-                return
-
-            summary = summarize_text(text)
-            st.subheader("Summary")
-            st.write(summary)
-
-            with st.expander("Full Extracted Text"):
-                st.text_area("Extracted Text", text, height=300)
+    summary = nlargest(max_sentences, sentence_scores, key=sentence_scores.get)
+    return " ".join(summary)
