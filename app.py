@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import importlib.util
+pip install pdfplumber python-docx docx2txt
 
 st.set_page_config(page_title="FidSync", layout="wide")
 
