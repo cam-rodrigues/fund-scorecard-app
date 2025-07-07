@@ -1,45 +1,45 @@
 import streamlit as st
-from utils.google_sheets import log_to_google_sheets, is_admin_user
-from datetime import datetime
+import gspread
+import pandas as pd
+from google.oauth2.service_account import Credentials
 
-st.title("User Requests")
+# --- Google Sheets Setup ---
+SCOPE = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+SHEET_NAME = "FidSync Submissions"
+TAB_NAME = "Form Responses 1"
 
-st.markdown("Use the form below to submit feature requests, bug reports, or general questions.")
+# 👤 Admin email for preview access
+ADMIN_EMAIL = "crods611@gmail.com"
 
-# --- Input form ---
-with st.form("user_request_form", clear_on_submit=True):
-    col1, col2 = st.columns(2)
-    with col1:
-        name = st.text_input("Your Name", max_chars=50)
-    with col2:
-        email = st.text_input("Your Email", max_chars=100)
-
-    request_type = st.selectbox("Type of Request", ["Feature Request", "Bug Report", "Other"])
-    message = st.text_area("Your Message", height=150)
-    uploaded_file = st.file_uploader("Optional Screenshot or Supporting File", type=["png", "jpg", "jpeg", "pdf", "txt"])
-
-    submit = st.form_submit_button("Submit Request")
-
-# --- Submission logic ---
-if submit:
-    if not name or not email or not message:
-        st.error("Please fill out all required fields: Name, Email, and Message.")
-    else:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        success = log_to_google_sheets(name, email, request_type, message, uploaded_file, timestamp)
-
-        if success:
-            st.success("✅ Your request has been saved.")
-        else:
-            st.error("❌ Failed to log your request. Please try again later.")
-
-# --- Admin View ---
-if is_admin_user():
-    st.markdown("---")
-    st.subheader("📊 Admin Submission Viewer (Live Preview)")
+def log_to_google_sheets(name, email, request_type, message, uploaded_file=None, timestamp=None):
     try:
-        from utils.google_sheets import get_all_submissions
-        df = get_all_submissions()
-        st.dataframe(df, use_container_width=True)
+        creds_dict = st.secrets["gspread"]
+        credentials = Credentials.from_service_account_info(creds_dict, scopes=SCOPE)
+        gc = gspread.authorize(credentials)
+        sh = gc.open(SHEET_NAME)
+        worksheet = sh.worksheet(TAB_NAME)
+
+        if not timestamp:
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        file_name = uploaded_file.name if uploaded_file else ""
+        row = [timestamp, name, email, request_type, message, file_name]
+        worksheet.append_row(row, value_input_option="USER_ENTERED")
+
+        return True
     except Exception as e:
-        st.error(f"Could not load admin preview: {e}")
+        st.error(f"❌ Failed to log to Google Sheets: {e}")
+        return False
+
+def is_admin_user():
+    return st.session_state.get("email") == ADMIN_EMAIL
+
+def get_all_submissions():
+    creds_dict = st.secrets["gspread"]
+    credentials = Credentials.from_service_account_info(creds_dict, scopes=SCOPE)
+    gc = gspread.authorize(credentials)
+    sh = gc.open(SHEET_NAME)
+    worksheet = sh.worksheet(TAB_NAME)
+    data = worksheet.get_all_records()
+    return pd.DataFrame(data)
