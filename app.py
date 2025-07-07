@@ -1,10 +1,26 @@
 import streamlit as st
 import os
 import importlib.util
+import shutil
+
+# === Config paths ===
+LIGHT_THEME_PATH = ".streamlit/config_light.toml"
+DARK_THEME_PATH = ".streamlit/config_dark.toml"
+ACTIVE_CONFIG_PATH = ".streamlit/config.toml"
 
 st.set_page_config(page_title="FidSync", layout="wide")
 
-# Inject sidebar + global style
+# === Apply theme ===
+def apply_theme(theme: str):
+    if theme == "Light" and os.path.exists(LIGHT_THEME_PATH):
+        shutil.copyfile(LIGHT_THEME_PATH, ACTIVE_CONFIG_PATH)
+    elif theme == "Dark" and os.path.exists(DARK_THEME_PATH):
+        shutil.copyfile(DARK_THEME_PATH, ACTIVE_CONFIG_PATH)
+
+def restart_required():
+    st.sidebar.warning("Theme applied. Please rerun the app to see changes.")
+
+# === Global sidebar style ===
 st.markdown("""
     <style>
         [data-testid="stSidebar"] {
@@ -45,6 +61,17 @@ st.markdown("""
 
 st.sidebar.markdown('<div class="sidebar-title">FidSync</div>', unsafe_allow_html=True)
 
+# === Theme toggle ===
+theme_choice = st.sidebar.radio("Select Theme", ["Light", "Dark"], horizontal=True)
+if "current_theme" not in st.session_state:
+    st.session_state.current_theme = theme_choice
+
+if theme_choice != st.session_state.current_theme:
+    apply_theme(theme_choice)
+    st.session_state.current_theme = theme_choice
+    restart_required()
+
+# === Navigation buttons ===
 def nav_button(label, page):
     if st.sidebar.button(label, key=label):
         st.query_params.update({"page": page})
@@ -83,5 +110,4 @@ else:
     - View the **Getting Started** guide
     - Run the **Fund Scorecard** tool
     - Submit a **Request**
-    - Explore the **Roadmap**
     """)
