@@ -1,14 +1,27 @@
 [theme]
-primaryColor = "#1E3A8A"         # Deep blue
-backgroundColor = "#F9FAFB"      # Soft gray
-secondaryBackgroundColor = "#E5E7EB"  # Slight contrast
-textColor = "#111827"            # Very dark gray (not pure black)
-font = "sans serif"
+# FidSync brand colors
+primaryColor = "#1c2e4a"                 # Deep navy blue
+backgroundColor = "#ffffff"              # Clean white
+secondaryBackgroundColor = "#f5f7fa"     # Light gray for cards/sidebars
+textColor = "#1c1c1c"                    # Strong black text
+font = "sans serif"                      # Clean modern font
 
 [server]
+headless = true
+enableCORS = false
+enableXsrfProtection = true
 runOnSave = true
+maxUploadSize = 500                      # Allow larger PDFs or Excel uploads
 
 [client]
-showSidebarNavigation = true
-toolbarMode = "minimal"
-showErrorDetails = true
+toolbarMode = "minimal"                  # Hides Streamlit’s dev toolbar
+showSidebarNavigation = true             # Always show sidebar nav
+displayEnabled = true                    # Enable Streamlit's UI rendering
+
+[browser]
+gatherUsageStats = false
+serverAddress = "localhost"
+serverPort = 8501
+
+[logger]
+level = "info"
