@@ -59,7 +59,7 @@ Want to contribute or build your own version? Fork this repo and start customizi
 - Submission email alerts
 
 ---
-
+_© 2025 Cam Rodrigues — Built with ❤️ using Streamlit_
 ---
 
 ## 📁 Folder Structure
@@ -78,8 +78,3 @@ fydsync/
 │   └── config.toml             # Theme & credentials (optional)
 ├── README.md
 └── requirements.txt
-
-
-
-
-_© 2025 Cam Rodrigues — Built with ❤️ using Streamlit_
