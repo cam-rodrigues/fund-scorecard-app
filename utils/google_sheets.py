@@ -4,7 +4,10 @@ import pandas as pd
 from google.oauth2.service_account import Credentials
 
 # === Google Sheets Setup ===
-SCOPE = ["https://www.googleapis.com/auth/spreadsheets"]
+SCOPE = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
 SHEET_NAME = "FidSync Submissions"
 TAB_NAME = "Form Responses 1"
 COLUMNS = ["Timestamp", "Name", "Email", "Type", "Message", "File"]
