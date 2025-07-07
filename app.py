@@ -46,20 +46,24 @@ st.markdown("""
 # Sidebar header
 st.sidebar.markdown('<div class="sidebar-title">FidSync</div>', unsafe_allow_html=True)
 
-# Sidebar buttons using query params
+# Navigation helper
 def nav_button(label, page):
     if st.sidebar.button(label, key=label):
         st.query_params.update({"page": page})
 
-# Sidebar structure
+# Sidebar layout
 st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
 nav_button("User Manual", "How_to_Use.py")
+nav_button("FAQ", "FAQ.py")
+nav_button("Changelog", "Changelog.py")
+nav_button("Security Policy", "Security_Policy.py")
+nav_button("Roadmap", "Roadmap.py")
 
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
 nav_button("Fund Scorecard", "fund_scorecard.py")
 nav_button("User Requests", "user_requests.py")
 
-# Routing logic
+# Page routing
 query_params = st.query_params
 selected_page = query_params.get("page")
 
@@ -80,12 +84,11 @@ if selected_page:
 else:
     st.markdown("# Welcome to FidSync")
     st.markdown("""
-    FidSync is your tool for updating fund status reports with ease.
+    FidSync helps financial teams securely extract and update fund statuses from scorecard PDFs into Excel templates.
 
     Use the sidebar to:
-    - Read the **User Manual**
-    - Run the **Fund Scorecard** updater
-    - Submit **User Requests**
-
-    Everything is processed securely and in-memory — no data is stored or shared.
+    - Access the **User Manual**
+    - Run the **Fund Scorecard** tool
+    - Submit a **Request**
+    - View the **Roadmap** and more
     """)
