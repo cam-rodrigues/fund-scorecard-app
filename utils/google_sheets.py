@@ -24,7 +24,7 @@ SPREADSHEET_ID = "1NByeYVPB0oX8i2ct9cEt3cQat7Dyp-uZxBbw17QiQeY"
 SHEET_NAME = "Sheet1"
 
 # Admin email (set to your Google account email)
-ADMIN_EMAIL = "your.email@example.com"
+ADMIN_EMAIL = "crods611@gmail.com"
 
 def log_to_google_sheets(name, email, message, timestamp, request_type="Other", file_link=""):
     try:
