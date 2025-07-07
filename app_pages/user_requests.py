@@ -3,7 +3,7 @@ from datetime import datetime
 from utils.google_sheets import log_to_google_sheets
 
 def run():
-    st.title("📝 Submit a Request")
+    st.title("Submit a Request")
 
     st.markdown("""
         Use the form below to request features, report bugs, or ask questions.
