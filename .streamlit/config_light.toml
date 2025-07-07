@@ -8,14 +8,11 @@ font = "sans serif"
 
 [server]
 headless = true
-enableCORS = false
-enableXsrfProtection = true
 runOnSave = true
-maxUploadSize = 500
+maxUploadSize = 100
 
 [client]
 toolbarMode = "minimal"
-showSidebarNavigation = true
 
 [browser]
 gatherUsageStats = false
