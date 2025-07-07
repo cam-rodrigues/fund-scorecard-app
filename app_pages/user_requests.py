@@ -3,10 +3,6 @@ import datetime
 import os
 from utils.google_sheets import log_to_google_sheets
 
-st.markdown("### DEBUG: st.secrets contents")
-st.json(st.secrets)
-
-
 def run():
     st.markdown("## User Feedback & Feature Requests")
 
