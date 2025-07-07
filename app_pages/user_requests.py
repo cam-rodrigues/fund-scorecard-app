@@ -57,6 +57,3 @@ def run():
                     st.success(f"📎 Attachment saved as `{file_save_path}`")
                 except Exception as e:
                     st.error(f"❌ Failed to save attachment: {e}")
-
-    # ✅ Link to the shared sheet
-    st.markdown("📄 [View all submissions in Google Sheets](https://docs.google.com/spreadsheets/d/1NByeYVPB0oX8i2ct9cEt3cQat7Dyp-uZxBbw17QiQeY)")
