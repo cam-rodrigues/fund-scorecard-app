@@ -6,3 +6,6 @@ rapidfuzz==3.6.1
 gspread
 oauth2client
 gspread-formatting
+pdfplumber
+python-docx
+docx2txt
