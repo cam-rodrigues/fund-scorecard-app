@@ -10,27 +10,16 @@ def update_excel_with_template(excel_bytes, sheet_name, match_df):
 
         ws = wb[sheet_name]
 
-        # Create fill styles
         green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
         red_fill = PatternFill(start_color="F2DCDB", end_color="F2DCDB", fill_type="solid")
 
-        # Write matched values to sheet starting at row 2
         for i, row in enumerate(match_df.itertuples(index=False), start=2):
-            fund_name = row._1
-            matched_name = row._2
-            score = row._3
-            status = row._4
+            ws.cell(row=i, column=1, value=row._1)  # Fund Name (Raw)
+            ws.cell(row=i, column=2, value=row._2)  # Matched Option
+            ws.cell(row=i, column=3, value=row._3)  # Score
+            status_cell = ws.cell(row=i, column=4, value=row._4)  # Status
+            status_cell.fill = green_fill if row._4 == "Pass" else red_fill
 
-            # Columns: A = raw, B = matched, C = score, D = status
-            ws.cell(row=i, column=1, value=fund_name)
-            ws.cell(row=i, column=2, value=matched_name)
-            ws.cell(row=i, column=3, value=score)
-
-            status_cell = ws.cell(row=i, column=4)
-            status_cell.value = status
-            status_cell.fill = green_fill if status == "Pass" else red_fill
-
-        # Save to memory
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
