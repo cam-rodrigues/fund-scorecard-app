@@ -51,7 +51,7 @@ def run():
             st.success("✅ Your request has been saved.")
 
             # Log to Google Sheets
-            log_success = log_to_google_sheets(name, email, request_type, message, file_url)
+            log_success = log_to_google_sheets(name, email, message, timestamp)
             if log_success:
                 st.success("✅ Also logged to Google Sheets!")
 
