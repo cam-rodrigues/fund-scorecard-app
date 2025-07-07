@@ -25,16 +25,17 @@ def run():
         if not name or not email or not message:
             st.error("Please fill in all required fields.")
         else:
-            # Create directory (debug)
+            # ✅ Show the full path to the folder it's using
+            requests_dir = os.path.abspath("requests")
             try:
-                os.makedirs("requests", exist_ok=True)
-                st.success("✅ `requests/` folder ready")
+                os.makedirs(requests_dir, exist_ok=True)
+                st.success(f"✅ `requests/` folder ready at:\n`{requests_dir}`")
             except Exception as e:
                 st.error(f"❌ Failed to create `requests/` folder: {e}")
                 return
 
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            request_path = f"requests/request_{timestamp}.txt"
+            request_path = os.path.join(requests_dir, f"request_{timestamp}.txt")
 
             try:
                 with open(request_path, "w") as f:
@@ -43,21 +44,20 @@ def run():
                     f.write(f"Request Type: {request_type}\n")
                     f.write(f"Message:\n{message}\n")
                     f.write(f"Submitted At: {timestamp}\n")
-                st.success(f"✅ Request saved as `{request_path}`")
+                st.success(f"✅ Request saved at:\n`{request_path}`")
             except Exception as e:
                 st.error(f"❌ Failed to write request file: {e}")
 
             if uploaded_file:
                 try:
                     file_ext = os.path.splitext(uploaded_file.name)[-1]
-                    file_save_path = f"requests/attachment_{timestamp}{file_ext}"
+                    file_save_path = os.path.join(requests_dir, f"attachment_{timestamp}{file_ext}")
                     with open(file_save_path, "wb") as f:
                         f.write(uploaded_file.read())
-                    st.success(f"📎 Attachment saved as `{file_save_path}`")
+                    st.success(f"📎 Attachment saved at:\n`{file_save_path}`")
                 except Exception as e:
                     st.error(f"❌ Failed to save attachment: {e}")
 
-            # Show current contents of folder
-            if os.path.exists("requests"):
-                st.markdown("### 📂 Current files in `/requests/`")
-                st.write(os.listdir("requests"))
+            # 👀 Show exactly what files exist in the folder
+            st.markdown("### 📂 Current files in `/requests/`")
+            st.write(os.listdir(requests_dir))
