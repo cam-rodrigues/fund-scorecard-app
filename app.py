@@ -53,11 +53,11 @@ def nav_button(label, filename):
 st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
 nav_button("Getting Started", "Getting_Started.py")
 nav_button("Security Policy", "Security_Policy.py")
+nav_button("Capabilities & Potential", "Capabilities_and_Potential.py")  # ✅ New tab added
 
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
 nav_button("Fund Scorecard", "fund_scorecard.py")
 nav_button("User Requests", "user_requests.py")
-nav_button("Capabilities & Potential", "Capabilities_and_Potential.py")  # ✅ New tab added
 
 # === Page router ===
 query_params = st.query_params
