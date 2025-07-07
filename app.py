@@ -20,8 +20,22 @@ def apply_theme(theme: str):
 def restart_required():
     st.sidebar.warning("Theme applied. Please rerun the app to see changes.")
 
-# === Theme toggle ===
-theme_choice = st.sidebar.radio("Select Theme", ["Light", "Dark"], horizontal=True)
+# === Sidebar theme label (with adaptive color) ===
+st.sidebar.markdown(f"""
+    <div style='padding: 0.5rem 0 1.5rem 0;'>
+        <div style='font-size: 0.9rem; font-weight: 600; margin-bottom: 0.3rem; color: #aaa;'>
+            Select Theme
+        </div>
+    </div>
+""", unsafe_allow_html=True)
+
+theme_choice = st.sidebar.radio(
+    "", ["Light", "Dark"],
+    index=0 if st.session_state.get("current_theme", "Light") == "Light" else 1,
+    horizontal=True,
+    label_visibility="collapsed"
+)
+
 if "current_theme" not in st.session_state:
     st.session_state.current_theme = theme_choice
 
