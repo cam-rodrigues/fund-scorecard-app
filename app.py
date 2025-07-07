@@ -1,3 +1,4 @@
+""
 import streamlit as st
 import os
 import importlib.util
@@ -20,10 +21,10 @@ def apply_theme(theme: str):
 def restart_required():
     st.sidebar.warning("Theme applied. Please rerun the app to see changes.")
 
-# === Sidebar theme label (with adaptive color) ===
+# === Sidebar theme label ===
 st.sidebar.markdown(f"""
     <div style='padding: 0.5rem 0 1.5rem 0;'>
-        <div style='font-size: 0.9rem; font-weight: 600; margin-bottom: 0.3rem; color: #aaa;'>
+        <div style='font-size: 0.9rem; font-weight: 600; margin-bottom: 0.3rem; color: #333;'>
             Select Theme
         </div>
     </div>
@@ -44,85 +45,44 @@ if theme_choice != st.session_state.current_theme:
     st.session_state.current_theme = theme_choice
     restart_required()
 
-# === Inject dynamic sidebar styles ===
-if theme_choice == "Dark":
-    sidebar_style = """
-    <style>
-        [data-testid="stSidebar"] {
-            background-color: #1e1e1e;
-            border-right: 1px solid #333;
-        }
-        .sidebar-title {
-            font-size: 1.6rem;
-            font-weight: 700;
-            color: #e8e8e8;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid #444;
-            margin-bottom: 1rem;
-        }
-        .sidebar-section {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: #aaa;
-            margin-top: 2rem;
-            margin-bottom: 0.3rem;
-            letter-spacing: 0.5px;
-        }
-        .sidebar-button {
-            background: none;
-            border: none;
-            padding: 0.25rem 0;
-            font-size: 1rem;
-            color: #e8e8e8;
-            text-align: left;
-            cursor: pointer;
-            width: 100%;
-        }
-        .sidebar-button:hover {
-            color: #4aa8ff;
-        }
-    </style>
-    """
-else:
-    sidebar_style = """
-    <style>
-        [data-testid="stSidebar"] {
-            background-color: #f0f2f6;
-            border-right: 1px solid #ccc;
-        }
-        .sidebar-title {
-            font-size: 1.6rem;
-            font-weight: 700;
-            color: #1c2e4a;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid #ddd;
-            margin-bottom: 1rem;
-        }
-        .sidebar-section {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: #444;
-            margin-top: 2rem;
-            margin-bottom: 0.3rem;
-            letter-spacing: 0.5px;
-        }
-        .sidebar-button {
-            background: none;
-            border: none;
-            padding: 0.25rem 0;
-            font-size: 1rem;
-            color: #1c2e4a;
-            text-align: left;
-            cursor: pointer;
-            width: 100%;
-        }
-        .sidebar-button:hover {
-            color: #304f7a;
-        }
-    </style>
-    """
-
-st.markdown(sidebar_style, unsafe_allow_html=True)
+# === Inject static sidebar styles (unchanging) ===
+st.markdown("""
+<style>
+    [data-testid="stSidebar"] {
+        background-color: #f0f2f6;
+        border-right: 1px solid #ccc;
+    }
+    .sidebar-title {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #1c2e4a;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #ddd;
+        margin-bottom: 1rem;
+    }
+    .sidebar-section {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #444;
+        margin-top: 2rem;
+        margin-bottom: 0.3rem;
+        letter-spacing: 0.5px;
+    }
+    .sidebar-button {
+        background: none;
+        border: none;
+        padding: 0.25rem 0;
+        font-size: 1rem;
+        color: #1c2e4a;
+        text-align: left;
+        cursor: pointer;
+        width: 100%;
+    }
+    .sidebar-button:hover {
+        color: #304f7a;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 st.sidebar.markdown('<div class="sidebar-title">FidSync</div>', unsafe_allow_html=True)
 
