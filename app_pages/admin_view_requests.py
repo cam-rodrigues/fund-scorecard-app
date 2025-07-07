@@ -4,12 +4,10 @@ import os
 def run():
     st.title("📂 Admin: View Submitted Requests")
 
-    requests_dir = "requests"
-
-    # Ensure the folder exists
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    requests_dir = os.path.abspath(os.path.join(base_dir, "..", "requests"))
     os.makedirs(requests_dir, exist_ok=True)
 
-    # Find all request_*.txt files
     request_files = sorted([
         f for f in os.listdir(requests_dir)
         if f.startswith("request_") and f.endswith(".txt")
@@ -29,7 +27,6 @@ def run():
         st.subheader(f"📝 Submission: {timestamp}")
         st.text(lines)
 
-        # Look for any matching attachments
         attachment_prefix = f"attachment_{timestamp}"
         attachments = [
             f for f in os.listdir(requests_dir)
@@ -52,3 +49,6 @@ def run():
 
     st.markdown("---")
     st.caption("End of request list.")
+
+    # ✅ Link to the shared sheet
+    st.markdown("📄 [Open Submission Sheet](https://docs.google.com/spreadsheets/d/1NByeYVPB0oX8i2ct9cEt3cQat7Dyp-uZxBbw17QiQeY)")
