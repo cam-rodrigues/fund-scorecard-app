@@ -16,26 +16,18 @@ def run():
                 margin-bottom: 0.5rem;
             }
             .about-sub {
-                font-size: 1.2rem;
+                font-size: 1rem;
                 color: #555;
-                margin-bottom: 1rem;
             }
         </style>
-
         <div class="about-card">
-            <div class="about-header">Welcome to FidSync</div>
-            <div class="about-sub">Your Fund Review Assistant</div>
-            <p>
-                FidSync helps investment analysts and operations teams extract and validate fund data 
-                from PDF reports and generate standardized Excel scorecards.
-            </p>
-            <p>
-                Simply upload your PDF and Excel template, match fund names with investment options,
-                and download a clean, formatted scorecard in seconds — without touching formulas.
-            </p>
-            <hr style="margin: 2rem 0;">
-            <p>
-                Built for clarity, consistency, and speed. FidSync is your partner in fund evaluation workflows.
-            </p>
+            <div class="about-header">About FidSync</div>
+            <div class="about-sub">
+                FidSync is a secure, company-branded web app that makes it easy to extract fund statuses from PDF scorecards and sync them into Excel templates.
+                <br><br>
+                • Secure and confidential (100% in-memory)<br>
+                • Built with Python + Streamlit<br>
+                • Modern UI and fully brandable for enterprise use
+            </div>
         </div>
     """, unsafe_allow_html=True)
