@@ -9,7 +9,7 @@ def run():
                 margin-bottom: 1.5rem;
                 border-radius: 12px;
                 box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-                border-left: 6px solid #1e88e5;
+                border-left: 6px solid #1c2e4a;
             }
             .step-title {
                 font-size: 1.4rem;
@@ -23,19 +23,19 @@ def run():
         </style>
 
         <div class="step-card">
-            <div class="step-title">Step 1: Log In</div>
-            <div class="step-body">Use the password stored in <code>.streamlit/secrets.toml</code> to unlock the app.</div>
+            <div class="step-title">Step 1: Open the Fund Scorecard Tool</div>
+            <div class="step-body">Use the sidebar to select <strong>Fund Scorecard</strong>.</div>
         </div>
         <div class="step-card">
             <div class="step-title">Step 2: Upload Files</div>
-            <div class="step-body">You’ll need a PDF fund scorecard, an Excel template, and a list of investment options.</div>
+            <div class="step-body">Upload your PDF fund scorecard and the Excel template file.</div>
         </div>
         <div class="step-card">
             <div class="step-title">Step 3: Paste Investment Options</div>
-            <div class="step-body">Paste them one per line — matching the fund order.</div>
+            <div class="step-body">Paste your investment options — one per line — in the text box provided.</div>
         </div>
         <div class="step-card">
             <div class="step-title">Step 4: Run and Download</div>
-            <div class="step-body">Click Run, review matches, and download your updated Excel file.</div>
+            <div class="step-body">Click <strong>Run</strong> to generate results, preview them, and download the updated Excel file.</div>
         </div>
     """, unsafe_allow_html=True)
