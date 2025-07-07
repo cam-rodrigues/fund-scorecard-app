@@ -6,11 +6,14 @@ def run():
 
     requests_dir = "requests"
 
-    if not os.path.exists(requests_dir):
-        st.info("📭 No submissions yet.")
-        return
+    # Ensure the folder exists
+    os.makedirs(requests_dir, exist_ok=True)
 
-    request_files = sorted([f for f in os.listdir(requests_dir) if f.startswith("request_") and f.endswith(".txt")], reverse=True)
+    # Find all request_*.txt files
+    request_files = sorted([
+        f for f in os.listdir(requests_dir)
+        if f.startswith("request_") and f.endswith(".txt")
+    ], reverse=True)
 
     if not request_files:
         st.info("📭 No submissions yet.")
@@ -28,7 +31,10 @@ def run():
 
         # Look for any matching attachments
         attachment_prefix = f"attachment_{timestamp}"
-        attachments = [f for f in os.listdir(requests_dir) if f.startswith(attachment_prefix)]
+        attachments = [
+            f for f in os.listdir(requests_dir)
+            if f.startswith(attachment_prefix)
+        ]
 
         if attachments:
             for attachment in attachments:
