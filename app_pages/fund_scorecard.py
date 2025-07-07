@@ -71,6 +71,15 @@ def run():
             preview_df = pd.DataFrame(matched_funds, columns=["Investment Option", "Fund Status"])
             st.dataframe(preview_df, use_container_width=True)
 
+            # Download CSV option
+            csv_data = preview_df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="📄 Download Results as CSV",
+                data=csv_data,
+                file_name="fund_scorecard_results.csv",
+                mime="text/csv"
+            )
+
             # Update Excel
             try:
                 updated_excel = update_excel_with_template(excel_file, matched_funds)
