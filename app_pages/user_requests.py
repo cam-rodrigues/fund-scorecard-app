@@ -1,77 +1,45 @@
 import streamlit as st
+from utils.google_sheets import log_to_google_sheets, is_admin_user
 from datetime import datetime
-from utils.google_sheets import log_to_google_sheets, render_admin_preview
 
-st.set_page_config(page_title="User Requests", layout="wide")
+st.title("User Requests")
 
-# === Visual Styling ===
-st.markdown("""
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-<style>
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-    }
-    label, textarea, input, select {
-        font-size: 0.95rem;
-    }
-    .stTextInput > div > div > input,
-    .stTextArea textarea {
-        background-color: #f8f9fa;
-        border-radius: 8px;
-        padding: 8px 12px;
-        border: 1px solid #ccc;
-    }
-    .stFileUploader > div {
-        background-color: #f1f5f9;
-        border-radius: 10px;
-        border: 1.5px dashed #ccc !important;
-        padding: 1rem;
-    }
-    .stButton > button {
-        background-color: #2b6cb0;
-        color: white;
-        font-weight: 600;
-        padding: 0.6rem 1.2rem;
-        border: none;
-        border-radius: 8px;
-        transition: 0.2s ease-in-out;
-    }
-    .stButton > button:hover {
-        background-color: #1a4b84;
-        color: white;
-    }
-</style>
-""", unsafe_allow_html=True)
+st.markdown("Use the form below to submit feature requests, bug reports, or general questions.")
 
-# === Page Header ===
-st.title("📬 Submit a Request")
-st.markdown("Use this form to request a feature, report a bug, or send feedback.")
+# --- Input form ---
+with st.form("user_request_form", clear_on_submit=True):
+    col1, col2 = st.columns(2)
+    with col1:
+        name = st.text_input("Your Name", max_chars=50)
+    with col2:
+        email = st.text_input("Your Email", max_chars=100)
 
-# === Form Fields ===
-name = st.text_input("Your Name")
-email = st.text_input("Your Email")
-request_type = st.selectbox("Type of Request", ["Bug Report", "Feature Request", "Other"])
-message = st.text_area("Your Message", height=150)
-uploaded_file = st.file_uploader("Optional Screenshot or Supporting File", type=["png", "jpg", "jpeg", "pdf", "txt"])
+    request_type = st.selectbox("Type of Request", ["Feature Request", "Bug Report", "Other"])
+    message = st.text_area("Your Message", height=150)
+    uploaded_file = st.file_uploader("Optional Screenshot or Supporting File", type=["png", "jpg", "jpeg", "pdf", "txt"])
 
-# === Submission ===
-if st.button("Submit Request"):
-    if not name or not email or not request_type:
-        st.warning("Please complete all required fields.")
+    submit = st.form_submit_button("Submit Request")
+
+# --- Submission logic ---
+if submit:
+    if not name or not email or not message:
+        st.error("Please fill out all required fields: Name, Email, and Message.")
     else:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        success = log_to_google_sheets(
-            name=name,
-            email=email,
-            request_type=request_type,
-            message=message,
-            uploaded_file=uploaded_file,
-            timestamp=timestamp
-        )
+        success = log_to_google_sheets(name, email, request_type, message, uploaded_file, timestamp)
+
         if success:
             st.success("✅ Your request has been saved.")
         else:
-            st.error("❌ Failed to log to Google Sheets. Please try again later.")
+            st.error("❌ Failed to log your request. Please try again later.")
 
-# === Admin Table Preview (hidden unless email matches ADMIN_EMAIL) ===
-render_admin_preview()
+# --- Admin View ---
+if is_admin_user():
+    st.markdown("---")
+    st.subheader("📊 Admin Submission Viewer (Live Preview)")
+    try:
+        from utils.google_sheets import get_all_submissions
+        df = get_all_submissions()
+        st.dataframe(df, use_container_width=True)
+    except Exception as e:
+        st.error(f"Could not load admin preview: {e}")
