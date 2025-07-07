@@ -1,7 +1,7 @@
 import streamlit as st
 import datetime
 import os
-from utils.google_sheets import log_to_google_sheets
+from utils.google_sheets import log_to_google_sheets, render_admin_preview
 
 def run():
     st.markdown("## User Feedback & Feature Requests")
@@ -51,6 +51,9 @@ def run():
             st.success("✅ Your request has been saved.")
 
             # Log to Google Sheets
-            log_success = log_to_google_sheets(name, email, message, timestamp)
+            log_success = log_to_google_sheets(name, email, request_type, message, timestamp)
             if log_success:
                 st.success("✅ Also logged to Google Sheets!")
+
+    # Show hidden admin table if email matches
+    render_admin_preview()
