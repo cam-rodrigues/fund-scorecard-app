@@ -65,17 +65,17 @@ def run():
         <div class="manual-section">
             <div class="manual-title">Common Questions</div>
             <div class="manual-body">
-                <strong>Q: Why can’t I paste directly from Excel?</strong><br>
-                A: Excel often includes hidden formatting that breaks the input. Use plain text with one investment per line.<br><br>
+                <p><strong>Q: Why can’t I paste directly from Excel?</strong><br>
+                A: Excel often includes hidden formatting that breaks the input. Use plain text with one investment per line.</p>
 
-                <strong>Q: What do “Pass” and “Fail” mean?</strong><br>
-                A: FidSync extracts these status phrases from your PDF. It writes them into your Excel template, color-coded (green/red).<br><br>
+                <p><strong>Q: What do “Pass” and “Fail” mean?</strong><br>
+                A: FidSync extracts these status phrases from your PDF. It writes them into your Excel template, color-coded (green/red).</p>
 
-                <strong>Q: Is this tool secure?</strong><br>
-                A: Yes — it runs in memory and never stores or uploads your data.<br><br>
+                <p><strong>Q: Is this tool secure?</strong><br>
+                A: Yes — it runs in memory and never stores or uploads your data.</p>
 
-                <strong>Q: What if my fund names don't match exactly?</strong><br>
-                A: FidSync uses fuzzy matching to find the closest possible match. You’ll see a preview before anything is applied.
+                <p><strong>Q: What if my fund names don't match exactly?</strong><br>
+                A: FidSync uses fuzzy matching to find the closest possible match. You’ll see a preview before anything is applied.</p>
             </div>
         </div>
     """, unsafe_allow_html=True)
