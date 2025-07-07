@@ -1,55 +1,55 @@
 import streamlit as st
 
 def run():
-    st.title("🧠 Capabilities & Potential")
-
+    st.markdown("# 🧠 Capabilities & Potential")
     st.markdown("""
-    ## ✅ What FidSync Can Do Now
+FidSync is already a powerful internal tool — and it has the potential to grow into a full platform.
 
-    **FidSync** is a smart internal tool designed to save hours of manual work and reduce errors.
+---
 
-    - 🔍 **Extracts fund names from messy PDF scorecards**
-    - 🔗 **Matches fund names to investment options** using smart fuzzy logic
-    - 📊 **Updates Excel templates** cleanly — no formulas or Excel hacks
-    - 🧾 **Logs activity to Google Sheets** for audit tracking or reporting
-    - 🔐 **Includes an admin dashboard** to review user feedback and submissions
-    - 🌐 **Runs as a professional web app** with clean navigation and secure admin access
+## ✅ What FidSync Can Do Now
 
-    ---
+- **Extracts fund names from messy PDFs**
+- **Matches them to investment options** using smart fuzzy logic
+- **Updates Excel templates** automatically — clean and accurate
+- **Logs everything to Google Sheets** for auditing and tracking
+- **Admin dashboard** for reviewing user feedback and submissions
+- **Runs as a secure web app** with a professional interface
 
-    ## 🚀 What FidSync Could Do Next
+---
 
-    Below are real, practical expansions that show this project can grow into a full internal platform:
+## 🚀 What FidSync Could Do Next
 
-    ### 🔌 Integrate with Other Tools
-    - ✉️ Send email notifications when results are ready
-    - 🤝 Push data to CRMs like Salesforce or HubSpot
-    - 💬 Upload a PDF via Slack or Teams and get instant results
-    - 🖋 Auto-generate DocuSign packages after fund matching
+### 🔌 Integrate with Other Tools
+- Email notifications to users or clients
+- Push data to CRMs like Salesforce or HubSpot
+- Slack/Teams support for uploads and alerts
+- DocuSign integration to auto-generate packages
 
-    ### 🤖 Add Smart Features
-    - 🧠 Suggest fixes for unmatched or misspelled fund names
-    - 📖 Summarize sections of PDF reports (like tenure or fees)
-    - ⚠️ Flag potential risks or issues based on the fund data
+### 🤖 Add Smart Features
+- Auto-suggest fixes for unmatched fund names
+- Summarize sections of PDFs (e.g., manager tenure)
+- Flag risky funds based on tenure, style drift, etc.
 
-    ### 📈 Improve Reporting & Analysis
-    - 📊 Add charts and visuals (e.g., pie charts, status breakdowns)
-    - 🧾 Auto-generate reports (PDFs or slides) for clients or managers
-    - 🗃 Batch process multiple PDFs and Excel files at once
+### 📈 Improve Reporting
+- Visual charts and dashboards
+- Generate branded PDFs or presentations
+- Batch process multiple files at once
 
-    ### 🧱 Build for Scalability
-    - 👥 Add user accounts for secure multi-user access
-    - 🕵️ Enable full audit logs for compliance and tracking
-    - 🔒 Encrypt file uploads and auto-delete after processing
+### 🧱 Build for Scale
+- User accounts and permissions
+- Audit logging and history tracking
+- File encryption and auto-delete options
 
-    ---
+---
 
-    ## 💼 Why This Matters
+## 💼 Why This Matters
 
-    This project shows the ability to:
-    - Use Python to automate real-world business workflows
-    - Work with complex data (PDFs, Excel, Google Sheets)
-    - Build secure, scalable, and user-friendly internal tools
-    - Expand into integrations, AI, and advanced reporting
+FidSync isn’t just a script — it’s a growing platform.
 
-    "")
+It shows how Python can be used to:
+- Automate complex business workflows
+- Connect tools like Google Sheets, Excel, and PDF
+- Build secure, professional, internal-use applications
+- Expand to AI, reporting, notifications, and integrations
+    """)
