@@ -1,3 +1,5 @@
+st.write("DEBUG: Secrets = ", st.secrets)
+
 import streamlit as st
 import datetime
 import os
