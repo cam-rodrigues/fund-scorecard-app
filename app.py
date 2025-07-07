@@ -4,7 +4,7 @@ import importlib.util
 
 st.set_page_config(page_title="FidSync", layout="wide")
 
-# === Static sidebar style ===
+# === Clean sidebar style ===
 st.markdown("""
     <style>
         [data-testid="stSidebar"] {
@@ -18,6 +18,8 @@ st.markdown("""
             border-radius: 0.5rem;
             padding: 0.4rem 0.75rem;
             font-weight: 600;
+            width: 100%;
+            text-align: left;
         }
         [data-testid="stSidebar"] .stButton>button:hover {
             background-color: #e6e6e6;
@@ -41,23 +43,20 @@ def load_page(page_file):
 
 def main():
     st.sidebar.title("FidSync Navigation")
-    page = st.sidebar.selectbox("Go to", [
-        "Getting Started",
-        "How to Use",
-        "Fund Scorecard",
-        "User Requests",
-        "Security Policy"
-    ])
 
-    page_map = {
-        "Getting Started": "Getting_Started.py",
-        "How to Use": "How_to_Use.py",
-        "Fund Scorecard": "fund_scorecard.py",
-        "User Requests": "user_requests.py",
-        "Security Policy": "Security_Policy.py"
-    }
-
-    load_page(page_map[page])
+    if st.sidebar.button("Getting Started"):
+        load_page("Getting_Started.py")
+    elif st.sidebar.button("How to Use"):
+        load_page("How_to_Use.py")
+    elif st.sidebar.button("Fund Scorecard"):
+        load_page("fund_scorecard.py")
+    elif st.sidebar.button("User Requests"):
+        load_page("user_requests.py")
+    elif st.sidebar.button("Security Policy"):
+        load_page("Security_Policy.py")
+    else:
+        st.markdown("### Welcome to FidSync")
+        st.info("Use the sidebar to begin.")
 
 if __name__ == "__main__":
     main()
