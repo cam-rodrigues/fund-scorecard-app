@@ -1,19 +1,19 @@
 import streamlit as st
 import os
-import datetime
 
 def run():
     st.title("📂 Admin: View Submitted Requests")
 
     requests_dir = "requests"
+
     if not os.path.exists(requests_dir):
-        st.warning("No requests have been submitted yet.")
+        st.info("📭 No submissions yet.")
         return
 
-    request_files = sorted([f for f in os.listdir(requests_dir) if f.endswith(".txt")], reverse=True)
+    request_files = sorted([f for f in os.listdir(requests_dir) if f.startswith("request_") and f.endswith(".txt")], reverse=True)
 
     if not request_files:
-        st.info("No requests found.")
+        st.info("📭 No submissions yet.")
         return
 
     for req_file in request_files:
@@ -26,7 +26,7 @@ def run():
         st.subheader(f"📝 Submission: {timestamp}")
         st.text(lines)
 
-        # Check for corresponding attachment
+        # Look for any matching attachments
         attachment_prefix = f"attachment_{timestamp}"
         attachments = [f for f in os.listdir(requests_dir) if f.startswith(attachment_prefix)]
 
