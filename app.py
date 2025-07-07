@@ -57,6 +57,7 @@ nav_button("Security Policy", "Security_Policy.py")
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
 nav_button("Fund Scorecard", "fund_scorecard.py")
 nav_button("User Requests", "user_requests.py")
+nav_button("Capabilities & Potential", "Capabilities_and_Potential.py")  # ✅ New tab added
 
 # === Page router ===
 query_params = st.query_params
@@ -86,4 +87,5 @@ else:
     - 🧭 View the **Getting Started** guide
     - ✅ Run the **Fund Scorecard**
     - 💬 Submit or review **User Requests**
+    - 🧠 Explore **Capabilities & Potential**
     """)
