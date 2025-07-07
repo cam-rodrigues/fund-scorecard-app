@@ -3,7 +3,7 @@ import streamlit as st
 def run():
     st.markdown("""
         <style>
-            .manual-section {
+            .changelog-section {
                 background-color: #fdfdfd;
                 padding: 1.5rem;
                 margin-bottom: 1.5rem;
@@ -11,71 +11,69 @@ def run():
                 box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
                 border-left: 6px solid #1c2e4a;
             }
-            .manual-title {
+            .changelog-title {
                 font-size: 1.5rem;
                 font-weight: 700;
-                margin-bottom: 0.5rem;
+                margin-bottom: 0.75rem;
                 color: #1c2e4a;
             }
-            .manual-body {
+            .changelog-sub {
+                font-size: 1.1rem;
+                font-weight: 600;
+                margin-top: 1rem;
+            }
+            .changelog-body {
                 font-size: 1rem;
                 color: #333;
             }
         </style>
 
-        <div class="manual-section">
-            <div class="manual-title">What Is FidSync?</div>
-            <div class="manual-body">
-                FidSync is a secure, professional tool for financial teams that need to match fund statuses from PDF scorecards to Excel templates.
-                It saves time, reduces manual copy-paste errors, and provides a polished interface for accurate reporting.
+        <div class="changelog-section">
+            <div class="changelog-title">Changelog & Feature Plans</div>
+            <div class="changelog-body">
+                This page includes recent version updates and upcoming planned improvements.
             </div>
         </div>
 
-        <div class="manual-section">
-            <div class="manual-title">Navigation Overview</div>
-            <div class="manual-body">
-                Use the left-hand sidebar to access each section of the app:
+        <div class="changelog-section">
+            <div class="changelog-sub">Version 1.2.0 – July 2025</div>
+            <div class="changelog-body">
                 <ul>
-                    <li><strong>Getting Started:</strong> You're here — this is the main overview and user guide.</li>
-                    <li><strong>Fund Scorecard:</strong> Upload your files and generate your updated Excel report.</li>
-                    <li><strong>User Requests:</strong> Suggest improvements, report bugs, or submit feedback.</li>
-                    <li><strong>Roadmap:</strong> See what's coming next.</li>
+                    <li>Professional sidebar with styled navigation</li>
+                    <li>Unified documentation layout and styling</li>
+                    <li>Live fund match preview and improved error handling</li>
+                </ul>
+            </div>
+
+            <div class="changelog-sub">Version 1.1.0 – June 2025</div>
+            <div class="changelog-body">
+                <ul>
+                    <li>User request form with email validation</li>
+                    <li>Fuzzy matching logic upgraded</li>
+                    <li>Color-coded Excel output with formula skip detection</li>
+                </ul>
+            </div>
+
+            <div class="changelog-sub">Version 1.0.0 – May 2025</div>
+            <div class="changelog-body">
+                <ul>
+                    <li>Initial launch with PDF + Excel processing</li>
+                    <li>Manual investment option input</li>
+                    <li>Basic match results written to Excel</li>
                 </ul>
             </div>
         </div>
 
-        <div class="manual-section">
-            <div class="manual-title">Security & Confidentiality</div>
-            <div class="manual-body">
-                All file processing happens in memory — nothing is stored or uploaded. FidSync is safe to use with sensitive internal documents or client data.
-            </div>
-        </div>
-
-        <div class="manual-section">
-            <div class="manual-title">Best Practices</div>
-            <div class="manual-body">
+        <div class="changelog-section">
+            <div class="changelog-sub">Planned Features</div>
+            <div class="changelog-body">
                 <ul>
-                    <li>Paste investment options exactly as they appear in your source — one per line.</li>
-                    <li>Review the match preview before downloading to ensure accuracy.</li>
-                    <li>Use the <strong>User Requests</strong> tab if you want to see something improved.</li>
+                    <li>Match confidence scores and review step</li>
+                    <li>Multi-sheet Excel support with custom targeting</li>
+                    <li>CSV export of preview table</li>
+                    <li>Theme toggle (light/dark mode)</li>
+                    <li>Admin dashboard for user feedback</li>
                 </ul>
-            </div>
-        </div>
-
-        <div class="manual-section">
-            <div class="manual-title">Common Questions</div>
-            <div class="manual-body">
-                <p><strong>Q: Why can’t I paste directly from Excel?</strong><br>
-                A: Excel often includes hidden formatting that breaks the input. Use plain text with one investment per line.</p>
-
-                <p><strong>Q: What do “Pass” and “Fail” mean?</strong><br>
-                A: FidSync extracts these status phrases from your PDF. It writes them into your Excel template, color-coded (green/red).</p>
-
-                <p><strong>Q: Is this tool secure?</strong><br>
-                A: Yes — it runs in memory and never stores or uploads your data.</p>
-
-                <p><strong>Q: What if my fund names don't match exactly?</strong><br>
-                A: FidSync uses fuzzy matching to find the closest possible match. You’ll see a preview before anything is applied.</p>
             </div>
         </div>
     """, unsafe_allow_html=True)
