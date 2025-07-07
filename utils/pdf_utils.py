@@ -27,6 +27,7 @@ def extract_data_from_pdf(pdf_file, start_page, end_page):
         raise RuntimeError(f"PDF extraction failed: {e}")
 
 def is_probable_fund_name(line):
+    # Ignore headers, totals, metadata
     ignore = ["tenure", "years", "%", "$", "as of", "page", "total"]
     if len(line.split()) < 2:
         return False
