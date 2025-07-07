@@ -25,8 +25,10 @@ def run():
         if not name or not email or not message:
             st.error("Please fill in all required fields.")
         else:
-            # ✅ Show the full path to the folder it's using
-            requests_dir = os.path.abspath("requests")
+            # ✅ Force files to go into your actual repo's /requests folder
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            requests_dir = os.path.abspath(os.path.join(base_dir, "..", "requests"))
+
             try:
                 os.makedirs(requests_dir, exist_ok=True)
                 st.success(f"✅ `requests/` folder ready at:\n`{requests_dir}`")
@@ -58,6 +60,6 @@ def run():
                 except Exception as e:
                     st.error(f"❌ Failed to save attachment: {e}")
 
-            # 👀 Show exactly what files exist in the folder
+            # 👀 Show what’s in the actual folder
             st.markdown("### 📂 Current files in `/requests/`")
             st.write(os.listdir(requests_dir))
