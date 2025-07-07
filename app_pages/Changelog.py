@@ -1,26 +1,41 @@
 import streamlit as st
 
 def run():
-    st.markdown("## Changelog")
+    st.markdown("## Changelog & Feature Plans")
 
-    st.markdown("### v1.2.0 – July 2025")
-    st.markdown("""
-    - Modern UI and color scheme
-    - Dropdown-based sidebar navigation
-    - User Manual and FAQ added
-    - Streamlit API upgraded to support `st.query_params`
+    st.markdown("### Recent Updates")
+
+    st.markdown("#### Version 1.2.0 – July 2025")
+    st.write("""
+    - Updated UI with professional color scheme and sidebar layout
+    - Integrated user manual and documentation cleanup
+    - Added dropdown navigation using query parameters
+    - Improved fund scorecard preview and error handling
     """)
 
-    st.markdown("### v1.1.0 – June 2025")
-    st.markdown("""
-    - User Request form launched
-    - PDF and Excel preview upgraded
-    - Internal fuzzy matching engine improved
+    st.markdown("#### Version 1.1.0 – June 2025")
+    st.write("""
+    - Introduced User Request form with optional email
+    - Enhanced fuzzy matching engine
+    - Added Excel formatting (green/red) and formula detection
     """)
 
-    st.markdown("### v1.0.0 – May 2025")
-    st.markdown("""
+    st.markdown("#### Version 1.0.0 – May 2025")
+    st.write("""
     - Initial release
-    - Fund Scorecard processing with Excel export
-    - Manual investment option input
+    - Upload fund scorecard (PDF) and Excel workbook
+    - Match statuses and export updated Excel
+    """)
+
+    st.markdown("---")
+
+    st.markdown("### Planned Features")
+
+    st.write("""
+    These items are under consideration or in development:
+    - Optional match confidence scoring and review step
+    - Advanced Excel features (multi-sheet targeting, dynamic cell ranges)
+    - Theme customization (light/dark mode toggle)
+    - Export preview data as CSV
+    - Admin dashboard for user feedback review
     """)
