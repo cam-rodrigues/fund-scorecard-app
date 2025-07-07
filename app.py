@@ -20,8 +20,57 @@ def apply_theme(theme: str):
 def restart_required():
     st.sidebar.warning("Theme applied. Please rerun the app to see changes.")
 
-# === Global sidebar style ===
-st.markdown("""
+# === Theme toggle ===
+theme_choice = st.sidebar.radio("Select Theme", ["Light", "Dark"], horizontal=True)
+if "current_theme" not in st.session_state:
+    st.session_state.current_theme = theme_choice
+
+if theme_choice != st.session_state.current_theme:
+    apply_theme(theme_choice)
+    st.session_state.current_theme = theme_choice
+    restart_required()
+
+# === Inject dynamic sidebar styles ===
+if theme_choice == "Dark":
+    sidebar_style = """
+    <style>
+        [data-testid="stSidebar"] {
+            background-color: #1e1e1e;
+            border-right: 1px solid #333;
+        }
+        .sidebar-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #e8e8e8;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #444;
+            margin-bottom: 1rem;
+        }
+        .sidebar-section {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #aaa;
+            margin-top: 2rem;
+            margin-bottom: 0.3rem;
+            letter-spacing: 0.5px;
+        }
+        .sidebar-button {
+            background: none;
+            border: none;
+            padding: 0.25rem 0;
+            font-size: 1rem;
+            color: #e8e8e8;
+            text-align: left;
+            cursor: pointer;
+            width: 100%;
+        }
+        .sidebar-button:hover {
+            color: #4aa8ff;
+        }
+    </style>
+    """
+else:
+    sidebar_style = """
     <style>
         [data-testid="stSidebar"] {
             background-color: #f0f2f6;
@@ -57,19 +106,11 @@ st.markdown("""
             color: #304f7a;
         }
     </style>
-""", unsafe_allow_html=True)
+    """
+
+st.markdown(sidebar_style, unsafe_allow_html=True)
 
 st.sidebar.markdown('<div class="sidebar-title">FidSync</div>', unsafe_allow_html=True)
-
-# === Theme toggle ===
-theme_choice = st.sidebar.radio("Select Theme", ["Light", "Dark"], horizontal=True)
-if "current_theme" not in st.session_state:
-    st.session_state.current_theme = theme_choice
-
-if theme_choice != st.session_state.current_theme:
-    apply_theme(theme_choice)
-    st.session_state.current_theme = theme_choice
-    restart_required()
 
 # === Navigation buttons ===
 def nav_button(label, page):
@@ -98,9 +139,9 @@ if selected_page:
             spec.loader.exec_module(module)
             module.run()
         except Exception as e:
-            st.error(f"❌ Failed to load page: {e}")
+            st.error(f"\u274c Failed to load page: {e}")
     else:
-        st.error(f"❌ Page not found: {selected_page}")
+        st.error(f"\u274c Page not found: {selected_page}")
 else:
     st.markdown("# Welcome to FidSync")
     st.markdown("""
