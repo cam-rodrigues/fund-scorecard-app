@@ -49,6 +49,7 @@ def nav_button(label, page):
     if st.sidebar.button(label, key=label):
         st.query_params.update({"page": page})
 
+# === Sidebar navigation (excluding hidden admin tab) ===
 st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
 nav_button("Getting Started", "Getting_Started.py")
 nav_button("Security Policy", "Security_Policy.py")
@@ -64,6 +65,7 @@ PAGES_DIR = "app_pages"
 
 if selected_page:
     page_path = os.path.join(PAGES_DIR, selected_page)
+
     if os.path.exists(page_path):
         try:
             spec = importlib.util.spec_from_file_location("page", page_path)
@@ -75,6 +77,7 @@ if selected_page:
     else:
         st.error(f"❌ Page not found: {selected_page}")
 else:
+    # === Default landing content ===
     st.markdown("# Welcome to FidSync")
     st.markdown("""
     FidSync helps financial teams securely extract and update fund statuses from scorecard PDFs into Excel templates.
@@ -84,3 +87,4 @@ else:
     - Run the **Fund Scorecard** tool
     - Submit a **Request**
     """)
+
