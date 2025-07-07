@@ -54,6 +54,3 @@ def run():
             log_success = log_to_google_sheets(name, email, message, timestamp)
             if log_success:
                 st.success("✅ Also logged to Google Sheets!")
-
-    # Sheet link for admin use
-    st.markdown("📄 [View submissions in Google Sheets](https://docs.google.com/spreadsheets/d/1NByeYVPB0oX8i2ct9cEt3cQat7Dyp-uZxBbw17QiQeY)")
