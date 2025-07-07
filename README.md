@@ -42,3 +42,41 @@ fydsync/
 │   └── config.toml             # Theme & credentials (optional)
 ├── README.md
 └── requirements.txt
+
+
+---
+
+## 📄 Submission Log
+
+All user request submissions are viewable here (admin only):  
+👉 [FidSync Submissions Sheet](https://docs.google.com/spreadsheets/d/1NByeYVPB0oX8i2ct9cEt3cQat7Dyp-uZxBbw17QiQeY)
+
+> _Only shared with the developer or authorized team members._
+---
+
+## 🔒 Data & Privacy
+
+- No submission data is stored or shared outside the app unless authorized.
+- All uploads go to a local `/requests/` folder by default.
+- The public GitHub repo only tracks `.gitkeep` (no user submissions).
+- You control whether to connect Google Sheets or email for backups.
+
+---
+
+## 📬 Support
+
+For issues or questions, submit a request in-app or reach out directly.  
+Want to contribute or build your own version? Fork this repo and start customizing.
+
+---
+
+## 📌 Coming Soon
+
+- Google Sheets live integration
+- Admin filtering & search
+- Export to CSV
+- Submission email alerts
+
+---
+
+_© 2025 Cam Rodrigues — Built with ❤️ using Streamlit_
