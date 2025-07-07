@@ -1,45 +1,27 @@
 import streamlit as st
-import gspread
-import pandas as pd
-from google.oauth2.service_account import Credentials
+from datetime import datetime
+from utils.google_sheets import log_to_google_sheets, render_admin_preview
 
-# --- Google Sheets Setup ---
-SCOPE = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-SHEET_NAME = "FidSync Submissions"
-TAB_NAME = "Form Responses 1"
+def run():
+    st.title("📬 Submit a Request")
+    with st.form("user_request_form"):
+        req_type = st.selectbox("Type of Request", ["Feature Request", "Bug Report", "Other"])
+        message = st.text_area("Your Message", height=150)
+        uploaded_file = st.file_uploader("Optional Screenshot or Supporting File", type=["png", "jpg", "jpeg", "pdf", "txt"])
 
-# 👤 Admin email for preview access
-ADMIN_EMAIL = "crods611@gmail.com"
-
-def log_to_google_sheets(name, email, request_type, message, uploaded_file=None, timestamp=None):
-    try:
-        creds_dict = st.secrets["gspread"]
-        credentials = Credentials.from_service_account_info(creds_dict, scopes=SCOPE)
-        gc = gspread.authorize(credentials)
-        sh = gc.open(SHEET_NAME)
-        worksheet = sh.worksheet(TAB_NAME)
-
-        if not timestamp:
-            from datetime import datetime
+        submitted = st.form_submit_button("Submit Request")
+        if submitted:
+            name = st.session_state.get("name", "Anonymous")
+            email = st.session_state.get("email", "anonymous@example.com")
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        file_name = uploaded_file.name if uploaded_file else ""
-        row = [timestamp, name, email, request_type, message, file_name]
-        worksheet.append_row(row, value_input_option="USER_ENTERED")
+            success = log_to_google_sheets(name, email, req_type, message, uploaded_file, timestamp)
 
-        return True
-    except Exception as e:
-        st.error(f"❌ Failed to log to Google Sheets: {e}")
-        return False
+            if success:
+                st.success("✅ Your request has been saved.")
+                st.write("Logging this row to Google Sheets:")
+                st.json([timestamp, name, email, req_type, message, uploaded_file.name if uploaded_file else ""])
+            else:
+                st.error("❌ Something went wrong while saving your request.")
 
-def is_admin_user():
-    return st.session_state.get("email") == ADMIN_EMAIL
-
-def get_all_submissions():
-    creds_dict = st.secrets["gspread"]
-    credentials = Credentials.from_service_account_info(creds_dict, scopes=SCOPE)
-    gc = gspread.authorize(credentials)
-    sh = gc.open(SHEET_NAME)
-    worksheet = sh.worksheet(TAB_NAME)
-    data = worksheet.get_all_records()
-    return pd.DataFrame(data)
+    render_admin_preview()
