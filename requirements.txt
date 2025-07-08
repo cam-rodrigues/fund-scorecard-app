@@ -1,21 +1,14 @@
-streamlit==1.46.1
-pdfplumber==0.11.0
-pandas==2.3.0
+streamlit==1.27.2
+pandas==2.2.2
 openpyxl==3.1.2
+pdfplumber==0.11.0
 rapidfuzz==3.6.1
-
 gspread
 gspread-formatting
 oauth2client
-
 python-docx
 docx2txt
 
-spacy==3.7.2
-https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
-
+# lighter NLP packages (optional)
 textblob
-newspaper3k
-lxml[html_clean]
-fpdf==1.7.2
-python-dateutil
+vaderSentiment
