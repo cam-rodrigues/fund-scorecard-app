@@ -8,42 +8,56 @@ from fpdf import FPDF
 from io import BytesIO
 
 # -------------------------
+# PDF Safe Text Cleanup
+# -------------------------
+
+def clean_text(text):
+    replacements = {
+        '“': '"', '”': '"', '’': "'", '‘': "'", '•': '-', '–': '-', '—': '-', '…': '...',
+    }
+    for orig, repl in replacements.items():
+        text = text.replace(orig, repl)
+    return text.encode('ascii', 'ignore').decode('ascii')
+
+# -------------------------
 # PDF Generator
 # -------------------------
 
-def generate_pdf(title, main, bullets, facts):
+def generate_pdf(title, main, bullets, facts, url=None):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 14)
     pdf.cell(0, 10, "Article Summary", ln=1)
 
+    if url:
+        pdf.set_font("Arial", "I", 10)
+        pdf.multi_cell(0, 8, f"Source: {clean_text(url)}\n")
+
     if title:
         pdf.set_font("Arial", "B", 12)
         pdf.cell(0, 10, "Title:", ln=1)
         pdf.set_font("Arial", "", 11)
-        pdf.multi_cell(0, 8, title + "\n")
+        pdf.multi_cell(0, 8, clean_text(title) + "\n")
 
     if main:
         pdf.set_font("Arial", "B", 12)
         pdf.cell(0, 10, "Main Idea:", ln=1)
         pdf.set_font("Arial", "", 11)
-        pdf.multi_cell(0, 8, main + "\n")
+        pdf.multi_cell(0, 8, clean_text(main) + "\n")
 
     if bullets:
         pdf.set_font("Arial", "B", 12)
         pdf.cell(0, 10, "Key Points:", ln=1)
         pdf.set_font("Arial", "", 11)
         for pt in bullets:
-            pt = pt.replace("•", "-")
-            pdf.multi_cell(0, 8, f"- {pt}")
+            pdf.multi_cell(0, 8, f"- {clean_text(pt)}")
 
     if facts:
         pdf.set_font("Arial", "B", 12)
         pdf.cell(0, 10, "Notable Facts or Quotes:", ln=1)
         pdf.set_font("Arial", "I", 11)
         for f in facts:
-            safe_fact = f.replace("“", '"').replace("”", '"').replace("•", "-")
-            pdf.multi_cell(0, 8, f'"{safe_fact}"')
+            pdf.multi_cell(0, 8, f'"{clean_text(f)}"')
 
     buffer = BytesIO()
     pdf_bytes = pdf.output(dest='S').encode('latin-1')
@@ -52,7 +66,7 @@ def generate_pdf(title, main, bullets, facts):
     return buffer
 
 # -------------------------
-# Core Summarizer
+# Article Analyzer
 # -------------------------
 
 def upgraded_analyze_article(text, max_points=5):
@@ -90,7 +104,9 @@ def upgraded_analyze_article(text, max_points=5):
     bullets = [s for s, _ in sorted_sents[1:max_points + 1]]
     facts = list(dict.fromkeys(quotes + numbers))[:3]
 
-    return main, bullets, facts
+    tickers = re.findall(r"\(([A-Z]{2,5})\)", text)
+
+    return main, bullets, facts, list(set(tickers))
 
 # -------------------------
 # Fetch Article
@@ -106,7 +122,7 @@ def fetch_article_text(url):
         return None, f"Unable to extract article: {e}"
 
 # -------------------------
-# Streamlit UI
+# Streamlit App
 # -------------------------
 
 def run():
@@ -146,13 +162,12 @@ def run():
             return
 
         st.markdown(f'<div class="section-label">Title</div>', unsafe_allow_html=True)
-        if title and len(title.split()) > 2:
-            st.markdown(f'<div class="box">{title}</div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="box">[Title not reliably detected]</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="box">{title}</div>', unsafe_allow_html=True)
+
+        st.markdown(f"[🔗 View Original Article]({url})", unsafe_allow_html=True)
 
         st.markdown(f'<div class="section-label">Summary</div>', unsafe_allow_html=True)
-        main, bullets, facts = upgraded_analyze_article(content, max_points)
+        main, bullets, facts, tickers = upgraded_analyze_article(content, max_points)
         st.markdown(f'<div class="box">{main}</div>', unsafe_allow_html=True)
 
         if bullets:
@@ -165,8 +180,12 @@ def run():
             for f in facts:
                 st.markdown(f'<div class="box">{f}</div>', unsafe_allow_html=True)
 
-        # PDF Export
-        pdf_bytes = generate_pdf(title, main, bullets, facts)
+        if tickers:
+            st.markdown(f'<div class="section-label">Mentioned Tickers</div>', unsafe_allow_html=True)
+            st.markdown(f"`{', '.join(tickers)}`")
+
+        # PDF Download
+        pdf_bytes = generate_pdf(title, main, bullets, facts, url)
         st.download_button("📄 Download PDF", data=pdf_bytes, file_name="article_summary.pdf", mime="application/pdf")
 
     st.markdown("---")
