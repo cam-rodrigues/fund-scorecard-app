@@ -87,6 +87,5 @@ else:
     - 🧭 View the **Getting Started** guide  
     - ✅ Run the **Fund Scorecard**  
     - 💬 Submit or review **User Requests**  
-    - 🧠 Explore **Capabilities & Potential**  
-    - 📄 Analyze uploaded **Articles**
+    - 🔐 Read the **Security Policy**
     """)
