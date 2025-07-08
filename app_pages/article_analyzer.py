@@ -6,12 +6,12 @@ from newspaper import Article
 st.set_page_config(page_title="Article Analyzer", layout="wide")
 
 # -------------------------
-# Paragraph-Aware Summarizer (no AI)
+# Core logic (no AI)
 # -------------------------
 
 def upgraded_analyze_article(text, max_points=5):
-    raw_paragraphs = [p.strip() for p in text.split("\n") if len(p.strip()) > 60]
-    all_sentences, quote_lines, number_lines = [], [], []
+    paragraphs = [p.strip() for p in text.split("\n") if len(p.strip()) > 60]
+    all_sentences, quotes, numbers = [], [], []
 
     words = re.findall(r'\w+', text.lower())
     stopwords = set([
@@ -19,38 +19,32 @@ def upgraded_analyze_article(text, max_points=5):
         "this", "by", "an", "be", "are", "or", "it", "from", "at", "was", "but", "we",
         "not", "have", "has", "you", "they", "their", "can", "if", "will", "about"
     ])
-    word_freq = Counter(w for w in words if w not in stopwords)
-    signal_phrases = ["according to", "in conclusion", "researchers found", "experts say", "overall", "key finding"]
+    freq = Counter(w for w in words if w not in stopwords)
+    signal_phrases = ["according to", "in conclusion", "experts say", "overall", "key finding"]
 
-    for i, para in enumerate(raw_paragraphs):
+    for i, para in enumerate(paragraphs):
         sentences = re.split(r'(?<=[.!?])\s+', para)
-        para_score = 1.5 if i == 0 or i == len(raw_paragraphs) - 1 else 1.0
+        para_boost = 1.5 if i == 0 or i == len(paragraphs) - 1 else 1.0
 
         for sent in sentences:
             sent = sent.strip()
             if len(sent) < 40:
                 continue
-
-            base_score = sum(word_freq.get(w.lower(), 0) for w in re.findall(r'\w+', sent))
-            phrase_bonus = 3 if any(p in sent.lower() for p in signal_phrases) else 0
-            total_score = base_score * para_score + phrase_bonus
-            all_sentences.append((sent, total_score))
-
+            base = sum(freq.get(w.lower(), 0) for w in re.findall(r'\w+', sent))
+            bonus = 3 if any(p in sent.lower() for p in signal_phrases) else 0
+            score = base * para_boost + bonus
+            all_sentences.append((sent, score))
             if re.search(r'[“”"]', sent):
-                quote_lines.append(sent)
+                quotes.append(sent)
             if re.search(r'\d', sent):
-                number_lines.append(sent)
+                numbers.append(sent)
 
-    sorted_sentences = sorted(all_sentences, key=lambda x: x[1], reverse=True)
-    main_idea = sorted_sentences[0][0] if sorted_sentences else "No clear main idea found."
-    key_points = [s for s, _ in sorted_sentences[1:max_points + 1]]
-    stat_lines = list(dict.fromkeys(quote_lines + number_lines))[:3]
+    sorted_sents = sorted(all_sentences, key=lambda x: x[1], reverse=True)
+    main = sorted_sents[0][0] if sorted_sents else "We couldn’t find a clear summary."
+    bullets = [s for s, _ in sorted_sents[1:max_points + 1]]
+    facts = list(dict.fromkeys(quotes + numbers))[:3]
 
-    return main_idea, key_points, stat_lines
-
-# -------------------------
-# Extract Article from URL
-# -------------------------
+    return main, bullets, facts
 
 def fetch_article_text(url):
     try:
@@ -59,68 +53,68 @@ def fetch_article_text(url):
         article.parse()
         return article.title, article.text
     except Exception as e:
-        return None, f"Error fetching article: {e}"
+        return None, f"Oops! Couldn’t read the article: {e}"
 
 # -------------------------
-# Streamlit UI
+# Simple UI for Beginners
 # -------------------------
 
 def run():
     st.markdown("""
         <style>
-            .big-header { font-size: 2rem; font-weight: 800; margin-bottom: 0.3rem; color: #1c2e4a; }
-            .section-title { font-size: 1.25rem; font-weight: 700; margin-top: 1.5rem; color: #2b3e55; }
-            .quote-box {
+            .title { font-size: 2rem; font-weight: bold; color: #203040; margin-bottom: 1rem; }
+            .step { font-weight: bold; margin-top: 1.5rem; font-size: 1.1rem; }
+            .box {
                 background-color: #f8f9fb;
                 padding: 0.75rem;
-                border-left: 4px solid #a0b4d6;
+                border-left: 4px solid #6b90c6;
                 border-radius: 6px;
-                margin-bottom: 0.75rem;
-                font-size: 0.96rem;
+                margin-bottom: 1rem;
+                font-size: 1rem;
             }
         </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="big-header">Article Analyzer</div>', unsafe_allow_html=True)
-    st.markdown("Paste a link to a news article or blog post to extract key insights and supporting points.")
+    st.markdown('<div class="title">Quick Article Analyzer</div>', unsafe_allow_html=True)
+    st.markdown("This tool helps you get the main idea and key points from any article. Just follow the steps:")
 
-    with st.container():
-        url = st.text_input("Article URL")
-        max_points = st.slider("Number of key points to show", min_value=2, max_value=10, value=5)
+    st.markdown('<div class="step">Step 1: Paste the link to the article</div>', unsafe_allow_html=True)
+    url = st.text_input("Paste URL here")
 
-        if url and st.button("Analyze"):
-            with st.spinner("Fetching and analyzing..."):
-                title, content = fetch_article_text(url)
+    st.markdown('<div class="step">Step 2: Choose how many points you want</div>', unsafe_allow_html=True)
+    max_points = st.slider("Number of bullet points", 3, 10, value=5)
 
-            if not content or content.startswith("Error"):
-                st.error(content)
-                return
+    if url and st.button("Get Summary"):
+        with st.spinner("Reading the article..."):
+            title, content = fetch_article_text(url)
 
-            st.success(f"Analyzed: {title}")
+        if not content or content.startswith("Oops"):
+            st.error(content)
+            return
 
-            with st.expander("View Full Text", expanded=False):
-                st.code(content[:1500])
+        st.success("Done! Here's what we found:")
+        main, bullets, facts = upgraded_analyze_article(content, max_points)
 
-            main_idea, key_points, fact_lines = upgraded_analyze_article(content, max_points)
+        st.markdown(f"<div class='step'>Title:</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='box'>{title}</div>", unsafe_allow_html=True)
 
-            st.markdown('<div class="section-title">Main Idea</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="quote-box">{main_idea}</div>', unsafe_allow_html=True)
+        st.markdown(f"<div class='step'>What's the article mostly about?</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='box'>{main}</div>", unsafe_allow_html=True)
 
-            if key_points:
-                st.markdown('<div class="section-title">Key Points</div>', unsafe_allow_html=True)
-                for pt in key_points:
-                    st.markdown(f"- {pt}")
+        st.markdown(f"<div class='step'>Important points:</div>", unsafe_allow_html=True)
+        for b in bullets:
+            st.markdown(f"- {b}")
 
-            if fact_lines:
-                st.markdown('<div class="section-title">Notable Quotes / Stats</div>', unsafe_allow_html=True)
-                for fact in fact_lines:
-                    st.markdown(f'<div class="quote-box">{fact}</div>', unsafe_allow_html=True)
+        if facts:
+            st.markdown(f"<div class='step'>Interesting facts or quotes:</div>", unsafe_allow_html=True)
+            for f in facts:
+                st.markdown(f"<div class='box'>{f}</div>", unsafe_allow_html=True)
 
-            full_summary = f"""Title: {title}\n\nMain Idea:\n{main_idea}\n\nKey Points:\n"""
-            full_summary += "\n".join(f"- {pt}" for pt in key_points)
-            full_summary += "\n\nQuotes/Stats:\n" + "\n".join(f"> {fact}" for fact in fact_lines)
+        summary_txt = f"""Title: {title}\n\nSummary:\n{main}\n\nKey Points:\n"""
+        summary_txt += "\n".join(f"- {b}" for b in bullets)
+        summary_txt += "\n\nFacts:\n" + "\n".join(f"> {f}" for f in facts)
 
-            st.download_button("Download Summary (.txt)", data=full_summary, file_name="article_summary.txt")
+        st.download_button("Download as .txt", data=summary_txt, file_name="summary.txt")
 
-        elif not url:
-            st.info("Paste an article link above and click 'Analyze' to begin.")
+    elif not url:
+        st.info("Paste an article link above and click the button.")
