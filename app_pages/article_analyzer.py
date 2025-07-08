@@ -1,95 +1,92 @@
 # app_pages/article_analyzer.py
 
 import streamlit as st
-import re
-import pdfplumber
 import requests
 from bs4 import BeautifulSoup
-from io import StringIO
+from io import BytesIO
+from fpdf import FPDF
+import re
 
-def extract_metrics(text):
-    patterns = {
-        "EPS": r"EPS[:\s]*\$?([\d.]+)",
-        "Revenue": r"Revenue[:\s]*\$?([\d.]+[MB]?)",
-        "Market Cap": r"Market\s*Cap(?:italization)?[:\s]*\$?([\d.]+[MB]?)",
-    }
-    results = {}
-    for key, pattern in patterns.items():
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            results[key] = match.group(1)
-    return results
-
-def extract_tickers(text):
-    return list(set(re.findall(r"\(([A-Z]{2,5})\)", text)))
-
-def extract_companies(text):
-    return list(set(re.findall(r"\b[A-Z][a-z]+(?:\s[A-Z][a-z]+)*\b", text)))
-
-def extract_text_from_url(url):
+def extract_article_text(url):
     try:
         response = requests.get(url, timeout=10)
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # Remove scripts and style tags
-        for tag in soup(["script", "style", "header", "footer", "nav"]):
+        # Remove unwanted tags
+        for tag in soup(["script", "style", "header", "footer", "nav", "aside", "form"]):
             tag.decompose()
 
-        # Get visible text only
-        paragraphs = soup.find_all("p")
-        text = "\n".join(p.get_text() for p in paragraphs)
-        return text.strip()
+        # Try extracting from <article> tag
+        article_tag = soup.find("article")
+        if article_tag:
+            paragraphs = article_tag.find_all("p")
+        else:
+            candidates = soup.find_all("div")
+            if not candidates:
+                return "No article content found."
+            paragraphs = max(candidates, key=lambda d: len(d.get_text())).find_all("p")
+
+        text = "\n".join(p.get_text() for p in paragraphs).strip()
+
+        # Remove promo sentences
+        lines = text.splitlines()
+        filtered = [line.strip() for line in lines if not any(
+            phrase in line.lower() for phrase in [
+                "subscribe", "sign up", "introductory call", "get started", "advertising"
+            ]) and len(line.strip()) > 40]
+        return "\n".join(filtered)
     except Exception as e:
         return f"ERROR: {e}"
 
+def summarize_text(text, bullet_count):
+    # Basic naive summary: longest N lines that look meaningful
+    sentences = re.split(r'(?<=[.?!])\s+', text)
+    ranked = sorted(sentences, key=lambda s: len(s), reverse=True)
+    return ranked[:bullet_count]
+
+def export_to_pdf(title, url, bullets):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Article Summary", ln=True)
+
+    pdf.set_font("Arial", "", 11)
+    pdf.multi_cell(0, 8, f"URL: {url}\n", ln=True)
+
+    for i, bullet in enumerate(bullets, 1):
+        pdf.multi_cell(0, 8, f"• {bullet.strip()}\n")
+
+    buffer = BytesIO()
+    pdf.output(buffer)
+    buffer.seek(0)
+    return buffer
+
 def run():
-    st.title("📄 Article Analyzer")
-    st.markdown("Paste a link, upload a file, or enter raw text to analyze a financial article.")
+    st.title("🔗 Article Analyzer")
+    st.markdown("Paste a finance article URL, choose how many key points you want, and download a clean PDF summary.")
 
-    input_method = st.radio("Choose input method:", ["Paste URL", "Paste text", "Upload .txt or .pdf"])
+    url = st.text_input("Paste article URL here")
 
-    article_text = ""
+    bullet_count = st.slider("How many bullet points?", min_value=3, max_value=10, value=5)
 
-    if input_method == "Paste URL":
-        url = st.text_input("Paste a valid article URL")
-        if url:
-            article_text = extract_text_from_url(url)
-            if article_text.startswith("ERROR:"):
-                st.error(article_text)
-                article_text = ""
-            else:
-                st.success("Article fetched successfully.")
+    if st.button("Analyze Article"):
+        if not url:
+            st.warning("Please paste a URL first.")
+            return
 
-    elif input_method == "Paste text":
-        article_text = st.text_area("Paste your article here", height=300)
+        with st.spinner("Fetching and analyzing..."):
+            article_text = extract_article_text(url)
 
-    elif input_method == "Upload .txt or .pdf":
-        uploaded_file = st.file_uploader("Upload file", type=["txt", "pdf"])
-        if uploaded_file:
-            if uploaded_file.name.endswith(".txt"):
-                stringio = StringIO(uploaded_file.getvalue().decode("utf-8"))
-                article_text = stringio.read()
-            elif uploaded_file.name.endswith(".pdf"):
-                with pdfplumber.open(uploaded_file) as pdf:
-                    article_text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+        if article_text.startswith("ERROR:") or len(article_text.strip()) < 100:
+            st.error("Failed to extract meaningful article content.")
+            return
 
-    if article_text.strip():
-        st.subheader("📝 Full Text Preview")
-        st.write(article_text[:1000] + ("..." if len(article_text) > 1000 else ""))
+        summary = summarize_text(article_text, bullet_count)
 
-        st.subheader("📊 Key Metrics")
-        metrics = extract_metrics(article_text)
-        if metrics:
-            for k, v in metrics.items():
-                st.write(f"**{k}:** {v}")
-        else:
-            st.write("No obvious metrics detected.")
+        st.subheader("📌 Summary")
+        for i, bullet in enumerate(summary, 1):
+            st.markdown(f"**{i}.** {bullet.strip()}")
 
-        st.subheader("🏢 Companies & Tickers")
-        tickers = extract_tickers(article_text)
-        companies = extract_companies(article_text)
-
-        st.write("**Tickers:**", ", ".join(tickers) if tickers else "None found.")
-        st.write("**Companies:**", ", ".join(companies[:10]) if companies else "None found.")
-
-        st.success("Article analysis complete.")
+        # PDF Export
+        pdf_bytes = export_to_pdf("Article Summary", url, summary)
+        st.download_button("📄 Download PDF", data=pdf_bytes, file_name="summary.pdf", mime="application/pdf")
