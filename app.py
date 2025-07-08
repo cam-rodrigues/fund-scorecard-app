@@ -59,7 +59,7 @@ nav_button("Capabilities & Potential", "Capabilities_and_Potential.py")  # ✅ N
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
 nav_button("Fund Scorecard", "fund_scorecard.py")
 nav_button("User Requests", "user_requests.py")
-nav_button("Document Summary Tool", "document_summary.py")  # ✅ Add this
+nav_button("Article Analyzer", "article_analyzer.py")  # ✅ Add this
 
 # === Page router ===
 query_params = st.query_params
