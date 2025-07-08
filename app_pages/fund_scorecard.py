@@ -1,15 +1,14 @@
 import streamlit as st
 import pandas as pd
 import pdfplumber
-import io
 from difflib import SequenceMatcher
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
 from tempfile import NamedTemporaryFile
 import os
 
-# ---------- PDF Parsing Logic ----------
-def extract_fund_data_from_pdf(pdf_file):
+# ---------- PDF Parsing ----------
+def extract_funds_from_pdf(pdf_file):
     fund_data = []
 
     with pdfplumber.open(pdf_file) as pdf:
@@ -21,78 +20,80 @@ def extract_fund_data_from_pdf(pdf_file):
                 continue
 
             lines = text.splitlines()
-            for idx, line in enumerate(lines):
-                if "Manager Tenure" in line and idx > 0:
-                    fund_name = lines[idx - 1].strip()
-
-                    if "Fund Meets Watchlist Criteria" in line:
-                        status = "Pass"
-                    elif "Fund has been placed on watchlist" in line:
-                        status = "Review"
-                    else:
-                        continue
-
-                    fund_data.append((fund_name, status))
+            for i, line in enumerate(lines):
+                if "Fund Meets Watchlist Criteria" in line and i > 0:
+                    candidate = lines[i - 1].strip()
+                    if is_valid_fund_name(candidate):
+                        fund_data.append((candidate, "Pass"))
+                elif "Fund has been placed on watchlist" in line and i > 0:
+                    candidate = lines[i - 1].strip()
+                    if is_valid_fund_name(candidate):
+                        fund_data.append((candidate, "Review"))
 
     return fund_data
+
+def is_valid_fund_name(name):
+    if not name or len(name) < 5:
+        return False
+    blacklist = ["Investment Options", "Tracking Error", "Rank", "The fund", "Review"]
+    return not any(bad in name for bad in blacklist)
 
 # ---------- Fuzzy Matching ----------
 def similar(a, b):
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
-def fuzzy_match(fund_name, options, threshold=0.7):
-    best_match = None
+def fuzzy_match(name, options, threshold=0.7):
+    best = None
     best_score = 0
-    for option in options:
-        score = similar(fund_name, option)
+    for opt in options:
+        score = similar(name, opt)
         if score > best_score and score >= threshold:
+            best = opt
             best_score = score
-            best_match = option
-    return best_match
+    return best
 
-# ---------- Excel Processing ----------
+# ---------- Excel Handling ----------
 def find_column(df, keyword):
     for col in df.columns:
-        for idx, val in enumerate(df[col]):
+        for i, val in enumerate(df[col]):
             if isinstance(val, str) and keyword.lower() in val.lower():
-                return col, idx + 1  # Return column and row after header
+                return col, i + 1
     return None, None
 
-def update_excel(excel_file, sheet_name, fund_data, investment_list):
-    wb = load_workbook(excel_file)
-    ws = wb[sheet_name]
+def update_excel(file, sheet, fund_data, investment_list):
+    wb = load_workbook(file)
+    ws = wb[sheet]
+    df = pd.read_excel(file, sheet_name=sheet, dtype=str)
 
-    df = pd.read_excel(excel_file, sheet_name=sheet_name, dtype=str)
+    inv_col, inv_start = find_column(df, "Investment Option")
+    stat_col, stat_start = find_column(df, "Current Quarter Status")
 
-    inv_col, inv_start_row = find_column(df, "Investment Option")
-    stat_col, stat_start_row = find_column(df, "Current Quarter Status")
-
-    if inv_col is None or stat_col is None:
-        st.error("Could not find 'Investment Option' or 'Current Quarter Status' headers.")
+    if not inv_col or not stat_col:
+        st.error("Headers 'Investment Option' or 'Current Quarter Status' not found.")
         return None
 
     inv_col_idx = df.columns.get_loc(inv_col) + 1
     stat_col_idx = df.columns.get_loc(stat_col) + 1
 
-    for i in range(stat_start_row + 1, stat_start_row + 1 + len(investment_list)):
+    # Clear formatting in target column
+    for i in range(stat_start + 1, stat_start + 1 + len(investment_list)):
         ws.cell(row=i, column=stat_col_idx).fill = PatternFill(fill_type=None)
 
-    fund_map = {fuzzy_match(fund, investment_list): status for fund, status in fund_data}
+    green = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+    red = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
 
-    green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
-    red_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+    pdf_status_map = {fuzzy_match(name, investment_list): status for name, status in fund_data}
 
-    for i, investment in enumerate(investment_list):
-        row = stat_start_row + 1 + i
-        status = fund_map.get(investment)
+    for i, inv in enumerate(investment_list):
+        row = stat_start + 1 + i
+        status = pdf_status_map.get(inv)
         cell = ws.cell(row=row, column=stat_col_idx)
-
         if status == "Pass":
             cell.value = "Pass"
-            cell.fill = green_fill
+            cell.fill = green
         elif status == "Review":
             cell.value = "Review"
-            cell.fill = red_fill
+            cell.fill = red
         else:
             cell.value = None
             cell.fill = PatternFill(fill_type=None)
@@ -101,40 +102,39 @@ def update_excel(excel_file, sheet_name, fund_data, investment_list):
         wb.save(tmp.name)
         return tmp.name
 
-# ---------- Main Streamlit UI ----------
+# ---------- Streamlit App ----------
 def run():
     st.title("📊 FidSync: Fund Scorecard Matching")
 
     st.markdown("""
-    Extract fund statuses from your PDF, match them to your Excel, and generate a color-coded scorecard.
+    Match PDF fund watchlist results to your Excel investment options. Color-coded and clean.
     """)
 
     pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type=["pdf"])
     excel_file = st.file_uploader("Upload Excel File (.xlsx)", type=["xlsx"])
-    investment_input = st.text_area("Paste Investment Options (one per line, same order as Excel)", height=200)
+    investment_input = st.text_area("Paste Investment Option Names (one per line)", height=200)
 
     if pdf_file and excel_file and investment_input:
         try:
             investment_list = [line.strip() for line in investment_input.splitlines() if line.strip()]
-            fund_data = extract_fund_data_from_pdf(pdf_file)
+            fund_data = extract_funds_from_pdf(pdf_file)
 
-            with st.expander("🔍 Preview Extracted Fund Data from PDF"):
-                st.dataframe(pd.DataFrame(fund_data, columns=["Fund Name", "Status"]))
+            st.write("✅ Extracted Fund Entries from PDF")
+            st.dataframe(pd.DataFrame(fund_data, columns=["Fund Name", "Status"]))
 
             xls = pd.ExcelFile(excel_file)
-            sheet_name = st.selectbox("Select Worksheet", xls.sheet_names)
+            sheet = st.selectbox("Choose Worksheet", xls.sheet_names)
 
-            if st.button("Run Matching & Update Excel"):
-                updated_path = update_excel(excel_file, sheet_name, fund_data, investment_list)
+            if st.button("🔁 Match and Update Excel"):
+                updated_file = update_excel(excel_file, sheet, fund_data, investment_list)
 
-                if updated_path:
-                    with open(updated_path, "rb") as f:
-                        st.success("✅ Excel file updated successfully!")
-                        st.download_button("📥 Download Updated Excel", data=f, file_name="updated_fund_scorecard.xlsx")
-                    os.remove(updated_path)
+                if updated_file:
+                    with open(updated_file, "rb") as f:
+                        st.success("✅ Excel updated successfully!")
+                        st.download_button("📥 Download Updated File", data=f, file_name="updated_scorecard.xlsx")
+                    os.remove(updated_file)
 
         except Exception as e:
-            st.error(f"❌ Error: {e}")
-
+            st.error(f"❌ An error occurred: {e}")
     else:
         st.info("⬆️ Upload both files and paste investment options to get started.")
