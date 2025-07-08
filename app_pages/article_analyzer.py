@@ -112,49 +112,42 @@ def run():
             st.error(content)
             return
 
-        tabs = st.tabs(["Summary", "Full Article"])
+        st.markdown(f'<div class="section-label">Title</div>', unsafe_allow_html=True)
+        if title and len(title.split()) > 2:
+            st.markdown(f'<div class="box">{title}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="box">[Title not reliably detected]</div>', unsafe_allow_html=True)
 
-        with tabs[0]:
-            st.markdown(f'<div class="section-label">Title</div>', unsafe_allow_html=True)
-            if title and len(title.split()) > 2:
-                st.markdown(f'<div class="box">{title}</div>', unsafe_allow_html=True)
-            else:
-                st.markdown('<div class="box">[Title not reliably detected]</div>', unsafe_allow_html=True)
+        if pub_date:
+            st.markdown(f'<div class="section-label">Publication Date</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="box">{pub_date.strftime("%B %d, %Y")}</div>', unsafe_allow_html=True)
 
-            if pub_date:
-                st.markdown(f'<div class="section-label">Publication Date</div>', unsafe_allow_html=True)
-                st.markdown(f'<div class="box">{pub_date.strftime("%B %d, %Y")}</div>', unsafe_allow_html=True)
+        main, bullets, facts, freq = upgraded_analyze_article(content, max_points)
 
-            main, bullets, facts, freq = upgraded_analyze_article(content, max_points)
+        st.markdown(f'<div class="section-label">Summary</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="box">{main}</div>', unsafe_allow_html=True)
 
-            st.markdown(f'<div class="section-label">Summary</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="box">{main}</div>', unsafe_allow_html=True)
+        if bullets:
+            st.markdown(f'<div class="section-label">Key Points</div>', unsafe_allow_html=True)
+            for pt in bullets:
+                st.markdown(f"- {pt}")
 
-            if bullets:
-                st.markdown(f'<div class="section-label">Key Points</div>', unsafe_allow_html=True)
-                for pt in bullets:
-                    st.markdown(f"- {pt}")
+        if facts:
+            st.markdown(f'<div class="section-label">Notable Facts or Quotes</div>', unsafe_allow_html=True)
+            for f in facts:
+                st.markdown(f'<div class="box">{f}</div>', unsafe_allow_html=True)
 
-            if facts:
-                st.markdown(f'<div class="section-label">Notable Facts or Quotes</div>', unsafe_allow_html=True)
-                for f in facts:
-                    st.markdown(f'<div class="box">{f}</div>', unsafe_allow_html=True)
+        top_terms = extract_financial_terms(freq)
+        if top_terms:
+            st.markdown(f'<div class="section-label">Frequent Financial Terms</div>', unsafe_allow_html=True)
+            st.markdown(" ".join(f"`{term}`" for term, _ in top_terms))
 
-            top_terms = extract_financial_terms(freq)
-            if top_terms:
-                st.markdown(f'<div class="section-label">Frequent Financial Terms</div>', unsafe_allow_html=True)
-                st.markdown(" ".join(f"`{term}`" for term, _ in top_terms))
+        text_output = f"""Title: {title}\n\nSummary:\n{main}\n\nKey Points:\n"""
+        text_output += "\n".join(f"- {pt}" for pt in bullets)
+        text_output += "\n\nFacts or Quotes:\n" + "\n".join(f"> {f}" for f in facts)
+        text_output += "\n\nFrequent Financial Terms:\n" + ", ".join(term for term, _ in top_terms)
 
-            text_output = f"""Title: {title}\n\nSummary:\n{main}\n\nKey Points:\n"""
-            text_output += "\n".join(f"- {pt}" for pt in bullets)
-            text_output += "\n\nFacts or Quotes:\n" + "\n".join(f"> {f}" for f in facts)
-            text_output += "\n\nFrequent Financial Terms:\n" + ", ".join(term for term, _ in top_terms)
-
-            st.download_button("Download Summary", data=text_output, file_name="summary.txt")
-
-        with tabs[1]:
-            st.markdown("### Full Article Text")
-            st.code(content[:3000] + ("\n..." if len(content) > 3000 else ""), language="markdown")
+        st.download_button("Download Summary", data=text_output, file_name="summary.txt")
 
     st.markdown("---")
     st.caption("This tool extracts and summarizes publicly available finance articles from news sites and blogs.")
