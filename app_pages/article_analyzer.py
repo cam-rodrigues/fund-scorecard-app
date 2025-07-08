@@ -1,27 +1,22 @@
 import streamlit as st
 import re
-from newspaper import Article
-from collections import Counter
-from dateutil import parser as date_parser
-from fpdf import FPDF
-from datetime import datetime
+import os
 import tempfile
 import urllib.parse
-from textblob import TextBlob, download_corpora
+from collections import Counter
+from datetime import datetime
+from dateutil import parser as date_parser
+from newspaper import Article
+from fpdf import FPDF
+from textblob import TextBlob
+
+# Load spaCy model (must be in requirements.txt)
 import spacy
-
-# === Ensure NLP resources are installed ===
 try:
     nlp = spacy.load("en_core_web_sm")
-except OSError:
-    import spacy.cli
-    spacy.cli.download("en_core_web_sm")
-    nlp = spacy.load("en_core_web_sm")
-
-try:
-    download_corpora.download_all()
 except:
-    pass
+    st.error("❌ The required spaCy model 'en_core_web_sm' could not be loaded. Make sure it's installed in requirements.txt.")
+    st.stop()
 
 # === Utility functions ===
 def safe(text):
