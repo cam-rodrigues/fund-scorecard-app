@@ -3,8 +3,10 @@ import re
 from collections import Counter
 from newspaper import Article
 
+st.set_page_config(page_title="Article Analyzer", layout="wide")
+
 # -------------------------
-# Article Extraction from URL
+# Extraction from URL
 # -------------------------
 
 def fetch_article_text(url):
@@ -17,12 +19,12 @@ def fetch_article_text(url):
         return None, f"Error fetching article: {e}"
 
 # -------------------------
-# Article Analysis
+# Summarization
 # -------------------------
 
 def analyze_article(text, max_points=5):
     sentences = re.split(r'(?<=[.!?])\s+', text.strip())
-    sentences = [s for s in sentences if len(s.strip()) > 40]
+    sentences = [s.strip() for s in sentences if len(s) > 40]
 
     words = re.findall(r'\w+', text.lower())
     stopwords = set([
@@ -45,41 +47,57 @@ def analyze_article(text, max_points=5):
     return main_idea, key_points, fact_lines
 
 # -------------------------
-# Streamlit UI
+# UI
 # -------------------------
 
 def run():
-    st.markdown("## 🌐 Article Analyzer (via URL)")
-    st.markdown("Paste a link to a news article, blog post, or report.")
+    st.markdown("""
+        <style>
+            .big-header { font-size: 2rem; font-weight: 800; margin-bottom: 0.3rem; color: #1c2e4a; }
+            .section-title { font-size: 1.25rem; font-weight: 700; margin-top: 1.5rem; color: #2b3e55; }
+            .quote-box { background-color: #f4f6fa; padding: 0.75rem; border-left: 4px solid #3c6df0; border-radius: 6px; margin-bottom: 0.75rem; }
+        </style>
+    """, unsafe_allow_html=True)
 
-    url = st.text_input("Enter Article URL")
-    if url and st.button("Analyze Article"):
-        with st.spinner("Fetching and processing..."):
-            title, content = fetch_article_text(url)
+    st.markdown('<div class="big-header">📰 Article Analyzer</div>', unsafe_allow_html=True)
+    st.markdown("Paste a link to a news article or blog, and we'll extract key insights.")
 
-        if not content or content.startswith("Error"):
-            st.error(content)
-            return
+    with st.container():
+        url = st.text_input("🔗 Paste Article URL")
 
-        st.success(f"✅ Fetched: {title}")
-        with st.expander("📄 Full Text Preview"):
-            st.code(content[:1000])
+        if url and st.button("Analyze"):
+            with st.spinner("Fetching and analyzing..."):
+                title, content = fetch_article_text(url)
 
-        main_idea, key_points, fact_lines = analyze_article(content)
+            if not content or content.startswith("Error"):
+                st.error(content)
+                return
 
-        st.markdown("### 🧠 Main Idea")
-        st.markdown(f"> **{main_idea}**")
+            st.success(f"✅ Analyzed: {title}")
 
-        st.markdown("### 🔍 Key Points")
-        for point in key_points:
-            st.markdown(f"- {point}")
+            with st.expander("📄 View Full Text", expanded=False):
+                st.code(content[:1500])
 
-        st.markdown("### 📊 Notable Quotes or Stats")
-        for fact in fact_lines:
-            st.markdown(f"> {fact}")
+            main_idea, key_points, fact_lines = analyze_article(content)
 
-        full_summary = f"""Title: {title}\n\nMain Idea:\n{main_idea}\n\nKey Points:\n"""
-        full_summary += "\n".join(f"- {pt}" for pt in key_points)
-        full_summary += "\n\nQuotes/Stats:\n" + "\n".join(f"> {fact}" for fact in fact_lines)
+            st.markdown('<div class="section-title">🧠 Main Idea</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="quote-box">{main_idea}</div>', unsafe_allow_html=True)
 
-        st.download_button("📥 Download Summary (.txt)", data=full_summary, file_name="article_summary.txt")
+            if key_points:
+                st.markdown('<div class="section-title">🔍 Key Points</div>', unsafe_allow_html=True)
+                for pt in key_points:
+                    st.markdown(f"- {pt}")
+
+            if fact_lines:
+                st.markdown('<div class="section-title">📊 Notable Quotes / Stats</div>', unsafe_allow_html=True)
+                for fact in fact_lines:
+                    st.markdown(f'<div class="quote-box">{fact}</div>', unsafe_allow_html=True)
+
+            full_summary = f"""Title: {title}\n\nMain Idea:\n{main_idea}\n\nKey Points:\n"""
+            full_summary += "\n".join(f"- {pt}" for pt in key_points)
+            full_summary += "\n\nQuotes/Stats:\n" + "\n".join(f"> {fact}" for fact in fact_lines)
+
+            st.download_button("📥 Download Summary (.txt)", data=full_summary, file_name="article_summary.txt")
+
+        elif not url:
+            st.info("Paste an article link above and click 'Analyze' to begin.")
