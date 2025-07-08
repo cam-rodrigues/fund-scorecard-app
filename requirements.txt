@@ -10,3 +10,5 @@ python-docx
 docx2txt
 spacy
 newspaper3k
+lxml[html_clean]
+
