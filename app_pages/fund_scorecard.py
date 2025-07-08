@@ -104,7 +104,7 @@ def run():
 
             # Update Excel
             try:
-                updated_excel = update_excel_with_template(excel_file, editable_df.values.tolist())
+                updated_excel = update_excel_with_template(excel_file, editable_df)
                 st.success("✅ Excel updated successfully!")
                 st.download_button("📥 Download Updated Excel", data=updated_excel, file_name="updated_funds.xlsx")
             except Exception as e:
