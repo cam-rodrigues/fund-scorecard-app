@@ -6,7 +6,50 @@ from newspaper import Article
 st.set_page_config(page_title="Article Analyzer", layout="wide")
 
 # -------------------------
-# Fetch Article from URL
+# Paragraph-Aware Summarizer (no AI)
+# -------------------------
+
+def upgraded_analyze_article(text, max_points=5):
+    raw_paragraphs = [p.strip() for p in text.split("\n") if len(p.strip()) > 60]
+    all_sentences, quote_lines, number_lines = [], [], []
+
+    words = re.findall(r'\w+', text.lower())
+    stopwords = set([
+        "the", "and", "a", "to", "of", "in", "that", "is", "on", "for", "with", "as",
+        "this", "by", "an", "be", "are", "or", "it", "from", "at", "was", "but", "we",
+        "not", "have", "has", "you", "they", "their", "can", "if", "will", "about"
+    ])
+    word_freq = Counter(w for w in words if w not in stopwords)
+    signal_phrases = ["according to", "in conclusion", "researchers found", "experts say", "overall", "key finding"]
+
+    for i, para in enumerate(raw_paragraphs):
+        sentences = re.split(r'(?<=[.!?])\s+', para)
+        para_score = 1.5 if i == 0 or i == len(raw_paragraphs) - 1 else 1.0
+
+        for sent in sentences:
+            sent = sent.strip()
+            if len(sent) < 40:
+                continue
+
+            base_score = sum(word_freq.get(w.lower(), 0) for w in re.findall(r'\w+', sent))
+            phrase_bonus = 3 if any(p in sent.lower() for p in signal_phrases) else 0
+            total_score = base_score * para_score + phrase_bonus
+            all_sentences.append((sent, total_score))
+
+            if re.search(r'[“”"]', sent):
+                quote_lines.append(sent)
+            if re.search(r'\d', sent):
+                number_lines.append(sent)
+
+    sorted_sentences = sorted(all_sentences, key=lambda x: x[1], reverse=True)
+    main_idea = sorted_sentences[0][0] if sorted_sentences else "No clear main idea found."
+    key_points = [s for s, _ in sorted_sentences[1:max_points + 1]]
+    stat_lines = list(dict.fromkeys(quote_lines + number_lines))[:3]
+
+    return main_idea, key_points, stat_lines
+
+# -------------------------
+# Extract Article from URL
 # -------------------------
 
 def fetch_article_text(url):
@@ -19,35 +62,7 @@ def fetch_article_text(url):
         return None, f"Error fetching article: {e}"
 
 # -------------------------
-# Analyze Text
-# -------------------------
-
-def analyze_article(text, max_points=5):
-    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
-    sentences = [s.strip() for s in sentences if len(s) > 40]
-
-    words = re.findall(r'\w+', text.lower())
-    stopwords = set([
-        "the", "and", "a", "to", "of", "in", "that", "is", "on", "for", "with", "as",
-        "this", "by", "an", "be", "are", "or", "it", "from", "at", "was", "but", "we",
-        "not", "have", "has", "you", "they", "their", "can", "if", "will", "about"
-    ])
-    word_freq = Counter(w for w in words if w not in stopwords)
-
-    sentence_scores = {
-        sentence: sum(word_freq.get(w.lower(), 0) for w in re.findall(r'\w+', sentence))
-        for sentence in sentences
-    }
-
-    top_sentences = sorted(sentence_scores, key=sentence_scores.get, reverse=True)
-    main_idea = top_sentences[0] if top_sentences else "No clear main idea found."
-    key_points = top_sentences[1:max_points + 1]
-    fact_lines = [s for s in sentences if re.search(r'\d|“|”|\"', s)][:3]
-
-    return main_idea, key_points, fact_lines
-
-# -------------------------
-# UI
+# Streamlit UI
 # -------------------------
 
 def run():
@@ -67,10 +82,11 @@ def run():
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="big-header">Article Analyzer</div>', unsafe_allow_html=True)
-    st.markdown("Paste a link to a news article or blog post. The tool will extract and summarize key insights.")
+    st.markdown("Paste a link to a news article or blog post to extract key insights and supporting points.")
 
     with st.container():
         url = st.text_input("Article URL")
+        max_points = st.slider("Number of key points to show", min_value=2, max_value=10, value=5)
 
         if url and st.button("Analyze"):
             with st.spinner("Fetching and analyzing..."):
@@ -85,7 +101,7 @@ def run():
             with st.expander("View Full Text", expanded=False):
                 st.code(content[:1500])
 
-            main_idea, key_points, fact_lines = analyze_article(content)
+            main_idea, key_points, fact_lines = upgraded_analyze_article(content, max_points)
 
             st.markdown('<div class="section-title">Main Idea</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="quote-box">{main_idea}</div>', unsafe_allow_html=True)
