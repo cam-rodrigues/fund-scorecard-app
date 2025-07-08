@@ -1,35 +1,31 @@
 import streamlit as st
 import re
-import os
+from newspaper import Article
+from collections import Counter
+from dateutil import parser as date_parser
+from fpdf import FPDF
+from datetime import datetime
 import tempfile
 import urllib.parse
-from collections import Counter
-from datetime import datetime
-from dateutil import parser as date_parser
-from newspaper import Article
-from fpdf import FPDF
 from textblob import TextBlob
-
-# Load spaCy model
 import spacy
-try:
-    nlp = spacy.load("en_core_web_sm")
-except:
-    st.error("❌ SpaCy model 'en_core_web_sm' not available. Make sure it's included in requirements.txt.")
-    st.stop()
 
-# === Utility Functions ===
+# === Load spaCy model ===
+nlp = spacy.load("en_core_web_sm")
+
+# === Helpers ===
 def safe(text):
-    return text.encode("latin-1", "replace").decode("latin-1")
+    return text.encode('latin-1', 'replace').decode('latin-1')
 
 def get_domain(url):
     try:
         return urllib.parse.urlparse(url).netloc.replace("www.", "")
     except:
-        return "Unknown"
+        return "Unknown source"
 
 def score_sentiment(text):
-    polarity = TextBlob(text).sentiment.polarity
+    blob = TextBlob(text)
+    polarity = blob.sentiment.polarity
     if polarity > 0.1:
         return "Positive"
     elif polarity < -0.1:
@@ -47,7 +43,7 @@ def extract_metrics(text):
     lines = text.split('\n')
     metrics = []
     for line in lines:
-        if any(k in line.lower() for k in ["eps", "revenue", "growth", "net income", "guidance", "margin"]):
+        if any(keyword in line.lower() for keyword in ["eps", "revenue", "growth", "net income", "guidance", "margin"]):
             if re.search(r'\d', line):
                 metrics.append(line.strip())
     return metrics[:5]
@@ -100,7 +96,6 @@ def fetch_article(url):
 def generate_pdf_digest(summaries):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.alias_nb_pages()
     pdf.add_page()
 
     title_text = "Finance Article Digest" if len(summaries) > 1 else "Finance Article Summary"
@@ -241,4 +236,4 @@ def run():
         with open(pdf_path, "rb") as f:
             st.download_button("📄 Download PDF Summary", f, file_name="article_digest.pdf")
 
-    st.info("Note: This is an automated tool for financial article review. Please verify important details manually.")
+    st.info("Note: This is an automated tool for quick financial article digestion. Always verify summaries before use.")
