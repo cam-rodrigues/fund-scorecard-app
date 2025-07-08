@@ -1,14 +1,12 @@
-streamlit==1.27.2
-pandas==2.2.2
-openpyxl==3.1.2
+streamlit==1.46.1
 pdfplumber==0.11.0
+pandas==2.3.0
+openpyxl==3.1.2
 rapidfuzz==3.6.1
+
 gspread
 gspread-formatting
 oauth2client
+
 python-docx
 docx2txt
-
-# lighter NLP packages (optional)
-textblob
-vaderSentiment
