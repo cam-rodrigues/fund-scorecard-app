@@ -12,31 +12,28 @@ def extract_article_text(url):
         response = requests.get(url, timeout=10)
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # Remove unwanted tags
+        # Remove common noise
         for tag in soup(["script", "style", "header", "footer", "nav", "aside", "form"]):
             tag.decompose()
 
-        # Try extracting from <article> tag
-        article_tag = soup.find("article")
-        if article_tag:
+        # Try to use <article> tag first
+        paragraphs = []
+        if (article_tag := soup.find("article")):
             paragraphs = article_tag.find_all("p")
         else:
-            candidates = soup.find_all("div")
-            if not candidates:
-                return "No article content found."
-            paragraphs = max(candidates, key=lambda d: len(d.get_text())).find_all("p")
+            # Fallback: scan all <p> tags on the page
+            paragraphs = soup.find_all("p")
 
-        text = "\n".join(p.get_text() for p in paragraphs).strip()
+        lines = [p.get_text().strip() for p in paragraphs]
+        lines = [line for line in lines if len(line) > 60 and not any(
+            kw in line.lower() for kw in ["sign up", "subscribe", "cookie", "ad blocker", "advertisement"]
+        )]
 
-        # Remove promo sentences
-        lines = text.splitlines()
-        filtered = [line.strip() for line in lines if not any(
-            phrase in line.lower() for phrase in [
-                "subscribe", "sign up", "introductory call", "get started", "advertising"
-            ]) and len(line.strip()) > 40]
-        return "\n".join(filtered)
+        cleaned_text = "\n".join(lines)
+        return cleaned_text if len(cleaned_text) > 200 else "ERROR: Not enough useful content found."
     except Exception as e:
         return f"ERROR: {e}"
+
 
 def summarize_text(text, bullet_count):
     # Basic naive summary: longest N lines that look meaningful
