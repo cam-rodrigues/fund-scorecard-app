@@ -2,9 +2,10 @@ import streamlit as st
 import pdfplumber
 from docx import Document
 import re
+import pandas as pd
 
 # -------------------------
-# File Extraction Logic
+# File Extraction
 # -------------------------
 
 def extract_text_from_file(uploaded_file):
@@ -19,7 +20,7 @@ def extract_text_from_file(uploaded_file):
     return None
 
 # -------------------------
-# Simple Heading-Based Summary
+# Heading-Based Summary
 # -------------------------
 
 def extract_headings_summary(text, lines_per_section=3):
@@ -28,10 +29,8 @@ def extract_headings_summary(text, lines_per_section=3):
     i = 0
     while i < len(lines):
         line = lines[i].strip()
-        # Heuristic: heading is ALL CAPS or Title Case or ends with ":"
         if (line.isupper() and len(line) > 5) or re.match(r'^([A-Z][a-z]+ ){1,5}[A-Z][a-z]+$', line) or line.endswith(":"):
             section = [f"### {line}"]
-            # Capture next few lines under the heading
             for j in range(1, lines_per_section + 1):
                 if i + j < len(lines):
                     content_line = lines[i + j].strip()
@@ -42,17 +41,33 @@ def extract_headings_summary(text, lines_per_section=3):
         i += 1
     return "\n\n".join(summary)
 
+# -------------------------
+# Table Analysis
+# -------------------------
 
-# --------------------------
-# Streamlit UI + Interaction
-# --------------------------
+def analyze_metrics(df):
+    analysis = []
+    numeric_cols = df.select_dtypes(include="number").columns
+
+    for col in numeric_cols:
+        max_row = df.loc[df[col].idxmax()]
+        min_row = df.loc[df[col].idxmin()]
+
+        analysis.append(f"**Highest {col}**: {max_row['Fund']} ({max_row[col]})")
+        analysis.append(f"**Lowest {col}**: {min_row['Fund']} ({min_row[col]})")
+        analysis.append("")  # spacer
+
+    return "\n".join(analysis)
+
+# -------------------------
+# Streamlit UI
+# -------------------------
 
 def run():
     st.markdown("## 📄 Document Summary Tool")
-    st.markdown("Upload a `.pdf`, `.docx`, or `.txt` file to extract a structured summary based on headings.")
+    st.markdown("Upload a `.pdf`, `.docx`, or `.txt` to extract a summary based on headings.")
 
     uploaded_file = st.file_uploader("Upload Document", type=["pdf", "docx", "txt"])
-
     if uploaded_file:
         raw_text = extract_text_from_file(uploaded_file)
 
@@ -60,7 +75,6 @@ def run():
             st.error("Failed to extract text from file.")
             return
 
-        # Optional preview
         with st.expander("🔍 Preview Extracted Text"):
             st.code(raw_text[:1000])
 
@@ -69,4 +83,24 @@ def run():
         if summary.strip():
             st.markdown(summary)
         else:
-            st.warning("No clear headings found. The document may need manual review.")
+            st.warning("No clear headings found.")
+
+    # --- Simulated Table Analyzer ---
+    st.markdown("---")
+    st.markdown("## 📊 Simulated Metric Table Analysis")
+    st.markdown("Paste a CSV-like table below to analyze fund metrics:")
+
+    sample_input = """Fund,Ticker,Alpha,Beta,Tracking Error,R-Squared
+Vanguard 2025,VTTWX,0.38,1.08,2.49,96.74
+Vanguard 2050,VFIAX,-0.32,0.92,3.57,94.99
+Vanguard 2065+,VLXVX,-0.38,0.88,4.02,94.38"""
+
+    table_input = st.text_area("Paste fund metric table here:", value=sample_input, height=200)
+    if st.button("Analyze Table"):
+        try:
+            df = pd.read_csv(pd.compat.StringIO(table_input))
+            st.dataframe(df)
+            st.markdown("### 🔎 Metric Analysis")
+            st.markdown(analyze_metrics(df))
+        except Exception as e:
+            st.error(f"Failed to parse table: {e}")
