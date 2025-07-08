@@ -2,7 +2,6 @@ import streamlit as st
 import os
 import importlib.util
 
-
 st.set_page_config(page_title="FidSync", layout="wide")
 
 # === Clean, static sidebar styles ===
@@ -50,16 +49,16 @@ def nav_button(label, filename):
     if st.sidebar.button(label, key=label):
         st.query_params.update({"page": filename})
 
-# === Sidebar navigation (excluding hidden admin tab) ===
+# === Sidebar navigation ===
 st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
 nav_button("Getting Started", "Getting_Started.py")
 nav_button("Security Policy", "Security_Policy.py")
-nav_button("Capabilities & Potential", "Capabilities_and_Potential.py")  # ✅ Now under Documentation
+nav_button("Capabilities & Potential", "Capabilities_and_Potential.py")
 
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
 nav_button("Fund Scorecard", "fund_scorecard.py")
 nav_button("User Requests", "user_requests.py")
-nav_button("Article Analyzer", "article_analyzer.py")  # ✅ Add this
+nav_button("Article Analyzer", "article_analyzer.py")  # ✅ New page added here
 
 # === Page router ===
 query_params = st.query_params
@@ -80,14 +79,15 @@ if selected_page:
     else:
         st.error(f"❌ Page not found: {selected_page}")
 else:
-    # Default landing
+    # Default landing page
     st.markdown("# Welcome to FidSync 👋")
     st.markdown("""
     FidSync helps financial teams securely extract and update fund statuses from scorecard PDFs into Excel templates.
 
     **Use the sidebar to:**
-    - 🧭 View the **Getting Started** guide
-    - ✅ Run the **Fund Scorecard**
-    - 💬 Submit or review **User Requests**
-    - 🧠 Explore **Capabilities & Potential**
+    - 🧭 View the **Getting Started** guide  
+    - ✅ Run the **Fund Scorecard**  
+    - 💬 Submit or review **User Requests**  
+    - 🧠 Explore **Capabilities & Potential**  
+    - 📄 Analyze uploaded **Articles**
     """)
