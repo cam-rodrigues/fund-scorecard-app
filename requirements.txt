@@ -9,4 +9,4 @@ gspread-formatting
 python-docx
 docx2txt
 spacy
-nltk
+newspaper3k
