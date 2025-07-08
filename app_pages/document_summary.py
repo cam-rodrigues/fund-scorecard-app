@@ -1,45 +1,30 @@
 import streamlit as st
 import pdfplumber
 from docx import Document
-import os
+import re
+from collections import Counter
 
 def summarize_text(text, max_sentences=5):
-    import heapq
-    import nltk
-    from nltk.tokenize import sent_tokenize, word_tokenize
-    from nltk.corpus import stopwords
-    from string import punctuation
-
-    # Safe download (runs once if needed)
-    try:
-        nltk.data.find("tokenizers/punkt")
-    except LookupError:
-        nltk.download("punkt", quiet=True)
-    try:
-        nltk.data.find("corpora/stopwords")
-    except LookupError:
-        nltk.download("stopwords", quiet=True)
-
-    sentences = sent_tokenize(text)
+    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
     if len(sentences) <= max_sentences:
         return text
 
-    words = word_tokenize(text.lower())
-    stop_words = set(stopwords.words("english") + list(punctuation))
-
-    word_freq = {}
-    for word in words:
-        if word not in stop_words:
-            word_freq[word] = word_freq.get(word, 0) + 1
+    words = re.findall(r'\w+', text.lower())
+    common = Counter(words)
+    stopwords = set([
+        "the", "and", "a", "to", "of", "in", "that", "is", "on", "for", "with", "as",
+        "this", "by", "an", "be", "are", "or", "it", "from", "at", "was", "but", "we",
+        "not", "have", "has", "you", "they", "their", "can", "if", "will", "about"
+    ])
 
     sentence_scores = {}
-    for sent in sentences:
-        for word in word_tokenize(sent.lower()):
-            if word in word_freq:
-                sentence_scores[sent] = sentence_scores.get(sent, 0) + word_freq[word]
+    for sentence in sentences:
+        words = re.findall(r'\w+', sentence.lower())
+        score = sum(common[word] for word in words if word not in stopwords)
+        sentence_scores[sentence] = score
 
-    summary_sentences = heapq.nlargest(max_sentences, sentence_scores, key=sentence_scores.get)
-    return " ".join(summary_sentences)
+    top_sentences = sorted(sentence_scores, key=sentence_scores.get, reverse=True)[:max_sentences]
+    return " ".join(top_sentences)
 
 def extract_text_from_file(uploaded_file):
     if uploaded_file.name.endswith(".pdf"):
@@ -55,7 +40,8 @@ def extract_text_from_file(uploaded_file):
 
 def run():
     st.markdown("## Document Summary Tool")
-    st.markdown("Upload a `.pdf`, `.docx`, or `.txt` file to get a smart summary.")
+    st.markdown("Upload a `.pdf`, `.docx`, or `.txt` file to generate a summary.")
+
     uploaded_file = st.file_uploader("Choose a document file", type=["pdf", "docx", "txt"])
 
     if uploaded_file:
