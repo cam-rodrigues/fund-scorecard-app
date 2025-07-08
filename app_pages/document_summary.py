@@ -1,23 +1,12 @@
-import spacy
-from heapq import nlargest
+import streamlit as st
 
-# --- Load model with fallback ---
-try:
-    nlp = spacy.load("en_core_web_sm")
-except OSError:
-    from spacy.cli import download
-    download("en_core_web_sm")
-    nlp = spacy.load("en_core_web_sm")
+def run():
+    st.markdown("## Document Summary Tool")
 
-# --- Local summarizer based on noun/verb/entity scoring ---
-def summarize_text(text, max_sentences=5):
-    doc = nlp(text)
-    sentence_scores = {}
-
-    for sent in doc.sents:
-        score = sum(1 for token in sent if token.ent_type_ or token.pos_ in ["NOUN", "VERB", "PROPN"])
-        if len(sent.text.strip()) > 20:
-            sentence_scores[sent.text] = score
-
-    summary = nlargest(max_sentences, sentence_scores, key=sentence_scores.get)
-    return " ".join(summary)
+    st.info("This feature is under development. You’ll soon be able to upload and summarize DOCX, PDF, or TXT files with AI assistance.")
+    
+    st.markdown("---")
+    st.markdown("### Coming Soon")
+    st.markdown("- Smart key-point extraction")
+    st.markdown("- Risk flagging & sentiment analysis")
+    st.markdown("- Automatic summary reports for compliance")
