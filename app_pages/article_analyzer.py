@@ -84,8 +84,11 @@ def generate_pdf_digest(summaries):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
+
+    # Dynamic title
+    title_text = "Finance Article Digest" if len(summaries) > 1 else "Finance Article Summary"
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, safe("Finance Article Digest"), ln=True, align='C')
+    pdf.cell(0, 10, safe(title_text), ln=True, align='C')
     pdf.set_font("Arial", '', 12)
     pdf.cell(0, 10, safe(datetime.now().strftime("%B %d, %Y")), ln=True, align='C')
     pdf.ln(10)
@@ -112,6 +115,7 @@ def generate_pdf_digest(summaries):
     temp_path = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     pdf.output(temp_path.name)
     return temp_path.name
+
 
 # ========== Streamlit UI ==========
 def run():
