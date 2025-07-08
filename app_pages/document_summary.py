@@ -10,8 +10,15 @@ def summarize_text(text, max_sentences=5):
     from nltk.corpus import stopwords
     from string import punctuation
 
-    nltk.download("punkt")
-    nltk.download("stopwords")
+    # Safe download (runs once if needed)
+    try:
+        nltk.data.find("tokenizers/punkt")
+    except LookupError:
+        nltk.download("punkt", quiet=True)
+    try:
+        nltk.data.find("corpora/stopwords")
+    except LookupError:
+        nltk.download("stopwords", quiet=True)
 
     sentences = sent_tokenize(text)
     if len(sentences) <= max_sentences:
