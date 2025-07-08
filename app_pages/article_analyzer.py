@@ -10,27 +10,26 @@ from newspaper import Article
 from fpdf import FPDF
 from textblob import TextBlob
 
-# Load spaCy model (must be in requirements.txt)
+# Load spaCy model
 import spacy
 try:
     nlp = spacy.load("en_core_web_sm")
 except:
-    st.error("❌ The required spaCy model 'en_core_web_sm' could not be loaded. Make sure it's installed in requirements.txt.")
+    st.error("❌ SpaCy model 'en_core_web_sm' not available. Make sure it's included in requirements.txt.")
     st.stop()
 
-# === Utility functions ===
+# === Utility Functions ===
 def safe(text):
-    return text.encode('latin-1', 'replace').decode('latin-1')
+    return text.encode("latin-1", "replace").decode("latin-1")
 
 def get_domain(url):
     try:
         return urllib.parse.urlparse(url).netloc.replace("www.", "")
     except:
-        return "Unknown source"
+        return "Unknown"
 
 def score_sentiment(text):
-    blob = TextBlob(text)
-    polarity = blob.sentiment.polarity
+    polarity = TextBlob(text).sentiment.polarity
     if polarity > 0.1:
         return "Positive"
     elif polarity < -0.1:
@@ -48,12 +47,11 @@ def extract_metrics(text):
     lines = text.split('\n')
     metrics = []
     for line in lines:
-        if any(keyword in line.lower() for keyword in ["eps", "revenue", "growth", "net income", "guidance", "margin"]):
+        if any(k in line.lower() for k in ["eps", "revenue", "growth", "net income", "guidance", "margin"]):
             if re.search(r'\d', line):
                 metrics.append(line.strip())
     return metrics[:5]
 
-# === Summary logic ===
 def summarize_article(text, max_points=5):
     paragraphs = [p.strip() for p in text.split("\n") if len(p.strip()) > 60]
     all_sentences, quotes, numbers = [], [], []
@@ -83,7 +81,6 @@ def summarize_article(text, max_points=5):
     facts = list(dict.fromkeys(quotes + numbers))[:3]
     return main, bullets, facts, freq
 
-# === Fetch article content ===
 def fetch_article(url):
     try:
         article = Article(url)
@@ -100,10 +97,10 @@ def fetch_article(url):
     except Exception as e:
         return None, f"[Error] {e}", None, []
 
-# === Generate PDF ===
 def generate_pdf_digest(summaries):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.alias_nb_pages()
     pdf.add_page()
 
     title_text = "Finance Article Digest" if len(summaries) > 1 else "Finance Article Summary"
@@ -170,7 +167,6 @@ def generate_pdf_digest(summaries):
     pdf.output(temp_path.name)
     return temp_path.name
 
-# === Streamlit UI ===
 def run():
     st.markdown("## Article Analyzer")
 
@@ -243,6 +239,6 @@ def run():
 
         pdf_path = generate_pdf_digest(summaries)
         with open(pdf_path, "rb") as f:
-            st.download_button("📄 Download PDF Summary", f, file_name="article_summary.pdf")
+            st.download_button("📄 Download PDF Summary", f, file_name="article_digest.pdf")
 
-    st.info("This tool helps digest financial articles quickly, but always verify information before making decisions.")
+    st.info("Note: This is an automated tool for financial article review. Please verify important details manually.")
