@@ -6,7 +6,7 @@ from newspaper import Article
 st.set_page_config(page_title="Article Analyzer", layout="wide")
 
 # -------------------------
-# Core Summarizer (no AI)
+# Summarizer (No AI)
 # -------------------------
 
 def upgraded_analyze_article(text, max_points=5):
@@ -44,7 +44,7 @@ def upgraded_analyze_article(text, max_points=5):
     bullets = [s for s, _ in sorted_sents[1:max_points + 1]]
     facts = list(dict.fromkeys(quotes + numbers))[:3]
 
-    return main, bullets, facts
+    return main, bullets, facts, freq
 
 # -------------------------
 # Fetch Article
@@ -55,9 +55,22 @@ def fetch_article_text(url):
         article = Article(url)
         article.download()
         article.parse()
-        return article.title, article.text
+        return article.title, article.text, article.publish_date
     except Exception as e:
-        return None, f"Unable to extract article: {e}"
+        return None, f"Unable to extract article: {e}", None
+
+# -------------------------
+# Financial Term Extraction
+# -------------------------
+
+def extract_financial_terms(freq, top_n=5):
+    finance_terms = [
+        "inflation", "deficit", "revenue", "equity", "bond", "fund", "interest", "rate",
+        "growth", "market", "fiscal", "capital", "yield", "investment", "earnings",
+        "valuation", "credit", "portfolio", "liquidity", "debt"
+    ]
+    filtered = {k: v for k, v in freq.items() if k in finance_terms}
+    return sorted(filtered.items(), key=lambda x: x[1], reverse=True)[:top_n]
 
 # -------------------------
 # Streamlit UI
@@ -81,7 +94,7 @@ def run():
 
     st.markdown('<div class="page-title">Article Analyzer</div>', unsafe_allow_html=True)
 
-    st.text_input("Article URL", key="url_input", help="Paste a link to a news article or blog post.")
+    st.text_input("Article URL", key="url_input", help="Paste a link to a finance-related news article or blog post.")
     st.slider("Number of key points", 3, 10, value=5, key="bullet_count")
 
     if st.button("Analyze Article"):
@@ -93,43 +106,61 @@ def run():
             return
 
         with st.spinner("Processing..."):
-            title, content = fetch_article_text(url)
+            title, content, pub_date = fetch_article_text(url)
 
         if not content or content.startswith("Unable"):
             st.error(content)
             return
 
-        st.markdown(f'<div class="section-label">Title</div>', unsafe_allow_html=True)
-        if title and len(title.split()) > 2:
-            st.markdown(f'<div class="box">{title}</div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="box">[Title not reliably detected]</div>', unsafe_allow_html=True)
+        tabs = st.tabs(["Summary", "Full Article"])
 
-        st.markdown(f'<div class="section-label">Summary</div>', unsafe_allow_html=True)
-        main, bullets, facts = upgraded_analyze_article(content, max_points)
-        st.markdown(f'<div class="box">{main}</div>', unsafe_allow_html=True)
+        with tabs[0]:
+            st.markdown(f'<div class="section-label">Title</div>', unsafe_allow_html=True)
+            if title and len(title.split()) > 2:
+                st.markdown(f'<div class="box">{title}</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="box">[Title not reliably detected]</div>', unsafe_allow_html=True)
 
-        if bullets:
-            st.markdown(f'<div class="section-label">Key Points</div>', unsafe_allow_html=True)
-            for pt in bullets:
-                st.markdown(f"- {pt}")
+            if pub_date:
+                st.markdown(f'<div class="section-label">Publication Date</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="box">{pub_date.strftime("%B %d, %Y")}</div>', unsafe_allow_html=True)
 
-        if facts:
-            st.markdown(f'<div class="section-label">Notable Facts or Quotes</div>', unsafe_allow_html=True)
-            for f in facts:
-                st.markdown(f'<div class="box">{f}</div>', unsafe_allow_html=True)
+            main, bullets, facts, freq = upgraded_analyze_article(content, max_points)
 
-        text_output = f"""Title: {title}\n\nSummary:\n{main}\n\nKey Points:\n"""
-        text_output += "\n".join(f"- {pt}" for pt in bullets)
-        text_output += "\n\nFacts or Quotes:\n" + "\n".join(f"> {f}" for f in facts)
+            st.markdown(f'<div class="section-label">Summary</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="box">{main}</div>', unsafe_allow_html=True)
 
-        st.download_button("Download Summary", data=text_output, file_name="summary.txt")
+            if bullets:
+                st.markdown(f'<div class="section-label">Key Points</div>', unsafe_allow_html=True)
+                for pt in bullets:
+                    st.markdown(f"- {pt}")
+
+            if facts:
+                st.markdown(f'<div class="section-label">Notable Facts or Quotes</div>', unsafe_allow_html=True)
+                for f in facts:
+                    st.markdown(f'<div class="box">{f}</div>', unsafe_allow_html=True)
+
+            top_terms = extract_financial_terms(freq)
+            if top_terms:
+                st.markdown(f'<div class="section-label">Frequent Financial Terms</div>', unsafe_allow_html=True)
+                st.markdown(" ".join(f"`{term}`" for term, _ in top_terms))
+
+            text_output = f"""Title: {title}\n\nSummary:\n{main}\n\nKey Points:\n"""
+            text_output += "\n".join(f"- {pt}" for pt in bullets)
+            text_output += "\n\nFacts or Quotes:\n" + "\n".join(f"> {f}" for f in facts)
+            text_output += "\n\nFrequent Financial Terms:\n" + ", ".join(term for term, _ in top_terms)
+
+            st.download_button("Download Summary", data=text_output, file_name="summary.txt")
+
+        with tabs[1]:
+            st.markdown("### Full Article Text")
+            st.code(content[:3000] + ("\n..." if len(content) > 3000 else ""), language="markdown")
 
     st.markdown("---")
-    st.caption("This tool extracts and summarizes publicly available articles from news sites and blogs.")
+    st.caption("This tool extracts and summarizes publicly available finance articles from news sites and blogs.")
 
     st.markdown("""
     <div style="margin-top: 2rem; font-size: 0.85rem; color: #555;">
-    ⚠️ <strong>Note:</strong> This tool uses automated methods to extract and summarize article content. Please double-check all information before relying on it for professional or personal use. Titles and facts may not always be perfectly accurate depending on the source.
+    ⚠️ <strong>Note:</strong> This tool uses automated methods to extract and summarize article content. Please double-check all information before relying on it for professional or personal use. Titles, facts, and dates may not always be perfectly accurate depending on the source.
     </div>
     """, unsafe_allow_html=True)
