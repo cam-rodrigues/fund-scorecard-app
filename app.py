@@ -1,69 +1,47 @@
-# app_pages/article_analyzer.py
-
 import streamlit as st
-import re
-import pdfplumber
-from io import StringIO
+import os
+import importlib.util
 
-def extract_metrics(text):
-    # Very basic example of numeric metric extraction
-    patterns = {
-        "EPS": r"EPS[:\s]*\$?([\d.]+)",
-        "Revenue": r"Revenue[:\s]*\$?([\d.]+[MB]?)",
-        "Market Cap": r"Market\s*Cap(?:italization)?[:\s]*\$?([\d.]+[MB]?)",
-    }
+st.set_page_config(page_title="FidSync", layout="wide")
 
-    results = {}
-    for key, pattern in patterns.items():
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            results[key] = match.group(1)
-    return results
+# === Sidebar Styles ===
+st.markdown("""
+    <style>
+        [data-testid="stSidebar"] {
+            background-color: #f0f2f6;
+            border-right: 1px solid #ccc;
+        }
+        [data-testid="stSidebar"] .stButton>button {
+            background-color: #ffffff;
+            color: #1c2e4a;
+            border: 1px solid #ccc;
+            border-radius: 0.5rem;
+            padding: 0.4rem 0.75rem;
+            font-weight: 600;
+        }
+        [data-testid="stSidebar"] .stButton>button:hover {
+            background-color: #e6e6e6;
+            color: #000000;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-def extract_tickers(text):
-    return list(set(re.findall(r"\(([A-Z]{2,5})\)", text)))
+# === Page Imports ===
+import app_pages.about_fidsync as about
+import app_pages.how_to_use as how_to_use
+import app_pages.fund_scorecard as fund_scorecard
+import app_pages.article_analyzer as article_analyzer
 
-def extract_companies(text):
-    return list(set(re.findall(r"\b[A-Z][a-z]+(?:\s[A-Z][a-z]+)*\b", text)))
+# === Page Selection ===
+st.sidebar.image("assets/fidsync_logo.png", use_column_width=True)
+st.sidebar.title("Navigation")
 
-def run():
-    st.title("📄 Article Analyzer")
-    st.markdown("Upload or paste a financial article to get a smart summary with key metrics, companies, and tickers.")
+pages = {
+    "About FidSync": about.run,
+    "How to Use": how_to_use.run,
+    "Fund Scorecard": fund_scorecard.run,
+    "Article Analyzer": article_analyzer.run,
+}
 
-    input_method = st.radio("Choose input method:", ["Paste text", "Upload .txt or .pdf"])
-
-    article_text = ""
-
-    if input_method == "Paste text":
-        article_text = st.text_area("Paste your article here", height=300)
-
-    elif input_method == "Upload .txt or .pdf":
-        uploaded_file = st.file_uploader("Upload file", type=["txt", "pdf"])
-        if uploaded_file:
-            if uploaded_file.name.endswith(".txt"):
-                stringio = StringIO(uploaded_file.getvalue().decode("utf-8"))
-                article_text = stringio.read()
-            elif uploaded_file.name.endswith(".pdf"):
-                with pdfplumber.open(uploaded_file) as pdf:
-                    article_text = "\n".join(page.extract_text() or "" for page in pdf.pages)
-
-    if article_text.strip():
-        st.subheader("📝 Full Text Preview")
-        st.write(article_text[:1000] + ("..." if len(article_text) > 1000 else ""))
-
-        st.subheader("📊 Key Metrics")
-        metrics = extract_metrics(article_text)
-        if metrics:
-            for k, v in metrics.items():
-                st.write(f"**{k}:** {v}")
-        else:
-            st.write("No obvious metrics detected.")
-
-        st.subheader("🏢 Companies & Tickers")
-        tickers = extract_tickers(article_text)
-        companies = extract_companies(article_text)
-
-        st.write("**Tickers:**", ", ".join(tickers) if tickers else "None found.")
-        st.write("**Companies:**", ", ".join(companies[:10]) if companies else "None found.")
-
-        st.success("Basic article analysis complete.")
+selection = st.sidebar.radio("Go to", list(pages.keys()))
+pages[selection]()
