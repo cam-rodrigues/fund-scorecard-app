@@ -6,8 +6,6 @@ rapidfuzz==3.6.1
 gspread
 oauth2client
 gspread-formatting
-pdfplumber
 python-docx
 docx2txt
 spacy
-https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz
