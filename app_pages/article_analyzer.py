@@ -6,7 +6,7 @@ from newspaper import Article
 st.set_page_config(page_title="Article Analyzer", layout="wide")
 
 # -------------------------
-# Core Summarizer
+# Core Summarizer (no AI)
 # -------------------------
 
 def upgraded_analyze_article(text, max_points=5):
@@ -47,7 +47,7 @@ def upgraded_analyze_article(text, max_points=5):
     return main, bullets, facts
 
 # -------------------------
-# Extract Article from URL
+# Fetch Article
 # -------------------------
 
 def fetch_article_text(url):
@@ -100,7 +100,10 @@ def run():
             return
 
         st.markdown(f'<div class="section-label">Title</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="box">{title}</div>', unsafe_allow_html=True)
+        if title and len(title.split()) > 2:
+            st.markdown(f'<div class="box">{title}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="box">[Title not reliably detected]</div>', unsafe_allow_html=True)
 
         st.markdown(f'<div class="section-label">Summary</div>', unsafe_allow_html=True)
         main, bullets, facts = upgraded_analyze_article(content, max_points)
@@ -116,7 +119,6 @@ def run():
             for f in facts:
                 st.markdown(f'<div class="box">{f}</div>', unsafe_allow_html=True)
 
-        # Downloadable summary
         text_output = f"""Title: {title}\n\nSummary:\n{main}\n\nKey Points:\n"""
         text_output += "\n".join(f"- {pt}" for pt in bullets)
         text_output += "\n\nFacts or Quotes:\n" + "\n".join(f"> {f}" for f in facts)
@@ -124,4 +126,10 @@ def run():
         st.download_button("Download Summary", data=text_output, file_name="summary.txt")
 
     st.markdown("---")
-    st.caption("This tool extracts and summarizes public articles from news sites and blogs.")
+    st.caption("This tool extracts and summarizes publicly available articles from news sites and blogs.")
+
+    st.markdown("""
+    <div style="margin-top: 2rem; font-size: 0.85rem; color: #555;">
+    ⚠️ <strong>Note:</strong> This tool uses automated methods to extract and summarize article content. Please double-check all information before relying on it for professional or personal use. Titles and facts may not always be perfectly accurate depending on the source.
+    </div>
+    """, unsafe_allow_html=True)
