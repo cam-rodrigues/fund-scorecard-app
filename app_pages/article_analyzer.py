@@ -6,11 +6,11 @@ from dateutil import parser as date_parser
 from fpdf import FPDF
 from datetime import datetime
 import tempfile
-import socket
 import urllib.parse
-import spacy
 from textblob import TextBlob
+import spacy
 
+# === Load spaCy model ===
 nlp = spacy.load("en_core_web_sm")
 
 # === Helpers ===
@@ -48,7 +48,6 @@ def extract_metrics(text):
                 metrics.append(line.strip())
     return metrics[:5]
 
-# === Article Summarizer ===
 def summarize_article(text, max_points=5):
     paragraphs = [p.strip() for p in text.split("\n") if len(p.strip()) > 60]
     all_sentences, quotes, numbers = [], [], []
@@ -78,7 +77,6 @@ def summarize_article(text, max_points=5):
     facts = list(dict.fromkeys(quotes + numbers))[:3]
     return main, bullets, facts, freq
 
-# === Article Downloader ===
 def fetch_article(url):
     try:
         article = Article(url)
@@ -95,11 +93,9 @@ def fetch_article(url):
     except Exception as e:
         return None, f"[Error] {e}", None, []
 
-# === PDF Export ===
 def generate_pdf_digest(summaries):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.alias_nb_pages()
     pdf.add_page()
 
     title_text = "Finance Article Digest" if len(summaries) > 1 else "Finance Article Summary"
@@ -165,6 +161,7 @@ def generate_pdf_digest(summaries):
     temp_path = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     pdf.output(temp_path.name)
     return temp_path.name
+
 def run():
     st.markdown("## Article Analyzer")
 
