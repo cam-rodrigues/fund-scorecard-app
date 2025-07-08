@@ -118,9 +118,12 @@ def run():
         else:
             st.markdown('<div class="box">[Title not reliably detected]</div>', unsafe_allow_html=True)
 
+        st.markdown(f'<div class="section-label">Publication Date</div>', unsafe_allow_html=True)
         if pub_date:
-            st.markdown(f'<div class="section-label">Publication Date</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="box">{pub_date.strftime("%B %d, %Y")}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="box">[Not available]</div>', unsafe_allow_html=True)
+
 
         main, bullets, facts, freq = upgraded_analyze_article(content, max_points)
 
