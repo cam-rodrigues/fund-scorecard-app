@@ -16,9 +16,10 @@ def run():
         st.markdown("""
         1. Upload your **PDF fund scorecard** and **Excel file**.
         2. Paste in your **investment options** (one per line).
-        3. Click **Run** to process and match fund names.
-        4. Sort, filter, or tweak the results directly in the table.
-        5. Download your updated Excel or CSV file.
+        3. Select the page range of the PDF to analyze.
+        4. Click **Run** to process and match fund names.
+        5. Sort, filter, or tweak the results directly in the table.
+        6. Download your updated Excel or CSV file.
         """)
 
     with st.expander("Tips & Notes"):
@@ -46,15 +47,23 @@ def run():
         placeholder="Large Cap Equity Fund\nSmall Cap Growth\nMid Cap Value\n..."
     )
 
+    # --- Page Range Input ---
+    st.markdown("### Select Page Range for PDF")
+    col1, col2 = st.columns(2)
+    with col1:
+        start_page = st.number_input("Start Page", min_value=1, value=1, step=1)
+    with col2:
+        end_page = st.number_input("End Page", min_value=start_page, value=start_page, step=1)
+
+    # --- Run Matching ---
     if st.button("Run"):
         if not pdf_file or not excel_file or not investment_input.strip():
             st.error("Please upload both files and provide investment options.")
             return
 
         with st.spinner("Processing..."):
-            # Extract fund statuses from PDF
             try:
-                fund_statuses = extract_data_from_pdf(pdf_file)
+                fund_statuses = extract_data_from_pdf(pdf_file, start_page, end_page)
             except Exception as e:
                 st.error(f"Failed to read PDF: {e}")
                 return
