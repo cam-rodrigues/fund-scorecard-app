@@ -11,6 +11,7 @@ oauth2client
 python-docx
 docx2txt
 spacy
+textblob
 
 newspaper3k
 lxml[html_clean]
