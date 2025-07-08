@@ -10,26 +10,26 @@ from datetime import datetime
 
 def extract_article_text(url):
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
         soup = BeautifulSoup(response.text, "html.parser")
 
+        # Remove obvious junk tags
         for tag in soup(["script", "style", "header", "footer", "nav", "aside", "form"]):
             tag.decompose()
 
-        paragraphs = []
-        if (article_tag := soup.find("article")):
-            paragraphs = article_tag.find_all("p")
+        # Collect all <p> tags
+        paragraphs = soup.find_all("p")
+        text_lines = [p.get_text().strip() for p in paragraphs]
+        text_lines = [line for line in text_lines if len(line) > 40]
+
+        cleaned = "\n".join(text_lines)
+
+        # Loosen success check — if it has 3+ long paragraphs, allow it
+        if len(text_lines) >= 3 and len(cleaned) > 250:
+            return cleaned
         else:
-            paragraphs = soup.find_all("p")
+            return "ERROR: Not enough useful content found."
 
-        lines = [p.get_text().strip() for p in paragraphs]
-        lines = [line for line in lines if len(line) > 60 and not any(
-            kw in line.lower() for kw in [
-                "subscribe", "sign up", "free", "cookies", "fiduciary", "advertisement",
-                "matches", "schedule", "introductory call", "get started"
-            ])]
-
-        return "\n".join(lines)
     except Exception as e:
         return f"ERROR: {e}"
 
