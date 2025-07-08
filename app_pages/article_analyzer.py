@@ -1,3 +1,13 @@
+import spacy
+from spacy.cli import download as spacy_download
+
+# Check and load model (only runs once)
+try:
+    nlp = spacy.load("en_core_web_sm")
+except OSError:
+    spacy_download("en_core_web_sm")
+    nlp = spacy.load("en_core_web_sm")
+
 import os
 os.system("python -m spacy download en_core_web_sm")
 os.system("python -m textblob.download_corpora")
