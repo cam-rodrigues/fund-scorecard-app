@@ -34,7 +34,7 @@ def generate_pdf(title, main, bullets, facts):
         pdf.cell(0, 10, "Key Points:", ln=1)
         pdf.set_font("Arial", "", 11)
         for pt in bullets:
-            pt = pt.replace("•", "-")  # replace bullet if it sneaks in
+            pt = pt.replace("•", "-")
             pdf.multi_cell(0, 8, f"- {pt}")
 
     if facts:
@@ -46,12 +46,13 @@ def generate_pdf(title, main, bullets, facts):
             pdf.multi_cell(0, 8, f'"{safe_fact}"')
 
     buffer = BytesIO()
-    pdf.output(buffer)
+    pdf_bytes = pdf.output(dest='S').encode('latin-1')
+    buffer.write(pdf_bytes)
     buffer.seek(0)
     return buffer
 
 # -------------------------
-# Core Summarizer (no AI)
+# Core Summarizer
 # -------------------------
 
 def upgraded_analyze_article(text, max_points=5):
