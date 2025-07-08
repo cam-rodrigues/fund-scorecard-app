@@ -68,12 +68,18 @@ def run():
                 st.error(f"Failed to read PDF: {e}")
                 return
 
+            # Fallback if extract_data_from_pdf returns a list instead of dict
+            if isinstance(fund_statuses, list):
+                fund_statuses_dict = {name: "Unknown" for name in fund_statuses}
+            else:
+                fund_statuses_dict = fund_statuses
+
             investment_options = [line.strip() for line in investment_input.strip().splitlines() if line.strip()]
             matched_funds = []
 
             # Match investment options to fund statuses using fuzzy matching
             for option in investment_options:
-                best_match = max(fund_statuses.items(), key=lambda x: similar(option, x[0]), default=None)
+                best_match = max(fund_statuses_dict.items(), key=lambda x: similar(option, x[0]), default=None)
                 matched_funds.append((option, best_match[1] if best_match else "Not Found"))
 
             # Display filterable, editable table
