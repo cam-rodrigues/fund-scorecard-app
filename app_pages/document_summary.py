@@ -9,14 +9,14 @@ from collections import Counter
 # ------------------------
 
 def summarize_text(text, max_sentences=5):
-    # Break into sentences
-    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
-    sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
+    # Break into sentences — preserve even short numeric/stat lines
+    raw_sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+    sentences = [s.strip() for s in raw_sentences if len(s.strip()) > 10]
 
     if len(sentences) <= max_sentences:
         return "\n".join(sentences)
 
-    # Score words
+    # Score words by frequency
     words = re.findall(r'\w+', text.lower())
     stopwords = set([
         "the", "and", "a", "to", "of", "in", "that", "is", "on", "for", "with", "as",
@@ -25,14 +25,16 @@ def summarize_text(text, max_sentences=5):
     ])
     word_freq = Counter(w for w in words if w not in stopwords)
 
-    # Score sentences
+    # Score sentences by keyword freq + numeric boost
     sentence_scores = {}
     for sentence in sentences:
         sentence_words = re.findall(r'\w+', sentence.lower())
-        score = sum(word_freq.get(word, 0) for word in sentence_words)
-        sentence_scores[sentence] = score
+        word_score = sum(word_freq.get(word, 0) for word in sentence_words)
+        number_bonus = 3 if re.search(r'\d', sentence) else 0
+        total_score = word_score + number_bonus
+        sentence_scores[sentence] = total_score
 
-    # Select top-scoring sentences
+    # Return top N sentences
     top_sentences = sorted(sentence_scores, key=sentence_scores.get, reverse=True)[:max_sentences]
     return "\n".join(top_sentences)
 
@@ -59,7 +61,7 @@ def extract_text_from_file(uploaded_file):
 
 def run():
     st.markdown("## 📄 Document Summary Tool")
-    st.markdown("Upload a `.pdf`, `.docx`, or `.txt` file to generate a clean summary.")
+    st.markdown("Upload a `.pdf`, `.docx`, or `.txt` file to generate a smart summary — including key statistics.")
 
     uploaded_file = st.file_uploader("Upload Document", type=["pdf", "docx", "txt"])
 
@@ -70,15 +72,15 @@ def run():
             st.error("Failed to extract text from file.")
             return
 
-        # Optional debug/preview
+        # Optional preview
         with st.expander("🔍 Preview Extracted Text"):
             st.code(raw_text[:1000])
 
         sentence_count = len(re.split(r'(?<=[.!?])\s+', raw_text.strip()))
         st.info(f"Found {sentence_count} sentences in the document.")
 
-        # Generate and display summary
-        with st.spinner("Generating summary..."):
+        # Generate and show summary
+        with st.spinner("Summarizing..."):
             summary = summarize_text(raw_text)
 
         st.success("✅ Summary Complete")
