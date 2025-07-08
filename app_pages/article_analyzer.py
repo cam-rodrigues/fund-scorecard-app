@@ -34,14 +34,16 @@ def generate_pdf(title, main, bullets, facts):
         pdf.cell(0, 10, "Key Points:", ln=1)
         pdf.set_font("Arial", "", 11)
         for pt in bullets:
-            pdf.multi_cell(0, 8, f"• {pt}")
+            pt = pt.replace("•", "-")  # replace bullet if it sneaks in
+            pdf.multi_cell(0, 8, f"- {pt}")
 
     if facts:
         pdf.set_font("Arial", "B", 12)
         pdf.cell(0, 10, "Notable Facts or Quotes:", ln=1)
         pdf.set_font("Arial", "I", 11)
         for f in facts:
-            pdf.multi_cell(0, 8, f"“{f}”")
+            safe_fact = f.replace("“", '"').replace("”", '"').replace("•", "-")
+            pdf.multi_cell(0, 8, f'"{safe_fact}"')
 
     buffer = BytesIO()
     pdf.output(buffer)
