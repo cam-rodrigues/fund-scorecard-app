@@ -1,10 +1,52 @@
+# app_pages/article_analyzer.py
 
 import streamlit as st
 import re
 from collections import Counter
 from newspaper import Article
+from fpdf import FPDF
+from io import BytesIO
 
-st.set_page_config(page_title="Article Analyzer", layout="wide")
+# -------------------------
+# PDF Generator
+# -------------------------
+
+def generate_pdf(title, main, bullets, facts):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Article Summary", ln=1)
+
+    if title:
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 10, "Title:", ln=1)
+        pdf.set_font("Arial", "", 11)
+        pdf.multi_cell(0, 8, title + "\n")
+
+    if main:
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 10, "Main Idea:", ln=1)
+        pdf.set_font("Arial", "", 11)
+        pdf.multi_cell(0, 8, main + "\n")
+
+    if bullets:
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 10, "Key Points:", ln=1)
+        pdf.set_font("Arial", "", 11)
+        for pt in bullets:
+            pdf.multi_cell(0, 8, f"• {pt}")
+
+    if facts:
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 10, "Notable Facts or Quotes:", ln=1)
+        pdf.set_font("Arial", "I", 11)
+        for f in facts:
+            pdf.multi_cell(0, 8, f"“{f}”")
+
+    buffer = BytesIO()
+    pdf.output(buffer)
+    buffer.seek(0)
+    return buffer
 
 # -------------------------
 # Core Summarizer (no AI)
@@ -120,17 +162,15 @@ def run():
             for f in facts:
                 st.markdown(f'<div class="box">{f}</div>', unsafe_allow_html=True)
 
-        text_output = f"""Title: {title}\n\nSummary:\n{main}\n\nKey Points:\n"""
-        text_output += "\n".join(f"- {pt}" for pt in bullets)
-        text_output += "\n\nFacts or Quotes:\n" + "\n".join(f"> {f}" for f in facts)
-
-        st.download_button("Download Summary", data=text_output, file_name="summary.txt")
+        # PDF Export
+        pdf_bytes = generate_pdf(title, main, bullets, facts)
+        st.download_button("📄 Download PDF", data=pdf_bytes, file_name="article_summary.pdf", mime="application/pdf")
 
     st.markdown("---")
     st.caption("This tool extracts and summarizes publicly available articles from news sites and blogs.")
 
     st.markdown("""
     <div style="margin-top: 2rem; font-size: 0.85rem; color: #555;">
-    ⚠️ <strong>Note:</strong> This tool uses automated methods to extract and summarize article content. Please double-check all information before relying on it for professional or personal use. Titles and facts may not always be perfectly accurate depending on the source.
+    ⚠️ <strong>Note:</strong> This tool uses automated methods to extract and summarize article content. Please double-check all information before relying on it for professional or personal use.
     </div>
     """, unsafe_allow_html=True)
