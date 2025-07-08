@@ -1,139 +1,136 @@
-# app_pages/article_analyzer.py
 
 import streamlit as st
-import requests
-from bs4 import BeautifulSoup
-from io import BytesIO
-from fpdf import FPDF
 import re
-from datetime import datetime
+from collections import Counter
+from newspaper import Article
 
-def extract_article_text(url):
+st.set_page_config(page_title="Article Analyzer", layout="wide")
+
+# -------------------------
+# Core Summarizer (no AI)
+# -------------------------
+
+def upgraded_analyze_article(text, max_points=5):
+    paragraphs = [p.strip() for p in text.split("\n") if len(p.strip()) > 60]
+    all_sentences, quotes, numbers = [], [], []
+
+    words = re.findall(r'\w+', text.lower())
+    stopwords = set([
+        "the", "and", "a", "to", "of", "in", "that", "is", "on", "for", "with", "as",
+        "this", "by", "an", "be", "are", "or", "it", "from", "at", "was", "but", "we",
+        "not", "have", "has", "you", "they", "their", "can", "if", "will", "about"
+    ])
+    freq = Counter(w for w in words if w not in stopwords)
+    signal_phrases = ["according to", "in conclusion", "experts say", "overall", "key finding"]
+
+    for i, para in enumerate(paragraphs):
+        sentences = re.split(r'(?<=[.!?])\s+', para)
+        para_boost = 1.5 if i == 0 or i == len(paragraphs) - 1 else 1.0
+
+        for sent in sentences:
+            sent = sent.strip()
+            if len(sent) < 40:
+                continue
+            base = sum(freq.get(w.lower(), 0) for w in re.findall(r'\w+', sent))
+            bonus = 3 if any(p in sent.lower() for p in signal_phrases) else 0
+            score = base * para_boost + bonus
+            all_sentences.append((sent, score))
+            if re.search(r'[“”"]', sent):
+                quotes.append(sent)
+            if re.search(r'\d', sent):
+                numbers.append(sent)
+
+    sorted_sents = sorted(all_sentences, key=lambda x: x[1], reverse=True)
+    main = sorted_sents[0][0] if sorted_sents else "No clear summary found."
+    bullets = [s for s, _ in sorted_sents[1:max_points + 1]]
+    facts = list(dict.fromkeys(quotes + numbers))[:3]
+
+    return main, bullets, facts
+
+# -------------------------
+# Fetch Article
+# -------------------------
+
+def fetch_article_text(url):
     try:
-        response = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        # Remove obvious junk tags
-        for tag in soup(["script", "style", "header", "footer", "nav", "aside", "form"]):
-            tag.decompose()
-
-        # Collect all <p> tags
-        paragraphs = soup.find_all("p")
-        text_lines = [p.get_text().strip() for p in paragraphs]
-        text_lines = [line for line in text_lines if len(line) > 40]
-
-        cleaned = "\n".join(text_lines)
-
-        # Loosen success check — if it has 3+ long paragraphs, allow it
-        if len(text_lines) >= 3 and len(cleaned) > 250:
-            return cleaned
-        else:
-            return "ERROR: Not enough useful content found."
-
+        article = Article(url)
+        article.download()
+        article.parse()
+        return article.title, article.text
     except Exception as e:
-        return f"ERROR: {e}"
+        return None, f"Unable to extract article: {e}"
 
-def extract_date(text):
-    match = re.search(r"(January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}, \d{4}", text)
-    return match.group(0) if match else None
-
-def extract_main_idea(text):
-    lines = text.split("\n")
-    for line in lines:
-        if len(line.split()) > 10 and line[-1] in ".!?":
-            return line.strip()
-    return lines[0] if lines else "N/A"
-
-def extract_key_points(text, count=5):
-    sentences = re.split(r'(?<=[.?!])\s+', text)
-    clean = [s.strip() for s in sentences if len(s) > 60 and not any(
-        kw in s.lower() for kw in ["subscribe", "sign up", "free", "fiduciary", "advertise"]
-    )]
-    ranked = sorted(clean, key=len, reverse=True)
-    return ranked[:count]
-
-def extract_quotes(text):
-    return re.findall(r'“([^”]{20,})”', text) or re.findall(r'"([^"]{20,})"', text)
-
-def export_to_pdf(summary_data):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, "Article Summary", ln=1)
-
-    pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(0, 8, f"URL: {summary_data['url']}\n")
-
-    if summary_data.get("date"):
-        pdf.cell(0, 10, f"Date: {summary_data['date']}", ln=1)
-
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "Main Idea:", ln=1)
-    pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(0, 8, summary_data['main_idea'] + "\n")
-
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "Key Points:", ln=1)
-    pdf.set_font("Arial", "", 11)
-    for point in summary_data['key_points']:
-        pdf.multi_cell(0, 8, f"• {point}")
-
-    if summary_data['quotes']:
-        pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 10, "Notable Quotes:", ln=1)
-        pdf.set_font("Arial", "I", 11)
-        for quote in summary_data['quotes'][:3]:
-            pdf.multi_cell(0, 8, f"“{quote}”")
-
-    buffer = BytesIO()
-    pdf.output(buffer)
-    buffer.seek(0)
-    return buffer
+# -------------------------
+# Streamlit UI
+# -------------------------
 
 def run():
-    st.title("🔎 Article Analyzer")
-    st.markdown("Paste a finance article URL. We'll extract the main idea, key points, quotes, and give you a downloadable PDF.")
+    st.markdown("""
+        <style>
+            .page-title { font-size: 1.75rem; font-weight: 700; color: #1c2e4a; margin-bottom: 1rem; }
+            .section-label { font-size: 1.1rem; font-weight: 600; margin-top: 2rem; color: #2b3e55; }
+            .box {
+                background-color: #f4f6fa;
+                padding: 0.75rem;
+                border-left: 4px solid #8ba8c5;
+                border-radius: 6px;
+                margin-bottom: 1rem;
+                font-size: 0.95rem;
+            }
+        </style>
+    """, unsafe_allow_html=True)
 
-    url = st.text_input("Paste article URL here")
+    st.markdown('<div class="page-title">Article Analyzer</div>', unsafe_allow_html=True)
 
-    bullet_count = st.slider("How many key points?", min_value=3, max_value=10, value=5)
+    st.text_input("Article URL", key="url_input", help="Paste a link to a news article or blog post.")
+    st.slider("Number of key points", 3, 10, value=5, key="bullet_count")
 
     if st.button("Analyze Article"):
+        url = st.session_state["url_input"]
+        max_points = st.session_state["bullet_count"]
+
         if not url:
-            st.warning("Please paste a URL.")
+            st.warning("Please paste an article URL.")
             return
 
-        with st.spinner("Fetching and analyzing..."):
-            full_text = extract_article_text(url)
+        with st.spinner("Processing..."):
+            title, content = fetch_article_text(url)
 
-        if full_text.startswith("ERROR:") or len(full_text.strip()) < 100:
-            st.error("❌ Failed to extract meaningful article content.")
+        if not content or content.startswith("Unable"):
+            st.error(content)
             return
 
-        summary = {
-            "url": url,
-            "date": extract_date(full_text),
-            "main_idea": extract_main_idea(full_text),
-            "key_points": extract_key_points(full_text, bullet_count),
-            "quotes": extract_quotes(full_text),
-        }
+        st.markdown(f'<div class="section-label">Title</div>', unsafe_allow_html=True)
+        if title and len(title.split()) > 2:
+            st.markdown(f'<div class="box">{title}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="box">[Title not reliably detected]</div>', unsafe_allow_html=True)
 
-        st.subheader("🧠 Main Idea")
-        st.write(summary['main_idea'])
+        st.markdown(f'<div class="section-label">Summary</div>', unsafe_allow_html=True)
+        main, bullets, facts = upgraded_analyze_article(content, max_points)
+        st.markdown(f'<div class="box">{main}</div>', unsafe_allow_html=True)
 
-        if summary['date']:
-            st.subheader("📅 Date")
-            st.write(summary['date'])
+        if bullets:
+            st.markdown(f'<div class="section-label">Key Points</div>', unsafe_allow_html=True)
+            for pt in bullets:
+                st.markdown(f"- {pt}")
 
-        st.subheader("📌 Key Points")
-        for i, point in enumerate(summary['key_points'], 1):
-            st.markdown(f"**{i}.** {point}")
+        if facts:
+            st.markdown(f'<div class="section-label">Notable Facts or Quotes</div>', unsafe_allow_html=True)
+            for f in facts:
+                st.markdown(f'<div class="box">{f}</div>', unsafe_allow_html=True)
 
-        if summary['quotes']:
-            st.subheader("💬 Notable Quotes")
-            for quote in summary['quotes'][:3]:
-                st.markdown(f"> {quote}")
+        text_output = f"""Title: {title}\n\nSummary:\n{main}\n\nKey Points:\n"""
+        text_output += "\n".join(f"- {pt}" for pt in bullets)
+        text_output += "\n\nFacts or Quotes:\n" + "\n".join(f"> {f}" for f in facts)
 
-        # PDF download
-        pdf_bytes = export_to_pdf(summary)
-        st.download_button("📄 Download PDF", data=pdf_bytes, file_name="article_summary.pdf", mime="application/pdf")
+        st.download_button("Download Summary", data=text_output, file_name="summary.txt")
+
+    st.markdown("---")
+    st.caption("This tool extracts and summarizes publicly available articles from news sites and blogs.")
+
+    st.markdown("""
+    <div style="margin-top: 2rem; font-size: 0.85rem; color: #555;">
+    ⚠️ <strong>Note:</strong> This tool uses automated methods to extract and summarize article content. Please double-check all information before relying on it for professional or personal use. Titles and facts may not always be perfectly accurate depending on the source.
+    </div>
+    """, unsafe_allow_html=True)
