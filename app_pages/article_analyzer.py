@@ -7,6 +7,10 @@ from fpdf import FPDF
 from datetime import datetime
 import tempfile
 
+# ========== Encoding Fix ==========
+def safe(text):
+    return text.encode('latin-1', 'replace').decode('latin-1')
+
 # ========== Company + Ticker Detection ==========
 COMMON_COMPANIES = [
     "Apple", "Microsoft", "Amazon", "Tesla", "Meta", "Alphabet", "Nvidia", "JPMorgan",
@@ -81,27 +85,28 @@ def generate_pdf_digest(summaries):
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, "Finance Article Digest", ln=True, align='C')
+    pdf.cell(0, 10, safe("Finance Article Digest"), ln=True, align='C')
     pdf.set_font("Arial", '', 12)
-    pdf.cell(0, 10, datetime.now().strftime("%B %d, %Y"), ln=True, align='C')
+    pdf.cell(0, 10, safe(datetime.now().strftime("%B %d, %Y")), ln=True, align='C')
     pdf.ln(10)
 
     for i, article in enumerate(summaries, 1):
         pdf.set_font("Arial", 'B', 14)
-        pdf.multi_cell(0, 10, f"{i}. {article['title']}")
+        pdf.multi_cell(0, 10, safe(f"{i}. {article['title']}"))
         pdf.set_font("Arial", '', 12)
-        pdf.cell(0, 10, f"Published: {article['date']}", ln=True)
-        pdf.multi_cell(0, 10, f"Summary: {article['summary']}")
-        pdf.cell(0, 10, "Key Points:", ln=True)
-        for pt in article['key_points']:
-            pdf.multi_cell(0, 10, f"- {pt}")
+        pdf.cell(0, 10, safe(f"Published: {article['date']}"), ln=True)
+        pdf.multi_cell(0, 10, safe(f"Summary: {article['summary']}"))
+        if article["key_points"]:
+            pdf.cell(0, 10, safe("Key Points:"), ln=True)
+            for pt in article["key_points"]:
+                pdf.multi_cell(0, 10, safe(f"- {pt}"))
         combo = []
         if article["tickers"]:
             combo.append("Tickers: " + ", ".join(article["tickers"]))
         if article["companies"]:
             combo.append("Companies: " + ", ".join(article["companies"]))
         if combo:
-            pdf.multi_cell(0, 10, " | ".join(combo))
+            pdf.multi_cell(0, 10, safe(" | ".join(combo)))
         pdf.ln(5)
 
     temp_path = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
@@ -163,17 +168,8 @@ def run():
                     st.markdown(f"`Companies:` {', '.join(article['companies'])}")
             st.markdown("---")
 
-        # Offer downloads
-        flat_text = "\n\n".join([
-            f"{a['title']} ({a['date']})\nSummary: {a['summary']}\n" +
-            "Key Points:\n" + "\n".join(f"- {pt}" for pt in a['key_points']) +
-            f"\nTickers: {', '.join(a['tickers'])}\nCompanies: {', '.join(a['companies'])}"
-            for a in summaries
-        ])
-        st.download_button("📄 Download .txt", data=flat_text, file_name="article_summary.txt")
-
         pdf_path = generate_pdf_digest(summaries)
         with open(pdf_path, "rb") as f:
-            st.download_button("📥 Download PDF", f, file_name="article_digest.pdf")
+            st.download_button("📄 Download PDF Summary", f, file_name="article_digest.pdf")
 
-    st.info("This tool summarizes finance articles. Titles, dates, and tickers are best-effort extractions.")
+    st.info("Note: This summary is best-effort. Please verify all information before relying on results.")
