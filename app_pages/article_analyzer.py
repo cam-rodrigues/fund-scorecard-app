@@ -3,19 +3,11 @@ from newspaper import Article
 from fpdf import FPDF
 from textblob import TextBlob
 from dateutil import parser as date_parser
-import spacy
 import re
 import tempfile
 import urllib.parse
 from collections import Counter
 from datetime import datetime
-
-# === Load spaCy model ===
-try:
-    nlp = spacy.load("en_core_web_sm")
-except:
-    st.error("Missing spaCy model. Check your requirements.txt and include the correct .whl link.")
-    st.stop()
 
 # === Helpers ===
 def safe(text):
