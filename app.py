@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import importlib.util
 
+
 st.set_page_config(page_title="FidSync", layout="wide")
 
 # === Clean, static sidebar styles ===
@@ -49,29 +50,24 @@ def nav_button(label, filename):
     if st.sidebar.button(label, key=label):
         st.query_params.update({"page": filename})
 
-# === Sidebar navigation ===
+# === Sidebar navigation (excluding hidden admin tab) ===
 st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
 nav_button("Getting Started", "Getting_Started.py")
 nav_button("Security Policy", "Security_Policy.py")
-nav_button("Capabilities & Potential", "Capabilities_and_Potential.py")
+nav_button("Capabilities & Potential", "Capabilities_and_Potential.py")  # ✅ Now under Documentation
 
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
 nav_button("Fund Scorecard", "fund_scorecard.py")
 nav_button("User Requests", "user_requests.py")
-nav_button("Document Summary Tool", "document_summary.py")
+nav_button("Document Summary Tool", "document_summary.py")  # ✅ Add this
 
 # === Page router ===
 query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
-st.write("🧪 Debug Info")
-st.write("Selected page:", selected_page)
-
 if selected_page:
     page_path = os.path.join(PAGES_DIR, selected_page)
-    st.write("Looking for file at:", page_path)
-    st.write("File exists:", os.path.exists(page_path))
 
     if os.path.exists(page_path):
         try:
@@ -84,6 +80,7 @@ if selected_page:
     else:
         st.error(f"❌ Page not found: {selected_page}")
 else:
+    # Default landing
     st.markdown("# Welcome to FidSync 👋")
     st.markdown("""
     FidSync helps financial teams securely extract and update fund statuses from scorecard PDFs into Excel templates.
