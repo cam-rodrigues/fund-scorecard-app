@@ -50,14 +50,29 @@ def upgraded_analyze_article(text, max_points=5):
 # Fetch Article
 # -------------------------
 
+from dateutil import parser as date_parser
+
 def fetch_article_text(url):
     try:
         article = Article(url)
         article.download()
         article.parse()
-        return article.title, article.text, article.publish_date
+        text = article.text
+        pub_date = article.publish_date
+
+        # Fallback: look for "Updated: July 8, 2025" or "Published on..."
+        if not pub_date:
+            date_match = re.search(r'(Published|Updated)[:\s]+([A-Za-z]+\s+\d{1,2},\s+\d{4})', text)
+            if date_match:
+                try:
+                    pub_date = date_parser.parse(date_match.group(2))
+                except:
+                    pass
+
+        return article.title, text, pub_date
     except Exception as e:
         return None, f"Unable to extract article: {e}", None
+
 
 # -------------------------
 # Financial Term Extraction
