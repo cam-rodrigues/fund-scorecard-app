@@ -2,6 +2,7 @@ import streamlit as st
 import re
 from collections import Counter
 from newspaper import Article
+from dateutil import parser as date_parser
 
 st.set_page_config(page_title="Article Analyzer", layout="wide")
 
@@ -47,32 +48,21 @@ def upgraded_analyze_article(text, max_points=5):
     return main, bullets, facts, freq
 
 # -------------------------
-# Fetch Article
+# Ticker + Company Detection
 # -------------------------
 
-from dateutil import parser as date_parser
+COMMON_COMPANIES = [
+    "Apple", "Microsoft", "Amazon", "Tesla", "Meta", "Alphabet", "Nvidia", "JPMorgan",
+    "Goldman Sachs", "Morgan Stanley", "Bank of America", "Walmart", "Berkshire Hathaway",
+    "Netflix", "ExxonMobil", "Chevron", "Pfizer", "Johnson & Johnson", "Visa", "Mastercard"
+]
 
-def fetch_article_text(url):
-    try:
-        article = Article(url)
-        article.download()
-        article.parse()
-        text = article.text
-        pub_date = article.publish_date
+def detect_tickers_and_companies(text):
+    tickers = re.findall(r'\$?[A-Z]{2,5}(?:\.[A-Z])?', text)
+    tickers = list(set([t.strip("$") for t in tickers if len(t.strip("$")) >= 2]))
 
-        # Fallback: look for "Updated: July 8, 2025" or "Published on..."
-        if not pub_date:
-            date_match = re.search(r'(Published|Updated)[:\s]+([A-Za-z]+\s+\d{1,2},\s+\d{4})', text)
-            if date_match:
-                try:
-                    pub_date = date_parser.parse(date_match.group(2))
-                except:
-                    pass
-
-        return article.title, text, pub_date
-    except Exception as e:
-        return None, f"Unable to extract article: {e}", None
-
+    companies = [name for name in COMMON_COMPANIES if name.lower() in text.lower()]
+    return sorted(set(tickers)), sorted(set(companies))
 
 # -------------------------
 # Financial Term Extraction
@@ -86,6 +76,30 @@ def extract_financial_terms(freq, top_n=5):
     ]
     filtered = {k: v for k, v in freq.items() if k in finance_terms}
     return sorted(filtered.items(), key=lambda x: x[1], reverse=True)[:top_n]
+
+# -------------------------
+# Fetch Article (with date fallback)
+# -------------------------
+
+def fetch_article_text(url):
+    try:
+        article = Article(url)
+        article.download()
+        article.parse()
+        text = article.text
+        pub_date = article.publish_date
+
+        if not pub_date:
+            match = re.search(r'(Published|Updated)[:\s]+([A-Za-z]+\s+\d{1,2},\s+\d{4})', text)
+            if match:
+                try:
+                    pub_date = date_parser.parse(match.group(2))
+                except:
+                    pass
+
+        return article.title, text, pub_date
+    except Exception as e:
+        return None, f"Unable to extract article: {e}", None
 
 # -------------------------
 # Streamlit UI
@@ -139,8 +153,8 @@ def run():
         else:
             st.markdown(f'<div class="box">[Not available]</div>', unsafe_allow_html=True)
 
-
         main, bullets, facts, freq = upgraded_analyze_article(content, max_points)
+        tickers, companies = detect_tickers_and_companies(content)
 
         st.markdown(f'<div class="section-label">Summary</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="box">{main}</div>', unsafe_allow_html=True)
@@ -160,10 +174,19 @@ def run():
             st.markdown(f'<div class="section-label">Frequent Financial Terms</div>', unsafe_allow_html=True)
             st.markdown(" ".join(f"`{term}`" for term, _ in top_terms))
 
+        if tickers or companies:
+            st.markdown(f'<div class="section-label">Companies or Tickers Mentioned</div>', unsafe_allow_html=True)
+            if tickers:
+                st.markdown(f"Tickers: {' '.join(f'`{t}`' for t in tickers)}")
+            if companies:
+                st.markdown(f"Companies: {', '.join(companies)}")
+
         text_output = f"""Title: {title}\n\nSummary:\n{main}\n\nKey Points:\n"""
         text_output += "\n".join(f"- {pt}" for pt in bullets)
         text_output += "\n\nFacts or Quotes:\n" + "\n".join(f"> {f}" for f in facts)
         text_output += "\n\nFrequent Financial Terms:\n" + ", ".join(term for term, _ in top_terms)
+        text_output += "\n\nTickers Mentioned:\n" + ", ".join(tickers)
+        text_output += "\nCompanies Mentioned:\n" + ", ".join(companies)
 
         st.download_button("Download Summary", data=text_output, file_name="summary.txt")
 
@@ -172,6 +195,6 @@ def run():
 
     st.markdown("""
     <div style="margin-top: 2rem; font-size: 0.85rem; color: #555;">
-    ⚠️ <strong>Note:</strong> This tool uses automated methods to extract and summarize article content. Please double-check all information before relying on it for professional or personal use. Titles, facts, and dates may not always be perfectly accurate depending on the source.
+    ⚠️ <strong>Note:</strong> This tool uses automated methods to extract and summarize article content. Please double-check all information before relying on it for professional or personal use. Titles, facts, dates, and tickers may not always be perfectly accurate depending on the source.
     </div>
     """, unsafe_allow_html=True)
