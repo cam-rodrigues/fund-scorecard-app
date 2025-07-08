@@ -85,37 +85,60 @@ def generate_pdf_digest(summaries):
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
 
-    # Dynamic title
+    # === Header ===
     title_text = "Finance Article Digest" if len(summaries) > 1 else "Finance Article Summary"
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, safe(title_text), ln=True, align='C')
+    pdf.set_font("Arial", 'B', 18)
+    pdf.set_text_color(20, 40, 80)
+    pdf.cell(0, 12, safe(title_text), ln=True, align='C')
     pdf.set_font("Arial", '', 12)
+    pdf.set_text_color(0, 0, 0)
     pdf.cell(0, 10, safe(datetime.now().strftime("%B %d, %Y")), ln=True, align='C')
     pdf.ln(10)
 
     for i, article in enumerate(summaries, 1):
+        # === Article Title ===
+        pdf.set_draw_color(180, 180, 180)
+        pdf.set_line_width(0.5)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(4)
+
         pdf.set_font("Arial", 'B', 14)
         pdf.multi_cell(0, 10, safe(f"{i}. {article['title']}"))
         pdf.set_font("Arial", '', 12)
-        pdf.cell(0, 10, safe(f"Published: {article['date']}"), ln=True)
-        pdf.multi_cell(0, 10, safe(f"Summary: {article['summary']}"))
-        if article["key_points"]:
-            pdf.cell(0, 10, safe("Key Points:"), ln=True)
-            for pt in article["key_points"]:
-                pdf.multi_cell(0, 10, safe(f"- {pt}"))
-        combo = []
-        if article["tickers"]:
-            combo.append("Tickers: " + ", ".join(article["tickers"]))
-        if article["companies"]:
-            combo.append("Companies: " + ", ".join(article["companies"]))
-        if combo:
-            pdf.multi_cell(0, 10, safe(" | ".join(combo)))
-        pdf.ln(5)
+        pdf.cell(0, 8, safe(f"Published: {article['date']}"), ln=True)
+        pdf.ln(1)
 
+        # === Summary ===
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(0, 8, "Summary:", ln=True)
+        pdf.set_font("Arial", '', 12)
+        pdf.multi_cell(0, 8, safe(article["summary"]))
+        pdf.ln(1)
+
+        # === Key Points ===
+        if article["key_points"]:
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 8, "Key Points:", ln=True)
+            pdf.set_font("Arial", '', 12)
+            for pt in article["key_points"]:
+                pdf.multi_cell(0, 8, safe(f"- {pt}"))
+            pdf.ln(1)
+
+        # === Mentions ===
+        if article["tickers"] or article["companies"]:
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 8, "Mentions:", ln=True)
+            pdf.set_font("Arial", '', 12)
+            if article["tickers"]:
+                pdf.multi_cell(0, 8, safe(f"Tickers: {', '.join(article['tickers'])}"))
+            if article["companies"]:
+                pdf.multi_cell(0, 8, safe(f"Companies: {', '.join(article['companies'])}"))
+        pdf.ln(6)
+
+    # === Save ===
     temp_path = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     pdf.output(temp_path.name)
     return temp_path.name
-
 
 # ========== Streamlit UI ==========
 def run():
