@@ -9,7 +9,7 @@ from collections import Counter
 # ------------------------
 
 def summarize_text(text, max_sentences=5):
-    # Break into sentences — preserve even short numeric/stat lines
+    # Break into sentences — preserve short/numeric ones
     raw_sentences = re.split(r'(?<=[.!?])\s+', text.strip())
     sentences = [s.strip() for s in raw_sentences if len(s.strip()) > 10]
 
@@ -25,7 +25,7 @@ def summarize_text(text, max_sentences=5):
     ])
     word_freq = Counter(w for w in words if w not in stopwords)
 
-    # Score sentences by keyword freq + numeric boost
+    # Score each sentence (word frequency + numeric boost)
     sentence_scores = {}
     for sentence in sentences:
         sentence_words = re.findall(r'\w+', sentence.lower())
@@ -34,7 +34,7 @@ def summarize_text(text, max_sentences=5):
         total_score = word_score + number_bonus
         sentence_scores[sentence] = total_score
 
-    # Return top N sentences
+    # Return top sentences
     top_sentences = sorted(sentence_scores, key=sentence_scores.get, reverse=True)[:max_sentences]
     return "\n".join(top_sentences)
 
@@ -61,7 +61,7 @@ def extract_text_from_file(uploaded_file):
 
 def run():
     st.markdown("## 📄 Document Summary Tool")
-    st.markdown("Upload a `.pdf`, `.docx`, or `.txt` file to generate a smart summary — including key statistics.")
+    st.markdown("Upload a `.pdf`, `.docx`, or `.txt` file to generate a summary — with key sentences and statistics.")
 
     uploaded_file = st.file_uploader("Upload Document", type=["pdf", "docx", "txt"])
 
@@ -79,11 +79,15 @@ def run():
         sentence_count = len(re.split(r'(?<=[.!?])\s+', raw_text.strip()))
         st.info(f"Found {sentence_count} sentences in the document.")
 
-        # Generate and show summary
+        # Generate and display summary
         with st.spinner("Summarizing..."):
             summary = summarize_text(raw_text)
 
         st.success("✅ Summary Complete")
         st.markdown(f"**File:** `{uploaded_file.name}`")
         st.markdown("### ✨ Summary")
-        st.write(summary)
+
+        # Bullet-point formatting
+        for sentence in summary.split("\n"):
+            if sentence.strip():
+                st.markdown(f"- {sentence.strip()}")
