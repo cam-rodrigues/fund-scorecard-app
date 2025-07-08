@@ -1,4 +1,3 @@
-
 import streamlit as st
 import os
 import importlib.util
@@ -58,6 +57,7 @@ nav_button("Capabilities & Potential", "Capabilities_and_Potential.py")
 
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
 nav_button("Fund Scorecard", "fund_scorecard.py")
+nav_button("Article Analyzer", "article_analyzer.py")  # <-- New Tool Added
 nav_button("User Requests", "user_requests.py")
 
 # === Page router ===
@@ -87,6 +87,7 @@ else:
     **Use the sidebar to:**
     - 🧭 View the **Getting Started** guide  
     - ✅ Run the **Fund Scorecard**  
+    - 📄 Try the new **Article Analyzer**  
     - 💬 Submit or review **User Requests**  
     - 🔐 Read the **Security Policy**
     """)
