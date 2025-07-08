@@ -7,13 +7,23 @@ from fpdf import FPDF
 from datetime import datetime
 import tempfile
 import urllib.parse
-from textblob import TextBlob
+from textblob import TextBlob, download_corpora
 import spacy
 
-# === Load spaCy model ===
-nlp = spacy.load("en_core_web_sm")
+# === Ensure NLP resources are installed ===
+try:
+    nlp = spacy.load("en_core_web_sm")
+except OSError:
+    import spacy.cli
+    spacy.cli.download("en_core_web_sm")
+    nlp = spacy.load("en_core_web_sm")
 
-# === Helpers ===
+try:
+    download_corpora.download_all()
+except:
+    pass
+
+# === Utility functions ===
 def safe(text):
     return text.encode('latin-1', 'replace').decode('latin-1')
 
@@ -48,6 +58,7 @@ def extract_metrics(text):
                 metrics.append(line.strip())
     return metrics[:5]
 
+# === Summary logic ===
 def summarize_article(text, max_points=5):
     paragraphs = [p.strip() for p in text.split("\n") if len(p.strip()) > 60]
     all_sentences, quotes, numbers = [], [], []
@@ -77,6 +88,7 @@ def summarize_article(text, max_points=5):
     facts = list(dict.fromkeys(quotes + numbers))[:3]
     return main, bullets, facts, freq
 
+# === Fetch article content ===
 def fetch_article(url):
     try:
         article = Article(url)
@@ -93,6 +105,7 @@ def fetch_article(url):
     except Exception as e:
         return None, f"[Error] {e}", None, []
 
+# === Generate PDF ===
 def generate_pdf_digest(summaries):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -162,6 +175,7 @@ def generate_pdf_digest(summaries):
     pdf.output(temp_path.name)
     return temp_path.name
 
+# === Streamlit UI ===
 def run():
     st.markdown("## Article Analyzer")
 
@@ -234,6 +248,6 @@ def run():
 
         pdf_path = generate_pdf_digest(summaries)
         with open(pdf_path, "rb") as f:
-            st.download_button("📄 Download PDF Summary", f, file_name="article_digest.pdf")
+            st.download_button("📄 Download PDF Summary", f, file_name="article_summary.pdf")
 
-    st.info("Note: This is an automated tool for quick financial article digestion. Always verify summaries before use.")
+    st.info("This tool helps digest financial articles quickly, but always verify information before making decisions.")
