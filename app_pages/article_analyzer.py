@@ -6,7 +6,7 @@ from newspaper import Article
 st.set_page_config(page_title="Article Analyzer", layout="wide")
 
 # -------------------------
-# Core logic (no AI)
+# Core Summarizer
 # -------------------------
 
 def upgraded_analyze_article(text, max_points=5):
@@ -40,11 +40,15 @@ def upgraded_analyze_article(text, max_points=5):
                 numbers.append(sent)
 
     sorted_sents = sorted(all_sentences, key=lambda x: x[1], reverse=True)
-    main = sorted_sents[0][0] if sorted_sents else "We couldn’t find a clear summary."
+    main = sorted_sents[0][0] if sorted_sents else "No clear summary found."
     bullets = [s for s, _ in sorted_sents[1:max_points + 1]]
     facts = list(dict.fromkeys(quotes + numbers))[:3]
 
     return main, bullets, facts
+
+# -------------------------
+# Extract Article from URL
+# -------------------------
 
 def fetch_article_text(url):
     try:
@@ -53,68 +57,71 @@ def fetch_article_text(url):
         article.parse()
         return article.title, article.text
     except Exception as e:
-        return None, f"Oops! Couldn’t read the article: {e}"
+        return None, f"Unable to extract article: {e}"
 
 # -------------------------
-# Simple UI for Beginners
+# Streamlit UI
 # -------------------------
 
 def run():
     st.markdown("""
         <style>
-            .title { font-size: 2rem; font-weight: bold; color: #203040; margin-bottom: 1rem; }
-            .step { font-weight: bold; margin-top: 1.5rem; font-size: 1.1rem; }
+            .page-title { font-size: 1.75rem; font-weight: 700; color: #1c2e4a; margin-bottom: 1rem; }
+            .section-label { font-size: 1.1rem; font-weight: 600; margin-top: 2rem; color: #2b3e55; }
             .box {
-                background-color: #f8f9fb;
+                background-color: #f4f6fa;
                 padding: 0.75rem;
-                border-left: 4px solid #6b90c6;
+                border-left: 4px solid #8ba8c5;
                 border-radius: 6px;
                 margin-bottom: 1rem;
-                font-size: 1rem;
+                font-size: 0.95rem;
             }
         </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="title">Quick Article Analyzer</div>', unsafe_allow_html=True)
-    st.markdown("This tool helps you get the main idea and key points from any article. Just follow the steps:")
+    st.markdown('<div class="page-title">Article Analyzer</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="step">Step 1: Paste the link to the article</div>', unsafe_allow_html=True)
-    url = st.text_input("Paste URL here")
+    st.text_input("Article URL", key="url_input", help="Paste a link to a news article or blog post.")
+    st.slider("Number of key points", 3, 10, value=5, key="bullet_count")
 
-    st.markdown('<div class="step">Step 2: Choose how many points you want</div>', unsafe_allow_html=True)
-    max_points = st.slider("Number of bullet points", 3, 10, value=5)
+    if st.button("Analyze Article"):
+        url = st.session_state["url_input"]
+        max_points = st.session_state["bullet_count"]
 
-    if url and st.button("Get Summary"):
-        with st.spinner("Reading the article..."):
+        if not url:
+            st.warning("Please paste an article URL.")
+            return
+
+        with st.spinner("Processing..."):
             title, content = fetch_article_text(url)
 
-        if not content or content.startswith("Oops"):
+        if not content or content.startswith("Unable"):
             st.error(content)
             return
 
-        st.success("Done! Here's what we found:")
+        st.markdown(f'<div class="section-label">Title</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="box">{title}</div>', unsafe_allow_html=True)
+
+        st.markdown(f'<div class="section-label">Summary</div>', unsafe_allow_html=True)
         main, bullets, facts = upgraded_analyze_article(content, max_points)
+        st.markdown(f'<div class="box">{main}</div>', unsafe_allow_html=True)
 
-        st.markdown(f"<div class='step'>Title:</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='box'>{title}</div>", unsafe_allow_html=True)
-
-        st.markdown(f"<div class='step'>What's the article mostly about?</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='box'>{main}</div>", unsafe_allow_html=True)
-
-        st.markdown(f"<div class='step'>Important points:</div>", unsafe_allow_html=True)
-        for b in bullets:
-            st.markdown(f"- {b}")
+        if bullets:
+            st.markdown(f'<div class="section-label">Key Points</div>', unsafe_allow_html=True)
+            for pt in bullets:
+                st.markdown(f"- {pt}")
 
         if facts:
-            st.markdown(f"<div class='step'>Interesting facts or quotes:</div>", unsafe_allow_html=True)
+            st.markdown(f'<div class="section-label">Notable Facts or Quotes</div>', unsafe_allow_html=True)
             for f in facts:
-                st.markdown(f"<div class='box'>{f}</div>", unsafe_allow_html=True)
+                st.markdown(f'<div class="box">{f}</div>', unsafe_allow_html=True)
 
-        summary_txt = f"""Title: {title}\n\nSummary:\n{main}\n\nKey Points:\n"""
-        summary_txt += "\n".join(f"- {b}" for b in bullets)
-        summary_txt += "\n\nFacts:\n" + "\n".join(f"> {f}" for f in facts)
+        # Downloadable summary
+        text_output = f"""Title: {title}\n\nSummary:\n{main}\n\nKey Points:\n"""
+        text_output += "\n".join(f"- {pt}" for pt in bullets)
+        text_output += "\n\nFacts or Quotes:\n" + "\n".join(f"> {f}" for f in facts)
 
-        st.download_button("Download as .txt", data=summary_txt, file_name="summary.txt")
+        st.download_button("Download Summary", data=text_output, file_name="summary.txt")
 
-    elif not url:
-        st.info("Paste an article link above and click the button.")
+    st.markdown("---")
+    st.caption("This tool extracts and summarizes public articles from news sites and blogs.")
