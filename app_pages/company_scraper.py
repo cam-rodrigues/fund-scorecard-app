@@ -1,11 +1,35 @@
 import streamlit as st
-from newspaper import Article
 from bs4 import BeautifulSoup
+import requests
 import pandas as pd
 import io
 from fpdf import FPDF
 
-def extract_tables_from_html(html):
+HEADERS = {"User-Agent": "Mozilla/5.0"}
+KEYWORDS = [
+    "financial", "results", "earnings", "filing", "report",
+    "quarter", "10-q", "10-k", "annual", "statement", "balance", "income"
+]
+
+def fetch_html(url):
+    try:
+        res = requests.get(url, timeout=10, headers=HEADERS)
+        return res.text
+    except Exception as e:
+        st.error(f"❌ Failed to fetch {url}: {e}")
+        return ""
+
+def extract_financial_links(base_url, html):
+    soup = BeautifulSoup(html, "lxml")
+    links = set()
+    for tag in soup.find_all("a", href=True):
+        href = tag["href"]
+        if any(kw in href.lower() for kw in KEYWORDS):
+            full_url = href if href.startswith("http") else requests.compat.urljoin(base_url, href)
+            links.add(full_url)
+    return list(links)
+
+def extract_tables_and_text(html):
     soup = BeautifulSoup(html, "lxml")
     try:
         tables = pd.read_html(str(soup))
@@ -16,7 +40,8 @@ def extract_tables_from_html(html):
 def extract_key_metrics(text):
     metrics = {}
     keywords = [
-        "revenue", "net income", "earnings per share", "eps", "ebitda", "gross margin", "operating income"
+        "revenue", "net income", "earnings per share", "eps",
+        "ebitda", "gross margin", "operating income"
     ]
     lines = text.lower().splitlines()
     for kw in keywords:
@@ -26,11 +51,11 @@ def extract_key_metrics(text):
                 break
     return metrics
 
-def download_pdf(metrics, tables):
+def download_pdf(metrics, all_tables):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "Company Financial Summary", ln=True)
+    pdf.cell(0, 10, "Aggregated Company Financial Summary", ln=True)
     pdf.set_font("Arial", size=12)
     for key, val in metrics.items():
         pdf.cell(0, 10, f"{key.title()}: {val}", ln=True)
@@ -38,55 +63,55 @@ def download_pdf(metrics, tables):
     return "/tmp/company_summary.pdf"
 
 def run():
-    st.title("🔎 Company Website Financial Scraper")
-    st.markdown("You can **enter a URL**, upload an **HTML file**, or paste HTML manually.")
+    st.title("🔎 Multi-Page Company Financial Crawler")
+    st.markdown("Enter a **company investor or financial site URL**. The tool will crawl linked subpages that mention financials, filings, reports, etc.")
 
-    option = st.radio("Choose input method:", ["URL", "Upload HTML", "Paste HTML"])
-    html_content = ""
+    url = st.text_input("Enter investor/financial website URL")
 
-    if option == "URL":
-        url = st.text_input("Enter company financial or investor website URL")
-        if url:
-            try:
-                article = Article(url)
-                article.download()
-                article.parse()
-                html_content = article.html
-            except Exception as e:
-                st.error(f"❌ Failed to fetch or parse the page: {e}")
+    if url:
+        with st.spinner("🔍 Scanning the homepage and subpages..."):
+            base_html = fetch_html(url)
+            if not base_html:
+                return
 
-    elif option == "Upload HTML":
-        uploaded = st.file_uploader("Upload HTML file", type=["html", "htm"])
-        if uploaded:
-            html_content = uploaded.read()
+            subpage_urls = extract_financial_links(url, base_html)
+            subpage_urls = list(dict.fromkeys(subpage_urls))[:10]  # limit to 10 pages
+            st.info(f"🔗 Found {len(subpage_urls)} financial subpages to scan.")
 
-    elif option == "Paste HTML":
-        html_content = st.text_area("Paste raw HTML source code")
+            all_tables = []
+            all_metrics = {}
 
-    if html_content:
-        with st.spinner("Parsing HTML..."):
-            tables, text = extract_tables_from_html(html_content)
-            metrics = extract_key_metrics(text)
+            for sub_url in subpage_urls:
+                st.markdown(f"**Scanning:** {sub_url}")
+                sub_html = fetch_html(sub_url)
+                if not sub_html:
+                    continue
 
-        if metrics:
-            st.success("✅ Found some key financial data:")
-            for k, v in metrics.items():
+                tables, text = extract_tables_and_text(sub_html)
+                metrics = extract_key_metrics(text)
+
+                all_tables.extend(tables)
+                all_metrics.update(metrics)
+
+        if all_metrics:
+            st.success("✅ Aggregated Key Financial Metrics:")
+            for k, v in all_metrics.items():
                 st.markdown(f"- **{k.title()}**: {v}")
 
-        if tables:
-            st.markdown("### 📊 Extracted Tables")
-            for i, table in enumerate(tables[:3]):
+        if all_tables:
+            st.markdown("### 📊 Extracted Tables (first 3 shown)")
+            for i, table in enumerate(all_tables[:3]):
                 st.markdown(f"**Table {i + 1}:**")
                 st.dataframe(table)
 
             csv = io.StringIO()
-            tables[0].to_csv(csv, index=False)
+            all_tables[0].to_csv(csv, index=False)
             st.download_button("⬇️ Download First Table as CSV", csv.getvalue(), file_name="company_data.csv", mime="text/csv")
 
-        if metrics:
-            pdf_path = download_pdf(metrics, tables)
+        if all_metrics:
+            pdf_path = download_pdf(all_metrics, all_tables)
             with open(pdf_path, "rb") as f:
                 st.download_button("⬇️ Download Metrics PDF", f, file_name="company_summary.pdf", mime="application/pdf")
 
-        if not tables and not metrics:
-            st.warning("No usable financial tables or metrics found.")
+        if not all_tables and not all_metrics:
+            st.warning("No financial content found on this domain.")
