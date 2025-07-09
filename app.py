@@ -58,6 +58,7 @@ nav_button("Capabilities & Potential", "Capabilities_and_Potential.py")
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
 nav_button("Fund Scorecard", "fund_scorecard.py")
 nav_button("Article Analyzer", "article_analyzer.py")  # <-- New Tool Added
+nav_button("Conpany Scraper", "company_scraper.py")
 nav_button("User Requests", "user_requests.py")
 
 # === Page router ===
