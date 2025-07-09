@@ -56,27 +56,40 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
     wb = load_workbook(filename=excel_file)
     ws = wb[sheet_name]
 
-    # Convert to DataFrame for easier header lookup
-    data = list(ws.values)
-    headers = data[0]
-    df = pd.DataFrame(data[1:], columns=headers)
-    st.write("📄 Excel Headers Detected:", list(df.columns))
+    # Read full sheet into list of rows
+    rows = list(ws.iter_rows(values_only=True))
+
+    # Search for header row based on keywords
+    header_row_idx = None
+    for i, row in enumerate(rows):
+        row_vals = [str(cell).strip().lower() if cell else "" for cell in row]
+        if any("investment option" in val for val in row_vals) and any("current quarter status" in val for val in row_vals):
+            header_row_idx = i
+            break
+
+    if header_row_idx is None:
+        raise ValueError("Could not find header row with 'Investment Option' and 'Current Quarter Status'.")
+
+    headers = rows[header_row_idx]
+    data = rows[header_row_idx + 1:]
+    df = pd.DataFrame(data, columns=headers)
+    st.write("📄 Actual Headers Detected:", list(df.columns))
 
     inv_col = find_column(df, "Investment Option")
     stat_col = find_column(df, "Current Quarter Status")
 
     if not inv_col or not stat_col:
-        raise ValueError("Could not find 'Investment Option' or 'Current Quarter Status' column.")
+        raise ValueError("Could not find 'Investment Option' or 'Current Quarter Status' columns in Excel.")
 
     inv_idx = list(df.columns).index(inv_col) + 1
     stat_idx = list(df.columns).index(stat_col) + 1
-    start_row = 2  # start just below the header
+    start_row = header_row_idx + 2  # 1-based Excel rows
 
     fund_dict = {name: status for name, status in pdf_fund_data}
-    fill_pass = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")  # green
-    fill_review = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")  # red
+    fill_pass = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+    fill_review = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
 
-    # Clear formatting
+    # Clear old formatting in status column
     for row in ws.iter_rows(min_row=start_row, min_col=stat_idx, max_col=stat_idx, max_row=start_row + len(investment_options) - 1):
         for cell in row:
             cell.fill = PatternFill()
@@ -95,7 +108,7 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
     return wb
 
 # =====================================
-# Streamlit UI
+# Streamlit App UI
 # =====================================
 def run():
     st.title("📊 FidSync: Fund Scorecard Matching")
@@ -125,12 +138,12 @@ def run():
             st.error("Please upload all files and paste investment options before proceeding.")
             return
 
-        st.info("Extracting fund statuses from PDF...")
+        st.info("Extracting funds from PDF...")
         pdf_data = extract_funds_from_pdf(pdf_file)
         st.success(f"✅ Extracted {len(pdf_data)} funds from PDF")
 
         try:
-            st.info("Applying status updates to Excel...")
+            st.info("Updating Excel...")
             updated_wb = apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_data)
 
             output = io.BytesIO()
