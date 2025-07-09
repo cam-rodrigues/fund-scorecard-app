@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import pdfplumber
@@ -109,17 +108,16 @@ def run():
     excel_file = st.file_uploader("Upload Excel File", type="xlsx")
 
     if excel_file and has_external_links(excel_file):
-    st.markdown("""
-    <div style='background-color:#dff0d8; padding:15px; border-radius:8px;'>
-        <strong>⚠️ Notice About Linked Excel Files</strong><br><br>
-        This file contains <strong>external references</strong> to other workbooks (e.g., formulas linked to another Excel file).<br><br>
-        When you download the updated version, Excel will display warnings like:<br>
-        • “We found a problem with some content...”<br>
-        • “Do you want us to try to recover...”<br><br>
-        This is <strong>normal</strong>. Just click <strong>Yes</strong> and then <strong>Enable Editing</strong> when prompted — your file will open correctly.
-    </div>
-    """, unsafe_allow_html=True)
-
+        st.markdown("""
+        <div style='background-color:#dff0d8; padding:15px; border-radius:8px;'>
+            <strong>⚠️ Notice About Linked Excel Files</strong><br><br>
+            This file contains <strong>external references</strong> to other workbooks (e.g., formulas linked to another Excel file).<br><br>
+            When you download the updated version, Excel will display warnings like:<br>
+            • “We found a problem with some content...”<br>
+            • “Do you want us to try to recover...”<br><br>
+            👉 This is <strong>normal</strong>. Just click <strong>Yes</strong> and then <strong>Enable Editing</strong> when prompted — your file will open correctly.
+        </div>
+        """, unsafe_allow_html=True)
 
     investment_input = st.text_area("Paste Investment Options (one per line):")
     investment_options = [line.strip() for line in investment_input.split("\n") if line.strip()]
