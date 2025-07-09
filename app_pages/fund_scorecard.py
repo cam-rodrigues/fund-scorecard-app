@@ -70,18 +70,22 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
         best_match = match_result[0] if match_result else None
         score = match_result[1] if match_result and len(match_result) > 1 else 0
 
-        status = fund_dict.get(best_match) if score >= 85 else ""
+        status = fund_dict.get(best_match, "") if score >= 20 else ""
 
         cell = ws.cell(row=start_row + i, column=col_index)
         cell.fill = PatternFill()  # clear fill
         cell.value = None          # clear formula or old value
         cell.data_type = 's'
-        cell.value = status
 
-        if status == "Pass":
-            cell.fill = green
-        elif status == "Review":
-            cell.fill = red
+        if score >= 20:
+            cell.value = status
+            if status == "Pass":
+                cell.fill = green
+            elif status == "Review":
+                cell.fill = red
+        else:
+            cell.value = ""
+            cell.fill = PatternFill()
 
         results.append({
             "Your Input": fund,
