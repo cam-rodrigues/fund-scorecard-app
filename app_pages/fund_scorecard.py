@@ -74,14 +74,17 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
 
         cell = ws.cell(row=start_row + i, column=col_index)
 
-        # ✅ Only apply color — do NOT change value, formatting, or border
-        if score >= 20:
-            if status == "Pass":
-                cell.fill = green
-            elif status == "Review":
-                cell.fill = red
-        else:
-            cell.fill = PatternFill(fill_type=None)
+        # Fully clean the value but preserve style — fix weird Excel symbols
+    if score >= 20:
+        cell.value = None  # wipe anything weird (unicode/formulas/etc.)
+        if status == "Pass":
+            cell.fill = green
+        elif status == "Review":
+            cell.fill = red
+    else:
+        cell.value = None
+        cell.fill = PatternFill(fill_type=None)
+
 
         results.append({
             "Your Input": fund,
