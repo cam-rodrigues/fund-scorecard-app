@@ -37,11 +37,11 @@ def extract_funds_from_pdf(pdf_file):
                     if fund_name and status:
                         fund_data.append((fund_name, status))
                     else:
-                        fund_data.append((fund_name,))  # Will get skipped later if malformed
+                        fund_data.append((fund_name,))  # Will get skipped later
     return fund_data
 
 # =============================
-# Excel Coloring — 100% Safe
+# Excel Matching + Coloring
 # =============================
 def update_excel(excel_file, sheet_name, fund_data, investment_options, status_cell):
     wb = load_workbook(excel_file)
@@ -52,7 +52,6 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
     except Exception as e:
         raise ValueError("Invalid cell reference for status cell.")
 
-    # ✅ SAFE unpacking with check
     fund_dict = {}
     for item in fund_data:
         if isinstance(item, (tuple, list)) and len(item) == 2:
@@ -71,15 +70,21 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
             continue
 
         match_result = process.extractOne(fund, fund_dict.keys(), scorer=fuzz.token_sort_ratio)
-        if match_result:
-            best_match, score = match_result
-        else:
-            best_match, score = None, 0
+        best_match, score = match_result if match_result else (None, 0)
 
         status = fund_dict.get(best_match) if score >= 85 else ""
+
         cell = ws.cell(row=start_row + i, column=col_index)
+        cell.fill = PatternFill()  # clear any existing fill
+
+        # ❗️Overwrite formulas and fill value
+        cell.value = None
+        cell.data_type = 's'
         cell.value = status
-        cell.fill = green if status == "Pass" else red if status == "Review" else PatternFill()
+        if status == "Pass":
+            cell.fill = green
+        elif status == "Review":
+            cell.fill = red
 
         results.append({
             "Your Input": fund,
@@ -94,11 +99,13 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
 # Streamlit App
 # =============================
 def run():
-    st.title("✅ FidSync: Fund Scorecard Matching (Safe Version)")
+    st.title("✅ FidSync: Fund Scorecard Matching")
 
     st.markdown("""
     Upload a **PDF fund scorecard** and matching **Excel sheet**, paste your Investment Options,
-    and enter the **starting cell** where the column "Current Quarter Status" is located (e.g., `E5`).
+    and enter the **starting cell** where the column "Current Quarter Status" is located (e.g., `L6`).
+
+    This version fully clears Excel formulas so values and colors apply correctly.
     """)
 
     pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type="pdf")
@@ -113,11 +120,11 @@ def run():
     else:
         sheet_name = None
 
-    status_cell = st.text_input("Enter starting cell for 'Current Quarter Status' column (e.g. E5)")
+    status_cell = st.text_input("Enter starting cell for 'Current Quarter Status' column (e.g. L6)")
 
     if st.button("Run Matching"):
         if not pdf_file or not excel_file or not investment_options or not status_cell or not sheet_name:
-            st.error("Please provide all inputs above.")
+            st.error("Please provide all required inputs.")
             return
 
         try:
@@ -135,5 +142,6 @@ def run():
             wb.save(output)
             st.success("✅ Excel updated successfully.")
             st.download_button("📥 Download Updated Excel", output.getvalue(), file_name="Updated_Fund_Scorecard.xlsx")
+
         except Exception as e:
             st.error(f"❌ Failed to update Excel: {str(e)}")
