@@ -24,11 +24,8 @@ def update_excel_with_template(excel_file, sheet_name, match_data, fund_col, sta
                 status = match_dict[fund]
                 status_cell = ws.cell(row=row, column=status_col[0])
                 status_cell.value = status
+                status_cell.fill = PatternFill()  # clear fill
 
-                # Clear existing formatting
-                status_cell.fill = PatternFill(fill_type=None)
-
-                # Apply color
                 if status == "Pass":
                     status_cell.fill = green_fill
                 elif status == "Review":
