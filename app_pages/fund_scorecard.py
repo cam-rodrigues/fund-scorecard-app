@@ -97,18 +97,20 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
 # Streamlit App
 # =============================
 def run():
-    st.title("Fund Scorecard")
+    st.title("Fund Scorecard ")
 
-    st.markdown("""
-    Upload a **PDF fund scorecard** and matching **Excel sheet**, paste your Investment Options,
-    and enter the **starting cell** where the column "Current Quarter Status" is located (e.g., `L6`).
-
-    """)
+    import zipfile
+    def has_external_links(xlsx_file):
+        try:
+            with zipfile.ZipFile(xlsx_file) as zf:
+                return any(name.startswith("xl/externalLinks/") for name in zf.namelist())
+        except:
+            return False
 
     pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type="pdf")
     excel_file = st.file_uploader("Upload Excel File", type="xlsx")
 
- if excel_file and has_external_links(excel_file):
+    if excel_file and has_external_links(excel_file):
         st.warning("""
         ⚠️ **Notice About Linked Excel Files**
 
@@ -118,8 +120,9 @@ def run():
         - “We found a problem with some content...”
         - “Do you want us to try to recover...”
 
-        👉 This is **normal**. Just click **Yes** and then **Enable Editing** when prompted — your file will open correctly.
+        This is **normal**. Just click **Yes** and then **Enable Editing** when prompted — your file will open correctly.
         """)
+
 
     investment_input = st.text_area("Paste Investment Options (one per line):")
     investment_options = [line.strip() for line in investment_input.split("\n") if line.strip()]
