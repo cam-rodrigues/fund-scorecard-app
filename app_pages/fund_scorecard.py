@@ -68,11 +68,8 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
             continue
 
         match_result = process.extractOne(fund, fund_dict.keys(), scorer=fuzz.token_sort_ratio)
-
-        if match_result and isinstance(match_result, (list, tuple)) and len(match_result) >= 2:
-            best_match, score = match_result
-        else:
-            best_match, score = None, 0
+        best_match = match_result[0] if match_result else None
+        score = match_result[1] if match_result and len(match_result) > 1 else 0
 
         status = fund_dict.get(best_match) if score >= 85 else ""
 
