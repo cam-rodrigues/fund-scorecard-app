@@ -132,7 +132,7 @@ def run():
 
             wb, match_results = update_excel(excel_file, sheet_name, fund_data, investment_options, status_cell)
 
-            st.subheader("🔍 Match Preview")
+            st.subheader("Match Preview")
             st.dataframe(pd.DataFrame(match_results))
 
             output = io.BytesIO()
