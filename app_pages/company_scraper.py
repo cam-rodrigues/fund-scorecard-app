@@ -5,6 +5,7 @@ import pandas as pd
 import io
 from fpdf import FPDF
 import re
+import string
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 KEYWORDS = [
@@ -13,7 +14,28 @@ KEYWORDS = [
 ]
 SKIP_EXTENSIONS = [".pdf", ".xls", ".xlsx", ".doc", ".docx"]
 
-# === Fetching and Parsing ===
+ENGLISH_WORDS = set("""
+the of and a to in is you that it he was for on are as with his they i at be this have from or one had by word
+but not what all were we when your can said there use an each which she do how their if will up other about out
+many then them these so some her would make like him into time has look two more write go see number no way could
+people my than first water been call who oil its now find long down day did get come made may part back our over new
+sound take only little work know place years live me most very after thing give name good sentence man think say great
+where help through much before line right too means old any same tell boy follow came want show also around form three
+small set put end does another well large must big even such because turn here why ask went men read need land different
+home us move try kind hand picture again change off play spell air away animal house point page letter mother answer found
+study still learn should america world high every near add food between own below country plant last school father keep tree
+never start city earth eye light thought head under story saw left don't few while along might close something seem next hard
+open example begin life always those both paper together got group often run important until children side feet car mile night
+walk white sea began grow took river four carry state once book hear stop without second later miss idea enough eat face watch
+""".split())
+
+def is_mostly_english(text, threshold=0.6):
+    words = text.translate(str.maketrans('', '', string.punctuation)).split()
+    if not words:
+        return False
+    match_count = sum(1 for word in words if word.lower() in ENGLISH_WORDS)
+    return match_count / len(words) >= threshold
+
 def fetch_html(url):
     try:
         res = requests.get(url, timeout=10, headers=HEADERS)
@@ -41,7 +63,6 @@ def extract_tables_and_text(html):
         tables = []
     return tables, soup.get_text()
 
-# === Metric Extraction & Cleaning ===
 def clean_line_spacing(line):
     if len(line) > 10 and " " in line and any(c.isdigit() for c in line):
         spaced = re.sub(r"\s+", "", line)
@@ -58,11 +79,15 @@ def extract_key_metrics(text):
     }
 
     lines = text.lower().splitlines()
-    cleaned_lines = [clean_line_spacing(l.strip()) for l in lines if any(c.isdigit() for c in l)]
+    cleaned_lines = [
+        clean_line_spacing(l.strip())
+        for l in lines
+        if any(c.isdigit() for c in l) and is_mostly_english(l.strip())
+    ]
 
     categorized = {"Profitability": [], "Liquidity": [], "Distributions": [], "Revenue": [], "Other": []}
-
     found = set()
+
     for line in cleaned_lines:
         matched = False
         for category, keywords in groups.items():
@@ -79,7 +104,6 @@ def extract_key_metrics(text):
 
     return categorized
 
-# === Safe PDF Output ===
 def safe_text(text):
     return text.encode("latin-1", "replace").decode("latin-1")
 
@@ -95,16 +119,15 @@ def download_pdf(metrics_dict):
         for label, val in items:
             line = f"{label + ': ' if label else ''}{val}"
             pdf.multi_cell(0, 8, safe_text(line))
-        pdf.ln(4)
+        pdf.ln(2)
 
     path = "/tmp/company_summary.pdf"
     pdf.output(path)
     return path
 
-# === Streamlit App Logic ===
 def run():
     st.title("📡 Company Financial Crawler")
-    st.markdown("Enter an investor or financial site URL. FidSync will crawl subpages and extract metrics + tables.")
+    st.markdown("Enter an investor or financial site URL. FidSync will crawl subpages and extract clean financial metrics.")
 
     url = st.text_input("🔗 Enter investor/financial website")
 
@@ -146,9 +169,8 @@ def run():
                 except Exception as e:
                     st.error(f"❌ Error parsing {sub_url}: {e}")
 
-        # === Metrics Output ===
         if any(all_metrics.values()):
-            st.success("✅ Key Financial Metrics Found")
+            st.success("✅ Cleaned Financial Metrics Extracted")
 
             view_mode = st.radio("How would you like to view metrics?", ["List View", "Table View"])
 
@@ -167,7 +189,6 @@ def run():
                 df = pd.DataFrame(all_data, columns=["Category", "Metric", "Text"])
                 st.dataframe(df)
 
-        # === Table Output ===
         if all_tables:
             st.markdown("### 📊 Extracted Tables")
             for i, table in enumerate(all_tables[:3]):
@@ -178,7 +199,6 @@ def run():
             all_tables[0].to_csv(csv, index=False)
             st.download_button("⬇️ Download First Table as CSV", csv.getvalue(), file_name="company_data.csv", mime="text/csv")
 
-        # === PDF Output ===
         if any(all_metrics.values()):
             pdf_path = download_pdf(all_metrics)
             with open(pdf_path, "rb") as f:
