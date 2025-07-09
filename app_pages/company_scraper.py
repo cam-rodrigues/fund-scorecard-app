@@ -1,5 +1,3 @@
-# app_pages/company_scraper.py
-
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
@@ -7,15 +5,13 @@ import pandas as pd
 import io
 from fpdf import FPDF
 
-def extract_tables_from_url(url):
+def extract_tables_from_html(html):
+    soup = BeautifulSoup(html, "lxml")
     try:
-        response = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
-        soup = BeautifulSoup(response.content, "lxml")
-        tables = pd.read_html(response.text)
-        return tables, soup.get_text()
-    except Exception as e:
-        st.error(f"❌ Failed to load or parse page: {e}")
-        return [], ""
+        tables = pd.read_html(str(soup))
+    except Exception:
+        tables = []
+    return tables, soup.get_text()
 
 def extract_key_metrics(text):
     metrics = {}
@@ -43,13 +39,30 @@ def download_pdf(metrics, tables):
 
 def run():
     st.title("🔎 Company Website Financial Scraper")
-    st.markdown("Paste a **public company’s investor page** URL to extract tables and key financial metrics.")
+    st.markdown("You can **enter a URL**, upload an **HTML file**, or paste HTML manually.")
 
-    url = st.text_input("Enter company financial or investor website URL")
+    option = st.radio("Choose input method:", ["URL", "Upload HTML", "Paste HTML"])
 
-    if url:
-        with st.spinner("Fetching and parsing the page..."):
-            tables, text = extract_tables_from_url(url)
+    html_content = ""
+
+    if option == "URL":
+        url = st.text_input("Enter company financial or investor website URL")
+        if url:
+            try:
+                response = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+                html_content = response.text
+            except Exception as e:
+                st.error(f"❌ Failed to load or parse page: {e}")
+    elif option == "Upload HTML":
+        uploaded = st.file_uploader("Upload HTML file", type=["html", "htm"])
+        if uploaded:
+            html_content = uploaded.read()
+    elif option == "Paste HTML":
+        html_content = st.text_area("Paste raw HTML source code")
+
+    if html_content:
+        with st.spinner("Parsing HTML..."):
+            tables, text = extract_tables_from_html(html_content)
             metrics = extract_key_metrics(text)
 
         if metrics:
@@ -73,4 +86,4 @@ def run():
                 st.download_button("⬇️ Download Metrics PDF", f, file_name="company_summary.pdf", mime="application/pdf")
 
         if not tables and not metrics:
-            st.warning("No usable financial tables or metrics found. Try a different investor relations page.")
+            st.warning("No usable financial tables or metrics found.")
