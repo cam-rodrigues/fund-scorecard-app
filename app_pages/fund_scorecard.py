@@ -22,18 +22,20 @@ def extract_funds_from_pdf(pdf_file):
             for i, line in enumerate(lines):
                 if "Manager Tenure" in line and i > 0:
                     fund_name = lines[i - 1].strip()
-                    status_line = line.lower()
-                    for offset in range(1, 3):
+                    status = None
+                    for offset in range(1, 4):
                         try:
-                            possible_status = lines[i - offset].strip()
-                            if "Fund Meets Watchlist Criteria" in possible_status:
-                                fund_data.append((fund_name, "Pass"))
+                            check_line = lines[i - offset].strip()
+                            if "Fund Meets Watchlist Criteria" in check_line:
+                                status = "Pass"
                                 break
-                            elif "Fund has been placed on watchlist" in possible_status:
-                                fund_data.append((fund_name, "Review"))
+                            elif "Fund has been placed on watchlist" in check_line:
+                                status = "Review"
                                 break
                         except IndexError:
                             continue
+                    if fund_name and status:
+                        fund_data.append((fund_name, status))
     return fund_data
 
 # ================================
