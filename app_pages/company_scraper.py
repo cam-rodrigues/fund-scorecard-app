@@ -29,7 +29,7 @@ open example begin life always those both paper together got group often run imp
 walk white sea began grow took river four carry state once book hear stop without second later miss idea enough eat face watch
 """.split())
 
-def is_mostly_english(text, threshold=0.6):
+def is_mostly_english(text, threshold=0.3):
     words = text.translate(str.maketrans('', '', string.punctuation)).split()
     if not words:
         return False
@@ -70,7 +70,13 @@ def clean_line_spacing(line):
             return spaced
     return line
 
-def extract_key_metrics(text):
+def extract_key_metrics(text, custom_keywords=None, show_debug=False):
+    all_keywords = custom_keywords if custom_keywords else [
+        "net income", "ebitda", "adjusted ebitda", "earnings per share", "eps",
+        "gross margin", "operating income", "cash", "debt", "dividend",
+        "distribution", "revenue", "sales", "income statement"
+    ]
+
     groups = {
         "Profitability": ["net income", "ebitda", "adjusted ebitda", "earnings per share", "eps", "gross margin", "operating income"],
         "Liquidity": ["cash", "debt", "balance sheet"],
@@ -85,6 +91,14 @@ def extract_key_metrics(text):
         if any(c.isdigit() for c in l) and is_mostly_english(l.strip())
     ]
 
+    if show_debug:
+        rejected = [
+            l.strip() for l in lines
+            if any(c.isdigit() for c in l)
+            and not is_mostly_english(l.strip())
+        ]
+        st.expander("🔍 Filtered (rejected) lines").write(rejected[:50])
+
     categorized = {"Profitability": [], "Liquidity": [], "Distributions": [], "Revenue": [], "Other": []}
     found = set()
 
@@ -92,14 +106,14 @@ def extract_key_metrics(text):
         matched = False
         for category, keywords in groups.items():
             for kw in keywords:
-                if kw in line and kw not in found:
+                if kw in line and kw not in found and kw in all_keywords:
                     categorized[category].append((kw.title(), line.strip().capitalize()))
                     found.add(kw)
                     matched = True
                     break
             if matched:
                 break
-        if not matched and len(line.strip()) > 40:
+        if not matched and any(kw in line for kw in all_keywords):
             categorized["Other"].append(("", line.strip().capitalize()))
 
     return categorized
@@ -127,9 +141,17 @@ def download_pdf(metrics_dict):
 
 def run():
     st.title("📡 Company Financial Crawler")
-    st.markdown("Enter an investor or financial site URL. FidSync will crawl subpages and extract clean financial metrics.")
+    st.markdown("Enter a URL. FidSync will crawl linked subpages and extract clean financial metrics.")
 
     url = st.text_input("🔗 Enter investor/financial website")
+
+    common_terms = [
+        "net income", "ebitda", "adjusted ebitda", "eps", "gross margin", "revenue",
+        "operating income", "dividend", "distribution", "debt", "cash", "income statement", "sales"
+    ]
+    selected_terms = st.multiselect("🔎 Optional: Filter for specific financial terms", common_terms)
+
+    show_debug = st.checkbox("🧪 Show filtered (rejected) lines", value=False)
 
     if url:
         with st.spinner("🔍 Crawling site..."):
@@ -160,7 +182,7 @@ def run():
                     continue
                 try:
                     tables, text = extract_tables_and_text(sub_html)
-                    grouped = extract_key_metrics(text)
+                    grouped = extract_key_metrics(text, selected_terms, show_debug)
                     all_tables.extend(tables)
                     for cat, items in grouped.items():
                         if cat not in all_metrics:
