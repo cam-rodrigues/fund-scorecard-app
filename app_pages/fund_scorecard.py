@@ -7,7 +7,7 @@ from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
 
 # =====================================
-# Robust PDF Parsing
+# PDF Parsing (Safe)
 # =====================================
 def extract_funds_from_pdf(pdf_file):
     fund_data = []
@@ -22,23 +22,37 @@ def extract_funds_from_pdf(pdf_file):
                 if "Manager Tenure" in line and i > 0:
                     fund_name = lines[i - 1].strip()
                     status = None
-                    nearby_lines = lines[max(0, i - 5): i + 2]
-                    for l in nearby_lines:
-                        if "Fund Meets Watchlist Criteria" in l:
-                            status = "Pass"
-                            break
-                        elif "Fund has been placed on watchlist" in l:
-                            status = "Review"
-                            break
+                    for offset in range(1, 4):
+                        try:
+                            check_line = lines[i - offset].strip()
+                            if "Fund Meets Watchlist Criteria" in check_line:
+                                status = "Pass"
+                                break
+                            elif "Fund has been placed on watchlist" in check_line:
+                                status = "Review"
+                                break
+                        except IndexError:
+                            continue
                     if fund_name and status:
                         try:
                             fund_data.append((str(fund_name).strip(), str(status).strip()))
                         except Exception as e:
-                            st.warning(f"⚠️ Skipped invalid PDF line: {fund_name} / {status} ({e})")
+                            st.warning(f"⚠️ Skipped malformed PDF entry: {fund_name} / {status} ({e})")
     return fund_data
 
 # =====================================
-# Excel Matching & Coloring
+# Header Row Detection Helper
+# =====================================
+def find_correct_header_row(df, target_columns):
+    for i in range(min(10, len(df))):  # scan first 10 rows
+        row = df.iloc[i]
+        lower_vals = [str(cell).strip().lower() for cell in row if pd.notna(cell)]
+        if all(any(col.lower() in val for val in lower_vals) for col in target_columns):
+            return i
+    return 0  # fallback
+
+# =====================================
+# Column Fuzzy Match Helper
 # =====================================
 def find_column(df, keyword):
     best_match = None
@@ -52,55 +66,47 @@ def find_column(df, keyword):
             best_score = score
     return best_match
 
+# =====================================
+# Excel Processing and Coloring
+# =====================================
 def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_data):
-    wb = load_workbook(filename=excel_file)
-    ws = wb[sheet_name]
-    rows = list(ws.iter_rows(values_only=True))
-
-    # Auto-detect header row
-    header_row_idx = None
-    for i, row in enumerate(rows):
-        row_vals = [str(cell).strip().lower() if cell else "" for cell in row]
-        if any("investment option" in val for val in row_vals) and any("current quarter status" in val for val in row_vals):
-            header_row_idx = i
-            break
-
-    if header_row_idx is None:
-        raise ValueError("Could not find header row with 'Investment Option' and 'Current Quarter Status'.")
-
-    headers = rows[header_row_idx]
-    data = rows[header_row_idx + 1:]
-    df = pd.DataFrame(data, columns=headers)
+    # Step 1: auto-detect header row
+    df_raw = pd.read_excel(excel_file, sheet_name=sheet_name, header=None)
+    header_row = find_correct_header_row(df_raw, ["Investment Option", "Current Quarter Status"])
+    df = pd.read_excel(excel_file, sheet_name=sheet_name, header=header_row)
     st.write("📄 Actual Headers Detected:", list(df.columns))
 
+    # Step 2: fuzzy match columns
     inv_col = find_column(df, "Investment Option")
     stat_col = find_column(df, "Current Quarter Status")
-
     if not inv_col or not stat_col:
-        raise ValueError("Could not find 'Investment Option' or 'Current Quarter Status' columns in Excel.")
+        raise ValueError("Could not find required columns in Excel.")
 
-    inv_idx = list(df.columns).index(inv_col) + 1
-    stat_idx = list(df.columns).index(stat_col) + 1
-    start_row = header_row_idx + 2
+    inv_idx = df.columns.get_loc(inv_col) + 1
+    stat_idx = df.columns.get_loc(stat_col) + 1
+    start_row = header_row + 2  # for openpyxl (1-based indexing + 1 row offset)
 
-    # ✅ Safely build fund dict
+    # Step 3: open workbook
+    wb = load_workbook(excel_file)
+    ws = wb[sheet_name]
+
+    # Step 4: build fund status dict
     fund_dict = {}
     for item in pdf_fund_data:
         if isinstance(item, tuple) and len(item) == 2 and all(item):
-            name, status = item
-            fund_dict[name] = status
+            fund_dict[item[0]] = item[1]
         else:
-            st.warning(f"⚠️ Skipped malformed PDF entry: {item}")
+            st.warning(f"⚠️ Skipped malformed entry: {item}")
 
     fill_pass = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
     fill_review = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
 
-    # Clear formatting
-    for row in ws.iter_rows(min_row=start_row, min_col=stat_idx, max_col=stat_idx, max_row=start_row + len(investment_options) - 1):
+    # Step 5: clear previous formatting
+    for row in ws.iter_rows(min_row=start_row, min_col=stat_idx, max_col=stat_idx, max_row=start_row + len(investment_options)):
         for cell in row:
             cell.fill = PatternFill()
 
-    # Match and write
+    # Step 6: fuzzy match and apply
     for i, fund in enumerate(investment_options):
         fund = fund.strip()
         best_match, score = process.extractOne(fund, fund_dict.keys(), scorer=fuzz.token_sort_ratio)
@@ -145,10 +151,9 @@ def run():
             st.error("Please upload all files and paste investment options before proceeding.")
             return
 
-        st.info("Extracting from PDF...")
+        st.info("Extracting PDF...")
         pdf_data = extract_funds_from_pdf(pdf_file)
-        st.write("🔍 Raw PDF Data Extracted:", pdf_data)
-        st.success(f"✅ Extracted {len(pdf_data)} funds from PDF")
+        st.write("🔍 Extracted from PDF:", pdf_data)
 
         try:
             st.info("Updating Excel...")
