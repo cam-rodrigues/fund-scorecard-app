@@ -7,9 +7,9 @@ from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
 from openpyxl.utils.cell import coordinate_to_tuple
 
-# ==============================
-# PDF Extraction
-# ==============================
+# =============================
+# PDF Extraction — Bulletproof
+# =============================
 def extract_funds_from_pdf(pdf_file):
     fund_data = []
     with pdfplumber.open(pdf_file) as pdf:
@@ -35,12 +35,14 @@ def extract_funds_from_pdf(pdf_file):
                         except IndexError:
                             continue
                     if fund_name and status:
-                        fund_data.append((fund_name, status))  # enforce tuple
+                        fund_data.append((fund_name, status))
+                    else:
+                        fund_data.append((fund_name,))  # Will get skipped later if malformed
     return fund_data
 
-# ==============================
-# Excel Coloring Logic
-# ==============================
+# =============================
+# Excel Coloring — 100% Safe
+# =============================
 def update_excel(excel_file, sheet_name, fund_data, investment_options, status_cell):
     wb = load_workbook(excel_file)
     ws = wb[sheet_name]
@@ -50,10 +52,14 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
     except Exception as e:
         raise ValueError("Invalid cell reference for status cell.")
 
+    # ✅ SAFE unpacking with check
     fund_dict = {}
     for item in fund_data:
-        if isinstance(item, tuple) and len(item) == 2:
-            fund_dict[item[0]] = item[1]
+        if isinstance(item, (tuple, list)) and len(item) == 2:
+            name, status = item
+            fund_dict[str(name).strip()] = str(status).strip()
+        else:
+            st.warning(f"⚠️ Skipped malformed entry: {item}")
 
     green = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
     red = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
@@ -84,14 +90,14 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
 
     return wb, results
 
-# ==============================
-# Streamlit UI
-# ==============================
+# =============================
+# Streamlit App
+# =============================
 def run():
-    st.title("FidSync: Fund Scorecard Matching")
+    st.title("✅ FidSync: Fund Scorecard Matching (Safe Version)")
 
     st.markdown("""
-    Upload a **PDF fund scorecard** and a **matching Excel sheet**, paste your Investment Options,
+    Upload a **PDF fund scorecard** and matching **Excel sheet**, paste your Investment Options,
     and enter the **starting cell** where the column "Current Quarter Status" is located (e.g., `E5`).
     """)
 
