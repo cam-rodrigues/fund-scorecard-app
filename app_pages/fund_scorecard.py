@@ -5,7 +5,6 @@ import io
 from rapidfuzz import fuzz, process
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
-from openpyxl.utils import get_column_letter
 
 # ================================
 # PDF Parsing
@@ -45,8 +44,10 @@ def find_column(df, keyword):
     best_match = None
     best_score = 0
     for col in df.columns:
+        if col is None or pd.isna(col):
+            continue
         score = fuzz.partial_ratio(str(col).lower(), keyword.lower())
-        if score > best_score and score >= 80:
+        if score > best_score and score >= 70:
             best_match = col
             best_score = score
     return best_match
@@ -55,41 +56,46 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
     wb = load_workbook(filename=excel_file)
     ws = wb[sheet_name]
 
-    # Convert sheet to dataframe
+    # Load data from worksheet
     data = list(ws.values)
     headers = data[0]
     df = pd.DataFrame(data[1:], columns=headers)
 
-    # Fuzzy match headers
+    # Show the actual headers in the UI for debugging
+    st.write("🔎 Excel Headers Detected:", list(df.columns))
+
+    # Match headers with fuzz
     inv_col = find_column(df, "Investment Option")
     stat_col = find_column(df, "Current Quarter Status")
 
     if not inv_col or not stat_col:
+        st.error(f"Could not find required columns.\nFound Investment Column: {inv_col}\nFound Status Column: {stat_col}")
         raise ValueError("Could not find 'Investment Option' or 'Current Quarter Status' column in Excel sheet.")
 
-    inv_idx = list(headers).index(inv_col) + 1
-    stat_idx = list(headers).index(stat_col) + 1
-    start_row = 2  # Excel rows start at 1, plus header row
+    inv_idx = list(df.columns).index(inv_col) + 1
+    stat_idx = list(df.columns).index(stat_col) + 1
+    start_row = 2  # Excel row index (1-based) after header
 
     fund_dict = {name: status for name, status in pdf_fund_data}
     fill_pass = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
     fill_review = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
 
-    # Clear all old formatting
+    # Clear old formatting
     for row in ws.iter_rows(min_row=start_row, min_col=stat_idx, max_col=stat_idx, max_row=start_row + len(investment_options) - 1):
         for cell in row:
             cell.fill = PatternFill()
 
+    # Apply new status coloring
     for i, fund in enumerate(investment_options):
         fund = fund.strip()
         best_match, score = process.extractOne(fund, fund_dict.keys(), scorer=fuzz.token_sort_ratio)
-        target_cell = ws.cell(row=start_row + i, column=stat_idx)
+        cell = ws.cell(row=start_row + i, column=stat_idx)
         if score >= 80:
             status = fund_dict[best_match]
-            target_cell.value = status
-            target_cell.fill = fill_pass if status == "Pass" else fill_review
+            cell.value = status
+            cell.fill = fill_pass if status == "Pass" else fill_review
         else:
-            target_cell.value = ""
+            cell.value = ""
 
     return wb
 
@@ -97,7 +103,7 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
 # Streamlit App
 # ================================
 def run():
-    st.title("FidSync: Fund Scorecard Matching")
+    st.title("📊 FidSync: Fund Scorecard Matching")
     st.markdown("""
     Upload your fund scorecard PDF and Excel template. This tool matches funds and updates the Excel with color-coded statuses.
     - ✅ Green = **Pass**
@@ -122,7 +128,7 @@ def run():
 
         st.info("Processing PDF...")
         pdf_data = extract_funds_from_pdf(pdf_file)
-        st.success(f"Extracted {len(pdf_data)} funds from PDF")
+        st.success(f"✅ Extracted {len(pdf_data)} funds from PDF")
 
         try:
             st.info("Updating Excel...")
