@@ -5,7 +5,6 @@ import io
 from rapidfuzz import fuzz, process
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
-from openpyxl.utils import get_column_letter
 
 # ================================
 # PDF Parsing
@@ -61,28 +60,36 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
 
     inv_idx = df.columns.get_loc(inv_col) + 1
     stat_idx = df.columns.get_loc(stat_col) + 1
+    start_row = 2  # assuming headers are in row 1
 
-    start_row = 2  # assuming header is row 1
+    # Safe unpacking
+    fund_dict = {}
+    for item in pdf_fund_data:
+        if isinstance(item, tuple) and len(item) == 2:
+            name, status = item
+            fund_dict[name] = status
+        # else:
+        #     st.warning(f"⚠️ Skipped malformed PDF entry: {item}")
 
-    fund_dict = {name: status for name, status in pdf_fund_data}
     fill_pass = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")  # green
     fill_review = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")  # red
 
-    for i, fund in enumerate(investment_options):
-        fund = fund.strip()
-        best_match, score = process.extractOne(fund, fund_dict.keys(), scorer=fuzz.token_sort_ratio)
-        if score > 85:
-            status = fund_dict[best_match]
-            cell = ws.cell(row=start_row + i, column=stat_idx)
-            cell.value = status
-            cell.fill = fill_pass if status == "Pass" else fill_review
-        else:
-            ws.cell(row=start_row + i, column=stat_idx).value = ""
-
-    # Clear old formatting
+    # Clear old formatting first
     for row in ws.iter_rows(min_row=start_row, min_col=stat_idx, max_col=stat_idx):
         for cell in row:
             cell.fill = PatternFill()
+
+    # Match and color
+    for i, fund in enumerate(investment_options):
+        fund = fund.strip()
+        best_match, score = process.extractOne(fund, fund_dict.keys(), scorer=fuzz.token_sort_ratio)
+        cell = ws.cell(row=start_row + i, column=stat_idx)
+        if score > 85:
+            status = fund_dict[best_match]
+            cell.value = status
+            cell.fill = fill_pass if status == "Pass" else fill_review
+        else:
+            cell.value = ""
 
     return wb
 
@@ -116,8 +123,7 @@ def run():
 
         st.info("Processing PDF...")
         pdf_data = extract_funds_from_pdf(pdf_file)
-
-        st.success(f"Extracted {len(pdf_data)} funds from PDF")
+        st.success(f"✅ Extracted {len(pdf_data)} funds from PDF")
 
         st.info("Updating Excel...")
         updated_wb = apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_data)
@@ -125,4 +131,3 @@ def run():
         output = io.BytesIO()
         updated_wb.save(output)
         st.download_button("📥 Download Updated Excel", output.getvalue(), file_name="Updated_Fund_Scorecard.xlsx")
-
