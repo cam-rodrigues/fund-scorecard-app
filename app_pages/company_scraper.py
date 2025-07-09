@@ -1,5 +1,4 @@
-# Construct the new AI-enhanced scraper script with both raw + GPT-extracted summaries
-upgraded_scraper_code = """
+import os
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
@@ -43,13 +42,13 @@ def extract_tables_and_text(html):
     return tables, soup.get_text()
 
 def ai_extract_summary(text):
-    prompt = f\"\"\"
+    prompt = f"""
 You are a financial analyst assistant. Read this text and extract the key financial performance details.
 Summarize earnings, EBITDA, cash flow, revenue, income, margins, or debt if mentioned.
 Respond clearly in bullet points or short paragraphs.
 
 {text}
-\"\"\"
+"""
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
@@ -107,11 +106,3 @@ def run():
                     st.code(raw[:2000])
         else:
             st.warning("No usable financial data found.")
-"""
-
-# Save the upgraded script
-updated_path = os.path.join(extract_dir, 'fydsync-main', 'app_pages', 'company_scraper.py')
-with open(updated_path, 'w', encoding='utf-8') as f:
-    f.write(upgraded_scraper_code.strip())
-
-updated_path
