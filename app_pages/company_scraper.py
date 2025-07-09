@@ -1,3 +1,5 @@
+# app_pages/company_scraper.py
+
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
@@ -9,8 +11,6 @@ def extract_tables_from_url(url):
     try:
         response = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
         soup = BeautifulSoup(response.content, "lxml")
-
-        # Extract all HTML tables
         tables = pd.read_html(response.text)
         return tables, soup.get_text()
     except Exception as e:
@@ -35,11 +35,9 @@ def download_pdf(metrics, tables):
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
     pdf.cell(0, 10, "Company Financial Summary", ln=True)
-
     pdf.set_font("Arial", size=12)
     for key, val in metrics.items():
         pdf.cell(0, 10, f"{key.title()}: {val}", ln=True)
-
     pdf.output("/tmp/company_summary.pdf")
     return "/tmp/company_summary.pdf"
 
@@ -61,7 +59,7 @@ def run():
 
         if tables:
             st.markdown("### 📊 Extracted Tables")
-            for i, table in enumerate(tables[:3]):  # Limit to 3 tables for performance
+            for i, table in enumerate(tables[:3]):
                 st.markdown(f"**Table {i + 1}:**")
                 st.dataframe(table)
 
@@ -76,4 +74,3 @@ def run():
 
         if not tables and not metrics:
             st.warning("No usable financial tables or metrics found. Try a different investor relations page.")
-
