@@ -38,7 +38,7 @@ def extract_funds_from_pdf(pdf_file):
     return fund_data
 
 # =============================
-# Excel Matching + Coloring — Color Only, No Text
+# Excel Matching + Coloring — Fill Only, No Text
 # =============================
 def update_excel(excel_file, sheet_name, fund_data, investment_options, status_cell):
     wb = load_workbook(excel_file)
@@ -74,17 +74,15 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
 
         cell = ws.cell(row=start_row + i, column=col_index)
 
-        # Fully clean the value but preserve style — fix weird Excel symbols
-    if score >= 20:
-        cell.value = None  # wipe anything weird (unicode/formulas/etc.)
-        if status == "Pass":
-            cell.fill = green
-        elif status == "Review":
-            cell.fill = red
-    else:
+        # ✅ Fully clear cell value (fixes emoji/symbols) but preserve borders/fonts/etc.
         cell.value = None
-        cell.fill = PatternFill(fill_type=None)
-
+        if score >= 20:
+            if status == "Pass":
+                cell.fill = green
+            elif status == "Review":
+                cell.fill = red
+        else:
+            cell.fill = PatternFill(fill_type=None)
 
         results.append({
             "Your Input": fund,
@@ -105,7 +103,7 @@ def run():
     Upload a **PDF fund scorecard** and matching **Excel sheet**, paste your Investment Options,
     and enter the **starting cell** where the column "Current Quarter Status" is located (e.g., `L6`).
 
-    ✅ This version leaves all formatting, borders, and values in place — and applies only background color.
+    ✅ This version removes strange characters and leaves formatting untouched — only background color is applied.
     """)
 
     pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type="pdf")
