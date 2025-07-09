@@ -3,9 +3,10 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-import openai
+from openai import OpenAI
 
-openai.api_key = st.secrets["openai"]["api_key"]
+# OpenAI setup (v1.0+ client)
+client = OpenAI(api_key=st.secrets["openai"]["api_key"])
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 KEYWORDS = [
@@ -50,13 +51,13 @@ Respond clearly in bullet points or short paragraphs.
 {text}
 """
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
-            max_tokens=800,
+            max_tokens=800
         )
-        return response["choices"][0]["message"]["content"].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"⚠️ OpenAI failed: {e}"
 
