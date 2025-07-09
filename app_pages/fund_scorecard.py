@@ -74,7 +74,7 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
 
         cell = ws.cell(row=start_row + i, column=col_index)
 
-        # ✅ Fully clear cell value (fixes emoji/symbols) but preserve borders/fonts/etc.
+        # ✅ Clear weird characters or formulas, but preserve styling
         cell.value = None
         if score >= 20:
             if status == "Pass":
@@ -103,7 +103,7 @@ def run():
     Upload a **PDF fund scorecard** and matching **Excel sheet**, paste your Investment Options,
     and enter the **starting cell** where the column "Current Quarter Status" is located (e.g., `L6`).
 
-    ✅ This version removes strange characters and leaves formatting untouched — only background color is applied.
+    ✅ This version removes strange characters, keeps formatting, and prevents Excel file corruption.
     """)
 
     pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type="pdf")
@@ -131,14 +131,6 @@ def run():
                 st.warning("No funds extracted from PDF.")
                 return
 
-            cleaned_fund_data = []
-            for item in fund_data:
-                if isinstance(item, (tuple, list)) and len(item) == 2:
-                    cleaned_fund_data.append((str(item[0]).strip(), str(item[1]).strip()))
-                else:
-                    st.warning(f"⚠️ Skipped invalid extracted item: {item}")
-            fund_data = cleaned_fund_data
-
             wb, match_results = update_excel(excel_file, sheet_name, fund_data, investment_options, status_cell)
 
             st.subheader("🔍 Match Preview")
@@ -146,8 +138,9 @@ def run():
 
             output = io.BytesIO()
             wb.save(output)
+            output.seek(0)  # ✅ Required to avoid corruption
             st.success("✅ Excel updated successfully.")
-            st.download_button("📥 Download Updated Excel", output.getvalue(), file_name="Updated_Fund_Scorecard.xlsx")
+            st.download_button("📥 Download Updated Excel", data=output, file_name="Updated_Fund_Scorecard.xlsx")
 
         except Exception as e:
             st.error(f"❌ Failed to update Excel: {str(e)}")
