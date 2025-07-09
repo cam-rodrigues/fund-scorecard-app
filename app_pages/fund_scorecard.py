@@ -120,16 +120,25 @@ def run():
         👉 This is **normal**. Just click **Yes** and then **Enable Editing** when prompted — your file will open correctly.
         """)
 
-    investment_input = st.text_area("Paste Investment Options (one per line):")
-    investment_options = [line.strip() for line in investment_input.split("\n") if line.strip()]
-
     match_threshold = st.slider("Minimum Match Score (fuzzy logic)", 0, 100, 20, step=5)
 
     if excel_file:
         xls = pd.ExcelFile(excel_file)
         sheet_name = st.selectbox("Select Excel Sheet", xls.sheet_names)
+
+        df_sheet = pd.read_excel(excel_file, sheet_name=sheet_name)
+        column_source = st.radio("Select how to input Investment Options", ["Paste Manually", "Select Column from Excel"])
+
+        if column_source == "Paste Manually":
+            investment_input = st.text_area("Paste Investment Options (one per line):")
+            investment_options = [line.strip() for line in investment_input.split("\n") if line.strip()]
+        else:
+            col_options = df_sheet.columns.tolist()
+            selected_col = st.selectbox("Select Column Containing Investment Options", col_options)
+            investment_options = df_sheet[selected_col].dropna().astype(str).tolist()
     else:
         sheet_name = None
+        investment_options = []
 
     status_cell = st.text_input("Enter starting cell for 'Current Quarter Status' column (e.g. L6)")
 
@@ -155,7 +164,6 @@ def run():
                 with st.expander("⚠️ Low Confidence Matches (below threshold)"):
                     st.dataframe(low_conf)
 
-            # Download buttons
             st.download_button("Download Match Summary CSV", df_results.to_csv(index=False), file_name="Fund_Match_Results.csv")
 
             output = io.BytesIO()
