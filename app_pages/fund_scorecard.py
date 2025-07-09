@@ -8,7 +8,7 @@ from openpyxl.styles import PatternFill
 from openpyxl.utils.cell import coordinate_to_tuple
 
 # =============================
-# PDF Extraction — Bulletproof
+# PDF Extraction — Clean Fund Name + Status
 # =============================
 def extract_funds_from_pdf(pdf_file):
     fund_data = []
@@ -21,19 +21,18 @@ def extract_funds_from_pdf(pdf_file):
             lines = text.split("\n")
             for i, line in enumerate(lines):
                 if "Manager Tenure" in line and i > 0:
-                    fund_name = lines[i - 1].strip()
+                    fund_name_candidate = lines[i - 1].strip()
+
                     status = None
-                    for offset in range(1, 4):
-                        try:
-                            check_line = lines[i - offset].strip()
-                            if "Fund Meets Watchlist Criteria" in check_line:
-                                status = "Pass"
-                                break
-                            elif "Fund has been placed on watchlist" in check_line:
-                                status = "Review"
-                                break
-                        except IndexError:
-                            continue
+                    if "Meets Watchlist Criteria" in fund_name_candidate:
+                        fund_name = fund_name_candidate.replace("Fund Meets Watchlist Criteria.", "").strip()
+                        status = "Pass"
+                    elif "placed on watchlist" in fund_name_candidate:
+                        fund_name = fund_name_candidate.split(" Fund has been placed")[0].strip()
+                        status = "Review"
+                    else:
+                        fund_name = fund_name_candidate.strip()
+
                     if fund_name and status:
                         fund_data.append((fund_name, status))
     return fund_data
