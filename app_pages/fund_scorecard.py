@@ -38,7 +38,7 @@ def extract_funds_from_pdf(pdf_file):
     return fund_data
 
 # =============================
-# Excel Matching + Coloring (clears old junk)
+# Excel Matching + Coloring — Color Only, No Text
 # =============================
 def update_excel(excel_file, sheet_name, fund_data, investment_options, status_cell):
     wb = load_workbook(excel_file)
@@ -60,17 +60,6 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
     green = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
     red = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
 
-    # ✅ Step 1: Pre-clear Status column
-    for i in range(len(investment_options)):
-        cell = ws.cell(row=start_row + i, column=col_index)
-        cell.value = None
-        cell.fill = PatternFill(fill_type=None)
-        cell.font = None
-        cell.border = None
-        cell.alignment = None
-        cell.number_format = "General"
-
-    # ✅ Step 2: Match and write new values
     results = []
     for i, fund in enumerate(investment_options):
         fund = fund.strip()
@@ -85,14 +74,13 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
 
         cell = ws.cell(row=start_row + i, column=col_index)
 
+        # ✅ Only apply color — do NOT change value, formatting, or border
         if score >= 20:
-            cell.value = status
             if status == "Pass":
                 cell.fill = green
             elif status == "Review":
                 cell.fill = red
         else:
-            cell.value = ""
             cell.fill = PatternFill(fill_type=None)
 
         results.append({
@@ -108,13 +96,13 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
 # Streamlit App
 # =============================
 def run():
-    st.title("Fund Scorecard Matching")
+    st.title("✅ FidSync: Fund Scorecard Matching")
 
     st.markdown("""
     Upload a **PDF fund scorecard** and matching **Excel sheet**, paste your Investment Options,
     and enter the **starting cell** where the column "Current Quarter Status" is located (e.g., `L6`).
 
-    This version clears Excel junk before writing and supports fuzzy matching with a 20%+ confidence threshold.
+    ✅ This version leaves all formatting, borders, and values in place — and applies only background color.
     """)
 
     pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type="pdf")
@@ -152,13 +140,13 @@ def run():
 
             wb, match_results = update_excel(excel_file, sheet_name, fund_data, investment_options, status_cell)
 
-            st.subheader("Match Preview")
+            st.subheader("🔍 Match Preview")
             st.dataframe(pd.DataFrame(match_results))
 
             output = io.BytesIO()
             wb.save(output)
-            st.success("Excel updated successfully.")
-            st.download_button("Download Updated Excel", output.getvalue(), file_name="Updated_Fund_Scorecard.xlsx")
+            st.success("✅ Excel updated successfully.")
+            st.download_button("📥 Download Updated Excel", output.getvalue(), file_name="Updated_Fund_Scorecard.xlsx")
 
         except Exception as e:
             st.error(f"❌ Failed to update Excel: {str(e)}")
