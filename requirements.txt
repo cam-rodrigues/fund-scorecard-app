@@ -15,3 +15,6 @@ fpdf==1.7.2
 
 # 👇 Fix for newspaper3k's lxml.html.clean dependency
 lxml_html_clean==0.1.1
+
+# 👇 Needed for GPT summaries
+openai
