@@ -110,24 +110,31 @@ def run():
     investment_input = st.text_area("Paste Investment Options (one per line):")
     investment_options = [line.strip() for line in investment_input.strip().split("\n") if line.strip()]
 
+    sheet_name = None
     if excel_file:
-        xls = pd.ExcelFile(excel_file)
-        sheet_name = st.selectbox("Choose Excel Sheet", xls.sheet_names)
-    else:
-        sheet_name = None
+        try:
+            xls = pd.ExcelFile(excel_file)
+            sheet_name = st.selectbox("Choose Excel Sheet", xls.sheet_names)
+        except Exception as e:
+            st.error(f"❌ Could not read Excel: {e}")
+            return
 
     if st.button("Run Matching"):
-        if not pdf_file or not excel_file or not investment_options or not sheet_name:
+        if pdf_file is None or excel_file is None or not investment_options or sheet_name is None:
             st.error("Please upload all files and paste investment options before proceeding.")
             return
 
-        st.info("Processing PDF...")
-        pdf_data = extract_funds_from_pdf(pdf_file)
-        st.success(f"✅ Extracted {len(pdf_data)} funds from PDF")
+        try:
+            st.info("Processing PDF...")
+            pdf_data = extract_funds_from_pdf(pdf_file)
+            st.success(f"✅ Extracted {len(pdf_data)} funds from PDF")
 
-        st.info("Updating Excel...")
-        updated_wb = apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_data)
+            st.info("Updating Excel...")
+            updated_wb = apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_data)
 
-        output = io.BytesIO()
-        updated_wb.save(output)
-        st.download_button("📥 Download Updated Excel", output.getvalue(), file_name="Updated_Fund_Scorecard.xlsx")
+            output = io.BytesIO()
+            updated_wb.save(output)
+            st.download_button("Download Updated Excel", output.getvalue(), file_name="Updated_Fund_Scorecard.xlsx")
+
+        except Exception as e:
+            st.error(f"❌ Failed to load page: {e}")
