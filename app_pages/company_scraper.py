@@ -1,51 +1,19 @@
+# Construct the new AI-enhanced scraper script with both raw + GPT-extracted summaries
+upgraded_scraper_code = """
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-import io
-from fpdf import FPDF
-import re
-import string
 import openai
 
-# === OPENAI SETUP ===
 openai.api_key = st.secrets["openai"]["api_key"]
 
-def ai_summarize(text, label=None):
-    prompt = f"""
-You are an analyst assistant. Please clean and summarize the following financial text:
-{text}
-
-Return a clean, readable bullet summary (2–5 lines max).
-Use full sentences. Group similar data.
-"""
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",  # or "gpt-3.5-turbo"
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=600,
-        )
-        return response["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        return f"⚠️ AI failed: {e}"
-
-# === STATIC DATA ===
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 KEYWORDS = [
     "financial", "results", "earnings", "filing", "report",
     "quarter", "10-q", "10-k", "annual", "statement", "balance", "income"
 ]
 SKIP_EXTENSIONS = [".pdf", ".xls", ".xlsx", ".doc", ".docx"]
-
-ENGLISH_WORDS = set("""[...your existing ENGLISH_WORDS here...]""".split())
-
-def is_mostly_english(text, threshold=0.3):
-    words = text.translate(str.maketrans('', '', string.punctuation)).split()
-    if not words:
-        return False
-    match_count = sum(1 for word in words if word.lower() in ENGLISH_WORDS)
-    return match_count / len(words) >= threshold
 
 def fetch_html(url):
     try:
@@ -74,92 +42,29 @@ def extract_tables_and_text(html):
         tables = []
     return tables, soup.get_text()
 
-def clean_line_spacing(line):
-    if len(line) > 10 and " " in line and any(c.isdigit() for c in line):
-        spaced = re.sub(r"\s+", "", line)
-        if spaced.isalnum():
-            return spaced
-    return line
+def ai_extract_summary(text):
+    prompt = f\"\"\"
+You are a financial analyst assistant. Read this text and extract the key financial performance details.
+Summarize earnings, EBITDA, cash flow, revenue, income, margins, or debt if mentioned.
+Respond clearly in bullet points or short paragraphs.
 
-def extract_key_metrics(text, custom_keywords=None, show_debug=False):
-    all_keywords = custom_keywords if custom_keywords else [
-        "net income", "ebitda", "adjusted ebitda", "earnings per share", "eps",
-        "gross margin", "operating income", "cash", "debt", "dividend",
-        "distribution", "revenue", "sales", "income statement"
-    ]
-
-    groups = {
-        "Profitability": ["net income", "ebitda", "adjusted ebitda", "earnings per share", "eps", "gross margin", "operating income"],
-        "Liquidity": ["cash", "debt", "balance sheet"],
-        "Distributions": ["dividend", "distribution"],
-        "Revenue": ["revenue", "sales", "income statement"]
-    }
-
-    lines = text.lower().splitlines()
-    cleaned_lines = [
-        clean_line_spacing(l.strip())
-        for l in lines
-        if any(c.isdigit() for c in l) and is_mostly_english(l.strip())
-    ]
-
-    if show_debug:
-        rejected = [
-            l.strip() for l in lines
-            if any(c.isdigit() for c in l)
-            and not is_mostly_english(l.strip())
-        ]
-        st.expander("🔍 Filtered (rejected) lines").write(rejected[:50])
-
-    categorized = {"Profitability": [], "Liquidity": [], "Distributions": [], "Revenue": [], "Other": []}
-    found = set()
-
-    for line in cleaned_lines:
-        matched = False
-        for category, keywords in groups.items():
-            for kw in keywords:
-                if kw in line and kw not in found and kw in all_keywords:
-                    categorized[category].append((kw.title(), line.strip().capitalize()))
-                    found.add(kw)
-                    matched = True
-                    break
-            if matched:
-                break
-        if not matched and any(kw in line for kw in all_keywords):
-            categorized["Other"].append(("", line.strip().capitalize()))
-
-    return categorized
-
-def safe_text(text):
-    return text.encode("latin-1", "replace").decode("latin-1")
-
-def download_pdf(metrics_dict):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "Company Financial Summary", ln=True)
-
-    pdf.set_font("Arial", "", 12)
-    for group, items in metrics_dict.items():
-        pdf.cell(0, 10, f"--- {group} ---", ln=True)
-        for label, val in items:
-            line = f"{label + ': ' if label else ''}{val}"
-            pdf.multi_cell(0, 8, safe_text(line))
-        pdf.ln(2)
-
-    path = "/tmp/company_summary.pdf"
-    pdf.output(path)
-    return path
+{text}
+\"\"\"
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=800,
+        )
+        return response["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        return f"⚠️ OpenAI failed: {e}"
 
 def run():
     st.title("📡 Company Financial Crawler + ✨ AI Summary")
-    url = st.text_input("🔗 Enter investor/financial website")
 
-    common_terms = [
-        "net income", "ebitda", "adjusted ebitda", "eps", "gross margin", "revenue",
-        "operating income", "dividend", "distribution", "debt", "cash", "income statement", "sales"
-    ]
-    selected_terms = st.multiselect("🔎 Optional: Filter for specific financial terms", common_terms)
-    show_debug = st.checkbox("🧪 Show filtered (rejected) lines", value=False)
+    url = st.text_input("🔗 Enter investor/financial website")
 
     if url:
         with st.spinner("🔍 Crawling site..."):
@@ -168,7 +73,7 @@ def run():
                 return
 
             subpage_urls = extract_financial_links(url, base_html)
-            subpage_urls = list(dict.fromkeys(subpage_urls))[:15]
+            subpage_urls = list(dict.fromkeys(subpage_urls))[:10]
 
             if not subpage_urls:
                 st.warning("No financial subpages found.")
@@ -176,12 +81,9 @@ def run():
 
             st.info(f"🔗 Found {len(subpage_urls)} subpages. Scanning...")
 
-            all_tables = []
-            all_metrics = {}
-
+            results = []
             for sub_url in subpage_urls:
                 if any(sub_url.lower().endswith(ext) for ext in SKIP_EXTENSIONS):
-                    st.warning(f"⚠️ Skipping non-HTML: {sub_url}")
                     continue
 
                 st.markdown(f"**Scanning:** {sub_url}")
@@ -190,52 +92,26 @@ def run():
                     continue
                 try:
                     tables, text = extract_tables_and_text(sub_html)
-                    grouped = extract_key_metrics(text, selected_terms, show_debug)
-                    all_tables.extend(tables)
-                    for cat, items in grouped.items():
-                        if cat not in all_metrics:
-                            all_metrics[cat] = []
-                        all_metrics[cat].extend(items)
+                    ai_summary = ai_extract_summary(text)
+                    results.append((sub_url, ai_summary, text[:3000]))  # limit raw preview
                 except Exception as e:
                     st.error(f"❌ Error parsing {sub_url}: {e}")
 
-        if any(all_metrics.values()):
-            st.success("✅ Cleaned Financial Metrics Extracted")
+        if results:
+            for i, (link, summary, raw) in enumerate(results):
+                with st.expander(f"📄 Page {i+1}: {link}"):
+                    st.markdown("### ✨ AI Summary")
+                    st.markdown(summary)
 
-            view_mode = st.radio("How would you like to view metrics?", ["List View", "Table View"])
-
-            if view_mode == "List View":
-                for cat, items in all_metrics.items():
-                    with st.expander(f"📂 {cat}"):
-                        for label, val in items:
-                            if label:
-                                st.markdown(f"**{label}**")
-                            if st.toggle(f"✨ AI summary for {label or 'metric'}", key=f"{label}_{val[:15]}"):
-                                st.markdown(ai_summarize(val, label))
-                            else:
-                                st.markdown(f"> {val}")
-            else:
-                all_data = []
-                for cat, items in all_metrics.items():
-                    for label, val in items:
-                        all_data.append((cat, label, val))
-                df = pd.DataFrame(all_data, columns=["Category", "Metric", "Text"])
-                st.dataframe(df)
-
-        if all_tables:
-            st.markdown("### 📊 Extracted Tables")
-            for i, table in enumerate(all_tables[:3]):
-                with st.expander(f"Table {i + 1}"):
-                    st.dataframe(table)
-
-            csv = io.StringIO()
-            all_tables[0].to_csv(csv, index=False)
-            st.download_button("⬇️ Download First Table as CSV", csv.getvalue(), file_name="company_data.csv", mime="text/csv")
-
-        if any(all_metrics.values()):
-            pdf_path = download_pdf(all_metrics)
-            with open(pdf_path, "rb") as f:
-                st.download_button("⬇️ Download Metrics PDF", f, file_name="company_summary.pdf", mime="application/pdf")
-
-        if not all_tables and not any(all_metrics.values()):
+                    st.markdown("### 📄 Raw Text Snapshot")
+                    st.code(raw[:2000])
+        else:
             st.warning("No usable financial data found.")
+"""
+
+# Save the upgraded script
+updated_path = os.path.join(extract_dir, 'fydsync-main', 'app_pages', 'company_scraper.py')
+with open(updated_path, 'w', encoding='utf-8') as f:
+    f.write(upgraded_scraper_code.strip())
+
+updated_path
