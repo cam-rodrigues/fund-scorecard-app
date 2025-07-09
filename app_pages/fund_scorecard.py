@@ -35,9 +35,7 @@ def extract_funds_from_pdf(pdf_file):
                         except IndexError:
                             continue
                     if fund_name and status:
-                        fund_data.append((fund_name, status))
-                    else:
-                        fund_data.append((fund_name,))  # Will get skipped later
+                        fund_data.append((fund_name, status))  # Only append valid rows
     return fund_data
 
 # =============================
@@ -70,17 +68,22 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
             continue
 
         match_result = process.extractOne(fund, fund_dict.keys(), scorer=fuzz.token_sort_ratio)
-        best_match, score = match_result if match_result else (None, 0)
+
+        if match_result is not None and isinstance(match_result, (list, tuple)) and len(match_result) == 2:
+            best_match, score = match_result
+        else:
+            best_match, score = None, 0
 
         status = fund_dict.get(best_match) if score >= 85 else ""
 
         cell = ws.cell(row=start_row + i, column=col_index)
         cell.fill = PatternFill()  # clear any existing fill
 
-        # ❗️Overwrite formulas and fill value
+        # Overwrite any formulas or prior values
         cell.value = None
         cell.data_type = 's'
         cell.value = status
+
         if status == "Pass":
             cell.fill = green
         elif status == "Review":
