@@ -56,10 +56,9 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
     wb = load_workbook(filename=excel_file)
     ws = wb[sheet_name]
 
-    # Read full sheet into list of rows
     rows = list(ws.iter_rows(values_only=True))
 
-    # Search for header row based on keywords
+    # Auto-detect header row
     header_row_idx = None
     for i, row in enumerate(rows):
         row_vals = [str(cell).strip().lower() if cell else "" for cell in row]
@@ -83,17 +82,26 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
 
     inv_idx = list(df.columns).index(inv_col) + 1
     stat_idx = list(df.columns).index(stat_col) + 1
-    start_row = header_row_idx + 2  # 1-based Excel rows
+    start_row = header_row_idx + 2
 
-    fund_dict = {name: status for name, status in pdf_fund_data}
+    # ✅ Safe unpacking of fund data
+    fund_dict = {}
+    for item in pdf_fund_data:
+        if isinstance(item, tuple) and len(item) == 2:
+            name, status = item
+            fund_dict[name] = status
+        else:
+            st.warning(f"⚠️ Skipped malformed PDF entry: {item}")
+
     fill_pass = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
     fill_review = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
 
-    # Clear old formatting in status column
+    # Clear old formatting
     for row in ws.iter_rows(min_row=start_row, min_col=stat_idx, max_col=stat_idx, max_row=start_row + len(investment_options) - 1):
         for cell in row:
             cell.fill = PatternFill()
 
+    # Match and color
     for i, fund in enumerate(investment_options):
         fund = fund.strip()
         best_match, score = process.extractOne(fund, fund_dict.keys(), scorer=fuzz.token_sort_ratio)
@@ -140,6 +148,7 @@ def run():
 
         st.info("Extracting funds from PDF...")
         pdf_data = extract_funds_from_pdf(pdf_file)
+        st.write("🔍 Raw PDF Data Extracted:", pdf_data)
         st.success(f"✅ Extracted {len(pdf_data)} funds from PDF")
 
         try:
