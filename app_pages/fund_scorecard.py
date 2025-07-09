@@ -56,7 +56,7 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
     df = pd.DataFrame(data[1:], columns=headers)
 
     inv_col = find_column(df, "Investment Option")
-    stat_col = find_column(df, "Current Period")
+    stat_col = find_column(df, "Current Quarter Status")
 
     if inv_col is None or stat_col is None:
         raise ValueError("Could not find 'Investment Option' or 'Current Period' column in Excel sheet.")
