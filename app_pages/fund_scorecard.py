@@ -35,7 +35,7 @@ def extract_funds_from_pdf(pdf_file):
                         except IndexError:
                             continue
                     if fund_name and status:
-                        fund_data.append((fund_name, status))  # Only append valid rows
+                        fund_data.append((fund_name, status))
     return fund_data
 
 # =============================
@@ -47,9 +47,10 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
 
     try:
         start_row, col_index = coordinate_to_tuple(status_cell)
-    except Exception as e:
+    except Exception:
         raise ValueError("Invalid cell reference for status cell.")
 
+    # Build fund dictionary safely
     fund_dict = {}
     for item in fund_data:
         if isinstance(item, (tuple, list)) and len(item) == 2:
@@ -69,7 +70,7 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
 
         match_result = process.extractOne(fund, fund_dict.keys(), scorer=fuzz.token_sort_ratio)
 
-        if match_result is not None and isinstance(match_result, (list, tuple)) and len(match_result) == 2:
+        if match_result and isinstance(match_result, (list, tuple)) and len(match_result) >= 2:
             best_match, score = match_result
         else:
             best_match, score = None, 0
@@ -77,10 +78,8 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
         status = fund_dict.get(best_match) if score >= 85 else ""
 
         cell = ws.cell(row=start_row + i, column=col_index)
-        cell.fill = PatternFill()  # clear any existing fill
-
-        # Overwrite any formulas or prior values
-        cell.value = None
+        cell.fill = PatternFill()  # clear fill
+        cell.value = None          # clear formula or old value
         cell.data_type = 's'
         cell.value = status
 
