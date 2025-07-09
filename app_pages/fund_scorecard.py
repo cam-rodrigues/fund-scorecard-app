@@ -108,7 +108,7 @@ def run():
     pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type="pdf")
     excel_file = st.file_uploader("Upload Excel File", type="xlsx")
 
-     if excel_file and has_external_links(excel_file):
+ if excel_file and has_external_links(excel_file):
         st.warning("""
         ⚠️ **Notice About Linked Excel Files**
 
