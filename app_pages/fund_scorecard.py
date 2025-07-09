@@ -97,13 +97,12 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
 # Streamlit App
 # =============================
 def run():
-    st.title("✅ FidSync: Fund Scorecard Matching")
+    st.title("Fund Scorecard")
 
     st.markdown("""
     Upload a **PDF fund scorecard** and matching **Excel sheet**, paste your Investment Options,
     and enter the **starting cell** where the column "Current Quarter Status" is located (e.g., `L6`).
 
-    ✅ This version removes strange characters, keeps formatting, and prevents Excel file corruption.
     """)
 
     pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type="pdf")
@@ -139,8 +138,8 @@ def run():
             output = io.BytesIO()
             wb.save(output)
             output.seek(0)  # ✅ Required to avoid corruption
-            st.success("✅ Excel updated successfully.")
-            st.download_button("📥 Download Updated Excel", data=output, file_name="Updated_Fund_Scorecard.xlsx")
+            st.success("Excel updated successfully.")
+            st.download_button("Download Updated Excel", data=output, file_name="Updated_Fund_Scorecard.xlsx")
 
         except Exception as e:
             st.error(f"❌ Failed to update Excel: {str(e)}")
