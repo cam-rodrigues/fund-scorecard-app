@@ -6,6 +6,7 @@ from rapidfuzz import fuzz, process
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
 from openpyxl.utils.cell import coordinate_to_tuple
+import zipfile
 
 # =============================
 # PDF Extraction — Clean Fund Name + Status
@@ -40,7 +41,7 @@ def extract_funds_from_pdf(pdf_file):
 # =============================
 # Excel Matching + Coloring — Fill Only, No Text
 # =============================
-def update_excel(excel_file, sheet_name, fund_data, investment_options, status_cell):
+def update_excel(excel_file, sheet_name, fund_data, investment_options, status_cell, threshold):
     wb = load_workbook(excel_file)
     ws = wb[sheet_name]
 
@@ -49,13 +50,8 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
     except Exception:
         raise ValueError("Invalid cell reference for status cell.")
 
-    fund_dict = {}
-    for item in fund_data:
-        if isinstance(item, (tuple, list)) and len(item) == 2:
-            name, status = item
-            fund_dict[str(name).strip()] = str(status).strip()
-        else:
-            st.warning(f"⚠️ Skipped malformed entry: {item}")
+    fund_dict = {str(name).strip(): str(status).strip()
+                 for name, status in fund_data if isinstance((name, status), tuple)}
 
     green = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
     red = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
@@ -70,13 +66,12 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
         best_match = match_result[0] if match_result else None
         score = match_result[1] if match_result and len(match_result) > 1 else 0
 
-        status = fund_dict.get(best_match, "") if score >= 20 else ""
+        status = fund_dict.get(best_match, "") if score >= threshold else ""
 
         cell = ws.cell(row=start_row + i, column=col_index)
+        cell.value = None  # Clear formula or weird characters
 
-        # ✅ Clear weird characters or formulas, but preserve styling
-        cell.value = None
-        if score >= 20:
+        if score >= threshold:
             if status == "Pass":
                 cell.fill = green
             elif status == "Review":
@@ -94,18 +89,20 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
     return wb, results
 
 # =============================
+# Check for External Links
+# =============================
+def has_external_links(xlsx_file):
+    try:
+        with zipfile.ZipFile(xlsx_file) as zf:
+            return any(name.startswith("xl/externalLinks/") for name in zf.namelist())
+    except:
+        return False
+
+# =============================
 # Streamlit App
 # =============================
 def run():
-    st.title("Fund Scorecard ")
-
-    import zipfile
-    def has_external_links(xlsx_file):
-        try:
-            with zipfile.ZipFile(xlsx_file) as zf:
-                return any(name.startswith("xl/externalLinks/") for name in zf.namelist())
-        except:
-            return False
+    st.title("Fund Scorecard")
 
     pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type="pdf")
     excel_file = st.file_uploader("Upload Excel File", type="xlsx")
@@ -120,12 +117,13 @@ def run():
         - “We found a problem with some content...”
         - “Do you want us to try to recover...”
 
-        This is **normal**. Just click **Yes** and then **Enable Editing** when prompted — your file will open correctly.
+        👉 This is **normal**. Just click **Yes** and then **Enable Editing** when prompted — your file will open correctly.
         """)
-
 
     investment_input = st.text_area("Paste Investment Options (one per line):")
     investment_options = [line.strip() for line in investment_input.split("\n") if line.strip()]
+
+    match_threshold = st.slider("Minimum Match Score (fuzzy logic)", 0, 100, 20, step=5)
 
     if excel_file:
         xls = pd.ExcelFile(excel_file)
@@ -146,14 +144,23 @@ def run():
                 st.warning("No funds extracted from PDF.")
                 return
 
-            wb, match_results = update_excel(excel_file, sheet_name, fund_data, investment_options, status_cell)
+            wb, match_results = update_excel(excel_file, sheet_name, fund_data, investment_options, status_cell, match_threshold)
 
             st.subheader("Match Preview")
-            st.dataframe(pd.DataFrame(match_results))
+            df_results = pd.DataFrame(match_results)
+            st.dataframe(df_results)
+
+            low_conf = df_results[df_results["Match Score"] < match_threshold]
+            if not low_conf.empty:
+                with st.expander("⚠️ Low Confidence Matches (below threshold)"):
+                    st.dataframe(low_conf)
+
+            # Download buttons
+            st.download_button("Download Match Summary CSV", df_results.to_csv(index=False), file_name="Fund_Match_Results.csv")
 
             output = io.BytesIO()
             wb.save(output)
-            output.seek(0)  # ✅ Required to avoid corruption
+            output.seek(0)
             st.success("Excel updated successfully.")
             st.download_button("Download Updated Excel", data=output, file_name="Updated_Fund_Scorecard.xlsx")
 
