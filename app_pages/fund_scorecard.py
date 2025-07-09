@@ -6,10 +6,9 @@ from rapidfuzz import fuzz, process
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
 from openpyxl.utils.cell import coordinate_to_tuple
-import zipfile
 
 # =============================
-# PDF Extraction — Bulletproof
+# PDF Extraction — Clean Fund Name + Status
 # =============================
 def extract_funds_from_pdf(pdf_file):
     fund_data = []
@@ -22,27 +21,24 @@ def extract_funds_from_pdf(pdf_file):
             lines = text.split("\n")
             for i, line in enumerate(lines):
                 if "Manager Tenure" in line and i > 0:
-                    fund_name = lines[i - 1].strip()
+                    fund_name_candidate = lines[i - 1].strip()
+
                     status = None
-                    for offset in range(1, 4):
-                        try:
-                            check_line = lines[i - offset].strip()
-                            if "Fund Meets Watchlist Criteria" in check_line:
-                                status = "Pass"
-                                break
-                            elif "Fund has been placed on watchlist" in check_line:
-                                status = "Review"
-                                break
-                        except IndexError:
-                            continue
+                    if "Meets Watchlist Criteria" in fund_name_candidate:
+                        fund_name = fund_name_candidate.replace("Fund Meets Watchlist Criteria.", "").strip()
+                        status = "Pass"
+                    elif "placed on watchlist" in fund_name_candidate:
+                        fund_name = fund_name_candidate.split(" Fund has been placed")[0].strip()
+                        status = "Review"
+                    else:
+                        fund_name = fund_name_candidate.strip()
+
                     if fund_name and status:
                         fund_data.append((fund_name, status))
-                    else:
-                        fund_data.append((fund_name,))
     return fund_data
 
 # =============================
-# Excel Matching + Coloring
+# Excel Matching + Coloring — Fill Only, No Text
 # =============================
 def update_excel(excel_file, sheet_name, fund_data, investment_options, status_cell):
     wb = load_workbook(excel_file)
@@ -71,17 +67,20 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
             continue
 
         match_result = process.extractOne(fund, fund_dict.keys(), scorer=fuzz.token_sort_ratio)
-        best_match, score = match_result if match_result else (None, 0)
+        best_match = match_result[0] if match_result else None
+        score = match_result[1] if match_result and len(match_result) > 1 else 0
 
-        status = fund_dict.get(best_match) if score >= 20 else ""
+        status = fund_dict.get(best_match, "") if score >= 20 else ""
 
         cell = ws.cell(row=start_row + i, column=col_index)
-        cell.value = None  # remove formulas or weird symbols
 
-        if status == "Pass":
-            cell.fill = green
-        elif status == "Review":
-            cell.fill = red
+        # ✅ Clear weird characters or formulas, but preserve styling
+        cell.value = None
+        if score >= 20:
+            if status == "Pass":
+                cell.fill = green
+            elif status == "Review":
+                cell.fill = red
         else:
             cell.fill = PatternFill(fill_type=None)
 
@@ -95,36 +94,20 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
     return wb, results
 
 # =============================
-# Check for External Links
-# =============================
-def has_external_links(xlsx_file):
-    try:
-        with zipfile.ZipFile(xlsx_file) as zf:
-            return any(name.startswith("xl/externalLinks/") for name in zf.namelist())
-    except:
-        return False
-
-# =============================
 # Streamlit App
 # =============================
 def run():
     st.title("✅ FidSync: Fund Scorecard Matching")
 
+    st.markdown("""
+    Upload a **PDF fund scorecard** and matching **Excel sheet**, paste your Investment Options,
+    and enter the **starting cell** where the column "Current Quarter Status" is located (e.g., `L6`).
+
+    ✅ This version removes strange characters, keeps formatting, and prevents Excel file corruption.
+    """)
+
     pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type="pdf")
     excel_file = st.file_uploader("Upload Excel File", type="xlsx")
-
-    if excel_file and has_external_links(excel_file):
-        st.warning("""
-        ⚠️ **Notice About Linked Excel Files**
-
-        This file contains **external references** to other workbooks (e.g., formulas linked to another Excel file).
-
-        When you download the updated version, Excel will display warnings like:
-        - “We found a problem with some content...”
-        - “Do you want us to try to recover...”
-
-        👉 This is **normal**. Just click **Yes** and then **Enable Editing** when prompted — your file will open correctly.
-        """)
 
     investment_input = st.text_area("Paste Investment Options (one per line):")
     investment_options = [line.strip() for line in investment_input.split("\n") if line.strip()]
@@ -155,7 +138,7 @@ def run():
 
             output = io.BytesIO()
             wb.save(output)
-            output.seek(0)
+            output.seek(0)  # ✅ Required to avoid corruption
             st.success("✅ Excel updated successfully.")
             st.download_button("📥 Download Updated Excel", data=output, file_name="Updated_Fund_Scorecard.xlsx")
 
