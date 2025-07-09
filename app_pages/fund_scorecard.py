@@ -88,7 +88,7 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
 # Streamlit App
 # ================================
 def run():
-    st.title("📊 FidSync: Fund Scorecard Matching")
+    st.title("FidSync: Fund Scorecard Matching")
     st.markdown("""
     This tool compares funds in a PDF Scorecard with Investment Options in Excel and updates status.
     - ✅ **Pass** = Green fill
@@ -107,7 +107,7 @@ def run():
     else:
         sheet_name = None
 
-    if st.button("🔍 Run Matching"):
+    if st.button("Run Matching"):
         if not pdf_file or not excel_file or not investment_options or not sheet_name:
             st.error("Please upload all files and paste investment options before proceeding.")
             return
