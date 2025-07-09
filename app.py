@@ -58,6 +58,7 @@ nav_button("Capabilities & Potential", "Capabilities_and_Potential.py")
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
 nav_button("Fund Scorecard", "fund_scorecard.py")
 nav_button("Article Analyzer", "article_analyzer.py")  # <-- New Tool Added
+nav_button("Company Scraper", "company_scraper.py")
 nav_button("User Requests", "user_requests.py")
 
 # === Page router ===
@@ -80,14 +81,14 @@ if selected_page:
         st.error(f"❌ Page not found: {selected_page}")
 else:
     # Default landing page
-    st.markdown("# Welcome to FidSync 👋")
+    st.markdown("# Welcome to FidSync")
     st.markdown("""
     FidSync helps financial teams securely extract and update fund statuses from scorecard PDFs into Excel templates.
 
     **Use the sidebar to:**
-    - 🧭 View the **Getting Started** guide  
-    - ✅ Run the **Fund Scorecard**  
-    - 📄 Try the new **Article Analyzer**  
-    - 💬 Submit or review **User Requests**  
-    - 🔐 Read the **Security Policy**
+    -  View the **Getting Started** guide  
+    -  Run the **Fund Scorecard**  
+    -  Try the new **Article Analyzer**  
+    -  Submit or review **User Requests**  
+    -  Read the **Security Policy**
     """)
