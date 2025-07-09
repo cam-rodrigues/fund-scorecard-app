@@ -17,4 +17,4 @@ fpdf==1.7.2
 lxml_html_clean==0.1.1
 
 # 👇 Needed for GPT summaries
-openai
+openai==0.28
