@@ -1,14 +1,9 @@
 import os
+import json
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-from openai import OpenAI
-
-client = OpenAI(
-    api_key=st.secrets["openai"]["api_key"],
-    project=st.secrets["openai"]["project_id"]
-)
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 KEYWORDS = [
@@ -53,15 +48,36 @@ Respond clearly in bullet points or short paragraphs.
 {text}
 """
     try:
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=800
+        api_key = st.secrets["openai"]["api_key"]
+        project_id = st.secrets["openai"]["project_id"]
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "OpenAI-Project": project_id,
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": "gpt-4",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "max_tokens": 800
+        }
+
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            data=json.dumps(payload)
         )
-        return response.choices[0].message.content.strip()
+
+        if response.status_code == 200:
+            result = response.json()
+            return result["choices"][0]["message"]["content"].strip()
+        else:
+            return f"⚠️ OpenAI failed: {response.status_code} - {response.text}"
+
     except Exception as e:
-        return f"⚠️ OpenAI failed: {e}"
+        return f"⚠️ OpenAI error: {e}"
 
 def run():
     st.title("📡 Company Financial Crawler + ✨ AI Summary")
