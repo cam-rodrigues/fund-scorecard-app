@@ -8,7 +8,7 @@ from openpyxl.styles import PatternFill
 from openpyxl.utils import column_index_from_string
 
 # ===========================
-# PDF Extraction
+# Extract fund/status from PDF
 # ===========================
 def extract_funds_from_pdf(pdf_file):
     fund_data = []
@@ -38,7 +38,7 @@ def extract_funds_from_pdf(pdf_file):
     return fund_data
 
 # ===========================
-# Excel Writing — Safe + Manual Cell Ref
+# Excel Status Application w/ Match Preview
 # ===========================
 def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_data, status_cell):
     col_letter = ''.join(filter(str.isalpha, status_cell))
@@ -49,7 +49,6 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
     wb = load_workbook(excel_file)
     ws = wb[sheet_name]
 
-    # ✅ SAFELY filter fund_data to only valid 2-item pairs
     fund_dict = {}
     for item in pdf_fund_data:
         if isinstance(item, (tuple, list)) and len(item) == 2:
@@ -59,31 +58,34 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
     fill_pass = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
     fill_review = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
 
-    # Clear existing formatting
     for row in ws.iter_rows(min_row=start_row, min_col=col_index, max_col=col_index, max_row=start_row + len(investment_options)):
         for cell in row:
             cell.fill = PatternFill()
 
-    # Fill in statuses with fuzzy matching
+    results = []
+
     for i, fund in enumerate(investment_options):
         fund = fund.strip()
-        if not fund:
-            continue
-
-        best_match = None
-        score = 0
-        try:
-            best_match, score = process.extractOne(fund, fund_dict.keys(), scorer=fuzz.token_sort_ratio)
-        except:
-            pass
+        best_match, score = process.extractOne(fund, fund_dict.keys(), scorer=fuzz.token_sort_ratio)
+        matched_status = None
 
         cell = ws.cell(row=start_row + i, column=col_index)
         if best_match and score >= 85:
-            status = fund_dict[best_match]
-            cell.value = status
-            cell.fill = fill_pass if status == "Pass" else fill_review
+            matched_status = fund_dict[best_match]
+            cell.value = matched_status
+            cell.fill = fill_pass if matched_status == "Pass" else fill_review
         else:
             cell.value = ""
+
+        results.append({
+            "Your Input": fund,
+            "Matched Fund Name": best_match or "",
+            "Status": matched_status or "",
+            "Match Score": round(score or 0, 1)
+        })
+
+    st.subheader("🔍 Match Preview")
+    st.dataframe(pd.DataFrame(results))
 
     return wb
 
@@ -93,13 +95,13 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
 def run():
     st.title("📊 FidSync: Fund Scorecard Matching")
     st.markdown("""
-    Match fund data from a PDF Scorecard to your Excel investment option sheet using manual input.
+    Match fund data from a PDF Scorecard to your Excel investment option sheet.
 
     **Steps:**
     1. Upload your PDF Scorecard and Excel file
-    2. Paste your investment option names (in Excel order)
+    2. Paste your investment options (in Excel order)
     3. Enter the cell where 'Current Quarter Status' appears (e.g. `L6`)
-    4. Click Run — and download your updated Excel file
+    4. Click Run and preview the matches before downloading
     """)
 
     pdf_file = st.file_uploader("Upload PDF Fund Scorecard", type="pdf")
@@ -129,7 +131,7 @@ def run():
         st.success(f"✅ Extracted {len(pdf_data)} fund entries from PDF")
 
         try:
-            st.info("Updating Excel file...")
+            st.info("Matching and updating Excel...")
             updated_wb = apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_data, status_cell)
 
             output = io.BytesIO()
