@@ -1,5 +1,5 @@
 import streamlit as st
-import requests
+from newspaper import Article
 from bs4 import BeautifulSoup
 import pandas as pd
 import io
@@ -42,21 +42,24 @@ def run():
     st.markdown("You can **enter a URL**, upload an **HTML file**, or paste HTML manually.")
 
     option = st.radio("Choose input method:", ["URL", "Upload HTML", "Paste HTML"])
-
     html_content = ""
 
     if option == "URL":
         url = st.text_input("Enter company financial or investor website URL")
         if url:
             try:
-                response = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
-                html_content = response.text
+                article = Article(url)
+                article.download()
+                article.parse()
+                html_content = article.html
             except Exception as e:
-                st.error(f"❌ Failed to load or parse page: {e}")
+                st.error(f"❌ Failed to fetch or parse the page: {e}")
+
     elif option == "Upload HTML":
         uploaded = st.file_uploader("Upload HTML file", type=["html", "htm"])
         if uploaded:
             html_content = uploaded.read()
+
     elif option == "Paste HTML":
         html_content = st.text_area("Paste raw HTML source code")
 
