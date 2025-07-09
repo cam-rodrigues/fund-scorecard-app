@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import io
 from fpdf import FPDF
+import re
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 KEYWORDS = [
@@ -12,6 +13,7 @@ KEYWORDS = [
 ]
 SKIP_EXTENSIONS = [".pdf", ".xls", ".xlsx", ".doc", ".docx"]
 
+# === Fetching and Parsing ===
 def fetch_html(url):
     try:
         res = requests.get(url, timeout=10, headers=HEADERS)
@@ -39,45 +41,75 @@ def extract_tables_and_text(html):
         tables = []
     return tables, soup.get_text()
 
-def extract_key_metrics(text):
-    metrics = {}
-    keywords = [
-        "revenue", "net income", "earnings per share", "eps",
-        "ebitda", "gross margin", "operating income"
-    ]
-    lines = text.lower().splitlines()
-    for kw in keywords:
-        for line in lines:
-            if kw in line and any(c.isdigit() for c in line):
-                metrics[kw] = line.strip()
-                break
-    return metrics
+# === Metric Extraction & Cleaning ===
+def clean_line_spacing(line):
+    if len(line) > 10 and " " in line and any(c.isdigit() for c in line):
+        spaced = re.sub(r"\s+", "", line)
+        if spaced.isalnum():
+            return spaced
+    return line
 
+def extract_key_metrics(text):
+    groups = {
+        "Profitability": ["net income", "ebitda", "adjusted ebitda", "earnings per share", "eps", "gross margin", "operating income"],
+        "Liquidity": ["cash", "debt", "balance sheet"],
+        "Distributions": ["dividend", "distribution"],
+        "Revenue": ["revenue", "sales", "income statement"]
+    }
+
+    lines = text.lower().splitlines()
+    cleaned_lines = [clean_line_spacing(l.strip()) for l in lines if any(c.isdigit() for c in l)]
+
+    categorized = {"Profitability": [], "Liquidity": [], "Distributions": [], "Revenue": [], "Other": []}
+
+    found = set()
+    for line in cleaned_lines:
+        matched = False
+        for category, keywords in groups.items():
+            for kw in keywords:
+                if kw in line and kw not in found:
+                    categorized[category].append((kw.title(), line.strip().capitalize()))
+                    found.add(kw)
+                    matched = True
+                    break
+            if matched:
+                break
+        if not matched and len(line.strip()) > 40:
+            categorized["Other"].append(("", line.strip().capitalize()))
+
+    return categorized
+
+# === Safe PDF Output ===
 def safe_text(text):
     return text.encode("latin-1", "replace").decode("latin-1")
 
-def download_pdf(metrics):
+def download_pdf(metrics_dict):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
     pdf.cell(0, 10, "Company Financial Summary", ln=True)
 
     pdf.set_font("Arial", "", 12)
-    for key, val in metrics.items():
-        pdf.multi_cell(0, 10, safe_text(f"{key.title()}: {val}"))
+    for group, items in metrics_dict.items():
+        pdf.cell(0, 10, f"--- {group} ---", ln=True)
+        for label, val in items:
+            line = f"{label + ': ' if label else ''}{val}"
+            pdf.multi_cell(0, 8, safe_text(line))
+        pdf.ln(4)
 
     path = "/tmp/company_summary.pdf"
     pdf.output(path)
     return path
 
+# === Streamlit App Logic ===
 def run():
     st.title("📡 Company Financial Crawler")
-    st.markdown("Enter an investor or financial site URL. FidSync will crawl subpages for financial data.")
+    st.markdown("Enter an investor or financial site URL. FidSync will crawl subpages and extract metrics + tables.")
 
-    url = st.text_input("🔗 Enter company investor website")
+    url = st.text_input("🔗 Enter investor/financial website")
 
     if url:
-        with st.spinner("🔍 Crawling and parsing site..."):
+        with st.spinner("🔍 Crawling site..."):
             base_html = fetch_html(url)
             if not base_html:
                 return
@@ -105,18 +137,37 @@ def run():
                     continue
                 try:
                     tables, text = extract_tables_and_text(sub_html)
-                    metrics = extract_key_metrics(text)
+                    grouped = extract_key_metrics(text)
                     all_tables.extend(tables)
-                    all_metrics.update(metrics)
+                    for cat, items in grouped.items():
+                        if cat not in all_metrics:
+                            all_metrics[cat] = []
+                        all_metrics[cat].extend(items)
                 except Exception as e:
                     st.error(f"❌ Error parsing {sub_url}: {e}")
 
-        if all_metrics:
+        # === Metrics Output ===
+        if any(all_metrics.values()):
             st.success("✅ Key Financial Metrics Found")
-            with st.expander("📌 View Metrics"):
-                for k, v in all_metrics.items():
-                    st.markdown(f"- **{k.title()}**: {v}")
 
+            view_mode = st.radio("How would you like to view metrics?", ["List View", "Table View"])
+
+            if view_mode == "List View":
+                for cat, items in all_metrics.items():
+                    with st.expander(f"📂 {cat}"):
+                        for label, val in items:
+                            if label:
+                                st.markdown(f"**{label}**")
+                            st.markdown(f"> {val}")
+            else:
+                all_data = []
+                for cat, items in all_metrics.items():
+                    for label, val in items:
+                        all_data.append((cat, label, val))
+                df = pd.DataFrame(all_data, columns=["Category", "Metric", "Text"])
+                st.dataframe(df)
+
+        # === Table Output ===
         if all_tables:
             st.markdown("### 📊 Extracted Tables")
             for i, table in enumerate(all_tables[:3]):
@@ -127,10 +178,11 @@ def run():
             all_tables[0].to_csv(csv, index=False)
             st.download_button("⬇️ Download First Table as CSV", csv.getvalue(), file_name="company_data.csv", mime="text/csv")
 
-        if all_metrics:
+        # === PDF Output ===
+        if any(all_metrics.values()):
             pdf_path = download_pdf(all_metrics)
             with open(pdf_path, "rb") as f:
                 st.download_button("⬇️ Download Metrics PDF", f, file_name="company_summary.pdf", mime="application/pdf")
 
-        if not all_tables and not all_metrics:
-            st.warning("No financial data found.")
+        if not all_tables and not any(all_metrics.values()):
+            st.warning("No usable financial data found.")
