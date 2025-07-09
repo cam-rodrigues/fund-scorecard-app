@@ -6,9 +6,9 @@ from rapidfuzz import fuzz, process
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
 
-# =====================================
-# PDF Parsing (Safe)
-# =====================================
+# ===========================
+# PDF Extraction (Safe)
+# ===========================
 def extract_funds_from_pdf(pdf_file):
     fund_data = []
     with pdfplumber.open(pdf_file) as pdf:
@@ -37,23 +37,20 @@ def extract_funds_from_pdf(pdf_file):
                         try:
                             fund_data.append((str(fund_name).strip(), str(status).strip()))
                         except Exception as e:
-                            st.warning(f"⚠️ Skipped malformed PDF entry: {fund_name} / {status} ({e})")
+                            st.warning(f"⚠️ Skipped bad line: {fund_name} | {status} ({e})")
     return fund_data
 
-# =====================================
-# Header Row Detection Helper
-# =====================================
+# ===========================
+# Excel Header Detection
+# ===========================
 def find_correct_header_row(df, target_columns):
-    for i in range(min(10, len(df))):  # scan first 10 rows
+    for i in range(min(10, len(df))):
         row = df.iloc[i]
-        lower_vals = [str(cell).strip().lower() for cell in row if pd.notna(cell)]
-        if all(any(col.lower() in val for val in lower_vals) for col in target_columns):
+        row_vals = [str(cell).strip().lower() for cell in row if pd.notna(cell)]
+        if all(any(tc.lower() in val for val in row_vals) for tc in target_columns):
             return i
-    return 0  # fallback
+    return 0
 
-# =====================================
-# Column Fuzzy Match Helper
-# =====================================
 def find_column(df, keyword):
     best_match = None
     best_score = 0
@@ -66,47 +63,47 @@ def find_column(df, keyword):
             best_score = score
     return best_match
 
-# =====================================
-# Excel Processing and Coloring
-# =====================================
+# ===========================
+# Excel Update Logic
+# ===========================
 def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_data):
-    # Step 1: auto-detect header row
+    # Read sheet & detect header
     df_raw = pd.read_excel(excel_file, sheet_name=sheet_name, header=None)
     header_row = find_correct_header_row(df_raw, ["Investment Option", "Current Quarter Status"])
     df = pd.read_excel(excel_file, sheet_name=sheet_name, header=header_row)
     st.write("📄 Actual Headers Detected:", list(df.columns))
 
-    # Step 2: fuzzy match columns
     inv_col = find_column(df, "Investment Option")
     stat_col = find_column(df, "Current Quarter Status")
     if not inv_col or not stat_col:
-        raise ValueError("Could not find required columns in Excel.")
+        raise ValueError("Could not find 'Investment Option' or 'Current Quarter Status' columns.")
 
     inv_idx = df.columns.get_loc(inv_col) + 1
     stat_idx = df.columns.get_loc(stat_col) + 1
-    start_row = header_row + 2  # for openpyxl (1-based indexing + 1 row offset)
+    start_row = header_row + 2
 
-    # Step 3: open workbook
+    # Load workbook
     wb = load_workbook(excel_file)
     ws = wb[sheet_name]
 
-    # Step 4: build fund status dict
+    # ✅ Safely build fund_dict
     fund_dict = {}
     for item in pdf_fund_data:
-        if isinstance(item, tuple) and len(item) == 2 and all(item):
-            fund_dict[item[0]] = item[1]
+        if isinstance(item, (tuple, list)) and len(item) == 2:
+            name, status = item
+            fund_dict[str(name).strip()] = str(status).strip()
         else:
-            st.warning(f"⚠️ Skipped malformed entry: {item}")
+            st.warning(f"⚠️ Skipped malformed PDF entry: {item}")
 
     fill_pass = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
     fill_review = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
 
-    # Step 5: clear previous formatting
+    # Clear old formatting
     for row in ws.iter_rows(min_row=start_row, min_col=stat_idx, max_col=stat_idx, max_row=start_row + len(investment_options)):
         for cell in row:
             cell.fill = PatternFill()
 
-    # Step 6: fuzzy match and apply
+    # Fuzzy match + fill
     for i, fund in enumerate(investment_options):
         fund = fund.strip()
         best_match, score = process.extractOne(fund, fund_dict.keys(), scorer=fuzz.token_sort_ratio)
@@ -120,9 +117,9 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
 
     return wb
 
-# =====================================
-# Streamlit UI
-# =====================================
+# ===========================
+# Streamlit App
+# ===========================
 def run():
     st.title("📊 FidSync: Fund Scorecard Matching")
     st.markdown("""
