@@ -5,6 +5,15 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 
+st.subheader("🔍 Debug: Secrets Check")
+
+api_key = st.secrets["openai"]["api_key"]
+project_id = st.secrets["openai"]["project_id"]
+
+st.text(f"API Key starts with: {api_key[:15]}")
+st.text(f"Project ID: {project_id}")
+
+
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 KEYWORDS = [
     "financial", "results", "earnings", "filing", "report",
