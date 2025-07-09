@@ -7,7 +7,7 @@ from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
 
 # =====================================
-# PDF Parsing
+# Robust PDF Parsing
 # =====================================
 def extract_funds_from_pdf(pdf_file):
     fund_data = []
@@ -22,19 +22,19 @@ def extract_funds_from_pdf(pdf_file):
                 if "Manager Tenure" in line and i > 0:
                     fund_name = lines[i - 1].strip()
                     status = None
-                    for offset in range(1, 4):
-                        try:
-                            check_line = lines[i - offset].strip()
-                            if "Fund Meets Watchlist Criteria" in check_line:
-                                status = "Pass"
-                                break
-                            elif "Fund has been placed on watchlist" in check_line:
-                                status = "Review"
-                                break
-                        except IndexError:
-                            continue
+                    nearby_lines = lines[max(0, i - 5): i + 2]
+                    for l in nearby_lines:
+                        if "Fund Meets Watchlist Criteria" in l:
+                            status = "Pass"
+                            break
+                        elif "Fund has been placed on watchlist" in l:
+                            status = "Review"
+                            break
                     if fund_name and status:
-                        fund_data.append((fund_name, status))
+                        try:
+                            fund_data.append((str(fund_name).strip(), str(status).strip()))
+                        except Exception as e:
+                            st.warning(f"⚠️ Skipped invalid PDF line: {fund_name} / {status} ({e})")
     return fund_data
 
 # =====================================
@@ -55,7 +55,6 @@ def find_column(df, keyword):
 def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_data):
     wb = load_workbook(filename=excel_file)
     ws = wb[sheet_name]
-
     rows = list(ws.iter_rows(values_only=True))
 
     # Auto-detect header row
@@ -84,10 +83,10 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
     stat_idx = list(df.columns).index(stat_col) + 1
     start_row = header_row_idx + 2
 
-    # ✅ Safe unpacking of fund data
+    # ✅ Safely build fund dict
     fund_dict = {}
     for item in pdf_fund_data:
-        if isinstance(item, tuple) and len(item) == 2:
+        if isinstance(item, tuple) and len(item) == 2 and all(item):
             name, status = item
             fund_dict[name] = status
         else:
@@ -96,12 +95,12 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
     fill_pass = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
     fill_review = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
 
-    # Clear old formatting
+    # Clear formatting
     for row in ws.iter_rows(min_row=start_row, min_col=stat_idx, max_col=stat_idx, max_row=start_row + len(investment_options) - 1):
         for cell in row:
             cell.fill = PatternFill()
 
-    # Match and color
+    # Match and write
     for i, fund in enumerate(investment_options):
         fund = fund.strip()
         best_match, score = process.extractOne(fund, fund_dict.keys(), scorer=fuzz.token_sort_ratio)
@@ -116,7 +115,7 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
     return wb
 
 # =====================================
-# Streamlit App UI
+# Streamlit UI
 # =====================================
 def run():
     st.title("📊 FidSync: Fund Scorecard Matching")
@@ -146,7 +145,7 @@ def run():
             st.error("Please upload all files and paste investment options before proceeding.")
             return
 
-        st.info("Extracting funds from PDF...")
+        st.info("Extracting from PDF...")
         pdf_data = extract_funds_from_pdf(pdf_file)
         st.write("🔍 Raw PDF Data Extracted:", pdf_data)
         st.success(f"✅ Extracted {len(pdf_data)} funds from PDF")
