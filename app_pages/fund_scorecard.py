@@ -50,7 +50,6 @@ def update_excel(excel_file, sheet_name, fund_data, investment_options, status_c
     except Exception:
         raise ValueError("Invalid cell reference for status cell.")
 
-    # Build fund dictionary safely
     fund_dict = {}
     for item in fund_data:
         if isinstance(item, (tuple, list)) and len(item) == 2:
@@ -134,6 +133,15 @@ def run():
             if not fund_data:
                 st.warning("No funds extracted from PDF.")
                 return
+
+            # ✅ Clean and validate fund_data before sending to Excel
+            cleaned_fund_data = []
+            for item in fund_data:
+                if isinstance(item, (tuple, list)) and len(item) == 2:
+                    cleaned_fund_data.append((str(item[0]).strip(), str(item[1]).strip()))
+                else:
+                    st.warning(f"⚠️ Skipped invalid extracted item: {item}")
+            fund_data = cleaned_fund_data
 
             wb, match_results = update_excel(excel_file, sheet_name, fund_data, investment_options, status_cell)
 
