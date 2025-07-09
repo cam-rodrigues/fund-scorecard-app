@@ -8,7 +8,7 @@ from openpyxl.styles import PatternFill
 from openpyxl.utils import column_index_from_string
 
 # ===========================
-# Extract fund/status from PDF
+# PDF Extraction
 # ===========================
 def extract_funds_from_pdf(pdf_file):
     fund_data = []
@@ -38,7 +38,7 @@ def extract_funds_from_pdf(pdf_file):
     return fund_data
 
 # ===========================
-# Apply to Excel using cell ref
+# Excel Writing — Safe + Manual Cell Ref
 # ===========================
 def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_data, status_cell):
     col_letter = ''.join(filter(str.isalpha, status_cell))
@@ -49,7 +49,7 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
     wb = load_workbook(excel_file)
     ws = wb[sheet_name]
 
-    # Build fund dict
+    # ✅ SAFELY filter fund_data to only valid 2-item pairs
     fund_dict = {}
     for item in pdf_fund_data:
         if isinstance(item, (tuple, list)) and len(item) == 2:
@@ -59,17 +59,26 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
     fill_pass = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
     fill_review = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
 
-    # Clear existing fills
+    # Clear existing formatting
     for row in ws.iter_rows(min_row=start_row, min_col=col_index, max_col=col_index, max_row=start_row + len(investment_options)):
         for cell in row:
             cell.fill = PatternFill()
 
-    # Fill matches
+    # Fill in statuses with fuzzy matching
     for i, fund in enumerate(investment_options):
         fund = fund.strip()
-        best_match, score = process.extractOne(fund, fund_dict.keys(), scorer=fuzz.token_sort_ratio)
+        if not fund:
+            continue
+
+        best_match = None
+        score = 0
+        try:
+            best_match, score = process.extractOne(fund, fund_dict.keys(), scorer=fuzz.token_sort_ratio)
+        except:
+            pass
+
         cell = ws.cell(row=start_row + i, column=col_index)
-        if score >= 85:
+        if best_match and score >= 85:
             status = fund_dict[best_match]
             cell.value = status
             cell.fill = fill_pass if status == "Pass" else fill_review
@@ -84,13 +93,13 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
 def run():
     st.title("📊 FidSync: Fund Scorecard Matching")
     st.markdown("""
-    This tool matches funds from your PDF against investment options and updates an Excel sheet with color-coded statuses.
+    Match fund data from a PDF Scorecard to your Excel investment option sheet using manual input.
 
     **Steps:**
-    1. Upload your **PDF** and **Excel** files.
-    2. Paste your **investment options** (in the same order as Excel).
-    3. Enter the **exact Excel cell** (e.g., `L6`) where it says **"Current Quarter Status"**.
-    4. Click **Run Matching**.
+    1. Upload your PDF Scorecard and Excel file
+    2. Paste your investment option names (in Excel order)
+    3. Enter the cell where 'Current Quarter Status' appears (e.g. `L6`)
+    4. Click Run — and download your updated Excel file
     """)
 
     pdf_file = st.file_uploader("Upload PDF Fund Scorecard", type="pdf")
@@ -112,19 +121,20 @@ def run():
 
     if st.button("Run Matching"):
         if not pdf_file or not excel_file or not investment_options or not sheet_name or not status_cell:
-            st.error("Please upload files, paste options, select sheet, and enter a valid cell.")
+            st.error("Please upload all files and enter the 'Current Quarter Status' cell.")
             return
 
         st.info("Extracting from PDF...")
         pdf_data = extract_funds_from_pdf(pdf_file)
-        st.success(f"✅ Extracted {len(pdf_data)} funds from PDF")
+        st.success(f"✅ Extracted {len(pdf_data)} fund entries from PDF")
 
         try:
-            st.info("Updating Excel...")
+            st.info("Updating Excel file...")
             updated_wb = apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_data, status_cell)
 
             output = io.BytesIO()
             updated_wb.save(output)
             st.download_button("📥 Download Updated Excel", output.getvalue(), file_name="Updated_Fund_Scorecard.xlsx")
+
         except Exception as e:
             st.error(f"❌ Failed to update Excel: {e}")
