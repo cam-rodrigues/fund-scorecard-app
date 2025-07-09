@@ -10,6 +10,7 @@ KEYWORDS = [
     "financial", "results", "earnings", "filing", "report",
     "quarter", "10-q", "10-k", "annual", "statement", "balance", "income"
 ]
+SKIP_EXTENSIONS = [".pdf", ".xls", ".xlsx", ".doc", ".docx"]
 
 def fetch_html(url):
     try:
@@ -75,23 +76,29 @@ def run():
                 return
 
             subpage_urls = extract_financial_links(url, base_html)
-            subpage_urls = list(dict.fromkeys(subpage_urls))[:10]  # limit to 10 pages
+            subpage_urls = list(dict.fromkeys(subpage_urls))[:10]
             st.info(f"🔗 Found {len(subpage_urls)} financial subpages to scan.")
 
             all_tables = []
             all_metrics = {}
 
             for sub_url in subpage_urls:
+                if any(sub_url.lower().endswith(ext) for ext in SKIP_EXTENSIONS):
+                    st.warning(f"⚠️ Skipping non-HTML page: {sub_url}")
+                    continue
+
                 st.markdown(f"**Scanning:** {sub_url}")
                 sub_html = fetch_html(sub_url)
                 if not sub_html:
                     continue
 
-                tables, text = extract_tables_and_text(sub_html)
-                metrics = extract_key_metrics(text)
-
-                all_tables.extend(tables)
-                all_metrics.update(metrics)
+                try:
+                    tables, text = extract_tables_and_text(sub_html)
+                    metrics = extract_key_metrics(text)
+                    all_tables.extend(tables)
+                    all_metrics.update(metrics)
+                except Exception as e:
+                    st.error(f"❌ Failed to load page: {e}")
 
         if all_metrics:
             st.success("✅ Aggregated Key Financial Metrics:")
