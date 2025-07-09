@@ -5,8 +5,10 @@ from bs4 import BeautifulSoup
 import pandas as pd
 from openai import OpenAI
 
-# ✅ Setup OpenAI client for new SDK (1.0.0+)
-client = OpenAI(api_key=st.secrets["openai"]["api_key"])
+client = OpenAI(
+    api_key=st.secrets["openai"]["api_key"],
+    project=st.secrets["openai"]["project_id"]
+)
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 KEYWORDS = [
