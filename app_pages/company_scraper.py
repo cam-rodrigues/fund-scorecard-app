@@ -5,12 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 
-# TEMP: Override for testing with known working key
 import os
-
-api_key = os.getenv("FIDSYNC_TEST_KEY") or st.secrets["openai"]["api_key"]
-project_id = st.secrets["openai"]["project_id"]
-
 
 api_key = st.secrets["openai"]["api_key"]
 project_id = st.secrets["openai"]["project_id"]
