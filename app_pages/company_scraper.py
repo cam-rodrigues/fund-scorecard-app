@@ -6,7 +6,31 @@ import io
 from fpdf import FPDF
 import re
 import string
+import openai
 
+# === OPENAI SETUP ===
+openai.api_key = st.secrets["openai"]["api_key"]
+
+def ai_summarize(text, label=None):
+    prompt = f"""
+You are an analyst assistant. Please clean and summarize the following financial text:
+{text}
+
+Return a clean, readable bullet summary (2–5 lines max).
+Use full sentences. Group similar data.
+"""
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",  # or "gpt-3.5-turbo"
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=600,
+        )
+        return response["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        return f"⚠️ AI failed: {e}"
+
+# === STATIC DATA ===
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 KEYWORDS = [
     "financial", "results", "earnings", "filing", "report",
@@ -14,20 +38,7 @@ KEYWORDS = [
 ]
 SKIP_EXTENSIONS = [".pdf", ".xls", ".xlsx", ".doc", ".docx"]
 
-ENGLISH_WORDS = set("""
-the of and a to in is you that it he was for on are as with his they i at be this have from or one had by word
-but not what all were we when your can said there use an each which she do how their if will up other about out
-many then them these so some her would make like him into time has look two more write go see number no way could
-people my than first water been call who oil its now find long down day did get come made may part back our over new
-sound take only little work know place years live me most very after thing give name good sentence man think say great
-where help through much before line right too means old any same tell boy follow came want show also around form three
-small set put end does another well large must big even such because turn here why ask went men read need land different
-home us move try kind hand picture again change off play spell air away animal house point page letter mother answer found
-study still learn should america world high every near add food between own below country plant last school father keep tree
-never start city earth eye light thought head under story saw left don't few while along might close something seem next hard
-open example begin life always those both paper together got group often run important until children side feet car mile night
-walk white sea began grow took river four carry state once book hear stop without second later miss idea enough eat face watch
-""".split())
+ENGLISH_WORDS = set("""[...your existing ENGLISH_WORDS here...]""".split())
 
 def is_mostly_english(text, threshold=0.3):
     words = text.translate(str.maketrans('', '', string.punctuation)).split()
@@ -140,9 +151,7 @@ def download_pdf(metrics_dict):
     return path
 
 def run():
-    st.title("📡 Company Financial Crawler")
-    st.markdown("Enter a URL. FidSync will crawl linked subpages and extract clean financial metrics.")
-
+    st.title("📡 Company Financial Crawler + ✨ AI Summary")
     url = st.text_input("🔗 Enter investor/financial website")
 
     common_terms = [
@@ -150,7 +159,6 @@ def run():
         "operating income", "dividend", "distribution", "debt", "cash", "income statement", "sales"
     ]
     selected_terms = st.multiselect("🔎 Optional: Filter for specific financial terms", common_terms)
-
     show_debug = st.checkbox("🧪 Show filtered (rejected) lines", value=False)
 
     if url:
@@ -202,7 +210,10 @@ def run():
                         for label, val in items:
                             if label:
                                 st.markdown(f"**{label}**")
-                            st.markdown(f"> {val}")
+                            if st.toggle(f"✨ AI summary for {label or 'metric'}", key=f"{label}_{val[:15]}"):
+                                st.markdown(ai_summarize(val, label))
+                            else:
+                                st.markdown(f"> {val}")
             else:
                 all_data = []
                 for cat, items in all_metrics.items():
