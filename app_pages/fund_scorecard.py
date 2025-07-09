@@ -50,26 +50,26 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
     wb = load_workbook(filename=excel_file)
     ws = wb[sheet_name]
 
-    df = pd.DataFrame(ws.values)
-    headers = df.iloc[0]
-    df.columns = headers
-    df = df[1:]
+    # Fix: avoid ambiguous truth value issue
+    data = list(ws.values)
+    headers = data[0]
+    df = pd.DataFrame(data[1:], columns=headers)
 
     inv_col = find_column(df, "Investment Option")
     stat_col = find_column(df, "Current Period")
 
+    if inv_col is None or stat_col is None:
+        raise ValueError("Could not find 'Investment Option' or 'Current Period' column in Excel sheet.")
+
     inv_idx = df.columns.get_loc(inv_col) + 1
     stat_idx = df.columns.get_loc(stat_col) + 1
-    start_row = 2  # assuming headers are in row 1
+    start_row = 2  # because row 1 is header
 
-    # Safe unpacking
     fund_dict = {}
     for item in pdf_fund_data:
         if isinstance(item, tuple) and len(item) == 2:
             name, status = item
             fund_dict[name] = status
-        # else:
-        #     st.warning(f"⚠️ Skipped malformed PDF entry: {item}")
 
     fill_pass = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")  # green
     fill_review = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")  # red
@@ -79,7 +79,7 @@ def apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_fund_d
         for cell in row:
             cell.fill = PatternFill()
 
-    # Match and color
+    # Match and apply status
     for i, fund in enumerate(investment_options):
         fund = fund.strip()
         best_match, score = process.extractOne(fund, fund_dict.keys(), scorer=fuzz.token_sort_ratio)
@@ -127,14 +127,14 @@ def run():
         try:
             st.info("Processing PDF...")
             pdf_data = extract_funds_from_pdf(pdf_file)
-            st.success(f"✅ Extracted {len(pdf_data)} funds from PDF")
+            st.success(f"Extracted {len(pdf_data)} funds from PDF")
 
             st.info("Updating Excel...")
             updated_wb = apply_status_to_excel(excel_file, sheet_name, investment_options, pdf_data)
 
             output = io.BytesIO()
             updated_wb.save(output)
-            st.download_button("Download Updated Excel", output.getvalue(), file_name="Updated_Fund_Scorecard.xlsx")
+            st.download_button("📥 Download Updated Excel", output.getvalue(), file_name="Updated_Fund_Scorecard.xlsx")
 
         except Exception as e:
             st.error(f"❌ Failed to load page: {e}")
