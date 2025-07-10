@@ -12,7 +12,7 @@ def fetch_html(url):
         res = requests.get(url, timeout=10, headers=HEADERS)
         return res.text
     except Exception as e:
-        st.error(f"❌ Failed to fetch {url}: {e}")
+        st.error(f"Failed to fetch {url}: {e}")
         return ""
 
 def extract_financial_links(base_url, html):
@@ -35,7 +35,7 @@ def extract_tables_and_text(html):
     return tables, soup.get_text()
 
 def ai_extract_summary(text):
-    prompt = f"""You are a financial analyst assistant. Summarize the key financial performance information from this company update:
+    prompt = f"""You are a financial analyst assistant. Summarize the key financial performance information from this company report:
 
 {text}"""
     try:
@@ -54,18 +54,18 @@ def ai_extract_summary(text):
         if res.status_code == 200:
             return res.json()["choices"][0]["message"]["content"].strip()
         else:
-            return f"⚠️ Together API failed: {res.status_code} - {res.text}"
+            return f"Together API failed: {res.status_code} - {res.text}"
     except Exception as e:
-        return f"⚠️ Together error: {e}"
+        return f"Together error: {e}"
 
 def run():
-    st.title("📡 Company Financial Crawler")
-    st.caption("Enter a public company investor or financial page. FidSync will auto-detect subpages and generate clean summaries.")
+    st.title("Company Financial Crawler")
+    st.caption("Enter a public company investor or financial disclosure URL. The tool will scan linked pages and generate clean, structured summaries.")
 
-    url = st.text_input("🔗 Enter URL", placeholder="https://www.example.com/invest/financials")
+    url = st.text_input("Company URL", placeholder="https://www.example.com/invest/financials")
 
     if url:
-        with st.spinner("🔍 Crawling and parsing..."):
+        with st.spinner("Crawling and processing..."):
             base_html = fetch_html(url)
             if not base_html:
                 return
@@ -74,10 +74,10 @@ def run():
             subpage_urls = list(dict.fromkeys(subpage_urls))[:5]
 
             if not subpage_urls:
-                st.warning("No financial subpages found.")
+                st.warning("No relevant financial subpages were found.")
                 return
 
-            st.info(f"🔗 Found {len(subpage_urls)} relevant subpages.")
+            st.info(f"{len(subpage_urls)} linked financial subpages identified.")
 
             results = []
             for sub_url in subpage_urls:
@@ -86,31 +86,31 @@ def run():
                     continue
                 try:
                     tables, text = extract_tables_and_text(sub_html)
-                    with st.spinner(f"✨ Summarizing: {sub_url}"):
+                    with st.spinner(f"Generating summary for: {sub_url}"):
                         ai_summary = ai_extract_summary(text)
                     results.append((sub_url, ai_summary, tables))
                 except Exception as e:
-                    st.error(f"❌ Error parsing {sub_url}: {e}")
+                    st.error(f"Error parsing {sub_url}: {e}")
 
         if results:
             st.divider()
             for i, (link, summary, tables) in enumerate(results):
                 with st.container():
-                    st.subheader(f"📄 Page {i+1}")
-                    st.markdown(f"🔗 [{link}]({link})", unsafe_allow_html=True)
+                    st.subheader(f"Subpage {i+1}")
+                    st.markdown(f"[View Original Source]({link})", unsafe_allow_html=True)
 
-                    tab1, tab2 = st.tabs(["🔎 Summary", "📊 Tables"])
+                    tab1, tab2 = st.tabs(["Summary", "Extracted Tables"])
 
                     with tab1:
-                        st.markdown("### ✨ Financial Summary")
+                        st.markdown("#### Financial Overview")
                         st.markdown(summary)
 
                     with tab2:
                         if tables:
                             for idx, table in enumerate(tables[:2]):
-                                st.markdown(f"**Table {idx + 1}**")
+                                st.markdown(f"Table {idx + 1}")
                                 st.dataframe(table)
                         else:
-                            st.info("No tables found on this page.")
+                            st.info("No tabular data was found on this page.")
         else:
-            st.warning("No usable financial data found.")
+            st.warning("No usable financial content was extracted.")
