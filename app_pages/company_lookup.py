@@ -23,8 +23,6 @@ def run():
         st.session_state.searched = False
     if "last_ticker" not in st.session_state:
         st.session_state.last_ticker = ""
-    if "recent_tickers" not in st.session_state:
-        st.session_state.recent_tickers = []
 
     if st.button("Search"):
         if not ticker_input:
@@ -33,23 +31,12 @@ def run():
         ticker = ticker_input.strip().upper()
         st.session_state.last_ticker = ticker
         st.session_state.searched = True
-        if ticker not in st.session_state.recent_tickers:
-            st.session_state.recent_tickers = [ticker] + st.session_state.recent_tickers[:4]
-
-    if st.session_state.recent_tickers:
-        st.markdown("**Recent Tickers:**")
-        cols = st.columns(len(st.session_state.recent_tickers))
-        for i, t in enumerate(st.session_state.recent_tickers):
-            if cols[i].button(t):
-                st.session_state.last_ticker = t
-                st.session_state.searched = True
 
     if st.session_state.searched and st.session_state.last_ticker:
         try:
             ticker = st.session_state.last_ticker
             stock = yf.Ticker(ticker)
             info = stock.info
-
 
             st.subheader(f"{info.get('longName', 'Company Info')} ({ticker})")
 
