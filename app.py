@@ -57,7 +57,7 @@ nav_button("Capabilities & Potential", "Capabilities_and_Potential.py")
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
 nav_button("Fund Scorecard", "fund_scorecard.py")
 nav_button("Fund Scorecard Metrics", "mpi_criteria_check.py")
-nav_button("Chart Converter", "fund_charts_ppt.py")
+nav_button("Chart Converter (Under Construction)", "fund_charts_ppt.py")
 nav_button("Article Analyzer", "article_analyzer.py")
 nav_button("Data Scanner", "data_scanner.py")
 nav_button("Company Lookup", "company_lookup.py")  # <- fixed name
