@@ -37,6 +37,15 @@ def run():
 
     ---
 
+    ### Security Policy
+    
+    FidSync is designed to meet the standards of internal and enterprise financial workflows. No user data is stored, uploaded, or logged at any point. FidSync does not collect or process personally identifiable information (PII) by default. All data stays within the runtime environment unless otherwise configured by the deployment team.
+        No files are saved to disk or transmitted externally
+        All processing is performed in memory
+        Uploaded files are discarded after processing completes
+        
+    ---
+
     ### Tips for First-Time Users
 
     - Use clean, unmodified PDF scorecards or directly exported Excel files for best results.
