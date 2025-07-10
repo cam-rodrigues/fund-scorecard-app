@@ -58,7 +58,7 @@ st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_htm
 nav_button("Fund Scorecard", "fund_scorecard.py")
 nav_button("Article Analyzer", "article_analyzer.py")
 nav_button("Data Scanner", "data_scanner.py")
-nav_button("Company Lookup", "company_lookip")
+nav_button("Company Lookup", "company_lookup.py")  # <- fixed name
 nav_button("User Requests", "user_requests.py")
 
 # === Page router ===
@@ -100,6 +100,5 @@ else:
     -  View the **Getting Started** guide  
     -  Run the **Fund Scorecard**  
     -  Try the new **Article Analyzer**  
-    -  Submit or review **User Requests**  
-    -  Read the **Security Policy**
+    -  Submit or review **User Requests**
     """)
