@@ -2,8 +2,8 @@ import streamlit as st
 import pdfplumber
 import fitz  # PyMuPDF for PDF rendering
 import io
-from utils.data_scanner import extract_fund_metrics  # Import from refactored logic
-from utils.article_summarizer import summarize_article
+from app_pages.data_scanner import extract_fund_metrics  # Import from refactored logic
+from app_pages.article_summarizer import summarize_article
 from utils.pdf_generator import generate_summary_pdf
 
 st.set_page_config(page_title="Article Analyzer", layout="wide")
