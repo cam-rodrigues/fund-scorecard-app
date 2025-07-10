@@ -35,9 +35,9 @@ def extract_tables_and_text(html):
     return tables, soup.get_text()
 
 def ai_extract_summary(text):
-    prompt = f"""Summarize the main financial results and business highlights:
+    prompt = f"Summarize the main financial results and business highlights:
 
-{text}"""
+{text}"
     try:
         key = st.secrets["together"]["api_key"]
         headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
@@ -120,5 +120,13 @@ def run():
 
             if summaries:
                 pdf_path = generate_pdf(summaries)
-                with open(pdf_path, "rb") as f:
-                    st.download_button("Download Summary as PDF", f, file_name="financial_summary_report.pdf", mime="application/pdf")
+                try:
+                    with open(pdf_path, "rb") as f:
+                        st.download_button(
+                            label="Download Summary as PDF",
+                            data=f,
+                            file_name="financial_summary_report.pdf",
+                            mime="application/pdf"
+                        )
+                except FileNotFoundError:
+                    st.error("⚠️ PDF generation failed. Please try again after summaries are complete.")
