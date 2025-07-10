@@ -5,10 +5,7 @@ import pandas as pd
 import os
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
-KEYWORDS = [
-    "financial", "results", "earnings", "filing", "report",
-    "quarter", "10-q", "10-k", "annual", "statement", "balance", "income"
-]
+KEYWORDS = ["financial", "results", "earnings", "filing", "report", "quarter", "statement", "10-q", "10-k", "annual"]
 SKIP_EXTENSIONS = [".pdf", ".xls", ".xlsx", ".doc", ".docx"]
 
 def fetch_html(url):
@@ -39,29 +36,30 @@ def extract_tables_and_text(html):
     return tables, soup.get_text()
 
 def ai_extract_summary(text):
-    prompt_text = f"""
+    prompt = f"""
 You are a financial analyst assistant. Summarize the key financial performance info from this report:
+
 {text}
 """
     try:
-        groq_api_key = st.secrets["groq"]["api_key"]
+        together_api_key = st.secrets["together"]["api_key"]
         headers = {
-            "Authorization": f"Bearer {groq_api_key}",
+            "Authorization": f"Bearer {together_api_key}",
             "Content-Type": "application/json"
         }
         payload = {
             "model": "claude-3-sonnet-20240229",
-            "messages": [{"role": "user", "content": prompt_text}],
+            "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.3,
             "max_tokens": 1000
         }
-        res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
+        res = requests.post("https://api.together.xyz/v1/chat/completions", headers=headers, json=payload)
         if res.status_code == 200:
             return res.json()["choices"][0]["message"]["content"].strip()
         else:
-            return f"⚠️ Groq API failed: {res.status_code} - {res.text}"
+            return f"⚠️ Together API failed: {res.status_code} - {res.text}"
     except Exception as e:
-        return f"⚠️ Groq error: {e}"
+        return f"⚠️ Together error: {e}"
 
 def run():
     st.title("📡 Company Financial Crawler + Claude Summary")
@@ -75,7 +73,7 @@ def run():
                 return
 
             subpage_urls = extract_financial_links(url, base_html)
-            subpage_urls = list(dict.fromkeys(subpage_urls))[:10]
+            subpage_urls = list(dict.fromkeys(subpage_urls))[:5]  # limit for testing
 
             if not subpage_urls:
                 st.warning("No financial subpages found.")
@@ -85,16 +83,14 @@ def run():
 
             results = []
             for sub_url in subpage_urls:
-                if any(sub_url.lower().endswith(ext) for ext in SKIP_EXTENSIONS):
-                    continue
-
                 st.markdown(f"**Scanning:** {sub_url}")
                 sub_html = fetch_html(sub_url)
                 if not sub_html:
                     continue
                 try:
                     tables, text = extract_tables_and_text(sub_html)
-                    ai_summary = ai_extract_summary(text)
+                    with st.spinner("✨ Claude generating summary..."):
+                        ai_summary = ai_extract_summary(text)
                     results.append((sub_url, ai_summary, text[:3000]))
                 except Exception as e:
                     st.error(f"❌ Error parsing {sub_url}: {e}")
@@ -105,6 +101,6 @@ def run():
                     st.markdown("### ✨ Claude Summary")
                     st.markdown(summary)
                     st.markdown("### 📄 Raw Text Snapshot")
-                    st.code(raw[:2000])
+                    st.code(raw)
         else:
             st.warning("No usable financial data found.")
