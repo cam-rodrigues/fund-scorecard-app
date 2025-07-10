@@ -35,7 +35,7 @@ def extract_tables_and_text(html):
     return tables, soup.get_text()
 
 def ai_extract_summary(text):
-    prompt = f"""You are a financial analyst assistant. Summarize the key financial performance info from this report:
+    prompt = f"""You are a financial analyst assistant. Summarize the key financial performance information from this company update:
 
 {text}"""
     try:
@@ -59,18 +59,13 @@ def ai_extract_summary(text):
         return f"⚠️ Together error: {e}"
 
 def run():
-    st.title("📡 Company Financial Crawler + LLaMA Summary")
+    st.title("📡 Company Financial Crawler")
+    st.caption("Enter a public company investor or financial page. FidSync will auto-detect subpages and generate clean summaries.")
 
-    try:
-        st.write("🔐 Together key (partial):", st.secrets["together"]["api_key"][:10])
-    except Exception as e:
-        st.error(f"Secret error: {e}")
-        return
-
-    url = st.text_input("🔗 Enter investor/financial website")
+    url = st.text_input("🔗 Enter URL", placeholder="https://www.example.com/invest/financials")
 
     if url:
-        with st.spinner("🔍 Crawling site..."):
+        with st.spinner("🔍 Crawling and parsing..."):
             base_html = fetch_html(url)
             if not base_html:
                 return
@@ -82,28 +77,40 @@ def run():
                 st.warning("No financial subpages found.")
                 return
 
-            st.info(f"🔗 Found {len(subpage_urls)} subpages. Scanning...")
+            st.info(f"🔗 Found {len(subpage_urls)} relevant subpages.")
 
             results = []
             for sub_url in subpage_urls:
-                st.markdown(f"**Scanning:** {sub_url}")
                 sub_html = fetch_html(sub_url)
                 if not sub_html:
                     continue
                 try:
                     tables, text = extract_tables_and_text(sub_html)
-                    with st.spinner("✨ LLaMA generating summary..."):
+                    with st.spinner(f"✨ Summarizing: {sub_url}"):
                         ai_summary = ai_extract_summary(text)
-                    results.append((sub_url, ai_summary, text[:3000]))
+                    results.append((sub_url, ai_summary, tables))
                 except Exception as e:
                     st.error(f"❌ Error parsing {sub_url}: {e}")
 
         if results:
-            for i, (link, summary, raw) in enumerate(results):
-                with st.expander(f"📄 Page {i+1}: {link}"):
-                    st.markdown("### ✨ LLaMA Summary")
-                    st.markdown(summary)
-                    st.markdown("### 📄 Raw Text Snapshot")
-                    st.code(raw)
+            st.divider()
+            for i, (link, summary, tables) in enumerate(results):
+                with st.container():
+                    st.subheader(f"📄 Page {i+1}")
+                    st.markdown(f"🔗 [{link}]({link})", unsafe_allow_html=True)
+
+                    tab1, tab2 = st.tabs(["🔎 Summary", "📊 Tables"])
+
+                    with tab1:
+                        st.markdown("### ✨ Financial Summary")
+                        st.markdown(summary)
+
+                    with tab2:
+                        if tables:
+                            for idx, table in enumerate(tables[:2]):
+                                st.markdown(f"**Table {idx + 1}**")
+                                st.dataframe(table)
+                        else:
+                            st.info("No tables found on this page.")
         else:
             st.warning("No usable financial data found.")
