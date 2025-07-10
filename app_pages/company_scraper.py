@@ -1,18 +1,8 @@
-import os
-import json
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-
 import os
-
-api_key = st.secrets["openai"]["api_key"]
-project_id = st.secrets["openai"]["project_id"]
-
-st.text(f"API Key starts with: {api_key[:15]}")
-st.text(f"Project ID: {project_id}")
-
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 KEYWORDS = [
@@ -49,47 +39,32 @@ def extract_tables_and_text(html):
     return tables, soup.get_text()
 
 def ai_extract_summary(text):
-    prompt = f"""
-You are a financial analyst assistant. Read this text and extract the key financial performance details.
-Summarize earnings, EBITDA, cash flow, revenue, income, margins, or debt if mentioned.
-Respond clearly in bullet points or short paragraphs.
-
+    prompt_text = f"""
+You are a financial analyst assistant. Summarize the key financial performance info from this report:
 {text}
 """
     try:
-        api_key = st.secrets["openai"]["api_key"]
-        project_id = st.secrets["openai"]["project_id"]
-
+        groq_api_key = st.secrets["groq"]["api_key"]
         headers = {
-            "Authorization": f"Bearer {api_key}",
-            "OpenAI-Project": project_id,
+            "Authorization": f"Bearer {groq_api_key}",
             "Content-Type": "application/json"
         }
-
         payload = {
-            "model": "gpt-4",
-            "messages": [{"role": "user", "content": prompt}],
+            "model": "claude-3-sonnet-20240229",
+            "messages": [{"role": "user", "content": prompt_text}],
             "temperature": 0.3,
-            "max_tokens": 800
+            "max_tokens": 1000
         }
-
-        response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
-            data=json.dumps(payload)
-        )
-
-        if response.status_code == 200:
-            result = response.json()
-            return result["choices"][0]["message"]["content"].strip()
+        res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
+        if res.status_code == 200:
+            return res.json()["choices"][0]["message"]["content"].strip()
         else:
-            return f"⚠️ OpenAI failed: {response.status_code} - {response.text}"
-
+            return f"⚠️ Groq API failed: {res.status_code} - {res.text}"
     except Exception as e:
-        return f"⚠️ OpenAI error: {e}"
+        return f"⚠️ Groq error: {e}"
 
 def run():
-    st.title("📡 Company Financial Crawler + ✨ AI Summary")
+    st.title("📡 Company Financial Crawler + Claude Summary")
 
     url = st.text_input("🔗 Enter investor/financial website")
 
@@ -120,16 +95,15 @@ def run():
                 try:
                     tables, text = extract_tables_and_text(sub_html)
                     ai_summary = ai_extract_summary(text)
-                    results.append((sub_url, ai_summary, text[:3000]))  # limit raw preview
+                    results.append((sub_url, ai_summary, text[:3000]))
                 except Exception as e:
                     st.error(f"❌ Error parsing {sub_url}: {e}")
 
         if results:
             for i, (link, summary, raw) in enumerate(results):
                 with st.expander(f"📄 Page {i+1}: {link}"):
-                    st.markdown("### ✨ AI Summary")
+                    st.markdown("### ✨ Claude Summary")
                     st.markdown(summary)
-
                     st.markdown("### 📄 Raw Text Snapshot")
                     st.code(raw[:2000])
         else:
