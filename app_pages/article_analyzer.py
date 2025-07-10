@@ -87,8 +87,6 @@ def main():
             else:
                 st.info("Fund metric detection is turned off.")
 
-    else:
-        st.info("Please enter text, upload a PDF, or provide a URL to begin analysis.")
 
     # Disclaimer
     st.markdown("""
