@@ -73,7 +73,7 @@ legacy_redirects = {
 if selected_page in legacy_redirects:
     selected_page = legacy_redirects[selected_page]
     st.query_params.update({"page": selected_page})
-    st.experimental_rerun()
+    st.rerun()
 
 if selected_page:
     page_path = os.path.join(PAGES_DIR, selected_page)
@@ -89,7 +89,7 @@ if selected_page:
     else:
         st.warning(f"Page '{selected_page}' was not found. Redirecting to homepage.")
         st.query_params.clear()
-        st.experimental_rerun()
+        st.rerun()
 else:
     # Default landing page
     st.markdown("# Welcome to FidSync")
