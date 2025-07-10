@@ -1,8 +1,6 @@
 import streamlit as st
 
 def run():
-    st.title("Getting Started")
-
     st.markdown("""
     FidSync is a modern toolkit for investment due diligence, fund oversight, and client reporting. Built for institutional advisors, plan consultants, and analysts, FidSync combines intelligent document parsing, fund evaluation tools, and data-driven workflows into a unified experience.
 
