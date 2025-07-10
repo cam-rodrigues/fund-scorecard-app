@@ -15,6 +15,7 @@ def run():
         }
 
         try:
+            # Investor Relations (best guess via Google)
             query = f"{ticker} investor relations"
             search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
             headers = {"User-Agent": "Mozilla/5.0"}
@@ -29,7 +30,27 @@ def run():
 
         return links
 
+    def fetch_preview(url):
+        try:
+            headers = {"User-Agent": "Mozilla/5.0"}
+            r = requests.get(url, timeout=4, headers=headers)
+            soup = BeautifulSoup(r.text, "html.parser")
+            desc = soup.find("meta", attrs={"name": "description"})
+            if desc and desc.get("content"):
+                return desc["content"].strip()
+        except:
+            pass
+        return None
+
     if ticker:
         st.markdown(f"### Results for `{ticker}`")
-        for name, url in get_links(ticker).items():
-            st.markdown(f"- [{name}]({url})")
+
+        with st.spinner("Fetching links..."):
+            links = get_links(ticker)
+
+        for name, url in links.items():
+            with st.container():
+                st.markdown(f"#### [{name}]({url})")
+                preview = fetch_preview(url)
+                if preview:
+                    st.write(preview)
