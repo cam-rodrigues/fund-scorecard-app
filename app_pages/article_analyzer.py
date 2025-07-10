@@ -35,8 +35,8 @@ def extract_fund_metrics(text):
 # === Main App Logic
 def main():
     st.set_page_config(page_title="Article Analyzer", layout="wide")
-    st.title("📰 Article Analyzer")
-    st.caption("Paste a financial article URL or upload text. Get a summary and detect fund metrics.")
+    st.title("Article Analyzer")
+    st.caption("Paste anl article URL or upload text. Get a summary and detect fund metrics.")
 
     st.sidebar.header("Options")
     enable_fund_detection = st.sidebar.checkbox("Enable Fund Metric Detection", value=True)
@@ -68,7 +68,7 @@ def main():
         col1, col2 = st.columns(2)
 
         with col1:
-            st.subheader("📝 Summary")
+            st.subheader("Summary")
             summary = summarize_article(article_text)
             st.write(summary)
 
@@ -87,7 +87,7 @@ def main():
 
     st.markdown("""
     ---
-    ⚠️ *This tool is for informational purposes only. Metrics may contain errors. Please verify data independently.*
+    *This tool is for informational purposes only. Metrics may contain errors. Please verify data independently.*
     """)
 
 # === REQUIRED FOR ROUTING ===
