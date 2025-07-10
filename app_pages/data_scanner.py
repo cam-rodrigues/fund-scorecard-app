@@ -65,10 +65,10 @@ def ai_extract_summary(text):
         return f"Together API error: {e}"
 
 def run():
-    st.title("Financial Intelligence Extractor")
+    st.title("Data Scanner")
 
     st.markdown("""
-    Analyze a public company's investor relations page or upload a PDF to extract financial highlights and generate AI-driven summaries.
+    Analyze a public company's investor relations page or upload a PDF to extract financial highlights and generate summaries.
     """)
 
     mode = st.radio("Choose analysis mode", ["Analyze URL", "Upload PDF"])
