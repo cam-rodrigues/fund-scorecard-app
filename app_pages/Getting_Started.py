@@ -17,7 +17,7 @@ def run():
 
     ---
 
-    ### How to Use FidSync
+    ### How to Use 
 
     **1. Choose a Tool**  
     Navigate using the sidebar to select a feature. Each module is self-contained and provides its own workflow for processing files, articles, or company data.
