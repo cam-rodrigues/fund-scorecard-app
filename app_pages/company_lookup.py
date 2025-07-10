@@ -7,12 +7,13 @@ def run():
     ticker = st.text_input("Enter a stock ticker (e.g., AAPL, TSLA, MSFT):", max_chars=10)
     lookup = st.button("Search")
 
-    if ticker:
+    if lookup and ticker:
         try:
-            stock = yf.Ticker(ticker.strip().upper())
+            ticker = ticker.strip().upper()
+            stock = yf.Ticker(ticker)
             info = stock.info
 
-            st.subheader(f"{info.get('longName', 'Company Info')} ({ticker.upper()})")
+            st.subheader(f"{info.get('longName', 'Company Info')} ({ticker})")
 
             st.markdown(f"**Sector:** {info.get('sector', 'N/A')}")
             st.markdown(f"**Industry:** {info.get('industry', 'N/A')}")
@@ -30,6 +31,5 @@ def run():
         except Exception as e:
             st.error("Failed to retrieve data. Try a different ticker.")
 
-
-  st.markdown("---")
+    st.markdown("---")
     st.caption("This content was generated using automation and may not be perfectly accurate. Please verify against official sources.")
