@@ -1,94 +1,112 @@
 import streamlit as st
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
 import os
-import importlib.util
 
-st.set_page_config(page_title="FidSync", layout="wide")
+HEADERS = {"User-Agent": "Mozilla/5.0"}
+KEYWORDS = [
+    "financial", "results", "earnings", "filing", "report",
+    "quarter", "10-q", "10-k", "annual", "statement", "balance", "income"
+]
+SKIP_EXTENSIONS = [".pdf", ".xls", ".xlsx", ".doc", ".docx"]
 
-# === Clean, static sidebar styles ===
-st.markdown("""
-    <style>
-        [data-testid="stSidebar"] {
-            background-color: #f4f6fa;
-            border-right: 1px solid #d3d3d3;
+def fetch_html(url):
+    try:
+        res = requests.get(url, timeout=10, headers=HEADERS)
+        return res.text
+    except Exception as e:
+        st.error(f"❌ Failed to fetch {url}: {e}")
+        return ""
+
+def extract_financial_links(base_url, html):
+    soup = BeautifulSoup(html, "lxml")
+    links = set()
+    for tag in soup.find_all("a", href=True):
+        href = tag["href"]
+        if any(kw in href.lower() for kw in KEYWORDS):
+            full_url = href if href.startswith("http") else requests.compat.urljoin(base_url, href)
+            if not any(full_url.lower().endswith(ext) for ext in SKIP_EXTENSIONS):
+                links.add(full_url)
+    return list(links)
+
+def extract_tables_and_text(html):
+    soup = BeautifulSoup(html, "lxml")
+    try:
+        tables = pd.read_html(str(soup))
+    except Exception:
+        tables = []
+    return tables, soup.get_text()
+
+def ai_extract_summary(text):
+    prompt = f"""
+You are a financial analyst assistant. Summarize the key financial performance info from this report:
+
+{text}
+"""
+
+    try:
+        together_api_key = st.secrets["together"]["api_key"]
+        headers = {
+            "Authorization": f"Bearer {together_api_key}",
+            "Content-Type": "application/json"
         }
-        [data-testid="stSidebar"] .stButton>button {
-            background-color: #e8eef8;
-            color: #1a2a44;
-            border: 1px solid #c3cfe0;
-            border-radius: 0.5rem;
-            padding: 0.4rem 0.75rem;
-            font-weight: 600;
+        payload = {
+            "model": "claude-3-sonnet-20240229",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "max_tokens": 1000
         }
-        [data-testid="stSidebar"] .stButton>button:hover {
-            background-color: #cbd9f0;
-            color: #000000;
-        }
-        .sidebar-title {
-            font-size: 1.7rem;
-            font-weight: 800;
-            color: #102542;
-            padding-bottom: 0.5rem;
-            border-bottom: 2px solid #b4c3d3;
-            margin-bottom: 1rem;
-        }
-        .sidebar-section {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: #666;
-            margin-top: 2rem;
-            margin-bottom: 0.3rem;
-            letter-spacing: 0.5px;
-        }
-    </style>
-""", unsafe_allow_html=True)
+        res = requests.post("https://api.together.xyz/v1/chat/completions", headers=headers, json=payload)
+        if res.status_code == 200:
+            return res.json()["choices"][0]["message"]["content"].strip()
+        else:
+            return f"⚠️ Together API failed: {res.status_code} - {res.text}"
+    except Exception as e:
+        return f"⚠️ Together error: {e}"
 
-# === Sidebar header and nav buttons ===
-st.sidebar.markdown('<div class="sidebar-title">FidSync</div>', unsafe_allow_html=True)
+def run():
+    st.title("📡 Company Financial Crawler + Claude via Together")
 
-def nav_button(label, filename):
-    if st.sidebar.button(label, key=label):
-        st.query_params.update({"page": filename})
+    url = st.text_input("🔗 Enter investor/financial website")
 
-# === Sidebar navigation ===
-st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
-nav_button("Getting Started", "Getting_Started.py")
-nav_button("Security Policy", "Security_Policy.py")
-nav_button("Capabilities & Potential", "Capabilities_and_Potential.py")
+    if url:
+        with st.spinner("🔍 Crawling site..."):
+            base_html = fetch_html(url)
+            if not base_html:
+                return
 
-st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
-nav_button("Fund Scorecard", "fund_scorecard.py")
-nav_button("Article Analyzer", "article_analyzer.py")  # <-- New Tool Added
-nav_button("Company Scraper", "company_scraper.py")
-nav_button("User Requests", "user_requests.py")
+            subpage_urls = extract_financial_links(url, base_html)
+            subpage_urls = list(dict.fromkeys(subpage_urls))[:10]
 
-# === Page router ===
-query_params = st.query_params
-selected_page = query_params.get("page")
-PAGES_DIR = "app_pages"
+            if not subpage_urls:
+                st.warning("No financial subpages found.")
+                return
 
-if selected_page:
-    page_path = os.path.join(PAGES_DIR, selected_page)
+            st.info(f"🔗 Found {len(subpage_urls)} subpages. Scanning...")
 
-    if os.path.exists(page_path):
-        try:
-            spec = importlib.util.spec_from_file_location("page_module", page_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            module.run()
-        except Exception as e:
-            st.error(f"❌ Failed to load page: {e}")
-    else:
-        st.error(f"❌ Page not found: {selected_page}")
-else:
-    # Default landing page
-    st.markdown("# Welcome to FidSync")
-    st.markdown("""
-    FidSync helps financial teams securely extract and update fund statuses from scorecard PDFs into Excel templates.
+            results = []
+            for sub_url in subpage_urls:
+                if any(sub_url.lower().endswith(ext) for ext in SKIP_EXTENSIONS):
+                    continue
 
-    **Use the sidebar to:**
-    -  View the **Getting Started** guide  
-    -  Run the **Fund Scorecard**  
-    -  Try the new **Article Analyzer**  
-    -  Submit or review **User Requests**  
-    -  Read the **Security Policy**
-    """)
+                st.markdown(f"**Scanning:** {sub_url}")
+                sub_html = fetch_html(sub_url)
+                if not sub_html:
+                    continue
+                try:
+                    tables, text = extract_tables_and_text(sub_html)
+                    ai_summary = ai_extract_summary(text)
+                    results.append((sub_url, ai_summary, text[:3000]))
+                except Exception as e:
+                    st.error(f"❌ Error parsing {sub_url}: {e}")
+
+        if results:
+            for i, (link, summary, raw) in enumerate(results):
+                with st.expander(f"📄 Page {i+1}: {link}"):
+                    st.markdown("### ✨ Claude Summary")
+                    st.markdown(summary)
+                    st.markdown("### 📄 Raw Text Snapshot")
+                    st.code(raw[:2000])
+        else:
+            st.warning("No usable financial data found.")
