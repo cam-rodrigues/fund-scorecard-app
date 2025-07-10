@@ -1,36 +1,29 @@
-
 import streamlit as st
-import requests
-from bs4 import BeautifulSoup
+import yfinance as yf
 
-def run():
-    st.title("Company Ticker Info Finder")
-    ticker = st.text_input("Enter a stock ticker symbol (e.g. AAPL, TSLA, MSFT):").upper()
+st.title("Ticker Info Lookup")
 
-    def get_links(ticker):
-        links = {
-            "Yahoo Finance": f"https://finance.yahoo.com/quote/{ticker}",
-            "Google News": f"https://www.google.com/search?q={ticker}+stock&tbm=nws",
-            "Seeking Alpha": f"https://seekingalpha.com/symbol/{ticker}",
-            "SEC Filings": f"https://www.sec.gov/edgar/browse/?CIK={ticker}&owner=exclude"
-        }
+ticker = st.text_input("Enter a stock ticker (e.g., AAPL, TSLA, MSFT):", max_chars=10)
 
-        try:
-            query = f"{ticker} investor relations"
-            search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
-            headers = {"User-Agent": "Mozilla/5.0"}
-            res = requests.get(search_url, headers=headers)
-            soup = BeautifulSoup(res.text, "html.parser")
-            anchors = soup.find_all("a")
-            ir_links = [a["href"] for a in anchors if "/url?q=" in a["href"] and "investor" in a["href"]]
-            if ir_links:
-                links["Investor Relations"] = ir_links[0].split("/url?q=")[1].split("&")[0]
-        except Exception:
-            pass
+if ticker:
+    try:
+        stock = yf.Ticker(ticker.strip().upper())
+        info = stock.info
 
-        return links
+        st.subheader(f"{info.get('longName', 'Company Info')} ({ticker.upper()})")
 
-    if ticker:
-        st.markdown(f"### Results for `{ticker}`")
-        for name, url in get_links(ticker).items():
-            st.markdown(f"- [{name}]({url})")
+        st.markdown(f"**Sector:** {info.get('sector', 'N/A')}")
+        st.markdown(f"**Industry:** {info.get('industry', 'N/A')}")
+        st.markdown(f"**Market Cap:** ${info.get('marketCap', 'N/A'):,}")
+        st.markdown(f"**Price:** ${info.get('currentPrice', 'N/A')}")
+        st.markdown(f"**52-Week Range:** ${info.get('fiftyTwoWeekLow', 'N/A')} – ${info.get('fiftyTwoWeekHigh', 'N/A')}")
+        st.markdown(f"**PE Ratio (TTM):** {info.get('trailingPE', 'N/A')}")
+        st.markdown(f"**Dividend Yield:** {info.get('dividendYield', 0) * 100:.2f}%" if info.get('dividendYield') else "No Dividend")
+
+        if info.get("website"):
+            st.markdown(f"[Visit Company Website]({info['website']})")
+
+        st.write("---")
+        st.markdown(f"**Description:**\n\n{info.get('longBusinessSummary', 'No summary available.')}")
+    except Exception as e:
+        st.error("Failed to retrieve data. Try a different ticker.")
