@@ -7,7 +7,17 @@ def run():
     st.title("Ticker Info Lookup")
 
     ticker = st.text_input("Enter a stock ticker (e.g., AAPL, TSLA, MSFT):", max_chars=10)
+    with st.expander("Known Limitations"):
+        st.markdown("""
+    - Ticker must be valid and supported by Yahoo Finance (try it [here](https://finance.yahoo.com/)).
+    - Use dashes (`-`) not dots (`.`) for tickers like `BRK-B` (not `BRK.B`).
+    - Some foreign tickers require exchange suffixes like `.TO`, `.T`, or `.NS`.
+    - Delisted, micro-cap, or very new tickers may not return full data.
+    - Cryptos (like `BTC-USD`) work, but fundamental metrics will be blank.
+    - Financial metrics for ETFs may be limited or unavailable.
+    """)
     lookup = st.button("Search")
+
 
     if lookup:
         if not ticker:
