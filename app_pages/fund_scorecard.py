@@ -104,6 +104,16 @@ def has_external_links(xlsx_file):
 def run():
     st.title("Fund Scorecard")
 
+    with st.expander("How to Use This Tool"):
+        st.markdown("""
+        1. **Upload a MPI PDF** — This is where fund statuses are extracted from.  
+        2. **Upload an Excel Template** — This is the file where statuses will be filled in.  
+        3. **Paste Investment Options** — One fund name per line, in the same order as they appear in Excel.  
+        4. **Enter the cell where 'Current Quarter Status' begins** — e.g., `L6`  
+        5. **Adjust the Match Score Threshold** if needed — Higher means stricter matching.  
+        6. **Click Run Matching** — View matches, download updated Excel, and export the match summary.
+        """)
+
     pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type="pdf")
     excel_file = st.file_uploader("Upload Excel File", type="xlsx")
 
