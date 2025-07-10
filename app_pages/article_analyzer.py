@@ -3,47 +3,37 @@ import pdfplumber
 import re
 import pandas as pd
 from newspaper import Article
+from fpdf import FPDF
+import tempfile
+import os
 
 # === Article Summarizer ===
 def summarize_article(text):
     return text[:1000] + "..." if len(text) > 1000 else text
 
-# === Fund Metric Extractor ===
-def extract_fund_metrics(text):
-    lines = text.splitlines()
-    fund_rows = []
-    current_fund = None
+# === PDF Export Function ===
+def export_summary_to_pdf(summary):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_font("Arial", size=12)
+    
+    pdf.multi_cell(0, 10, txt="Article Summary", align='L')
+    pdf.ln(5)
+    pdf.set_font("Arial", size=11)
+    pdf.multi_cell(0, 8, txt=summary)
 
-    for line in lines:
-        line = line.strip()
-        if re.match(r".+\s[A-Z]{4,6}X", line):
-            current_fund = line
-            continue
-        if current_fund and re.search(r"\d", line) and len(line.split()) >= 6:
-            values = re.findall(r"-?\d+\.\d+|\d+", line)
-            if values:
-                fund_rows.append([current_fund] + values)
-                current_fund = None
-
-    if not fund_rows:
-        return None
-
-    max_cols = max(len(row) for row in fund_rows)
-    columns = ["Fund"] + [f"Metric {i}" for i in range(1, max_cols)]
-    return pd.DataFrame(fund_rows, columns=columns)
+    temp_path = os.path.join(tempfile.gettempdir(), "summary.pdf")
+    pdf.output(temp_path)
+    return temp_path
 
 # === Main Streamlit App ===
 def main():
     st.set_page_config(page_title="Article Analyzer", layout="wide")
 
     st.title("Article Analyzer")
-    st.caption("Summarize financial articles and extract potential fund metrics.")
+    st.caption("Paste a URL, upload a PDF, or input text to get a clean article summary.")
 
-    # Sidebar
-    st.sidebar.header("Settings")
-    enable_fund_detection = st.sidebar.checkbox("Extract Fund Metrics", value=True)
-
-    # Input Method Dropdown
     input_mode = st.selectbox("Choose Article Input Method", ["Paste URL", "Paste Text", "Upload PDF"])
     article_text = ""
 
@@ -67,31 +57,27 @@ def main():
             with pdfplumber.open(pdf_file) as pdf:
                 article_text = "\n".join(p.extract_text() for p in pdf.pages if p.extract_text())
 
-    # Process and Display
     if article_text.strip():
-        col1, col2 = st.columns(2)
+        st.subheader("Summary")
+        summary = summarize_article(article_text)
+        st.write(summary)
 
-        with col1:
-            st.subheader("Summary")
-            summary = summarize_article(article_text)
-            st.write(summary)
-
-        with col2:
-            st.subheader("Fund Metrics")
-            if enable_fund_detection:
-                metrics_df = extract_fund_metrics(article_text)
-                if metrics_df is not None:
-                    st.dataframe(metrics_df, use_container_width=True)
-                else:
-                    st.info("No fund metrics were detected.")
-            else:
-                st.info("Fund metric detection is turned off.")
+        # PDF export
+        if st.button("Export Summary as PDF"):
+            pdf_path = export_summary_to_pdf(summary)
+            with open(pdf_path, "rb") as f:
+                st.download_button(
+                    label="Download PDF",
+                    data=f,
+                    file_name="article_summary.pdf",
+                    mime="application/pdf"
+                )
 
 
     # Disclaimer
     st.markdown("""
     <hr style="margin-top: 2rem; margin-bottom: 1rem;">
-    <small><i>This tool is for informational purposes only. Metric accuracy is not guaranteed. Always verify data independently before making investment decisions.</i></small>
+    <small><i>This tool is for informational purposes only. Summaries are generated from raw text and may omit key context. Always review original sources before drawing conclusions.</i></small>
     """, unsafe_allow_html=True)
 
 # === Required for Multipage Setup ===
