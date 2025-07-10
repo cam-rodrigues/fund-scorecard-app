@@ -50,7 +50,6 @@ def run():
             stock = yf.Ticker(ticker)
             info = stock.info
 
-            st.success(f"Loaded data for {info.get('longName', ticker)}")
 
             st.subheader(f"{info.get('longName', 'Company Info')} ({ticker})")
 
