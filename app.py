@@ -58,6 +58,7 @@ st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_htm
 nav_button("Fund Scorecard", "fund_scorecard.py")
 nav_button("Article Analyzer", "article_analyzer.py")
 nav_button("Data Scanner", "data_scanner.py")
+nav_button("Company Lookup", "company_lookip")
 nav_button("User Requests", "user_requests.py")
 
 # === Page router ===
