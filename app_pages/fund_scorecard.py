@@ -114,7 +114,7 @@ def run():
         6. **Click Run Matching** — View matches, download updated Excel, and export the match summary.
         """)
 
-    pdf_file = st.file_uploader("Upload Fund Scorecard PDF", type="pdf")
+    pdf_file = st.file_uploader("Upload MPI PDF", type="pdf")
     excel_file = st.file_uploader("Upload Excel File", type="xlsx")
 
     if excel_file and has_external_links(excel_file):
