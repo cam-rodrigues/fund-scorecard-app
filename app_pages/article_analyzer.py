@@ -4,11 +4,11 @@ import re
 import pandas as pd
 from newspaper import Article
 
-# === Summarizer stub
+# === Article Summarizer ===
 def summarize_article(text):
     return text[:1000] + "..." if len(text) > 1000 else text
 
-# === Fund metric extractor
+# === Fund Metric Extractor ===
 def extract_fund_metrics(text):
     lines = text.splitlines()
     fund_rows = []
@@ -32,20 +32,23 @@ def extract_fund_metrics(text):
     columns = ["Fund"] + [f"Metric {i}" for i in range(1, max_cols)]
     return pd.DataFrame(fund_rows, columns=columns)
 
-# === Main App Logic
+# === Main Streamlit App ===
 def main():
     st.set_page_config(page_title="Article Analyzer", layout="wide")
-    st.title("Article Analyzer")
-    st.caption("Paste anl article URL or upload text. Get a summary and detect fund metrics.")
 
-    st.sidebar.header("Options")
-    enable_fund_detection = st.sidebar.checkbox("Enable Fund Metric Detection", value=True)
+    st.title("📄 Article Analyzer")
+    st.caption("Summarize financial articles and extract potential fund metrics.")
 
-    input_mode = st.radio("Choose Input Method:", ["Paste Article URL", "Paste Text", "Upload PDF"])
+    # Sidebar
+    st.sidebar.header("Settings")
+    enable_fund_detection = st.sidebar.checkbox("Extract Fund Metrics", value=True)
+
+    # Input Method
+    input_mode = st.radio("Input Source", ["Paste URL", "Paste Text", "Upload PDF"])
     article_text = ""
 
-    if input_mode == "Paste Article URL":
-        url = st.text_input("Paste Article URL")
+    if input_mode == "Paste URL":
+        url = st.text_input("Enter Article URL")
         if url:
             try:
                 article = Article(url)
@@ -56,14 +59,15 @@ def main():
                 st.error(f"Failed to fetch article: {e}")
 
     elif input_mode == "Paste Text":
-        article_text = st.text_area("Paste Article Text", height=300)
+        article_text = st.text_area("Paste the Full Article Text Below", height=300)
 
     elif input_mode == "Upload PDF":
-        pdf_file = st.file_uploader("Upload PDF", type=["pdf"])
+        pdf_file = st.file_uploader("Upload PDF File", type=["pdf"])
         if pdf_file:
             with pdfplumber.open(pdf_file) as pdf:
-                article_text = "\n".join([p.extract_text() for p in pdf.pages if p.extract_text()])
+                article_text = "\n".join(p.extract_text() for p in pdf.pages if p.extract_text())
 
+    # Process and Display
     if article_text.strip():
         col1, col2 = st.columns(2)
 
@@ -73,23 +77,25 @@ def main():
             st.write(summary)
 
         with col2:
+            st.subheader("Fund Metrics")
             if enable_fund_detection:
-                st.subheader("📊 Detected Fund Metrics")
                 metrics_df = extract_fund_metrics(article_text)
                 if metrics_df is not None:
                     st.dataframe(metrics_df, use_container_width=True)
                 else:
-                    st.info("No fund metrics detected.")
+                    st.info("No fund metrics were detected.")
             else:
-                st.info("Fund detection disabled.")
+                st.info("Fund metric detection is turned off.")
+
     else:
-        st.info("Paste text, upload a PDF, or enter a URL to begin.")
+        st.info("Please enter text, upload a PDF, or provide a URL to begin analysis.")
 
+    # Disclaimer
     st.markdown("""
-    ---
-    *This tool is for informational purposes only. Metrics may contain errors. Please verify data independently.*
-    """)
+    <hr style="margin-top: 2rem; margin-bottom: 1rem;">
+    <small><i>This tool is for informational purposes only. Metric accuracy is not guaranteed. Always verify data independently before making investment decisions.</i></small>
+    """, unsafe_allow_html=True)
 
-# === REQUIRED FOR ROUTING ===
+# === Required for Multipage Setup ===
 def run():
     main()
