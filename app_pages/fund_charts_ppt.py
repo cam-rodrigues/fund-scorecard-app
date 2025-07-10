@@ -1,111 +1,114 @@
+import os
 import fitz  # PyMuPDF
+import requests
+from io import BytesIO
 from pptx import Presentation
 from pptx.util import Inches, Pt
-from io import BytesIO
-import re
+from PIL import Image
 import streamlit as st
+import base64
 
-# === Robust Fund Name Detection ===
-def extract_fund_name(text):
-    lines = text.strip().split("\n")
-    for line in lines:
-        if re.search(r"(FUND\s+|FUND$|FUND\()", line.upper()) and len(line.strip().split()) >= 3:
-            return line.strip()
-        if line.isupper() and len(line.split()) >= 2 and len(line) <= 80:
-            return line.strip()
-    return None
+TOGETHER_API_KEY = st.secrets["together_api_key"]  # or use os.environ["TOGETHER_API_KEY"]
+TOGETHER_MODEL = "togethercomputer/llava-1.5-7b-hf"
+API_URL = "https://api.together.xyz/v1/chat/completions"
 
-# === Extract Charts Grouped by Fund ===
-def extract_fund_charts(pdf_file, start_page=36):
+HEADERS = {
+    "Authorization": f"Bearer {TOGETHER_API_KEY}",
+    "Content-Type": "application/json"
+}
+
+def extract_image_from_page(page):
+    pix = page.get_pixmap(dpi=200)
+    img_bytes = pix.tobytes("png")
+    return img_bytes
+
+def analyze_page(image_bytes):
+    img_b64 = base64.b64encode(image_bytes).decode("utf-8")
+
+    prompt = (
+        "You are analyzing a page from a fund performance report.\n"
+        "1. What is the **fund name** shown on the page?\n"
+        "2. Does this page contain any charts or tables?\n"
+        "Return your response in this JSON format:\n"
+        '{"fund_name": "...", "contains_chart_or_table": true/false}'
+    )
+
+    data = {
+        "model": TOGETHER_MODEL,
+        "messages": [
+            {"role": "system", "content": "You are a helpful financial assistant."},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}}
+                ]
+            }
+        ],
+        "temperature": 0.1,
+        "max_tokens": 200
+    }
+
+    res = requests.post(API_URL, headers=HEADERS, json=data)
+    try:
+        response_text = res.json()["choices"][0]["message"]["content"]
+        parsed = eval(response_text.strip())
+        return parsed
+    except Exception as e:
+        return {"fund_name": "Unknown Fund", "contains_chart_or_table": False}
+
+def extract_and_classify_fund_pages(pdf_file):
     doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
     fund_to_images = {}
-    current_fund = "Unnamed Fund"
+    for i in range(35, len(doc)):  # Page 36 onward
+        page = doc[i]
+        img_bytes = extract_image_from_page(page)
+        result = analyze_page(img_bytes)
 
-    for page_num in range(start_page - 1, len(doc)):
-        page = doc[page_num]
-        text = page.get_text()
-        new_fund = extract_fund_name(text)
-        if new_fund:
-            current_fund = new_fund
-
-        images = page.get_images(full=True)
-        for img_index, img in enumerate(images):
-            xref = img[0]
-            image_info = doc.extract_image(xref)
-            image_bytes = image_info["image"]
-            fund_to_images.setdefault(current_fund, []).append(image_bytes)
-
+        if result["contains_chart_or_table"]:
+            fund = result["fund_name"] or "Unknown Fund"
+            fund_to_images.setdefault(fund, []).append(img_bytes)
     return fund_to_images
 
-# === Build PowerPoint with Slide per Image ===
 def build_powerpoint(fund_to_images):
     prs = Presentation()
-    blank_layout = prs.slide_layouts[6]
+    blank = prs.slide_layouts[6]
 
     for fund, images in fund_to_images.items():
-        for i, image_bytes in enumerate(images):
-            slide = prs.slides.add_slide(blank_layout)
-            left = Inches(0.5)
-            top = Inches(0.75)
-            width = Inches(8.5)
-            slide.shapes.add_picture(BytesIO(image_bytes), left, top, width=width)
-
+        for i, image in enumerate(images):
+            slide = prs.slides.add_slide(blank)
+            slide.shapes.add_picture(BytesIO(image), Inches(0.5), Inches(0.75), width=Inches(8.5))
             txBox = slide.shapes.add_textbox(Inches(0.5), Inches(0.1), Inches(9), Inches(0.5))
-            tf = txBox.text_frame
-            p = tf.paragraphs[0]
-            run = p.add_run()
-            run.text = f"{fund} (Image {i+1}/{len(images)})"
-            run.font.size = Pt(16)
-            run.font.bold = True
-
+            p = txBox.text_frame.paragraphs[0].add_run()
+            p.text = f"{fund} (Image {i+1}/{len(images)})"
+            p.font.size = Pt(16)
+            p.font.bold = True
     return prs
 
-# === Streamlit UI ===
 def run():
     st.set_page_config(layout="wide")
-    st.title("📈 MPI Fund Chart Converter")
-    st.markdown("Upload an MPI PDF. This tool extracts all charts and associates them with the correct fund name, then compiles everything into a PowerPoint.")
-
+    st.title("🧠 AI-Powered Fund Chart Extractor")
     uploaded_pdf = st.file_uploader("Upload MPI PDF", type=["pdf"])
-    if uploaded_pdf:
-        with st.spinner("Analyzing fund pages..."):
-            fund_charts = extract_fund_charts(uploaded_pdf)
 
-            if not fund_charts:
-                st.error("No charts found.")
+    if uploaded_pdf:
+        with st.spinner("Analyzing pages with Together AI..."):
+            results = extract_and_classify_fund_pages(uploaded_pdf)
+            if not results:
+                st.error("No charts or tables found.")
                 return
 
-            pptx_buffer = BytesIO()
-            prs = build_powerpoint(fund_charts)
-            prs.save(pptx_buffer)
-            pptx_buffer.seek(0)
+            prs = build_powerpoint(results)
+            buffer = BytesIO()
+            prs.save(buffer)
+            buffer.seek(0)
 
-            total_images = sum(len(v) for v in fund_charts.values())
-            st.success(f"✅ Compiled {total_images} charts from {len(fund_charts)} funds.")
+            total = sum(len(v) for v in results.values())
+            st.success(f"✅ Extracted {total} charts from {len(results)} funds.")
+            st.download_button("📥 Download PowerPoint", buffer, "fund_charts_ai.pptx")
 
-            st.download_button(
-                label="📥 Download PowerPoint",
-                data=pptx_buffer,
-                file_name="fund_charts.pptx",
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
-
-# === For direct run ===
 if __name__ == "__main__":
     try:
         import streamlit.runtime
         run()
     except ImportError:
-        import argparse
-        parser = argparse.ArgumentParser()
-        parser.add_argument("pdf", type=str)
-        parser.add_argument("output", type=str)
-        args = parser.parse_args()
-        with open(args.pdf, "rb") as f:
-            fund_charts = extract_fund_charts(f)
-        if not fund_charts:
-            print("No charts found.")
-        else:
-            prs = build_powerpoint(fund_charts)
-            prs.save(args.output)
-            print("PowerPoint saved.")
+        print("Streamlit runtime not detected.")
