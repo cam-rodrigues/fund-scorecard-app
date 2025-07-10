@@ -62,13 +62,16 @@ def run():
                 fin_type = st.radio("Select financials to view:", ["Income Statement", "Balance Sheet", "Cash Flow"], horizontal=True)
 
                 if fin_type == "Income Statement":
-                    df = stock.financials.T
+                    df = stock.financials
                 elif fin_type == "Balance Sheet":
-                    df = stock.balance_sheet.T
+                    df = stock.balance_sheet
                 else:
-                    df = stock.cashflow.T
+                    df = stock.cashflow
 
-                st.dataframe(df.style.format("${:,.0f}"), height=300, use_container_width=True)
+                if df is not None and not df.empty:
+                    st.dataframe(df.T.style.format("${:,.0f}"), height=300, use_container_width=True)
+                else:
+                    st.warning(f"{fin_type} data not available.")
             except:
                 st.warning("Financial data not available.")
 
