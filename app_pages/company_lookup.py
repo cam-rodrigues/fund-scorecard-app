@@ -6,7 +6,7 @@ from datetime import date, timedelta
 def run():
     st.title("Ticker Info Lookup")
 
-    ticker = st.text_input("Enter a stock ticker (e.g., AAPL, TSLA, MSFT):", max_chars=10)
+    ticker_input = st.text_input("Enter a stock ticker (e.g., AAPL, TSLA, MSFT):", max_chars=10)
     with st.expander("Known Limitations"):
         st.markdown("""
     - Ticker must be valid and supported by Yahoo Finance (try it [here](https://finance.yahoo.com/)).
@@ -16,16 +16,23 @@ def run():
     - Cryptos (like `BTC-USD`) work, but fundamental metrics will be blank.
     - Financial metrics for ETFs may be limited or unavailable.
     """)
-    lookup = st.button("Search")
 
+    # Initialize session state
+    if "searched" not in st.session_state:
+        st.session_state.searched = False
+    if "last_ticker" not in st.session_state:
+        st.session_state.last_ticker = ""
 
-    if lookup:
-        if not ticker:
+    if st.button("Search"):
+        if not ticker_input:
             st.warning("Please enter a valid stock ticker.")
             return
+        st.session_state.searched = True
+        st.session_state.last_ticker = ticker_input.strip().upper()
 
+    if st.session_state.searched and st.session_state.last_ticker:
         try:
-            ticker = ticker.strip().upper()
+            ticker = st.session_state.last_ticker
             stock = yf.Ticker(ticker)
             info = stock.info
 
@@ -73,6 +80,7 @@ def run():
                     st.dataframe(hist.style.format({"Close": "${:,.2f}", "Volume": "{:,}"}), use_container_width=True)
             else:
                 st.warning("No historical data available for that range.")
+
         except Exception as e:
             st.error(f"❌ Failed to retrieve data. Try a different ticker. ({str(e)})")
 
