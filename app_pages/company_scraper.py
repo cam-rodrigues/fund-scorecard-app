@@ -58,7 +58,6 @@ def run():
     st.title("Company Financial Crawler")
 
     url = st.text_input("Investor Relations URL")
-
     show_tables = st.checkbox("Show financial tables (if available)", value=True)
 
     if url:
@@ -80,14 +79,18 @@ def run():
                 tables, text = extract_tables_and_text(sub_html)
                 summary = ai_extract_summary(text)
 
-                with st.container():
-                    st.markdown(f"### Page {i+1}")
-                    st.markdown(f"[View Original Page]({link})", unsafe_allow_html=True)
+                st.markdown(f"""
+                <div style='background-color: #f8f9fa; padding: 1.2rem 1rem; margin-bottom: 2rem; border-radius: 6px; border: 1px solid #dee2e6'>
+                    <h5 style='margin-bottom: 0.25rem;'>Page {i+1}</h5>
+                    <div style='margin-bottom: 0.5rem;'><a href="{link}" target="_blank">View Original Page</a></div>
+                    <div style='margin-top: 0.5rem; padding: 0.5rem; background-color: #ffffff; border: 1px solid #ddd; border-radius: 4px; max-height: 300px; overflow-y: auto;'>
+                        <p style='margin-bottom: 0.25rem; font-weight: 600;'>Summary:</p>
+                        <div style='font-size: 0.92rem; line-height: 1.5;'>{summary.replace("\n", "<br>")}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
-                    st.markdown("#### Summary")
-                    st.markdown(f"<div style='max-height:300px; overflow-y:auto; background:#f9f9f9; padding:10px; border:1px solid #ddd;'>{summary}</div>", unsafe_allow_html=True)
-
-                    if show_tables and tables:
-                        for idx, table in enumerate(tables[:1]):
-                            st.markdown(f"**Extracted Table {idx + 1}**")
-                            st.dataframe(table, use_container_width=True)
+                if show_tables and tables:
+                    st.markdown("**Extracted Table:**")
+                    st.dataframe(tables[0], use_container_width=True)
+                    st.markdown("---")
