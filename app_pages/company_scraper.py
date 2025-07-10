@@ -2,6 +2,8 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
+import re
+from html import unescape
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 KEYWORDS = ["investor", "financial", "earnings", "results", "reports", "10-q", "10-k", "sec", "statement", "quarter"]
@@ -34,6 +36,17 @@ def extract_tables_and_text(html):
         tables = []
     return tables, soup.get_text()
 
+def clean_text(raw_text: str) -> str:
+    text = unescape(raw_text)
+    text = re.sub(r"[–—]", " - ", text)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = re.sub(r"(?<=[a-zA-Z])(?=[A-Z])", " ", text)
+    text = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", text)
+    text = re.sub(r"([a-zA-Z])(\d)", r"\1 \2", text)
+    text = re.sub(r"(\d)([a-zA-Z])", r"\1 \2", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
 def ai_extract_summary(text):
     prompt = f"""You are a financial analyst assistant. Summarize the company's financial results, earnings, and key updates based on the following text:
 
@@ -49,7 +62,8 @@ def ai_extract_summary(text):
         }
         res = requests.post("https://api.together.xyz/v1/chat/completions", headers=headers, json=payload)
         if res.status_code == 200:
-            return res.json()["choices"][0]["message"]["content"].strip()
+            raw = res.json()["choices"][0]["message"]["content"].strip()
+            return clean_text(raw)
         else:
             return f"API failure: {res.status_code} - {res.text}"
     except Exception as e:
