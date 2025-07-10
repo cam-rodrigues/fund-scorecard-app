@@ -19,3 +19,4 @@ lxml_html_clean==0.1.1
 # OpenAI API — latest version
 openai>=1.1.1
 requests
+PyMuPDF
