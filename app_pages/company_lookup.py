@@ -77,7 +77,7 @@ def run():
                 info.get("country", "")
             ]))
             if location_str.strip():
-                st.subheader("📍 Company Headquarters")
+                st.subheader("Company Headquarters")
                 st.info(f"{location_str}")
 
             st.write("---")
