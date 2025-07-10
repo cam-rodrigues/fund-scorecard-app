@@ -5,53 +5,42 @@ from io import BytesIO
 import re
 import streamlit as st
 
-# ======================
-# FUND NAME EXTRACTOR — Advanced Logic
-# ======================
+# === Robust Fund Name Detection ===
 def extract_fund_name(text):
     lines = text.strip().split("\n")
     for line in lines:
-        line_clean = line.strip()
-        # Match if line contains the word "Fund" and is reasonably long
-        if re.search(r"\bFund\b", line_clean, re.IGNORECASE) and len(line_clean.split()) >= 3:
-            return line_clean
-        # Fallback: ALL CAPS short line, likely a title
-        if line_clean.isupper() and len(line_clean.split()) >= 2 and len(line_clean) < 80:
-            return line_clean
-    return "Unnamed Fund"
+        if re.search(r"(FUND\s+|FUND$|FUND\()", line.upper()) and len(line.strip().split()) >= 3:
+            return line.strip()
+        if line.isupper() and len(line.split()) >= 2 and len(line) <= 80:
+            return line.strip()
+    return None
 
-# ======================
-# PDF IMAGE EXTRACTOR
-# ======================
+# === Extract Charts Grouped by Fund ===
 def extract_fund_charts(pdf_file, start_page=36):
     doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
     fund_to_images = {}
+    current_fund = "Unnamed Fund"
 
     for page_num in range(start_page - 1, len(doc)):
         page = doc[page_num]
         text = page.get_text()
-        if not text.strip():
-            continue
-
-        fund_name = extract_fund_name(text)
-        if not fund_name:
-            continue
+        new_fund = extract_fund_name(text)
+        if new_fund:
+            current_fund = new_fund
 
         images = page.get_images(full=True)
         for img_index, img in enumerate(images):
             xref = img[0]
             image_info = doc.extract_image(xref)
             image_bytes = image_info["image"]
-            fund_to_images.setdefault(fund_name, []).append(image_bytes)
+            fund_to_images.setdefault(current_fund, []).append(image_bytes)
 
     return fund_to_images
 
-# ======================
-# POWERPOINT GENERATOR
-# ======================
+# === Build PowerPoint with Slide per Image ===
 def build_powerpoint(fund_to_images):
     prs = Presentation()
-    blank_layout = prs.slide_layouts[6]  # Titleless layout
+    blank_layout = prs.slide_layouts[6]
 
     for fund, images in fund_to_images.items():
         for i, image_bytes in enumerate(images):
@@ -59,11 +48,8 @@ def build_powerpoint(fund_to_images):
             left = Inches(0.5)
             top = Inches(0.75)
             width = Inches(8.5)
-
-            # Add image
             slide.shapes.add_picture(BytesIO(image_bytes), left, top, width=width)
 
-            # Add fund title
             txBox = slide.shapes.add_textbox(Inches(0.5), Inches(0.1), Inches(9), Inches(0.5))
             tf = txBox.text_frame
             p = tf.paragraphs[0]
@@ -74,37 +60,37 @@ def build_powerpoint(fund_to_images):
 
     return prs
 
-# ======================
-# STREAMLIT APP
-# ======================
+# === Streamlit UI ===
 def run():
     st.set_page_config(layout="wide")
-    st.title("📈 Fund Chart Converter")
-    st.markdown("This tool extracts all fund charts from an MPI-style PDF (starting at page 36) and compiles them into a PowerPoint presentation.")
+    st.title("📈 MPI Fund Chart Converter")
+    st.markdown("Upload an MPI PDF. This tool extracts all charts and associates them with the correct fund name, then compiles everything into a PowerPoint.")
 
     uploaded_pdf = st.file_uploader("Upload MPI PDF", type=["pdf"])
-
     if uploaded_pdf:
-        with st.spinner("Extracting fund images..."):
+        with st.spinner("Analyzing fund pages..."):
             fund_charts = extract_fund_charts(uploaded_pdf)
 
             if not fund_charts:
-                st.error("❌ No charts found after page 36.")
+                st.error("No charts found.")
                 return
 
+            pptx_buffer = BytesIO()
             prs = build_powerpoint(fund_charts)
-            output = BytesIO()
-            prs.save(output)
-            output.seek(0)
+            prs.save(pptx_buffer)
+            pptx_buffer.seek(0)
 
             total_images = sum(len(v) for v in fund_charts.values())
-            st.success(f"✅ Created presentation with {total_images} charts across {len(fund_charts)} funds.")
+            st.success(f"✅ Compiled {total_images} charts from {len(fund_charts)} funds.")
 
-            st.download_button("📥 Download PowerPoint", output, "fund_charts.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+            st.download_button(
+                label="📥 Download PowerPoint",
+                data=pptx_buffer,
+                file_name="fund_charts.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
 
-# ======================
-# RUN APP
-# ======================
+# === For direct run ===
 if __name__ == "__main__":
     try:
         import streamlit.runtime
@@ -112,17 +98,14 @@ if __name__ == "__main__":
     except ImportError:
         import argparse
         parser = argparse.ArgumentParser()
-        parser.add_argument("pdf", type=str, help="Path to MPI PDF")
-        parser.add_argument("output", type=str, help="Path to save PowerPoint")
+        parser.add_argument("pdf", type=str)
+        parser.add_argument("output", type=str)
         args = parser.parse_args()
-
         with open(args.pdf, "rb") as f:
             fund_charts = extract_fund_charts(f)
-
         if not fund_charts:
-            print("❌ No charts found.")
+            print("No charts found.")
         else:
             prs = build_powerpoint(fund_charts)
             prs.save(args.output)
-            print(f"✅ Saved presentation with {sum(len(v) for v in fund_charts.values())} charts.")
-
+            print("PowerPoint saved.")
