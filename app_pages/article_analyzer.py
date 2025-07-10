@@ -36,15 +36,15 @@ def extract_fund_metrics(text):
 def main():
     st.set_page_config(page_title="Article Analyzer", layout="wide")
 
-    st.title("📄 Article Analyzer")
+    st.title("Article Analyzer")
     st.caption("Summarize financial articles and extract potential fund metrics.")
 
     # Sidebar
     st.sidebar.header("Settings")
     enable_fund_detection = st.sidebar.checkbox("Extract Fund Metrics", value=True)
 
-    # Input Method
-    input_mode = st.radio("Input Source", ["Paste URL", "Paste Text", "Upload PDF"])
+    # Input Method Dropdown
+    input_mode = st.selectbox("Choose Article Input Method", ["Paste URL", "Paste Text", "Upload PDF"])
     article_text = ""
 
     if input_mode == "Paste URL":
