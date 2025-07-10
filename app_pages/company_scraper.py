@@ -1,8 +1,8 @@
+
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-import os
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 KEYWORDS = ["financial", "results", "earnings", "filing", "report", "quarter", "statement", "10-q", "10-k", "annual"]
@@ -36,11 +36,9 @@ def extract_tables_and_text(html):
     return tables, soup.get_text()
 
 def ai_extract_summary(text):
-    prompt = f"""
-You are a financial analyst assistant. Summarize the key financial performance info from this report:
+    prompt = f"""You are a financial analyst assistant. Summarize the key financial performance info from this report:
 
-{text}
-"""
+{text}"""
     try:
         together_api_key = st.secrets["together"]["api_key"]
         headers = {
@@ -64,6 +62,12 @@ You are a financial analyst assistant. Summarize the key financial performance i
 def run():
     st.title("📡 Company Financial Crawler + Claude Summary")
 
+    try:
+        st.write("🔐 Together key (partial):", st.secrets["together"]["api_key"][:10])
+    except Exception as e:
+        st.error(f"Secret issue: {e}")
+        return
+
     url = st.text_input("🔗 Enter investor/financial website")
 
     if url:
@@ -73,7 +77,7 @@ def run():
                 return
 
             subpage_urls = extract_financial_links(url, base_html)
-            subpage_urls = list(dict.fromkeys(subpage_urls))[:5]  # limit for testing
+            subpage_urls = list(dict.fromkeys(subpage_urls))[:5]
 
             if not subpage_urls:
                 st.warning("No financial subpages found.")
