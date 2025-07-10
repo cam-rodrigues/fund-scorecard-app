@@ -4,12 +4,12 @@ from bs4 import BeautifulSoup
 import pandas as pd
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
-KEYWORDS = ["financial", "results", "earnings", "filing", "report", "quarter", "statement", "10-q", "10-k", "annual"]
-SKIP_EXTENSIONS = [".pdf", ".xls", ".xlsx", ".doc", ".docx"]
+KEYWORDS = ["investor", "financial", "earnings", "results", "reports", "10-q", "10-k", "sec", "statement", "quarter"]
+SKIP_EXTENSIONS = [".pdf", ".xls", ".xlsx", ".doc", ".docx", ".zip"]
 
 def fetch_html(url):
     try:
-        res = requests.get(url, timeout=10, headers=HEADERS)
+        res = requests.get(url, headers=HEADERS, timeout=10)
         return res.text
     except Exception as e:
         st.error(f"Failed to fetch {url}: {e}")
@@ -19,8 +19,8 @@ def extract_financial_links(base_url, html):
     soup = BeautifulSoup(html, "lxml")
     links = set()
     for tag in soup.find_all("a", href=True):
-        href = tag["href"]
-        if any(kw in href.lower() for kw in KEYWORDS):
+        href = tag["href"].strip()
+        if any(keyword in href.lower() for keyword in KEYWORDS):
             full_url = href if href.startswith("http") else requests.compat.urljoin(base_url, href)
             if not any(full_url.lower().endswith(ext) for ext in SKIP_EXTENSIONS):
                 links.add(full_url)
@@ -30,12 +30,12 @@ def extract_tables_and_text(html):
     soup = BeautifulSoup(html, "lxml")
     try:
         tables = pd.read_html(str(soup))
-    except Exception:
+    except:
         tables = []
     return tables, soup.get_text()
 
 def ai_extract_summary(text):
-    prompt = f"""You are a financial analyst assistant. Summarize the key financial performance information from this company update:
+    prompt = f"""You are a financial analyst assistant. Summarize the company's financial results, earnings, and key updates based on the following text:
 
 {text}"""
     try:
@@ -51,64 +51,55 @@ def ai_extract_summary(text):
         if res.status_code == 200:
             return res.json()["choices"][0]["message"]["content"].strip()
         else:
-            return f"Together API failed: {res.status_code} - {res.text}"
+            return f"API failure: {res.status_code} - {res.text}"
     except Exception as e:
-        return f"Together API error: {e}"
+        return f"Error: {e}"
 
 def run():
-    st.title("Financial Intelligence Extractor")
-    st.markdown("""
-    Analyze a public company's investor relations page to automatically detect subpages containing financial content, extract key data, and generate clean summaries using AI.
-    """)
+    st.title("Financial Data Extractor")
+    st.markdown("Paste a public company website or investor relations page to automatically extract financial summaries and data tables.")
 
-    with st.container():
-        url = st.text_input("Enter a URL", placeholder="https://www.example.com/investor-relations")
+    url = st.text_input("Enter Company URL", placeholder="https://www.microsoft.com")
 
     if url:
-        with st.spinner("Scanning and processing..."):
+        with st.spinner("Scanning website..."):
             base_html = fetch_html(url)
             if not base_html:
                 return
 
-            subpage_urls = extract_financial_links(url, base_html)
-            subpage_urls = list(dict.fromkeys(subpage_urls))[:5]
+            subpages = extract_financial_links(url, base_html)
+            subpages = list(dict.fromkeys(subpages))[:5]
 
-            if not subpage_urls:
-                st.warning("No relevant financial subpages were found.")
+            if not subpages:
+                st.warning("No relevant financial subpages found.")
                 return
 
-            st.success(f"Discovered {len(subpage_urls)} financial pages.")
+            st.success(f"Found {len(subpages)} financial subpages.")
             results = []
 
-            for sub_url in subpage_urls:
+            for sub_url in subpages:
                 sub_html = fetch_html(sub_url)
                 if not sub_html:
                     continue
                 try:
                     tables, text = extract_tables_and_text(sub_html)
-                    with st.spinner(f"Summarizing: {sub_url}"):
-                        ai_summary = ai_extract_summary(text)
-                    results.append((sub_url, ai_summary, tables))
+                    with st.spinner(f"Analyzing: {sub_url}"):
+                        summary = ai_extract_summary(text)
+                    results.append((sub_url, summary, tables))
                 except Exception as e:
-                    st.error(f"Error processing {sub_url}: {e}")
+                    st.error(f"Error reading {sub_url}: {e}")
 
         if results:
-            st.markdown("---")
             for i, (link, summary, tables) in enumerate(results):
                 with st.expander(f"Page {i+1}: {link}", expanded=False):
                     st.markdown(f"[View original page]({link})", unsafe_allow_html=True)
+                    st.markdown("#### Summary")
+                    st.markdown(summary)
 
-                    tab1, tab2 = st.tabs(["Summary", "Tables"])
-                    with tab1:
-                        st.markdown("#### Financial Summary")
-                        st.markdown(summary)
-
-                    with tab2:
-                        if tables:
-                            for idx, table in enumerate(tables[:2]):
-                                st.markdown(f"**Table {idx+1}**")
-                                st.dataframe(table)
-                        else:
-                            st.info("No tables found on this page.")
-        else:
-            st.warning("No extractable financial data found.")
+                    if tables:
+                        st.markdown("#### Key Tables")
+                        for idx, table in enumerate(tables[:2]):
+                            st.markdown(f"**Table {idx+1}**")
+                            st.dataframe(table)
+                    else:
+                        st.info("No tables found on this page.")
