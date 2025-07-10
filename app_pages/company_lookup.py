@@ -29,3 +29,7 @@ def run():
             st.markdown(f"**Description:**\n\n{info.get('longBusinessSummary', 'No summary available.')}")
         except Exception as e:
             st.error("Failed to retrieve data. Try a different ticker.")
+
+
+  st.markdown("---")
+    st.caption("This content was generated using automation and may not be perfectly accurate. Please verify against official sources.")
