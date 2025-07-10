@@ -4,26 +4,24 @@ from bs4 import BeautifulSoup
 from fpdf import FPDF
 import os
 
-# === FidSync Company Lookup ===
 def run():
     st.title("🔍 Company Ticker Info Finder")
 
     ticker = st.text_input("Enter a stock ticker symbol (e.g. AAPL, TSLA, MSFT):").upper().strip()
 
-    known_names = {
-        "AAPL": "Apple Inc.",
-        "MSFT": "Microsoft Corporation",
-        "TSLA": "Tesla Inc.",
-        "GOOGL": "Alphabet Inc.",
-        "AMZN": "Amazon.com Inc.",
-        "NVDA": "NVIDIA Corporation",
-        "JPM": "JPMorgan Chase & Co.",
-        "META": "Meta Platforms Inc.",
-        "BRK.B": "Berkshire Hathaway Inc.",
-    }
-
     def get_company_name(ticker):
-        return known_names.get(ticker, f"{ticker} (name not found)")
+        try:
+            url = f"https://finance.yahoo.com/quote/{ticker}"
+            headers = {"User-Agent": "Mozilla/5.0"}
+            res = requests.get(url, headers=headers, timeout=5)
+            soup = BeautifulSoup(res.text, "html.parser")
+            title_tag = soup.find("h1")
+            if title_tag:
+                name = title_tag.text.replace(f"({ticker})", "").strip()
+                return name if name else f"{ticker} (Name not found)"
+        except:
+            pass
+        return f"{ticker} (Name unavailable)"
 
     def get_links(ticker):
         links = {
@@ -32,8 +30,6 @@ def run():
             "Seeking Alpha": f"https://seekingalpha.com/symbol/{ticker}",
             "SEC Filings": f"https://www.sec.gov/edgar/browse/?CIK={ticker}&owner=exclude"
         }
-
-        # Attempt to find investor relations page via Google search
         try:
             headers = {"User-Agent": "Mozilla/5.0"}
             query = f"{ticker} investor relations"
@@ -45,7 +41,6 @@ def run():
                 links["Investor Relations"] = ir_links[0].split("/url?q=")[1].split("&")[0]
         except:
             pass
-
         return links
 
     @st.cache_data(show_spinner=False)
@@ -60,16 +55,18 @@ def run():
             return None
 
     def generate_ai_summary(ticker, name):
-        prompt = f"Write a professional 3–4 sentence overview of the company {name} (ticker: {ticker}). Include industry, market reputation, and typical investment considerations."
         try:
-            from openai import ChatCompletion  # Already included in your app
-            return ChatCompletion.create(
+            import openai
+            prompt = f"Give a 3-4 sentence overview of the company {name} (ticker: {ticker}). Include industry, strengths, and typical investor considerations."
+            response = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=200
-            ).choices[0].message.content.strip()
+                max_tokens=250,
+                temperature=0.5
+            )
+            return response.choices[0].message.content.strip()
         except:
-            return "Company overview not available due to AI service issue."
+            return "AI summary unavailable at the moment."
 
     def generate_pdf(company_name, summary, links, previews):
         pdf = FPDF()
@@ -78,14 +75,14 @@ def run():
         pdf.cell(200, 10, txt=f"{company_name} — Company Info Summary", ln=True, align="C")
         pdf.ln(4)
 
-        # Summary
+        # Summary section
         pdf.set_font("Arial", size=11, style="B")
         pdf.cell(0, 10, "AI-Generated Company Summary:", ln=True)
         pdf.set_font("Arial", size=10)
         pdf.multi_cell(0, 8, summary)
         pdf.ln(2)
 
-        # Links
+        # Links section
         pdf.set_font("Arial", size=11, style="B")
         pdf.cell(0, 10, "Key Resources:", ln=True)
         for name, url in links.items():
@@ -108,10 +105,12 @@ def run():
         return path
 
     if ticker:
-        company_name = get_company_name(ticker)
+        with st.spinner("Getting company name..."):
+            company_name = get_company_name(ticker)
+
         st.markdown(f"### 🔗 Results for **{company_name}**")
 
-        with st.spinner("Fetching links and previews..."):
+        with st.spinner("Fetching key links and previews..."):
             links = get_links(ticker)
             previews = {name: fetch_preview(url) for name, url in links.items()}
 
@@ -130,6 +129,6 @@ def run():
             st.markdown("---")
 
         if st.button("📄 Export to PDF"):
-            path = generate_pdf(company_name, summary, links, previews)
-            with open(path, "rb") as f:
+            pdf_path = generate_pdf(company_name, summary, links, previews)
+            with open(pdf_path, "rb") as f:
                 st.download_button("Download Company Summary PDF", f, file_name=f"{ticker}_summary.pdf", mime="application/pdf")
