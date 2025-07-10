@@ -1,29 +1,26 @@
 import streamlit as st
 
-st.markdown("### Current Capabilities")
+def run():
+    st.markdown("""
+    ### Current Capabilities
 
-st.markdown("""
-- **Secure, Ephemeral Processing**  
-  All data is handled in memory—no files are stored, and uploads are discarded immediately after use.
+    - **Fund Status Analyzer**  
+      Automatically matches fund names to plan options and determines compliance using watchlist scoring rules.
 
-- **Invisible Data Cleanup**  
-  Automatically strips formulas, formatting residue, and metadata from inputs to ensure consistent downstream results.
+    - **Scorecard Visual Markup**  
+      Applies conditional formatting (green for Pass, red for Review) directly in Excel exports, supporting audit-ready documentation.
 
-- **Context-Aware Parsing**  
-  Extracts fund names, metrics, and insights from unstructured PDFs using natural language cues and layout context.
+    - **Fuzzy Matching Engine**  
+      Handles name variations and minor formatting differences for accurate linking between scorecard PDFs and investment rosters.
 
-- **Advanced Matching Algorithms**  
-  Fuzzy string logic intelligently links records across formats, even with name inconsistencies or formatting errors.
+    - **Manual Overrides**  
+      Allow advisors to adjust fund status or mapping where human context is needed.
 
-- **Customizable Logic Layers**  
-  Supports firm-specific rules for compliance scoring, peer group thresholds, and override workflows.
+    - **Article Analyzer**  
+      Summarizes financial news with support for ticker detection, sentiment tagging, table parsing, and PDF exports.
 
-- **Manual Overrides**  
-  Allow advisors to adjust fund status or mapping where human context is needed.
-
-- **Audit-Ready Output Generation**  
-  Creates clean, formatted Excel outputs with embedded status logic, color coding, and no trace of input artifacts.
-""")
+    - **Document Integration Tools**  
+      Extracts key metrics from PDF documents using AI-assisted analysis (Sharpe Ratio, Peer Ranking, etc.).
 
     ---
 
