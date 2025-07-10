@@ -1,116 +1,126 @@
 import streamlit as st
 import fitz  # PyMuPDF
 import base64
+import openai
 import requests
-from io import BytesIO
-from collections import defaultdict
+import json
+import re
 
-# === Setup Together API ===
-TOGETHER_API_KEY = st.secrets["together"]["api_key"]
+# ========== CONFIG ==========
 TOGETHER_MODEL = "togethercomputer/llava-1.5-7b-hf"
-API_URL = "https://api.together.xyz/v1/chat/completions"
-
-HEADERS = {
-    "Authorization": f"Bearer {TOGETHER_API_KEY}",
-    "Content-Type": "application/json"
-}
-
+TOGETHER_API_KEY = st.secrets["together"]["api_key"]
+OPENAI_API_KEY = st.secrets["openai"]["api_key"]
+openai.api_key = OPENAI_API_KEY
+OPENAI_MODEL = "gpt-4o"
 FINANCIAL_TERMS = [
-    "performance", "returns", "expense ratio", "risk", "benchmark", "alpha",
-    "beta", "standard deviation", "sharpe ratio", "style box",
-    "drawdown", "volatility", "asset allocation", "top holdings"
+    "alpha", "beta", "sharpe ratio", "sortino ratio", "r-squared", "standard deviation",
+    "information ratio", "expense ratio", "turnover", "fund exposure", "top 10 holdings",
+    "downside risk", "trailing returns", "calendar year returns", "fund facts", "benchmark"
 ]
 
-def analyze_page_with_ai(image_bytes):
-    img_b64 = base64.b64encode(image_bytes).decode("utf-8")
-    prompt = (
-        "You're looking at a page from an investment report.\n"
-        "Return a list of financial terms (e.g., performance, expense ratio, risk) that appear or are discussed on this page.\n"
-        "Also, if this page is the beginning of a fund section (like XYZ GROWTH FUND), extract that fund name.\n"
-        "Respond in this format:\n"
-        '{"terms": [...], "fund_name": "..."}'
-    )
+# ========== AI ANALYSIS FUNCTIONS ==========
 
-    payload = {
-        "model": TOGETHER_MODEL,
-        "messages": [
-            {"role": "system", "content": "You are a helpful financial analyst."},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}}
-                ]
-            }
-        ],
-        "temperature": 0.1,
-        "max_tokens": 200
-    }
-
+def analyze_with_together(image_bytes):
     try:
-        res = requests.post(API_URL, headers=HEADERS, json=payload)
-        raw = res.json()["choices"][0]["message"]["content"]
-        return eval(raw.strip())
+        headers = {
+            "Authorization": f"Bearer {TOGETHER_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        b64 = base64.b64encode(image_bytes).decode("utf-8")
+        payload = {
+            "model": TOGETHER_MODEL,
+            "prompt": (
+                "Extract key financial terms (like alpha, sharpe ratio, expense ratio) "
+                "and fund name if available from this page. Return JSON like: "
+                '{"terms": [...], "fund_name": "..."}'
+            ),
+            "image": b64,
+        }
+        res = requests.post("https://api.together.xyz/inference", headers=headers, data=json.dumps(payload))
+        j = res.json()
+        content = j.get("output") or j.get("choices", [{}])[0].get("text", "")
+        return eval(content) if "{" in content else {"terms": [], "fund_name": None}
     except Exception as e:
-        st.error(f"AI error: {e}")
+        st.warning(f"[Together AI error] {e}")
         return {"terms": [], "fund_name": None}
 
-def extract_keywords_and_funds(pdf):
-    doc = fitz.open(stream=pdf.read(), filetype="pdf")
-    term_pages = defaultdict(list)
-    fund_pages = {}
+def analyze_with_openai(image_bytes):
+    try:
+        result = openai.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": "You're a financial analyst reviewing a fund scorecard."},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": (
+                            "This is a page from an MPI report. Extract the fund name (if any), "
+                            "and list any key financial metrics like alpha, expense ratio, sharpe ratio, benchmark. "
+                            "Return only a JSON object like: {\"terms\": [...], \"fund_name\": \"...\"}"
+                        )},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64.b64encode(image_bytes).decode()}"}}
+                    ]
+                }
+            ],
+            temperature=0.2,
+            max_tokens=300
+        )
+        content = result.choices[0].message.content
+        return eval(content.strip()) if content.startswith("{") else {"terms": [], "fund_name": None}
+    except Exception as e:
+        st.warning(f"[OpenAI fallback failed] {e}")
+        return {"terms": [], "fund_name": None}
 
-    for i, page in enumerate(doc):
-        page_num = i + 1
-        text = page.get_text().lower()
-
-        # Quick scan for financial terms
-        for term in FINANCIAL_TERMS:
-            if term in text:
-                term_pages[term].append(page_num)
-
-        # Quick scan for fund header
-        for line in text.splitlines():
-            if line.strip().isupper() and "fund" in line.lower() and 5 < len(line) < 80:
-                fund_pages[line.strip()] = page_num
-                break  # only grab first match per page
-
-        # If weak or no data, fallback to vision
-        if page_num >= 30 and (page_num not in sum(term_pages.values(), []) or page_num not in fund_pages.values()):
-            img = page.get_pixmap(dpi=150).tobytes("png")
-            ai_result = analyze_page_with_ai(img)
-            for term in ai_result["terms"]:
-                term_pages[term.lower()].append(page_num)
-            if ai_result.get("fund_name"):
-                fund_pages[ai_result["fund_name"].strip()] = page_num
-
-    return term_pages, fund_pages, doc
-
+# ========== MAIN TOOL ==========
 def run():
-    st.set_page_config(layout="wide")
     st.title("🔍 PDF Financial Term & Fund Navigator")
-    st.markdown("Upload an MPI-style PDF. This tool will extract financial terms and fund sections, then let you navigate to them.")
+    st.markdown("Upload an MPI-style PDF. This tool extracts financial terms and fund sections, then lets you navigate to them.")
 
-    uploaded_pdf = st.file_uploader("Upload PDF", type=["pdf"])
-    if uploaded_pdf:
-        with st.spinner("Analyzing PDF with Together AI..."):
-            term_pages, fund_pages, doc = extract_keywords_and_funds(uploaded_pdf)
+    pdf_file = st.file_uploader("Upload PDF", type=["pdf"])
+    if not pdf_file:
+        return
 
-        all_options = list(term_pages.keys()) + list(fund_pages.keys())
-        selected = st.selectbox("Select a financial term or fund section:", sorted(set(all_options)))
+    doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
+    hits = {}  # { "alpha": [12, 13], "Vanguard Windsor II": [46] }
 
-        if selected:
-            pages = term_pages.get(selected, [])
-            if not pages and selected in fund_pages:
-                pages = [fund_pages[selected]]
+    with st.spinner("Scanning PDF..."):
+        for i, page in enumerate(doc):
+            text = page.get_text()
+            image = page.get_pixmap(dpi=150).tobytes("png")
+            found = []
 
-            st.info(f"Showing {len(pages)} page(s) for: **{selected}**")
+            # Fast: detect keywords in text
+            for term in FINANCIAL_TERMS:
+                if re.search(rf"\b{re.escape(term)}\b", text, re.IGNORECASE):
+                    hits.setdefault(term.lower(), []).append(i)
 
-            for p in pages:
-                st.subheader(f"Page {p}")
-                text = doc[p-1].get_text()
-                st.text_area(f"Text from Page {p}", text, height=200)
+            # Detect fund header (basic)
+            match = re.search(r"([A-Z][a-z]+ ){1,5}(Fund|Index|Institutional|Admiral|Retirement)", text)
+            if match:
+                fund_name = match.group().strip()
+                hits.setdefault(fund_name, []).append(i)
+            else:
+                # Use AI if no match
+                result = analyze_with_together(image)
+                if not result["terms"] and not result["fund_name"]:
+                    result = analyze_with_openai(image)
+                for term in result["terms"]:
+                    hits.setdefault(term.lower(), []).append(i)
+                if result["fund_name"]:
+                    hits.setdefault(result["fund_name"], []).append(i)
 
-                img = doc[p-1].get_pixmap(dpi=150).tobytes("png")
-                st.image(img, caption=f"Preview of Page {p}", use_column_width=True)
+    if not hits:
+        st.error("No financial terms or fund sections found.")
+        return
+
+    options = sorted(hits.keys())
+    selected = st.selectbox("Select a financial term or fund section:", options)
+    page_nums = sorted(set(hits[selected]))
+
+    st.markdown(f"### Showing {len(page_nums)} page(s) for: `{selected}`")
+
+    for page_num in page_nums:
+        st.markdown(f"#### Page {page_num + 1}")
+        st.image(doc[page_num].get_pixmap(dpi=150).tobytes("png"), use_container_width=True)
+        st.code(doc[page_num].get_text())
 
