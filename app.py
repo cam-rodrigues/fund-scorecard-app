@@ -57,7 +57,7 @@ nav_button("Capabilities & Potential", "Capabilities_and_Potential.py")
 
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
 nav_button("Fund Scorecard", "fund_scorecard.py")
-nav_button("Article Analyzer", "article_analyzer.py")  # <-- New Tool Added
+nav_button("Article Analyzer", "article_analyzer.py")
 nav_button("Data Scanner", "data_scanner.py")
 nav_button("User Requests", "user_requests.py")
 
@@ -65,6 +65,15 @@ nav_button("User Requests", "user_requests.py")
 query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
+
+# Optional legacy redirects
+legacy_redirects = {
+    "company_scraper.py": "data_scanner.py"
+}
+if selected_page in legacy_redirects:
+    selected_page = legacy_redirects[selected_page]
+    st.query_params.update({"page": selected_page})
+    st.experimental_rerun()
 
 if selected_page:
     page_path = os.path.join(PAGES_DIR, selected_page)
@@ -78,7 +87,9 @@ if selected_page:
         except Exception as e:
             st.error(f"❌ Failed to load page: {e}")
     else:
-        st.error(f"❌ Page not found: {selected_page}")
+        st.warning(f"Page '{selected_page}' was not found. Redirecting to homepage.")
+        st.query_params.clear()
+        st.experimental_rerun()
 else:
     # Default landing page
     st.markdown("# Welcome to FidSync")
