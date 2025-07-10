@@ -35,9 +35,7 @@ def extract_tables_and_text(html):
     return tables, soup.get_text()
 
 def ai_extract_summary(text):
-    prompt = f"Summarize the main financial results and business highlights:
-
-{text}"
+    prompt = f"Summarize the main financial results and business highlights:\n\n{text}"
     try:
         key = st.secrets["together"]["api_key"]
         headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
@@ -100,18 +98,21 @@ def run():
                 summary = ai_extract_summary(text)
                 summaries.append((link, summary))
 
-                st.markdown(f"""
-                <div style='background-color: #f8f9fa; padding: 1.2rem 1rem; margin-bottom: 2rem; border-radius: 6px; border: 1px solid #dee2e6'>
-                    <h5 style='margin-bottom: 0.5rem;'>Page {i+1}</h5>
-                    <div style='margin-bottom: 0.6rem;'>
-                        <a href="{link}" target="_blank" style='font-weight: 500; text-decoration: none; color: #1a4c8c;'>View Original Page →</a>
-                    </div>
-                    <div style='padding: 0.6rem; background-color: #ffffff; border: 1px solid #ddd; border-radius: 4px; max-height: 300px; overflow-y: auto;'>
-                        <p style='margin-bottom: 0.25rem; font-weight: 600;'>Summary:</p>
-                        <div style='font-size: 0.92rem; line-height: 1.5;'>{summary.replace("\\n", "<br>")}</div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                html_block = (
+                    "<div style='background-color: #f8f9fa; padding: 1.2rem 1rem; margin-bottom: 2rem; "
+                    "border-radius: 6px; border: 1px solid #dee2e6'>"
+                    f"<h5 style='margin-bottom: 0.5rem;'>Page {i+1}</h5>"
+                    f"<div style='margin-bottom: 0.6rem;'>"
+                    f"<a href='{link}' target='_blank' style='font-weight: 500; text-decoration: none; color: #1a4c8c;'>"
+                    "View Original Page →</a></div>"
+                    "<div style='padding: 0.6rem; background-color: #ffffff; border: 1px solid #ddd; "
+                    "border-radius: 4px; max-height: 300px; overflow-y: auto;'>"
+                    "<p style='margin-bottom: 0.25rem; font-weight: 600;'>Summary:</p>"
+                    f"<div style='font-size: 0.92rem; line-height: 1.5;'>{summary.replace(chr(10), '<br>')}</div>"
+                    "</div></div>"
+                )
+
+                st.markdown(html_block, unsafe_allow_html=True)
 
                 if show_tables and tables:
                     st.markdown("**Extracted Table:**")
