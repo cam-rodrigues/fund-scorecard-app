@@ -1,8 +1,6 @@
 import streamlit as st
 
 def run():
-    st.title("Capabilities & Potential")
-
     st.markdown("""
     ### Current Capabilities
 
