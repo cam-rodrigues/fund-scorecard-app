@@ -80,6 +80,7 @@ def run():
             hist = stock.history(start=start_date, end=end_date)
 
             if not hist.empty:
+                hist.index = pd.to_datetime(hist.index)
                 hist["MA20"] = hist["Close"].rolling(window=20).mean()
                 hist["MA50"] = hist["Close"].rolling(window=50).mean()
 
@@ -93,9 +94,19 @@ def run():
                 st.caption(f"Data last updated: {last_date}")
 
                 with st.expander("View Raw Price History Table"):
-                    st.dataframe(hist.style.format({"Close": "${:,.2f}", "Volume": "{:,}"}), use_container_width=True)
-                    csv = hist.reset_index().to_csv(index=False).encode("utf-8")
-                    st.download_button("Download as CSV", data=csv, file_name=f"{ticker}_price_history.csv", mime="text/csv")
+                    freq = st.selectbox("View Frequency", ["Daily", "Monthly", "Quarterly"], index=0)
+
+                    if freq == "Monthly":
+                        df = hist.resample("M").last()
+                    elif freq == "Quarterly":
+                        df = hist.resample("Q").last()
+                    else:
+                        df = hist.copy()
+
+                    st.dataframe(df.style.format({"Close": "${:,.2f}", "Volume": "{:,}"}), use_container_width=True)
+
+                    csv = df.reset_index().to_csv(index=False).encode("utf-8")
+                    st.download_button("Download as CSV", data=csv, file_name=f"{ticker}_{freq.lower()}_history.csv", mime="text/csv")
             else:
                 st.warning("No historical data available for that range.")
 
