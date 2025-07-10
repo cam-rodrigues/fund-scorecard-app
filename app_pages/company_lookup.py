@@ -27,3 +27,6 @@ if ticker:
         st.markdown(f"**Description:**\n\n{info.get('longBusinessSummary', 'No summary available.')}")
     except Exception as e:
         st.error("Failed to retrieve data. Try a different ticker.")
+
+if __name__ == "__main__":
+    run()
