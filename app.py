@@ -52,7 +52,6 @@ def nav_button(label, filename):
 # === Sidebar navigation ===
 st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
 nav_button("Getting Started", "Getting_Started.py")
-nav_button("Security Policy", "Security_Policy.py")
 nav_button("Capabilities & Potential", "Capabilities_and_Potential.py")
 
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
