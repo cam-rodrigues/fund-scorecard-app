@@ -9,7 +9,11 @@ def run():
     ticker = st.text_input("Enter a stock ticker (e.g., AAPL, TSLA, MSFT):", max_chars=10)
     lookup = st.button("Search")
 
-    if lookup and ticker:
+    if lookup:
+        if not ticker:
+            st.warning("Please enter a valid stock ticker.")
+            return
+
         try:
             ticker = ticker.strip().upper()
             stock = yf.Ticker(ticker)
@@ -43,7 +47,6 @@ def run():
             hist = stock.history(start=start_date, end=end_date)
 
             if not hist.empty:
-                # Optional moving averages
                 hist["MA20"] = hist["Close"].rolling(window=20).mean()
                 hist["MA50"] = hist["Close"].rolling(window=50).mean()
 
@@ -52,10 +55,16 @@ def run():
 
                 st.subheader("Volume Chart")
                 st.bar_chart(hist["Volume"])
+
+                last_date = hist.index[-1].strftime("%B %d, %Y")
+                st.caption(f"Data last updated: {last_date}")
+
+                with st.expander("View Raw Price History Table"):
+                    st.dataframe(hist.style.format({"Close": "${:,.2f}", "Volume": "{:,}"}), use_container_width=True)
             else:
                 st.warning("No historical data available for that range.")
-        except Exception:
-            st.error("Failed to retrieve data. Try a different ticker.")
+        except Exception as e:
+            st.error(f"❌ Failed to retrieve data. Try a different ticker. ({str(e)})")
 
     st.markdown("---")
     st.caption("This content was generated using automation and may not be perfectly accurate. Please verify against official sources.")
