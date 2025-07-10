@@ -4,8 +4,8 @@ import pandas as pd
 import re
 
 def run():
-    st.set_page_config(page_title="MPI Criteria Checker", layout="wide")
-    st.title("📊 MPI Fund Criteria Checker")
+    st.set_page_config(page_title="Fund Scorecard Metrics", layout="wide")
+    st.title("Fund Scorecard Metrics")
 
     st.markdown("""
     Upload an MPI-style PDF fund scorecard below. The app will extract each fund, determine if it meets the watchlist criteria, and display a detailed breakdown of metric statuses.
