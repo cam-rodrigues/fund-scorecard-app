@@ -20,3 +20,4 @@ lxml_html_clean==0.1.1
 openai>=1.1.1
 requests
 PyMuPDF
+yfinance
