@@ -94,11 +94,5 @@ else:
     # Default landing page
     st.markdown("# Welcome to FidSync")
     st.markdown("""
-    FidSync helps financial teams securely extract and update fund statuses from scorecard PDFs into Excel templates.
-
-    **Use the sidebar to:**
-    -  View the **Getting Started** guide  
-    -  Run the **Fund Scorecard**  
-    -  Try the new **Article Analyzer**  
-    -  Submit or review **User Requests**
+    FidSync is a data processing toolkit designed to streamline and modernize workflows by turning raw data into clear, actionable results.
     """)
