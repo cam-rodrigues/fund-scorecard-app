@@ -56,7 +56,7 @@ def ai_extract_summary(text):
         return f"Together API error: {e}"
 
 def run():
-    st.title("🧾 Financial Intelligence Extractor")
+    st.title("Financial Intelligence Extractor")
     st.markdown("""
     Analyze a public company's investor relations page to automatically detect subpages containing financial content, extract key data, and generate clean summaries using AI.
     """)
