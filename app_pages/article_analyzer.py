@@ -75,11 +75,8 @@ def main():
 
 
     # Disclaimer
-    st.markdown("""
-    <hr style="margin-top: 2rem; margin-bottom: 1rem;">
-    <small><i>This tool is for informational purposes only. Summaries are generated from raw text and may omit key context. Always review original sources before drawing conclusions.</i></small>
-    """, unsafe_allow_html=True)
-
+    st.markdown("---")
+    st.caption("This content was generated using automation and may not be perfectly accurate. Please verify against official sources.")
 # === Required for Multipage Setup ===
 def run():
     main()
