@@ -1,4 +1,3 @@
-
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
@@ -46,7 +45,7 @@ def ai_extract_summary(text):
             "Content-Type": "application/json"
         }
         payload = {
-            "model": "claude-3-sonnet-20240229",
+            "model": "meta-llama/Llama-3-70b-chat-hf",
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.3,
             "max_tokens": 1000
@@ -60,12 +59,12 @@ def ai_extract_summary(text):
         return f"⚠️ Together error: {e}"
 
 def run():
-    st.title("📡 Company Financial Crawler + Claude Summary")
+    st.title("📡 Company Financial Crawler + LLaMA Summary")
 
     try:
         st.write("🔐 Together key (partial):", st.secrets["together"]["api_key"][:10])
     except Exception as e:
-        st.error(f"Secret issue: {e}")
+        st.error(f"Secret error: {e}")
         return
 
     url = st.text_input("🔗 Enter investor/financial website")
@@ -93,7 +92,7 @@ def run():
                     continue
                 try:
                     tables, text = extract_tables_and_text(sub_html)
-                    with st.spinner("✨ Claude generating summary..."):
+                    with st.spinner("✨ LLaMA generating summary..."):
                         ai_summary = ai_extract_summary(text)
                     results.append((sub_url, ai_summary, text[:3000]))
                 except Exception as e:
@@ -102,7 +101,7 @@ def run():
         if results:
             for i, (link, summary, raw) in enumerate(results):
                 with st.expander(f"📄 Page {i+1}: {link}"):
-                    st.markdown("### ✨ Claude Summary")
+                    st.markdown("### ✨ LLaMA Summary")
                     st.markdown(summary)
                     st.markdown("### 📄 Raw Text Snapshot")
                     st.code(raw)
