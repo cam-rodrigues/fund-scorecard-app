@@ -56,10 +56,13 @@ def ai_extract_summary(text):
 
 def run():
     st.title("Company Financial Crawler")
+
     url = st.text_input("Investor Relations URL")
 
+    show_tables = st.checkbox("Show financial tables (if available)", value=True)
+
     if url:
-        with st.spinner("Scanning..."):
+        with st.spinner("Scanning website..."):
             html = fetch_html(url)
             if not html:
                 st.error("Failed to load the page.")
@@ -77,10 +80,14 @@ def run():
                 tables, text = extract_tables_and_text(sub_html)
                 summary = ai_extract_summary(text)
 
-                st.markdown(f"### Page {i+1}")
-                st.markdown(f"[View Source]({link})", unsafe_allow_html=True)
-                st.markdown(summary)
+                with st.container():
+                    st.markdown(f"### Page {i+1}")
+                    st.markdown(f"[View Original Page]({link})", unsafe_allow_html=True)
 
-                if tables:
-                    for idx, table in enumerate(tables[:1]):
-                        st.dataframe(table, use_container_width=True)
+                    st.markdown("#### Summary")
+                    st.markdown(f"<div style='max-height:300px; overflow-y:auto; background:#f9f9f9; padding:10px; border:1px solid #ddd;'>{summary}</div>", unsafe_allow_html=True)
+
+                    if show_tables and tables:
+                        for idx, table in enumerate(tables[:1]):
+                            st.markdown(f"**Extracted Table {idx + 1}**")
+                            st.dataframe(table, use_container_width=True)
