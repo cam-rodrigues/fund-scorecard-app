@@ -1,4 +1,3 @@
-
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
@@ -13,7 +12,7 @@ def fetch_html(url):
         res = requests.get(url, timeout=10, headers=HEADERS)
         return res.text
     except Exception as e:
-        st.error(f"❌ Failed to fetch {url}: {e}")
+        st.error(f"Failed to fetch {url}: {e}")
         return ""
 
 def extract_financial_links(base_url, html):
@@ -40,11 +39,8 @@ def ai_extract_summary(text):
 
 {text}"""
     try:
-        together_api_key = st.secrets["together"]["api_key"]
-        headers = {
-            "Authorization": f"Bearer {together_api_key}",
-            "Content-Type": "application/json"
-        }
+        api_key = st.secrets["together"]["api_key"]
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         payload = {
             "model": "meta-llama/Llama-3-70b-chat-hf",
             "messages": [{"role": "user", "content": prompt}],
@@ -55,18 +51,21 @@ def ai_extract_summary(text):
         if res.status_code == 200:
             return res.json()["choices"][0]["message"]["content"].strip()
         else:
-            return f"⚠️ Together API failed: {res.status_code} - {res.text}"
+            return f"Together API failed: {res.status_code} - {res.text}"
     except Exception as e:
-        return f"⚠️ Together error: {e}"
+        return f"Together API error: {e}"
 
 def run():
-    st.title("📡 Company Financial Crawler")
-    st.caption("Enter a public company investor or financial page. FidSync will auto-detect subpages and generate clean summaries.")
+    st.title("🧾 Financial Intelligence Extractor")
+    st.markdown("""
+    Analyze a public company's investor relations page to automatically detect subpages containing financial content, extract key data, and generate clean summaries using AI.
+    """)
 
-    url = st.text_input("🔗 Enter URL", placeholder="https://www.example.com/invest/financials")
+    with st.container():
+        url = st.text_input("Enter a URL", placeholder="https://www.example.com/investor-relations")
 
     if url:
-        with st.spinner("🔍 Crawling and parsing..."):
+        with st.spinner("Scanning and processing..."):
             base_html = fetch_html(url)
             if not base_html:
                 return
@@ -75,43 +74,41 @@ def run():
             subpage_urls = list(dict.fromkeys(subpage_urls))[:5]
 
             if not subpage_urls:
-                st.warning("No financial subpages found.")
+                st.warning("No relevant financial subpages were found.")
                 return
 
-            st.info(f"🔗 Found {len(subpage_urls)} relevant subpages.")
-
+            st.success(f"Discovered {len(subpage_urls)} financial pages.")
             results = []
+
             for sub_url in subpage_urls:
                 sub_html = fetch_html(sub_url)
                 if not sub_html:
                     continue
                 try:
                     tables, text = extract_tables_and_text(sub_html)
-                    with st.spinner(f"✨ Summarizing: {sub_url}"):
+                    with st.spinner(f"Summarizing: {sub_url}"):
                         ai_summary = ai_extract_summary(text)
                     results.append((sub_url, ai_summary, tables))
                 except Exception as e:
-                    st.error(f"❌ Error parsing {sub_url}: {e}")
+                    st.error(f"Error processing {sub_url}: {e}")
 
         if results:
-            st.divider()
+            st.markdown("---")
             for i, (link, summary, tables) in enumerate(results):
-                with st.container():
-                    st.subheader(f"📄 Page {i+1}")
-                    st.markdown(f"🔗 [{link}]({link})", unsafe_allow_html=True)
+                with st.expander(f"Page {i+1}: {link}", expanded=False):
+                    st.markdown(f"[View original page]({link})", unsafe_allow_html=True)
 
-                    tab1, tab2 = st.tabs(["🔎 Summary", "📊 Tables"])
-
+                    tab1, tab2 = st.tabs(["Summary", "Tables"])
                     with tab1:
-                        st.markdown("### ✨ Financial Summary")
+                        st.markdown("#### Financial Summary")
                         st.markdown(summary)
 
                     with tab2:
                         if tables:
                             for idx, table in enumerate(tables[:2]):
-                                st.markdown(f"**Table {idx + 1}**")
+                                st.markdown(f"**Table {idx+1}**")
                                 st.dataframe(table)
                         else:
                             st.info("No tables found on this page.")
         else:
-            st.warning("No usable financial data found.")
+            st.warning("No extractable financial data found.")
