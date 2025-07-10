@@ -11,8 +11,7 @@ def fetch_html(url):
     try:
         res = requests.get(url, timeout=10, headers=HEADERS)
         return res.text
-    except Exception as e:
-        st.error(f"Failed to fetch {url}: {e}")
+    except Exception:
         return ""
 
 def extract_financial_links(base_url, html):
@@ -35,15 +34,12 @@ def extract_tables_and_text(html):
     return tables, soup.get_text()
 
 def ai_extract_summary(text):
-    prompt = f"""You are a financial analyst assistant. Summarize the key financial performance information from this company report:
+    prompt = f"""Summarize the main financial results and business highlights:
 
 {text}"""
     try:
-        together_api_key = st.secrets["together"]["api_key"]
-        headers = {
-            "Authorization": f"Bearer {together_api_key}",
-            "Content-Type": "application/json"
-        }
+        key = st.secrets["together"]["api_key"]
+        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
         payload = {
             "model": "meta-llama/Llama-3-70b-chat-hf",
             "messages": [{"role": "user", "content": prompt}],
@@ -54,63 +50,37 @@ def ai_extract_summary(text):
         if res.status_code == 200:
             return res.json()["choices"][0]["message"]["content"].strip()
         else:
-            return f"Together API failed: {res.status_code} - {res.text}"
-    except Exception as e:
-        return f"Together error: {e}"
+            return "Summary not available."
+    except Exception:
+        return "Summary failed to generate."
 
 def run():
     st.title("Company Financial Crawler")
-    st.caption("Enter a public company investor or financial disclosure URL. The tool will scan linked pages and generate clean, structured summaries.")
-
-    url = st.text_input("Company URL", placeholder="https://www.example.com/invest/financials")
+    url = st.text_input("Investor Relations URL")
 
     if url:
-        with st.spinner("Crawling and processing..."):
-            base_html = fetch_html(url)
-            if not base_html:
+        with st.spinner("Scanning..."):
+            html = fetch_html(url)
+            if not html:
+                st.error("Failed to load the page.")
                 return
 
-            subpage_urls = extract_financial_links(url, base_html)
-            subpage_urls = list(dict.fromkeys(subpage_urls))[:5]
-
-            if not subpage_urls:
-                st.warning("No relevant financial subpages were found.")
+            links = extract_financial_links(url, html)[:5]
+            if not links:
+                st.warning("No relevant subpages found.")
                 return
 
-            st.info(f"{len(subpage_urls)} linked financial subpages identified.")
-
-            results = []
-            for sub_url in subpage_urls:
-                sub_html = fetch_html(sub_url)
+            for i, link in enumerate(links):
+                sub_html = fetch_html(link)
                 if not sub_html:
                     continue
-                try:
-                    tables, text = extract_tables_and_text(sub_html)
-                    with st.spinner(f"Generating summary for: {sub_url}"):
-                        ai_summary = ai_extract_summary(text)
-                    results.append((sub_url, ai_summary, tables))
-                except Exception as e:
-                    st.error(f"Error parsing {sub_url}: {e}")
+                tables, text = extract_tables_and_text(sub_html)
+                summary = ai_extract_summary(text)
 
-        if results:
-            st.divider()
-            for i, (link, summary, tables) in enumerate(results):
-                with st.container():
-                    st.subheader(f"Subpage {i+1}")
-                    st.markdown(f"[View Original Source]({link})", unsafe_allow_html=True)
+                st.markdown(f"### Page {i+1}")
+                st.markdown(f"[View Source]({link})", unsafe_allow_html=True)
+                st.markdown(summary)
 
-                    tab1, tab2 = st.tabs(["Summary", "Extracted Tables"])
-
-                    with tab1:
-                        st.markdown("#### Financial Overview")
-                        st.markdown(summary)
-
-                    with tab2:
-                        if tables:
-                            for idx, table in enumerate(tables[:2]):
-                                st.markdown(f"Table {idx + 1}")
-                                st.dataframe(table)
-                        else:
-                            st.info("No tabular data was found on this page.")
-        else:
-            st.warning("No usable financial content was extracted.")
+                if tables:
+                    for idx, table in enumerate(tables[:1]):
+                        st.dataframe(table, use_container_width=True)
