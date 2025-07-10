@@ -1,54 +1,44 @@
 import streamlit as st
 
-def run():
-    st.markdown("## Capabilities & Potential")
+st.title("Capabilities & Potential")
 
-    st.markdown("""
-FidSync is a reliable internal tool designed to automate and simplify fund scorecard processing. In its current form, it already saves hours of manual effort, and its foundation is built for future expansion.
+st.markdown("""
+### Current Capabilities
 
----
+- **Fund Status Analyzer**  
+  Automatically matches fund names to plan options and determines compliance using watchlist scoring rules.
 
-### What FidSync Can Do Now
+- **Scorecard Visual Markup**  
+  Applies conditional formatting (green for Pass, red for Review) directly in Excel exports, supporting audit-ready documentation.
 
-- Extract fund names from complex PDF scorecards
-- Match those names to investment options using fuzzy logic
-- Update Excel templates accurately and automatically
-- Log activity to Google Sheets for review and compliance
-- Allow secure admin access to user feedback and requests
-- Run as a web-based interface with a clear, easy-to-use design
+- **Fuzzy Matching Engine**  
+  Handles name variations and minor formatting differences for accurate linking between scorecard PDFs and investment rosters.
 
----
+- **Manual Overrides**  
+  Allow advisors to adjust fund status or mapping where human context is needed.
 
-### What FidSync Could Do Next
+- **Article Analyzer**  
+  Summarizes financial news with support for ticker detection, sentiment tagging, table parsing, and PDF exports.
 
-#### Integration Opportunities
-- Email notifications for completed uploads
-- CRM integration (e.g., Salesforce, HubSpot)
-- Slack or Microsoft Teams connectivity
-- Document signing integrations (e.g., DocuSign)
-
-#### Smart Features
-- Auto-suggest corrections for unmatched fund names
-- Explain and summarize key PDF sections
-- Highlight potential fund risks based on key indicators
-
-#### Reporting and Analysis
-- Add visual dashboards and charts
-- Generate PDF or presentation-style reports
-- Enable batch processing for high-volume use
-
-#### Platform Scalability
-- User authentication and account access control
-- Audit logs and historical data tracking
-- Secure file encryption and cleanup
+- **Document Integration Tools**  
+  Extracts key metrics from PDF documents using AI-assisted analysis (Sharpe Ratio, Peer Ranking, etc.).
 
 ---
 
-### Summary
+### Future Potential
 
-This project demonstrates what’s possible with Python in a real business environment:
-- Automating repetitive financial tasks
-- Working across multiple data types (PDF, Excel, Google Sheets)
-- Building secure and scalable internal tools
-- Creating a foundation for advanced features like AI, integrations, and reporting
-    """)
+- **Benchmark Comparison Tools**  
+  Automated comparisons across benchmarks and time periods, with visualization.
+
+- **Portfolio Diagnostics**  
+  Risk/return scatterplots, sector exposures, and style box mapping.
+
+- **AI-Driven Recommendations**  
+  Insight suggestions based on client IPS documents, plan trends, and peer fund upgrades/downgrades.
+
+- **Enterprise Admin Tools**  
+  Role-based access, white-label branding, audit trail logging, and compliance flags.
+
+- **Platform Integrations**  
+  Direct sync with custodians (e.g., Fidelity, Schwab), CRMs, and proposal tools.
+""")
