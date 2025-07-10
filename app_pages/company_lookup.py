@@ -5,6 +5,7 @@ def run():
     st.title("Ticker Info Lookup")
 
     ticker = st.text_input("Enter a stock ticker (e.g., AAPL, TSLA, MSFT):", max_chars=10)
+    lookup = st.button("Search")
 
     if ticker:
         try:
