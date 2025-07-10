@@ -8,7 +8,7 @@ from PIL import Image
 import streamlit as st
 import base64
 
-TOGETHER_API_KEY = st.secrets["together_api_key"]  # or use os.environ["TOGETHER_API_KEY"]
+API_KEY = st.secrets["api_key"]  # or use os.environ["TOGETHER_API_KEY"]
 TOGETHER_MODEL = "togethercomputer/llava-1.5-7b-hf"
 API_URL = "https://api.together.xyz/v1/chat/completions"
 
