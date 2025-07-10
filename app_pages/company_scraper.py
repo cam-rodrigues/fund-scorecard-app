@@ -108,7 +108,7 @@ def run():
                     </div>
                     <div style='padding: 0.6rem; background-color: #ffffff; border: 1px solid #ddd; border-radius: 4px; max-height: 300px; overflow-y: auto;'>
                         <p style='margin-bottom: 0.25rem; font-weight: 600;'>Summary:</p>
-                        <div style='font-size: 0.92rem; line-height: 1.5;'>{summary.replace("\n", "<br>")}</div>
+                        <div style='font-size: 0.92rem; line-height: 1.5;'>{summary.replace("\\n", "<br>")}</div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
