@@ -21,3 +21,4 @@ openai>=1.1.1
 requests
 PyMuPDF
 yfinance
+python-pptx
