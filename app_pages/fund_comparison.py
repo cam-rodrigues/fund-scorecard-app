@@ -219,9 +219,11 @@ def run():
             st.markdown("</div>", unsafe_allow_html=True)
 
         if st.button("Download Branded Proposal (.docx)"):
-            doc_path = "/mnt/data/FidSync_Proposal_Branded.docx"
+            doc_path = "fydsync/assets/FidSync_Proposal_Branded.docx"
             chart_path = "fydsync/assets/fund_chart.png"
             logo_path = "fydsync/assets/fidsync_logo.png"
             export_proposal_branded(full_df, proposal_text, doc_path, chart_path, logo_path)
+            import shutil
+            shutil.copy(doc_path, "/mnt/data/FidSync_Proposal_Branded.docx")
             st.success("Branded proposal exported successfully.")
-            st.markdown(f"[Download Proposal](sandbox:{doc_path})", unsafe_allow_html=True)
+            st.markdown("[Download Proposal](sandbox:/mnt/data/FidSync_Proposal_Branded.docx)", unsafe_allow_html=True)
