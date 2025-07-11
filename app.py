@@ -15,15 +15,16 @@ st.markdown("""
             position: relative;
         }
 
+        /* Vertical line on the right edge of the sidebar */
         .sidebar-right-line {
             content: "";
             position: absolute;
             top: 0;
             right: 0;
             width: 2px;
-            height: 100%;
+            height: 100vh;
             background-color: #b4c3d3;
-            z-index: 1;
+            z-index: 999;
         }
 
         [data-testid="stSidebar"] .stButton>button {
@@ -74,6 +75,7 @@ st.markdown("""
             text-transform: uppercase;
             letter-spacing: 0.3px;
             white-space: nowrap;
+            z-index: 10;
         }
 
         .logo-underline-wrapper {
@@ -81,29 +83,32 @@ st.markdown("""
             display: flex;
             align-items: center;
             justify-content: flex-start;
-            margin-top: 0.8rem;
-            width: 100%;
+            margin-top: 1rem;
+            margin-left: 0.3rem;
+            margin-right: 0;
+            width: calc(100% - 0.3rem);
             height: 2px;
         }
 
-        .line-left {
-            height: 2px;
-            background-color: #b4c3d3;
-            flex-grow: 1;
-            margin-right: 0.4rem;
-        }
-
-        .line-gap {
-            position: relative;
-            height: 0;
-            width: auto;
-        }
-
+        .line-left,
         .line-right {
             height: 2px;
             background-color: #b4c3d3;
             flex-grow: 1;
-            margin-left: 0.4rem;
+        }
+
+        .line-left {
+            margin-right: 0.5rem;
+        }
+
+        .line-right {
+            margin-left: 0.5rem;
+        }
+
+        .line-gap {
+            position: relative;
+            width: auto;
+            height: 0;
         }
 
         .sidebar-section {
