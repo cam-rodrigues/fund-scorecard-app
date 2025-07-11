@@ -19,7 +19,7 @@ st.markdown("""
         .sidebar-right-line-absolute {
             position: fixed;
             top: 0;
-            left: calc(var(--sidebar-width, 16rem));
+            left: calc(1.2rem + 100%);  /* Align exactly to the outer edge */
             width: 2px;
             height: 100vh;
             background-color: #b4c3d3;
@@ -85,19 +85,19 @@ st.markdown("""
             margin-top: 1rem;
             margin-left: 0.3rem;
             margin-right: 0;
-            width: calc(100% - 0.3rem);
             height: 2px;
+            width: calc(100% - 0.3rem);
         }
 
         .line-left {
             height: 2px;
             background-color: #b4c3d3;
-            width: 5.6rem;
+            width: 5.5rem;
             flex-shrink: 0;
         }
 
         .line-gap {
-            width: 2.4rem;
+            width: 2.2rem;
             flex-shrink: 0;
         }
 
@@ -106,7 +106,7 @@ st.markdown("""
             background-color: #b4c3d3;
             flex-grow: 1;
             min-width: 0;
-            margin-left: 0.8rem;
+            margin-left: 0;  /* Remove margin to connect cleanly to vertical line */
         }
 
         .sidebar-section {
@@ -120,7 +120,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Draw TRUE right-edge line ===
+# === Draw vertical edge line ===
 st.markdown('<div class="sidebar-right-line-absolute"></div>', unsafe_allow_html=True)
 
 # === Sidebar logo block ===
