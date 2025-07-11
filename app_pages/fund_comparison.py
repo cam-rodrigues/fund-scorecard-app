@@ -96,6 +96,8 @@ def generate_proposal_text(df):
     benchmark = df[df["Fund"] == "S&P 500 (Benchmark)"].iloc[0]
     main_funds["Avg Return"] = main_funds[trailing_cols].mean(axis=1)
     main_funds["Beats Benchmark"] = (main_funds[trailing_cols] > benchmark[trailing_cols]).sum(axis=1)
+    if main_funds.empty:
+        return "<i>No valid funds available for proposal generation.</i>"
     ranked = main_funds.sort_values(["Avg Return", "Sharpe Ratio"], ascending=False)
     top_fund = ranked.iloc[0]
     runner_up = ranked.iloc[1] if len(ranked) > 1 else None
@@ -202,6 +204,9 @@ def run():
 
     if st.session_state.show_results:
         filtered = df[df["Fund"].isin(selected)]
+        if filtered.empty:
+            st.warning("No valid non-benchmark funds to compare. Please select at least one.")
+            st.stop()
         full_df = enhance_with_benchmark(filtered)
 
         st.markdown("### Summary")
@@ -222,17 +227,8 @@ def run():
             doc_path = "fydsync/assets/FidSync_Proposal_Branded.docx"
             chart_path = "fydsync/assets/fund_chart.png"
             logo_path = "fydsync/assets/fidsync_logo.png"
-    
             export_proposal_branded(full_df, proposal_text, doc_path, chart_path, logo_path)
-    
+            import shutil
+            shutil.copy(doc_path, "/mnt/data/FidSync_Proposal_Branded.docx")
             st.success("Proposal ready. Use the button below to download.")
-    
-            with open(doc_path, "rb") as file:
-                st.download_button(
-                    label="Download Proposal",
-                    data=file,
-                    file_name="FidSync_Proposal_Branded.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
-
             
