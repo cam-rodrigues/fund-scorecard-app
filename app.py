@@ -64,7 +64,7 @@ st.markdown("""
         .beta-badge {
             position: absolute;
             top: 1.62rem;
-            left: 4.50rem;
+            left: 4.40rem;
             background-color: #2b6cb0;
             color: white;
             font-size: 0.48rem;
