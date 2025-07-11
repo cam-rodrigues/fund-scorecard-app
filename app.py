@@ -1,14 +1,10 @@
 import streamlit as st
 import os
 import importlib.util
+from PIL import Image
 
 # === Page Setup ===
 st.set_page_config(page_title="FidSync Beta", layout="wide")
-
-# === Load Montserrat Font ===
-st.markdown("""
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
-""", unsafe_allow_html=True)
 
 # === Sidebar Styles ===
 st.markdown("""
@@ -16,6 +12,12 @@ st.markdown("""
         [data-testid="stSidebar"] {
             background-color: #f4f6fa;
             border-right: 1px solid #d3d3d3;
+        }
+        [data-testid="stSidebar"] img {
+            display: block;
+            margin: 2rem auto 1.5rem auto;
+            max-width: 180px;
+            height: auto;
         }
         [data-testid="stSidebar"] .stButton>button {
             background-color: #e8eef8;
@@ -40,33 +42,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar Logo (Text-Based Replica) ===
+# === Sidebar Logo (Image) ===
 with st.sidebar:
-    st.markdown("""
-    <div style="text-align:center; margin: 2rem auto 1.5rem auto; font-family: 'Montserrat', sans-serif;">
-        <div style="font-size: 2rem; font-weight: 700; color: #153e75; display: inline-block;">
-            FidSync
-        </div>
-        <div style="
-            display: inline-block;
-            background-color: #1a4fb0;
-            color: white;
-            font-size: 0.65rem;
-            font-weight: 700;
-            padding: 0.15rem 0.5rem;
-            margin-left: 0.35rem;
-            margin-top: 0.15rem;
-            border-radius: 0.25rem;
-            vertical-align: baseline;
-            position: relative;
-            top: 4px;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;">
-            BETA
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
+    logo_path = os.path.join("assets", "fidsync_logo_clean.png")
+    if os.path.exists(logo_path):
+        logo = Image.open(logo_path)
+        st.image(logo, use_column_width=False, width=180)
 
 # === Navigation Buttons ===
 def nav_button(label, filename):
