@@ -23,28 +23,35 @@ st.markdown("""
             background-color: #cbd9f0;
             color: #000000;
         }
+
+        .sidebar-title-container {
+            position: relative;
+            display: inline-block;
+            padding-bottom: 1.2rem;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #b4c3d3;
+        }
+
         .sidebar-title {
             font-size: 1.7rem;
             font-weight: 800;
             color: #102542;
-            padding-bottom: 0.5rem;
-            border-bottom: 2px solid #b4c3d3;
-            margin-bottom: 1rem;
         }
+
         .beta-badge {
-            display: inline-block;
+            position: absolute;
+            top: 1.6rem;  /* position below the text */
+            left: 4.7rem; /* position right under the y */
             background-color: #2b6cb0;
             color: white;
             font-size: 0.55rem;
             font-weight: 700;
-            padding: 0.05rem 0.3rem;
-            margin-left: 0.1rem;
+            padding: 0.1rem 0.35rem;
             border-radius: 0.25rem;
-            vertical-align: super;
-            letter-spacing: 0.4px;
             text-transform: uppercase;
-            transform: translateY(-2px);
+            letter-spacing: 0.4px;
         }
+
         .sidebar-section {
             font-size: 0.85rem;
             font-weight: 600;
@@ -56,9 +63,14 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar header with Beta label ===
+# === Sidebar header with BETA badge tucked under the "y" in FidSync ===
 st.sidebar.markdown(
-    '<div class="sidebar-title">FidSync<span class="beta-badge">BETA</span></div>',
+    '''
+    <div class="sidebar-title-container">
+        <div class="sidebar-title">FidSync</div>
+        <div class="beta-badge">BETA</div>
+    </div>
+    ''',
     unsafe_allow_html=True
 )
 
