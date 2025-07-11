@@ -79,7 +79,8 @@ nav_button("Data Scanner", "data_scanner.py")
 nav_button("Company Lookup", "company_lookup.py")
 
 st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', unsafe_allow_html=True)
-nav_button("Chart Converter", "fund_charts_ppt.py")
+nav_button("Fund Summary", "fund_summary.py")
+nav_button("Fund Comparison", "fund_comparison_ppt.py")
 
 # === Page router ===
 query_params = st.query_params
