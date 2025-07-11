@@ -34,7 +34,7 @@ st.markdown("""
             margin-top: 1rem;
             margin-bottom: 2rem;
             margin-left: 0.3rem;
-            transform: scale(1.35);  /* scale up */
+            transform: scale(1.35);
             transform-origin: top left;
         }
 
@@ -66,7 +66,7 @@ st.markdown("""
             display: block;
             margin-top: 1.05rem;
             border-bottom: 2px solid #b4c3d3;
-            width: 6rem;  /* extended underline */
+            width: 8rem;  /* extended underline */
         }
 
         .sidebar-section {
@@ -80,7 +80,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar logo block (scaled, centered, extended underline) ===
+# === Sidebar logo block ===
 st.sidebar.markdown(
     '''
     <div class="sidebar-title-container">
