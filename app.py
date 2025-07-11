@@ -67,7 +67,7 @@ st.markdown("""
         .logo-underline-wrapper {
             display: flex;
             align-items: center;
-            margin-top: 2.2rem;
+            margin-top: 1.4rem;
             margin-left: 0.3rem;
             margin-right: 0.3rem;
             width: 100%;
