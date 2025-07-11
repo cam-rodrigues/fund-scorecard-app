@@ -1,3 +1,4 @@
+
 import streamlit as st
 import os
 import importlib.util
@@ -61,10 +62,8 @@ st.sidebar.markdown(
     unsafe_allow_html=True
 )
 
-# === Navigation Button with Unique Key ===
 def nav_button(label, filename):
-    key = f"nav_{filename.replace('.', '_')}"
-    if st.sidebar.button(label, key=key):
+    if st.sidebar.button(label, key=label):
         st.query_params.update({"page": filename})
 
 # === Sidebar navigation ===
@@ -80,7 +79,7 @@ nav_button("Data Scanner", "data_scanner.py")
 nav_button("Company Lookup", "company_lookup.py")
 
 st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', unsafe_allow_html=True)
-nav_button("Fund Summaries", "fund_charts_ppt.py")
+nav_button("Chart Converter", "fund_charts_ppt.py")
 nav_button("Fund Comparison", "fund_comparison.py")
 
 # === Page router ===
@@ -113,8 +112,7 @@ if selected_page:
         st.query_params.clear()
         st.rerun()
 else:
-    with st.container():
-        st.markdown("# Welcome to FidSync Beta")
-        st.markdown("""
-        **FidSync Beta** is a data processing toolkit designed to streamline and modernize workflows by turning raw data into clear, actionable results.
-        """)
+    st.markdown("# Welcome to FidSync Beta")
+    st.markdown("""
+    **FidSync Beta** is a data processing toolkit designed to streamline and modernize workflows by turning raw data into clear, actionable results.
+    """)
