@@ -21,7 +21,7 @@ st.markdown("""
             top: 5.2rem;
             left: 16rem;
             width: 2px;
-            height: 100vh;
+            height: calc(100vh - 5.2rem);
             background-color: #b4c3d3;
             z-index: 9999;
         }
