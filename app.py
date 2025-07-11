@@ -80,7 +80,7 @@ st.markdown("""
         .logo-underline-wrapper {
             position: relative;
             display: flex;
-            align-items: center;
+            align-items: right;
             justify-content: flex-start;
             margin-top: 1rem;
             margin-left: 0.3rem;
