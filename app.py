@@ -13,6 +13,7 @@ st.markdown("""
             padding-left: 1.2rem;
             padding-right: 1.2rem;
         }
+
         [data-testid="stSidebar"] .stButton>button {
             background-color: #e8eef8;
             color: #1a2a44;
@@ -21,6 +22,7 @@ st.markdown("""
             padding: 0.4rem 0.75rem;
             font-weight: 600;
         }
+
         [data-testid="stSidebar"] .stButton>button:hover {
             background-color: #cbd9f0;
             color: #000000;
@@ -29,14 +31,15 @@ st.markdown("""
         .sidebar-title-container {
             position: relative;
             display: inline-block;
-            max-width: 100%;
-            margin-top: 0.25rem;
-            margin-bottom: 1.25rem;
-            padding-right: 0.5rem;
+            margin-top: 0.5rem;
+            margin-bottom: 2rem;
+            padding-right: 0.75rem;
+            transform: scale(1.25);  /* SCALE everything up */
+            transform-origin: top left;
         }
 
         .sidebar-title {
-            font-size: 1.65rem;
+            font-size: 1.7rem;
             font-weight: 800;
             color: #102542;
             line-height: 1;
@@ -45,8 +48,8 @@ st.markdown("""
 
         .beta-badge {
             position: absolute;
-            top: 1.55rem;
-            left: 4.45rem;
+            top: 1.6rem;
+            left: 4.55rem;
             background-color: #2b6cb0;
             color: white;
             font-size: 0.48rem;
@@ -77,7 +80,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar logo with clean fit ===
+# === Sidebar logo block with consistent scaling ===
 st.sidebar.markdown(
     '''
     <div class="sidebar-title-container">
