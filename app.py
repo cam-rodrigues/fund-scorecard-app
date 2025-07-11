@@ -9,9 +9,22 @@ st.markdown("""
     <style>
         [data-testid="stSidebar"] {
             background-color: #f4f6fa;
-            border-right: 1px solid #d3d3d3;
+            border-right: none;  /* Removed default sidebar border */
             padding-left: 1.2rem;
             padding-right: 1.2rem;
+            position: relative;  /* Allows absolute positioning inside */
+        }
+
+        /* Full-height vertical line at sidebar edge */
+        .sidebar-right-line {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 2px;
+            height: 100%;
+            background-color: #b4c3d3;
+            z-index: 1;
         }
 
         [data-testid="stSidebar"] .stButton>button {
@@ -71,9 +84,9 @@ st.markdown("""
             justify-content: flex-start;
             margin-top: 1.0rem;
             margin-left: 0.3rem;
-            margin-right: 0;        
-            padding-right: 0;        
-            width: 100%;                  
+            margin-right: 0;
+            padding-right: 0;
+            width: 100%;
             box-sizing: border-box;
         }
 
@@ -85,7 +98,7 @@ st.markdown("""
         }
 
         .line-gap {
-            width: 2.4rem; 
+            width: 2.4rem;
             flex-shrink: 0;
         }
 
@@ -98,16 +111,16 @@ st.markdown("""
             position: relative;
         }
 
-        .line-right: :after {
+        .line-right::after {
             content: "";
             position: absolute;
             top: 2px;
             right: 0;
             width: 2px;
-            height: 200vh;
-            background-color: #b4c3d3;
+            height: 100vh;
+            background-color: transparent;  /* disabled since we use sidebar-right-line */
         }
-        
+
         .sidebar-section {
             font-size: 0.85rem;
             font-weight: 600;
@@ -118,6 +131,9 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
+
+# === Vertical sidebar line ===
+st.sidebar.markdown('<div class="sidebar-right-line"></div>', unsafe_allow_html=True)
 
 # === Sidebar logo block with final polished underline ===
 st.sidebar.markdown(
