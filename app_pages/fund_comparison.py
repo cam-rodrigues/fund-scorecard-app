@@ -219,7 +219,7 @@ def run():
 
         if st.button("Download Branded Proposal (.docx)"):
             doc_path = "/mnt/data/FidSync_Proposal_Branded.docx"
-            chart_path = "/mnt/data/fund_chart.png"
+            chart_path = "fydsync/assets/fund_chart.png"
             logo_path = "fydsync/assets/fidsync_logo.png"
             export_proposal_branded(full_df, proposal_text, doc_path, chart_path, logo_path)
             st.success("Branded proposal exported successfully.")
