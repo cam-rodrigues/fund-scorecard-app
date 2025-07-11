@@ -10,8 +10,10 @@ from docx.shared import Pt, Inches
 import matplotlib.pyplot as plt
 from datetime import datetime
 import os
+from bs4 import BeautifulSoup
+from fpdf import FPDF
 
-# === Extract Fund Performance ===
+# === Performance Extraction ===
 def extract_fund_performance(pdf_file):
     performance_data = []
     with pdfplumber.open(pdf_file) as pdf:
@@ -40,7 +42,7 @@ def extract_fund_performance(pdf_file):
                         fund_name = None
     return pd.DataFrame(performance_data)
 
-# === Benchmark + Risk ===
+# === Enhancements ===
 def enhance_with_benchmark(df):
     benchmark = {
         "Fund": "S&P 500 (Benchmark)",
@@ -52,7 +54,6 @@ def enhance_with_benchmark(df):
     df["Sharpe Ratio"] = np.round(np.random.uniform(0.4, 1.2, len(df)), 2)
     return df
 
-# === Name Cleanup ===
 def extract_clean_name_ticker_date(full_name):
     match = re.search(r"^(.*?)([A-Z]{5})\s.*?(\d{2}/\d{2}/\d{4})", full_name)
     if match:
@@ -60,14 +61,12 @@ def extract_clean_name_ticker_date(full_name):
         return f"{name.strip()} ({ticker})", date
     return full_name, None
 
-# === Scorecard ===
 def style_scorecard(df):
     styled = df.style.format("{:.2f}")
     for col in df.columns[:-2]:
         styled = styled.background_gradient(cmap="RdYlGn", axis=0, subset=[col])
     return styled
 
-# === Summary ===
 def generate_summary(df):
     df = df.copy()
     if df.index.name == "Fund":
@@ -88,14 +87,15 @@ def generate_summary(df):
     top_name, _ = extract_clean_name_ticker_date(top_avg["Fund"])
     low_name, _ = extract_clean_name_ticker_date(low_avg["Fund"])
     beat_count = beat_counts.max()
-    return f"""**Summary**\n- Fund that outperformed benchmark most: **{beat_name}** ({beat_count} of 6 periods)\n- Top average return: **{top_name}**\n- Lowest performer: **{low_name}**"""
+    return f"""**Summary**  
+- Fund that outperformed benchmark most: **{beat_name}** ({beat_count} of 6 periods)  
+- Top average return: **{top_name}**  
+- Lowest performer: **{low_name}**"""
 
-# === Proposal ===
+# === Proposal Recommendation ===
 def generate_proposal_text(df):
     trailing_cols = ["QTD", "YTD", "1 Yr", "3 Yr", "5 Yr", "10 Yr"]
     main_funds = df[df["Fund"] != "S&P 500 (Benchmark)"].copy()
-    if main_funds.empty:
-        return "<i>No valid funds available for proposal generation.</i>"
     benchmark = df[df["Fund"] == "S&P 500 (Benchmark)"].iloc[0]
     main_funds["Avg Return"] = main_funds[trailing_cols].mean(axis=1)
     main_funds["Beats Benchmark"] = (main_funds[trailing_cols] > benchmark[trailing_cols]).sum(axis=1)
@@ -130,109 +130,106 @@ def generate_proposal_text(df):
 """
     return proposal
 
-# === Chart for DOCX ===
-def generate_bar_chart(df, chart_path):
-    os.makedirs(os.path.dirname(chart_path), exist_ok=True)
-    trailing_cols = ["QTD", "YTD", "1 Yr", "3 Yr", "5 Yr", "10 Yr"]
-    avg_returns = df[df["Fund"] != "S&P 500 (Benchmark)"][trailing_cols].mean()
-    benchmark = df[df["Fund"] == "S&P 500 (Benchmark)"][trailing_cols].iloc[0]
-    fig, ax = plt.subplots(figsize=(7, 4))
-    avg_returns.plot(kind="bar", ax=ax, color="#4B89DC", label="Selected Funds Avg")
-    benchmark.plot(kind="line", ax=ax, linestyle="--", color="black", label="S&P 500 Benchmark")
-    ax.set_title("Average Returns vs. S&P 500")
-    ax.set_ylabel("Return %")
-    ax.legend()
-    plt.tight_layout()
-    fig.savefig(chart_path, bbox_inches="tight")
-    plt.close(fig)
+# === PDF Export ===
+def export_proposal_pdf(text, filename):
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.set_font("Times", size=12)
+    for line in text.splitlines():
+        pdf.multi_cell(0, 10, line)
+    pdf.output(filename)
 
-# === Export Branded DOCX ===
-def export_proposal_branded(df, proposal_text, doc_path, chart_path, logo_path=None, user="Cameron Rodrigues", firm="Procyon Partners"):
-    generate_bar_chart(df, chart_path)
-    os.makedirs(os.path.dirname(doc_path), exist_ok=True)
+# === DOCX Export (Client & Internal) ===
+def add_clean_html_paragraphs(doc, html_text):
+    soup = BeautifulSoup(html_text, "html.parser")
+    for elem in soup.contents:
+        if elem.name == "h3":
+            para = doc.add_paragraph()
+            run = para.add_run(elem.get_text())
+            run.bold = True
+            run.font.size = Pt(14)
+        elif elem.name == "b":
+            para = doc.add_paragraph()
+            run = para.add_run(elem.get_text())
+            run.bold = True
+        elif elem.name == "em":
+            para = doc.add_paragraph()
+            run = para.add_run(elem.get_text())
+            run.italic = True
+        elif elem.name == "ul":
+            for li in elem.find_all("li"):
+                doc.add_paragraph(li.get_text(), style='List Bullet')
+        elif elem.name == "br":
+            doc.add_paragraph("")
+        elif elem.string and elem.string.strip():
+            doc.add_paragraph(elem.string.strip())
+
+def export_proposal_docx(df, html, path, user="Cameron Rodrigues", firm="Procyon Partners", logo_path=None, internal=False):
     doc = Document()
-    style = doc.styles['Normal']
-    font = style.font
-    font.name = 'Times New Roman'
+    font = doc.styles['Normal'].font
+    font.name = "Times New Roman"
     font.size = Pt(12)
     section = doc.sections[0]
     header = section.header
     header.paragraphs[0].text = f"Prepared by {user} | {firm} | {datetime.now().strftime('%B %d, %Y')}"
     if logo_path and os.path.exists(logo_path):
         doc.add_picture(logo_path, width=Inches(2.5))
-    doc.add_paragraph("FidSync Proposal", "Title")
-    doc.add_paragraph("Prepared for review")
-    for line in proposal_text.strip().split("\n"):
-        doc.add_paragraph(line.strip())
-    doc.add_paragraph("Performance Comparison Chart")
-    doc.add_picture(chart_path, width=Inches(5.5))
-    footer = section.footer
-    footer.paragraphs[0].text = (
-        "Generated by FidSync Beta\n"
-        "This content was generated using automation and may not be perfectly accurate. Please verify against official sources."
-    )
-    doc.save(doc_path)
+    doc.add_paragraph("Proposal Recommendation", style="Title")
+    doc.add_paragraph("This proposal is generated based on benchmark performance and return characteristics of selected funds.\n")
+    add_clean_html_paragraphs(doc, html)
+    doc.add_paragraph("FidSync Beta – Auto-generated Report")
+    if internal:
+        doc.add_paragraph("Internal Use Only", style="Heading 2")
+    doc.save(path)
 
-# === Streamlit App ===
+# === Streamlit ===
 def run():
-    st.set_page_config(page_title="FidSync Beta - Fund Comparison", layout="wide")
-    st.title("Fund Performance Comparison")
+    st.set_page_config("FidSync Beta - Fund Comparison", layout="wide")
+    st.title("📊 Fund Comparison Tool")
 
-    uploaded_pdf = st.file_uploader("Upload MPI PDF", type=["pdf"])
+    uploaded_pdf = st.file_uploader("Upload an MPI PDF", type="pdf")
     if not uploaded_pdf:
         st.stop()
 
     df = extract_fund_performance(uploaded_pdf)
     if df.empty:
-        st.error("No performance data found.")
+        st.error("No fund performance data found.")
         st.stop()
 
-    fund_options = df["Fund"].unique()
-    select_all = st.checkbox("Select all funds", value=False)
-    clear_all = st.checkbox("Clear all selections", value=False)
-    default_selection = list(fund_options) if select_all and not clear_all else []
-    selected = st.multiselect("Select funds to compare", fund_options, default=default_selection)
+    fund_choices = df["Fund"].unique()
+    selected = st.multiselect("Select funds to compare:", fund_choices)
+    if not selected:
+        st.stop()
 
-    if "show_results" not in st.session_state:
-        st.session_state.show_results = False
+    enhanced_df = enhance_with_benchmark(df[df["Fund"].isin(selected)])
+    summary = generate_summary(enhanced_df)
+    st.markdown("### 🔍 Summary")
+    st.markdown(summary)
 
-    if st.button("Compare Selected Funds"):
-        if not selected:
-            st.warning("Please select at least one fund.")
-            st.stop()
-        st.session_state.show_results = True
+    st.markdown("### 📈 Scorecard")
+    st.dataframe(style_scorecard(enhanced_df.set_index("Fund")), use_container_width=True)
 
-    if st.session_state.show_results:
-        filtered = df[df["Fund"].isin(selected)]
-        full_df = enhance_with_benchmark(filtered)
+    st.markdown("### 📝 Proposal")
+    proposal = generate_proposal_text(enhanced_df)
+    st.markdown(proposal, unsafe_allow_html=True)
 
-        st.markdown("### Summary")
-        st.markdown(generate_summary(full_df))
+    st.divider()
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("📤 Export Client Proposal (DOCX)"):
+            export_proposal_docx(enhanced_df, proposal, "fydsync/assets/client_proposal.docx")
+            with open("fydsync/assets/client_proposal.docx", "rb") as file:
+                st.download_button("Download Client DOCX", file, "Client_Proposal.docx")
 
-        st.markdown("### Scorecard")
-        st.dataframe(style_scorecard(full_df.set_index("Fund")), use_container_width=True)
+    with col2:
+        if st.button("📤 Export Internal Summary (DOCX)"):
+            export_proposal_docx(enhanced_df, proposal, "fydsync/assets/internal_proposal.docx", internal=True)
+            with open("fydsync/assets/internal_proposal.docx", "rb") as file:
+                st.download_button("Download Internal DOCX", file, "Internal_Proposal.docx")
 
-        proposal_text = generate_proposal_text(full_df)
-        with st.container():
-            st.markdown("""
-            <div style="border: 1px solid #ccc; padding: 1.2rem; border-radius: 10px; background-color: #f9f9f9;">
-            """, unsafe_allow_html=True)
-            st.markdown(proposal_text, unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        if st.button("Generate Proposal"):
-            doc_path = "fydsync/assets/FidSync_Proposal_Branded.docx"
-            chart_path = "fydsync/assets/fund_chart.png"
-            logo_path = "fydsync/assets/fidsync_logo.png"
-
-            export_proposal_branded(full_df, proposal_text, doc_path, chart_path, logo_path)
-
-            st.success("Proposal ready. Use the button below to download.")
-
-            with open(doc_path, "rb") as file:
-                st.download_button(
-                    label="Download Proposal",
-                    data=file,
-                    file_name="FidSync_Proposal_Branded.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
+    with col3:
+        if st.button("📄 Export Summary as PDF"):
+            export_proposal_pdf(summary + "\n\n" + proposal, "fydsync/assets/proposal_summary.pdf")
+            with open("fydsync/assets/proposal_summary.pdf", "rb") as file:
+                st.download_button("Download PDF", file, "Proposal_Summary.pdf")
