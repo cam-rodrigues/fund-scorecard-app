@@ -36,7 +36,7 @@ def extract_fund_performance(pdf_file):
                         fund_name = None
     return pd.DataFrame(performance_data)
 
-# === Add Benchmark & Volatility Columns ===
+# === Add Benchmark + Risk Columns ===
 def enhance_with_benchmark(df):
     benchmark = {
         "Fund": "S&P 500 (Benchmark)",
@@ -50,13 +50,13 @@ def enhance_with_benchmark(df):
 
     df = pd.concat([df, pd.DataFrame([benchmark])], ignore_index=True)
 
-    # Add volatility and Sharpe estimates (mocked for now)
+    # Add mocked Volatility and Sharpe Ratio
     np.random.seed(42)
     df["Volatility (%)"] = np.round(np.random.uniform(9, 18, len(df)), 2)
     df["Sharpe Ratio"] = np.round(np.random.uniform(0.4, 1.2, len(df)), 2)
     return df
 
-# === Style Scorecard with Color ===
+# === Color-Coded Scorecard ===
 def style_scorecard(df):
     styled = df.style.format("{:.2f}")
     for col in df.columns[:-2]:  # exclude Volatility & Sharpe
@@ -65,25 +65,31 @@ def style_scorecard(df):
         )
     return styled
 
-# === Generate Summary with Benchmark Comparison ===
+# === Summary Generator ===
 def generate_summary(df):
+    df = df.copy()
+
+    # Ensure 'Fund' is a column
+    if df.index.name == "Fund":
+        df.reset_index(inplace=True)
+
     if "S&P 500 (Benchmark)" not in df["Fund"].values:
         return ""
 
-    df = df.set_index("Fund")
-    benchmark = df.loc["S&P 500 (Benchmark)"]
-    comparisons = df.drop("S&P 500 (Benchmark)")
-    beat_counts = (comparisons[benchmark.index] > benchmark).sum(axis=1)
-    best_fund = beat_counts.idxmax()
-    avg_returns = comparisons.mean(axis=1)
+    benchmark = df[df["Fund"] == "S&P 500 (Benchmark)"].iloc[0]
+    others = df[df["Fund"] != "S&P 500 (Benchmark)"]
 
-    top_fund = avg_returns.idxmax()
-    worst_fund = avg_returns.idxmin()
+    trailing_cols = ["QTD", "YTD", "1 Yr", "3 Yr", "5 Yr", "10 Yr"]
+    beat_counts = (others[trailing_cols] > benchmark[trailing_cols]).sum(axis=1)
+
+    best_fund = beat_counts.idxmax()
+    top_fund = others[trailing_cols].mean(axis=1).idxmax()
+    worst_fund = others[trailing_cols].mean(axis=1).idxmin()
 
     return f"""**Summary**
-- Fund that outperformed benchmark most: **{best_fund}** ({beat_counts[best_fund]} of 6 periods)
-- Top average return: **{top_fund}** ({avg_returns[top_fund]:.2f}%)
-- Lowest overall performer: **{worst_fund}** ({avg_returns[worst_fund]:.2f}%)
+- Fund that outperformed benchmark most: **{others.iloc[best_fund]['Fund']}** ({beat_counts.iloc[best_fund]} of 6 periods)
+- Highest avg return: **{others.iloc[top_fund]['Fund']}**
+- Lowest overall performer: **{others.iloc[worst_fund]['Fund']}**
 """
 
 # === Streamlit App ===
@@ -95,28 +101,31 @@ def run():
     if not uploaded_pdf:
         st.stop()
 
-    with st.spinner("Extracting fund performance data..."):
+    with st.spinner("Extracting fund data..."):
         df = extract_fund_performance(uploaded_pdf)
 
     if df.empty:
-        st.error("No valid performance data found.")
+        st.error("No valid fund data found.")
         st.stop()
 
-    selected_funds = st.multiselect("Select funds to compare", df["Fund"].unique())
-    if not selected_funds:
+    selected = st.multiselect("Select funds to compare", df["Fund"].unique())
+    if not selected:
         st.warning("Please select at least one fund.")
         st.stop()
 
-    filtered = df[df["Fund"].isin(selected_funds)]
-    full_df = enhance_with_benchmark(filtered).set_index("Fund")
+    # Filter and enhance
+    filtered = df[df["Fund"].isin(selected)]
+    enhanced = enhance_with_benchmark(filtered)
 
-    # === Summary + Scorecard ===
+    # Show summary + data
     st.markdown("### Performance Summary")
-    st.markdown(generate_summary(full_df))
+    st.markdown(generate_summary(enhanced))
 
-    st.markdown("### Fund Scorecard (Including Benchmark and Risk Metrics)")
-    st.dataframe(style_scorecard(full_df), use_container_width=True)
+    st.markdown("### Scorecard with Benchmark and Risk")
+    st.dataframe(style_scorecard(enhanced.set_index("Fund")), use_container_width=True)
 
-    if st.checkbox("Show heatmap instead of scorecard"):
-        st.markdown("### Performance Heatmap")
-        st.dataframe(full_df.style.background_gradient(cmap="coolwarm").format("{:.2f}"))
+    if st.checkbox("Show heatmap instead"):
+        st.markdown("### Heatmap View")
+        st.dataframe(
+            enhanced.set_index("Fund").style.background_gradient(cmap="coolwarm").format("{:.2f}")
+        )
