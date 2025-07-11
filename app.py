@@ -31,7 +31,7 @@ st.markdown("""
         .sidebar-title-container {
             position: relative;
             display: inline-block;
-            margin-top: 1rem;
+            margin-top: 0.5rem;       /* moved up slightly */
             margin-bottom: 2rem;
             margin-left: 0.3rem;
             transform: scale(1.35);
@@ -66,7 +66,7 @@ st.markdown("""
             display: block;
             margin-top: 1.05rem;
             border-bottom: 2px solid #b4c3d3;
-            width: 8rem;  /* extended underline */
+            width: 10rem;  /* longer underline */
         }
 
         .sidebar-section {
