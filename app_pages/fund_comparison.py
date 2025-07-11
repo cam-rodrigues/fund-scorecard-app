@@ -1,3 +1,5 @@
+# === fund_comparison.py ===
+
 import streamlit as st
 import pdfplumber
 import pandas as pd
@@ -38,16 +40,11 @@ def extract_fund_performance(pdf_file):
                         fund_name = None
     return pd.DataFrame(performance_data)
 
-# === Benchmark and Risk Metrics ===
+# === Benchmark + Risk ===
 def enhance_with_benchmark(df):
     benchmark = {
         "Fund": "S&P 500 (Benchmark)",
-        "QTD": 2.00,
-        "YTD": 6.00,
-        "1 Yr": 12.00,
-        "3 Yr": 8.00,
-        "5 Yr": 10.00,
-        "10 Yr": 10.50
+        "QTD": 2.00, "YTD": 6.00, "1 Yr": 12.00, "3 Yr": 8.00, "5 Yr": 10.00, "10 Yr": 10.50
     }
     df = pd.concat([df, pd.DataFrame([benchmark])], ignore_index=True)
     np.random.seed(42)
@@ -55,7 +52,7 @@ def enhance_with_benchmark(df):
     df["Sharpe Ratio"] = np.round(np.random.uniform(0.4, 1.2, len(df)), 2)
     return df
 
-# === Clean Name, Ticker, Date ===
+# === Name Cleanup ===
 def extract_clean_name_ticker_date(full_name):
     match = re.search(r"^(.*?)([A-Z]{5})\s.*?(\d{2}/\d{2}/\d{4})", full_name)
     if match:
@@ -70,38 +67,28 @@ def style_scorecard(df):
         styled = styled.background_gradient(cmap="RdYlGn", axis=0, subset=[col])
     return styled
 
-# === Summary with Clean Names ===
+# === Summary ===
 def generate_summary(df):
     df = df.copy()
     if df.index.name == "Fund":
         df.reset_index(inplace=True)
     if "S&P 500 (Benchmark)" not in df["Fund"].values:
         return ""
-
     benchmark = df[df["Fund"] == "S&P 500 (Benchmark)"].iloc[0]
     others = df[df["Fund"] != "S&P 500 (Benchmark)"]
-
     trailing = ["QTD", "YTD", "1 Yr", "3 Yr", "5 Yr", "10 Yr"]
     beat_counts = (others[trailing] > benchmark[trailing]).sum(axis=1)
     avg_returns = others[trailing].mean(axis=1)
-
     top_beat = others.iloc[beat_counts.idxmax()]
     top_avg = others.iloc[avg_returns.idxmax()]
     low_avg = others.iloc[avg_returns.idxmin()]
-
     beat_name, _ = extract_clean_name_ticker_date(top_beat["Fund"])
     top_name, _ = extract_clean_name_ticker_date(top_avg["Fund"])
     low_name, _ = extract_clean_name_ticker_date(low_avg["Fund"])
-
     beat_count = beat_counts.max()
+    return f"""**Summary**\n- Fund that outperformed benchmark most: **{beat_name}** ({beat_count} of 6 periods)\n- Top average return: **{top_name}**\n- Lowest performer: **{low_name}**"""
 
-    return f"""**Summary**
-- Fund that outperformed benchmark most: **{beat_name}** ({beat_count} of 6 periods)
-- Top average return: **{top_name}**
-- Lowest performer: **{low_name}**
-"""
-
-# === Proposal Generator ===
+# === Proposal ===
 def generate_proposal_text(df):
     trailing_cols = ["QTD", "YTD", "1 Yr", "3 Yr", "5 Yr", "10 Yr"]
     main_funds = df[df["Fund"] != "S&P 500 (Benchmark)"].copy()
@@ -112,29 +99,34 @@ def generate_proposal_text(df):
     top_fund = ranked.iloc[0]
     runner_up = ranked.iloc[1] if len(ranked) > 1 else None
     top_name, top_date = extract_clean_name_ticker_date(top_fund["Fund"])
-    proposal = f"""### Proposal Recommendation
-
-**Primary Candidate: {top_name}**
-- Average return: {top_fund['Avg Return']:.2f}%
-- Sharpe Ratio: {top_fund['Sharpe Ratio']}
-- Volatility: {top_fund['Volatility (%)']}%
-- Outperformed the benchmark in {top_fund['Beats Benchmark']} out of 6 periods
-- Inception Date: {top_date}
+    proposal = f"""
+<h3 style='margin-bottom:0.5rem;'>Proposal Recommendation</h3>
+<b>Primary Candidate:</b><br>
+<b>{top_name}</b><br>
+<em>Inception Date: {top_date}</em>
+<ul>
+  <li><b>Average Return:</b> {top_fund['Avg Return']:.2f}%</li>
+  <li><b>Sharpe Ratio:</b> {top_fund['Sharpe Ratio']}</li>
+  <li><b>Volatility:</b> {top_fund['Volatility (%)']}%</li>
+  <li><b>Outperformed Benchmark:</b> {top_fund['Beats Benchmark']} of 6 periods</li>
+</ul>
 """
     if runner_up is not None:
         runner_name, runner_date = extract_clean_name_ticker_date(runner_up["Fund"])
         proposal += f"""
-
-**Secondary Consideration: {runner_name}**
-- Average return: {runner_up['Avg Return']:.2f}%
-- Sharpe Ratio: {runner_up['Sharpe Ratio']}
-- Volatility: {runner_up['Volatility (%)']}%
-- May be more appropriate for moderate-risk investors
-- Inception Date: {runner_date}
+<br><b>Secondary Consideration:</b><br>
+<b>{runner_name}</b><br>
+<em>Inception Date: {runner_date}</em>
+<ul>
+  <li><b>Average Return:</b> {runner_up['Avg Return']:.2f}%</li>
+  <li><b>Sharpe Ratio:</b> {runner_up['Sharpe Ratio']}</li>
+  <li><b>Volatility:</b> {runner_up['Volatility (%)']}%</li>
+  <li><i>May be more appropriate for moderate-risk investors</i></li>
+</ul>
 """
     return proposal
 
-# === Chart Generator ===
+# === Chart for DOCX ===
 def generate_bar_chart(df, chart_path):
     trailing_cols = ["QTD", "YTD", "1 Yr", "3 Yr", "5 Yr", "10 Yr"]
     avg_returns = df[df["Fund"] != "S&P 500 (Benchmark)"][trailing_cols].mean()
@@ -149,7 +141,7 @@ def generate_bar_chart(df, chart_path):
     fig.savefig(chart_path, bbox_inches="tight")
     plt.close(fig)
 
-# === Word Export with Branding ===
+# === Export Branded DOCX ===
 def export_proposal_branded(df, proposal_text, doc_path, chart_path, logo_path, user="Cameron Rodrigues", firm="Procyon Partners"):
     generate_bar_chart(df, chart_path)
     doc = Document()
@@ -157,44 +149,27 @@ def export_proposal_branded(df, proposal_text, doc_path, chart_path, logo_path, 
     font = style.font
     font.name = 'Times New Roman'
     font.size = Pt(12)
-
     section = doc.sections[0]
     header = section.header
     header.paragraphs[0].text = f"Prepared by {user} | {firm} | {datetime.now().strftime('%B %d, %Y')}"
-
     doc.add_picture(logo_path, width=Inches(2.5))
     doc.add_paragraph("FidSync Proposal", "Title")
     doc.add_paragraph("Prepared for review")
-    doc.add_paragraph(" ")
-
     for line in proposal_text.strip().split("\n"):
         doc.add_paragraph(line.strip())
-
-    doc.add_paragraph("")
     doc.add_paragraph("Performance Comparison Chart")
     doc.add_picture(chart_path, width=Inches(5.5))
-
     footer = section.footer
     footer.paragraphs[0].text = (
         "Generated by FidSync Beta\n"
-        "This content was generated using automation and may not be perfectly accurate. "
-        "Please verify against official sources."
+        "This content was generated using automation and may not be perfectly accurate. Please verify against official sources."
     )
-
     doc.save(doc_path)
 
-# === Streamlit App ===
+# === Main App ===
 def run():
     st.set_page_config(page_title="FidSync Beta - Fund Comparison", layout="wide")
     st.title("Fund Performance Comparison")
-
-    with st.expander("Tool Features"):
-        st.markdown("""
-- Upload MPI PDFs and extract performance
-- Clean fund names, risk metrics, and benchmark
-- Select funds → click Compare to run
-- Auto proposal with branding and export
-        """)
 
     uploaded_pdf = st.file_uploader("Upload MPI PDF", type=["pdf"])
     if not uploaded_pdf:
@@ -209,7 +184,6 @@ def run():
     select_all = st.checkbox("Select all funds", value=False)
     clear_all = st.checkbox("Clear all selections", value=False)
     default_selection = list(fund_options) if select_all and not clear_all else []
-
     selected = st.multiselect("Select funds to compare", fund_options, default=default_selection)
 
     if "show_results" not in st.session_state:
@@ -231,9 +205,13 @@ def run():
         st.markdown("### Scorecard")
         st.dataframe(style_scorecard(full_df.set_index("Fund")), use_container_width=True)
 
-        st.markdown("### Proposal Draft")
         proposal_text = generate_proposal_text(full_df)
-        st.markdown(proposal_text)
+        with st.container():
+            st.markdown("""
+            <div style="border: 1px solid #ccc; padding: 1.2rem; border-radius: 10px; background-color: #f9f9f9;">
+            """, unsafe_allow_html=True)
+            st.markdown(proposal_text, unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
         if st.button("Download Branded Proposal (.docx)"):
             doc_path = "/mnt/data/FidSync_Proposal_Branded.docx"
