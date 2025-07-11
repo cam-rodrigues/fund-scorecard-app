@@ -44,26 +44,27 @@ st.markdown("""
 
 # === Sidebar Logo and Divider ===
 st.sidebar.markdown("""
-<div style='text-align: center; margin-top: 1rem; margin-bottom: 1.25rem;'>
-  <div style='display: inline-flex; align-items: flex-end; gap: 8px;'>
+<div style='text-align: center; margin-top: 1rem; margin-bottom: 1.75rem;'>
+  <div style='display: inline-flex; align-items: flex-end; gap: 6px;'>
     <span style='
         font-family: Montserrat, sans-serif;
-        font-size: 28px;
+        font-size: 32px;
         font-weight: 600;
-        color: #102542;
-        line-height: 1;
+        color: #15395C;
+        letter-spacing: -0.5px;
     '>FidSync</span>
     <span style='
+        display: inline-block;
         font-family: Montserrat, sans-serif;
-        font-size: 13px;
+        font-size: 14px;
         font-weight: 700;
-        color: white;
+        letter-spacing: 0.7px;
         background-color: #1F6FEB;
-        padding: 3px 10px;
-        border-radius: 5px;
-        letter-spacing: 0.5px;
+        color: white;
+        padding: 3px 10px 4px 10px;
+        border-radius: 6px;
         position: relative;
-        top: 2px;
+        top: 3px;
     '>BETA</span>
   </div>
 </div>
