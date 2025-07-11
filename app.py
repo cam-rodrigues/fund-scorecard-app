@@ -13,18 +13,18 @@ st.markdown("""
             padding-left: 1.2rem;
             padding-right: 1.2rem;
             position: relative;
+            z-index: 1;
         }
 
-        /* Vertical line on the right edge of the sidebar */
-        .sidebar-right-line {
-            content: "";
-            position: absolute;
+        /* True right-edge vertical line using viewport positioning */
+        .sidebar-right-line-absolute {
+            position: fixed;
             top: 0;
-            right: 0;
+            left: calc(var(--sidebar-width, 16.5rem));
             width: 2px;
             height: 100vh;
             background-color: #b4c3d3;
-            z-index: 999;
+            z-index: 9999;
         }
 
         [data-testid="stSidebar"] .stButton>button {
@@ -122,8 +122,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Vertical sidebar line ===
-st.sidebar.markdown('<div class="sidebar-right-line"></div>', unsafe_allow_html=True)
+# === Draw TRUE right-edge line ===
+st.markdown('<div class="sidebar-right-line-absolute"></div>', unsafe_allow_html=True)
 
 # === Sidebar logo block ===
 st.sidebar.markdown(
