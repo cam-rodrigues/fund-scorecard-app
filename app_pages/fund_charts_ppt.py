@@ -1,41 +1,61 @@
 import streamlit as st
 import pdfplumber
+import re
 from together import Together
-import textwrap
 
-# === Config ===
-MAX_CHARS = 15000  # Adjust based on model context limit (Together AI Mixtral supports ~32k tokens)
+def extract_fund_sections(full_text):
+    fund_sections = []
+    lines = full_text.splitlines()
+    current_fund = None
+    buffer = []
+
+    for line in lines:
+        line = line.strip()
+
+        # Match fund headers (customize for your PDFs)
+        if re.search(r"(Fund)\s.*(Target|Income|Bond|Index)", line, re.IGNORECASE):
+            if current_fund and buffer:
+                fund_sections.append((current_fund, "\n".join(buffer)))
+                buffer = []
+            current_fund = line
+        elif current_fund:
+            buffer.append(line)
+
+    if current_fund and buffer:
+        fund_sections.append((current_fund, "\n".join(buffer)))
+
+    return fund_sections
 
 def run():
-    st.set_page_config(page_title="AI-Powered Fund Summary", layout="wide")
-    st.title("🧠 AI-Powered Fund Summary")
-    st.markdown("Upload an MPI PDF to generate smart summaries of fund performance, risk, and financial insights.")
+    st.set_page_config(page_title="AI Fund Summary (by Fund)", layout="wide")
+    st.title("📘 Fund-by-Fund Smart Summary")
 
     uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"])
     if not uploaded_file:
         st.stop()
 
-    # Load PDF text
+    # === Extract Text ===
     with pdfplumber.open(uploaded_file) as pdf:
-        full_text = "\n\n".join([page.extract_text() or "" for page in pdf.pages])
+        full_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
 
-    # Split into chunks if too long
-    chunks = textwrap.wrap(full_text, MAX_CHARS)
+    fund_sections = extract_fund_sections(full_text)
 
-    # API setup
+    if not fund_sections:
+        st.error("No fund headers detected.")
+        st.stop()
+
+    # === Together API Setup ===
     api_key = st.secrets["together"]["api_key"]
     client = Together(api_key=api_key)
     model = "mistralai/Mixtral-8x7B-Instruct-v0.1"
 
-    st.subheader("📊 Smart Summary")
-    for i, chunk in enumerate(chunks):
-        with st.spinner(f"Summarizing section {i+1} of {len(chunks)}..."):
+    for fund_name, fund_text in fund_sections:
+        with st.spinner(f"Summarizing {fund_name}..."):
             prompt = f"""
-You're an investment analyst. Read the following section of an MPI fund report and summarize key insights for a financial advisor. 
-Focus on fund names, performance metrics, risk ratios, expense ratios, and anything notable. Use bullet points.
+You are a financial analyst. Read this report on the fund "{fund_name}" and extract key insights.
+Include performance data, expense ratios, manager tenure, notable risks, and any portfolio composition or benchmark comparisons. Use bullet points.
 
-Section {i+1}:
-{chunk}
+{fund_text[:16000]}
 """
             try:
                 response = client.chat.completions.create(
@@ -44,9 +64,8 @@ Section {i+1}:
                     temperature=0.4,
                 )
                 summary = response.choices[0].message.content.strip()
-                st.markdown(f"**Section {i+1}:**")
+                st.subheader(f"📌 {fund_name}")
                 st.markdown(summary)
                 st.divider()
             except Exception as e:
-                st.error(f"❌ Error: {e}")
-                break
+                st.error(f"❌ Error summarizing {fund_name}: {e}")
