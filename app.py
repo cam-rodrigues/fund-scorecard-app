@@ -16,11 +16,10 @@ st.markdown("""
             z-index: 1;
         }
 
-        /* True right-edge vertical line using viewport positioning */
         .sidebar-right-line-absolute {
             position: fixed;
             top: 0;
-            left: calc(var(--sidebar-width, 16.5rem));
+            left: calc(var(--sidebar-width, 15rem));
             width: 2px;
             height: 100vh;
             background-color: #b4c3d3;
