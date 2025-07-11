@@ -129,6 +129,7 @@ def generate_proposal_text(df):
 
 # === Chart for DOCX ===
 def generate_bar_chart(df, chart_path):
+    os.makedirs(os.path.dirname(chart_path), exist_ok=True)
     trailing_cols = ["QTD", "YTD", "1 Yr", "3 Yr", "5 Yr", "10 Yr"]
     avg_returns = df[df["Fund"] != "S&P 500 (Benchmark)"][trailing_cols].mean()
     benchmark = df[df["Fund"] == "S&P 500 (Benchmark)"][trailing_cols].iloc[0]
