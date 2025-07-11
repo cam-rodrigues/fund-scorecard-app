@@ -92,6 +92,41 @@ def generate_summary(df):
 - Lowest overall performer: **{others.iloc[worst_fund]['Fund']}**
 """
 
+# === Generate Proposal ==
+
+def generate_proposal(df):
+    trailing_cols = ["QTD", "YTD", "1 Yr", "3 Yr", "5 Yr", "10 Yr"]
+    risk_cols = ["Volatility (%)", "Sharpe Ratio"]
+
+    main_funds = df[df["Fund"] != "S&P 500 (Benchmark)"].copy()
+    benchmark = df[df["Fund"] == "S&P 500 (Benchmark)"].iloc[0]
+
+    main_funds["Avg Return"] = main_funds[trailing_cols].mean(axis=1)
+    main_funds["Beats Benchmark"] = (main_funds[trailing_cols] > benchmark[trailing_cols]).sum(axis=1)
+
+    top_fund = main_funds.sort_values(["Avg Return", "Sharpe Ratio"], ascending=False).iloc[0]
+    runner_up = main_funds.sort_values(["Avg Return", "Sharpe Ratio"], ascending=False).iloc[1] if len(main_funds) > 1 else None
+
+    proposal = f"""### Proposal Recommendation
+
+**Primary Candidate: {top_fund['Fund']}**
+- Average return: {top_fund['Avg Return']:.2f}%
+- Sharpe Ratio: {top_fund['Sharpe Ratio']}
+- Volatility: {top_fund['Volatility (%)']}%
+- Outperformed the benchmark in {top_fund['Beats Benchmark']} out of 6 periods
+
+"""
+
+    if runner_up is not None:
+        proposal += f"""**Secondary Consideration: {runner_up['Fund']}**
+- Average return: {runner_up['Avg Return']:.2f}%
+- Sharpe Ratio: {runner_up['Sharpe Ratio']}
+- Volatility: {runner_up['Volatility (%)']}%
+- May be more appropriate for moderate-risk investors
+"""
+    return proposal
+
+
 # === Streamlit App ===
 def run():
     st.set_page_config(page_title="FidSync Beta - Fund Comparison", layout="wide")
