@@ -44,7 +44,7 @@ st.markdown("""
 
 # === Sidebar with New Clean Logo ===
 with st.sidebar:
-    logo_path = os.path.join("assets", "fidsync_logo_clean.png")
+    logo_path = os.path.join("assets", "logo.png")
     if os.path.exists(logo_path):
         logo = Image.open(logo_path)
         st.image(logo, width=180)
