@@ -1,3 +1,5 @@
+# === fund_comparison.py ===
+
 import streamlit as st
 import pdfplumber
 import pandas as pd
@@ -6,7 +8,7 @@ import re
 from datetime import datetime
 import os
 
-# Import external utilities
+# External exports
 from utils.export_client_docx import export_client_docx
 from utils.export_internal_docx import export_internal_docx
 from utils.export_pdf import export_pdf
@@ -40,7 +42,7 @@ def extract_fund_performance(pdf_file):
                         fund_name = None
     return pd.DataFrame(performance_data)
 
-# === Enhancements ===
+# === Enhancements & Helpers ===
 def enhance_with_benchmark(df):
     benchmark = {
         "Fund": "S&P 500 (Benchmark)",
@@ -144,10 +146,22 @@ def run():
         st.stop()
 
     fund_choices = df["Fund"].unique()
-    selected = st.multiselect("Select funds to compare", fund_choices)
+    select_all = st.checkbox("Select All Funds", value=False)
+    deselect_all = st.checkbox("Deselect All", value=False)
+
+    default_selection = list(fund_choices) if select_all and not deselect_all else []
+    selected = st.multiselect("Select funds to compare", fund_choices, default=default_selection)
+
     if not selected:
         st.warning("Please select at least one fund.")
         st.stop()
+
+    # Template picker
+    template = st.selectbox("Choose export format:", [
+        "Client-facing DOCX",
+        "Internal DOCX",
+        "PDF Summary"
+    ])
 
     enhanced_df = enhance_with_benchmark(df[df["Fund"].isin(selected)])
     summary = generate_summary(enhanced_df)
@@ -162,22 +176,18 @@ def run():
     st.markdown("### Proposal")
     st.markdown(proposal, unsafe_allow_html=True)
 
-    st.divider()
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("Export Client Proposal (DOCX)"):
+    if st.button("Export Selected Proposal"):
+        if template == "Client-facing DOCX":
             export_client_docx(enhanced_df, proposal, "fydsync/assets/client_proposal.docx")
             with open("fydsync/assets/client_proposal.docx", "rb") as file:
                 st.download_button("Download Client DOCX", file, "Client_Proposal.docx")
 
-    with col2:
-        if st.button("Export Internal Summary (DOCX)"):
+        elif template == "Internal DOCX":
             export_internal_docx(enhanced_df, proposal, "fydsync/assets/internal_proposal.docx")
             with open("fydsync/assets/internal_proposal.docx", "rb") as file:
                 st.download_button("Download Internal DOCX", file, "Internal_Proposal.docx")
 
-    with col3:
-        if st.button("Export Summary as PDF"):
+        elif template == "PDF Summary":
             export_pdf(summary, proposal, "fydsync/assets/proposal_summary.pdf")
             with open("fydsync/assets/proposal_summary.pdf", "rb") as file:
                 st.download_button("Download PDF", file, "Proposal_Summary.pdf")
