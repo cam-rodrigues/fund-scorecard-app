@@ -219,10 +219,20 @@ def run():
             st.markdown("</div>", unsafe_allow_html=True)
 
         if st.button("Generate Proposal"):
-            doc_path = "fydsync/assets/FidSync_Proposal_Branded.docx"
-            chart_path = "fydsync/assets/fund_chart.png"
-            logo_path = "fydsync/assets/fidsync_logo.png"
-            export_proposal_branded(full_df, proposal_text, doc_path, chart_path, logo_path)
-            import shutil
-            st.success("Proposal ready. Use the button below to download.")
+        doc_path = "fydsync/assets/FidSync_Proposal_Branded.docx"
+        chart_path = "fydsync/assets/fund_chart.png"
+        logo_path = "fydsync/assets/fidsync_logo.png"
+    
+        export_proposal_branded(full_df, proposal_text, doc_path, chart_path, logo_path)
+    
+        st.success("Proposal ready. Use the button below to download.")
+    
+        with open(doc_path, "rb") as file:
+            st.download_button(
+                label="Download Proposal",
+                data=file,
+                file_name="FidSync_Proposal_Branded.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
+
             
