@@ -58,23 +58,21 @@ st.sidebar.markdown("""
     '>FidSync</span><br>
     <span style='
         font-family: "Montserrat", sans-serif;
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 700;
         letter-spacing: 0.5px;
         color: white;
-        background-color: #256DFF;
-        padding: 2px 8px;
-        border-radius: 6px;
+        background-color: #1E63E9;
+        padding: 2px 9px 3px 9px;
+        border-radius: 5px;
         display: inline-block;
-        margin-left: 84px;
-        margin-top: 3px;
+        margin-left: 82px;
+        margin-top: 4px;
     '>BETA</span>
   </div>
 </div>
 <hr style='margin: 0 auto 1.5rem auto; border: none; border-top: 1px solid #c3cfe0; width: 90%;'>
 """, unsafe_allow_html=True)
-
-
 
 
 # === Navigation Buttons ===
