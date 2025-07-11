@@ -44,27 +44,32 @@ st.markdown("""
 
 # === Sidebar Logo and Divider ===
 st.sidebar.markdown("""
-<div style='text-align: center; margin-top: 1rem; margin-bottom: 1.25rem; line-height: 1;'>
-  <span style='font-family: "Segoe UI", sans-serif; font-size: 28px; font-weight: 700; color: #15395C;'>
-    FidSync
-  </span><br>
-  <span style='
-      display: inline-block;
-      background-color: #256DFF;
-      color: white;
-      font-size: 13px;
-      font-weight: 700;
-      padding: 3px 10px;
-      margin-top: 4px;
-      border-radius: 6px;
-      letter-spacing: 0.5px;
-      font-family: "Segoe UI", sans-serif;
-  '>
-    BETA
-  </span>
+<div style='text-align: center; margin-top: 1rem; margin-bottom: 1.25rem;'>
+  <div style='display: inline-flex; align-items: flex-end; gap: 8px;'>
+    <span style='
+        font-family: Montserrat, sans-serif;
+        font-size: 28px;
+        font-weight: 600;
+        color: #102542;
+        line-height: 1;
+    '>FidSync</span>
+    <span style='
+        font-family: Montserrat, sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        color: white;
+        background-color: #1F6FEB;
+        padding: 3px 10px;
+        border-radius: 5px;
+        letter-spacing: 0.5px;
+        position: relative;
+        top: 2px;
+    '>BETA</span>
+  </div>
 </div>
 <hr style='margin: 0 auto 1.5rem auto; border: none; border-top: 1px solid #c3cfe0; width: 90%;'>
 """, unsafe_allow_html=True)
+
 
 
 # === Navigation Buttons ===
