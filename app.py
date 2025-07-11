@@ -35,14 +35,15 @@ st.markdown("""
             display: inline-block;
             background-color: #2b6cb0;
             color: white;
-            font-size: 0.65rem;
+            font-size: 0.55rem;
             font-weight: 700;
-            padding: 0.15rem 0.4rem;
-            margin-left: 0.5rem;
+            padding: 0.05rem 0.3rem;
+            margin-left: 0.1rem;
             border-radius: 0.25rem;
-            vertical-align: middle;
-            letter-spacing: 0.5px;
+            vertical-align: super;
+            letter-spacing: 0.4px;
             text-transform: uppercase;
+            transform: translateY(-2px);
         }
         .sidebar-section {
             font-size: 0.85rem;
@@ -57,7 +58,7 @@ st.markdown("""
 
 # === Sidebar header with Beta label ===
 st.sidebar.markdown(
-    '<div class="sidebar-title">FidSync <span class="beta-badge">BETA</span></div>',
+    '<div class="sidebar-title">FidSync<span class="beta-badge">BETA</span></div>',
     unsafe_allow_html=True
 )
 
