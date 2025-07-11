@@ -97,7 +97,7 @@ st.markdown("""
         }
 
         .line-gap {
-            width: 0;
+            width: 2.4rem;
             flex-shrink: 0;
         }
 
