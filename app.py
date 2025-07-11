@@ -2,7 +2,7 @@ import streamlit as st
 import os
 import importlib.util
 
-st.set_page_config(page_title="FidSync", layout="wide")
+st.set_page_config(page_title="FidSync Beta", layout="wide")
 
 # === Clean, static sidebar styles ===
 st.markdown("""
@@ -31,6 +31,17 @@ st.markdown("""
             border-bottom: 2px solid #b4c3d3;
             margin-bottom: 1rem;
         }
+        .beta-badge {
+            display: inline-block;
+            background-color: #e64a19;
+            color: white;
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 0.15rem 0.4rem;
+            margin-left: 0.5rem;
+            border-radius: 0.25rem;
+            vertical-align: middle;
+        }
         .sidebar-section {
             font-size: 0.85rem;
             font-weight: 600;
@@ -42,8 +53,11 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar header and nav buttons ===
-st.sidebar.markdown('<div class="sidebar-title">FidSync</div>', unsafe_allow_html=True)
+# === Sidebar header with Beta label ===
+st.sidebar.markdown(
+    '<div class="sidebar-title">FidSync <span class="beta-badge">BETA</span></div>',
+    unsafe_allow_html=True
+)
 
 def nav_button(label, filename):
     if st.sidebar.button(label, key=label):
@@ -59,8 +73,7 @@ nav_button("Fund Scorecard", "fund_scorecard.py")
 nav_button("Fund Scorecard Metrics", "mpi_criteria_check.py")
 nav_button("Article Analyzer", "article_analyzer.py")
 nav_button("Data Scanner", "data_scanner.py")
-nav_button("Company Lookup", "company_lookup.py")  # <- fixed name
-nav_button("User Requests", "user_requests.py")
+nav_button("Company Lookup", "company_lookup.py")
 
 st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', unsafe_allow_html=True)
 nav_button("Chart Converter", "fund_charts_ppt.py")
@@ -95,8 +108,7 @@ if selected_page:
         st.query_params.clear()
         st.rerun()
 else:
-    # Default landing page
-    st.markdown("# Welcome to FidSync")
+    st.markdown("# Welcome to FidSync Beta")
     st.markdown("""
-    FidSync is a data processing toolkit designed to streamline and modernize workflows by turning raw data into clear, actionable results.
+    **FidSync Beta** is a data processing toolkit designed to streamline and modernize workflows by turning raw data into clear, actionable results.
     """)
