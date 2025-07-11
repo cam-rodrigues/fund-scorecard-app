@@ -1,118 +1,107 @@
-
 import streamlit as st
-import os
-import importlib.util
+import pdfplumber
+import pandas as pd
+import re
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-st.set_page_config(page_title="FidSync Beta", layout="wide")
+# === Extract Performance Metrics from MPI PDF ===
+def extract_fund_performance(pdf_file):
+    performance_data = []
+    with pdfplumber.open(pdf_file) as pdf:
+        for page in pdf.pages:
+            text = page.extract_text()
+            if not text or "Fund Performance: Current vs." not in text:
+                continue
 
-# === Clean, static sidebar styles ===
-st.markdown("""
-    <style>
-        [data-testid="stSidebar"] {
-            background-color: #f4f6fa;
-            border-right: 1px solid #d3d3d3;
-        }
-        [data-testid="stSidebar"] .stButton>button {
-            background-color: #e8eef8;
-            color: #1a2a44;
-            border: 1px solid #c3cfe0;
-            border-radius: 0.5rem;
-            padding: 0.4rem 0.75rem;
-            font-weight: 600;
-        }
-        [data-testid="stSidebar"] .stButton>button:hover {
-            background-color: #cbd9f0;
-            color: #000000;
-        }
-        .sidebar-title {
-            font-size: 1.7rem;
-            font-weight: 800;
-            color: #102542;
-            padding-bottom: 0.5rem;
-            border-bottom: 2px solid #b4c3d3;
-            margin-bottom: 1rem;
-        }
-        .beta-badge {
-            display: inline-block;
-            background-color: #2b6cb0;
-            color: white;
-            font-size: 0.65rem;
-            font-weight: 700;
-            padding: 0.15rem 0.4rem;
-            margin-left: 0.5rem;
-            border-radius: 0.25rem;
-            vertical-align: middle;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-        }
-        .sidebar-section {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: #666;
-            margin-top: 2rem;
-            margin-bottom: 0.3rem;
-            letter-spacing: 0.5px;
-        }
-    </style>
-""", unsafe_allow_html=True)
+            lines = text.split("\n")
+            fund_name = None
 
-# === Sidebar header with Beta label ===
-st.sidebar.markdown(
-    '<div class="sidebar-title">FidSync <span class="beta-badge">BETA</span></div>',
-    unsafe_allow_html=True
-)
+            for line in lines:
+                if re.search(r"[A-Z]{4,6}X", line):
+                    fund_name = line.strip()
+                    continue
 
-def nav_button(label, filename):
-    if st.sidebar.button(label, key=label):
-        st.query_params.update({"page": filename})
+                if fund_name and re.search(r"[-+]?\d+\.\d+", line):
+                    numbers = re.findall(r"[-+]?\d+\.\d+", line)
+                    if len(numbers) >= 6:
+                        performance_data.append({
+                            "Fund": fund_name,
+                            "QTD": float(numbers[0]),
+                            "YTD": float(numbers[1]),
+                            "1 Yr": float(numbers[2]),
+                            "3 Yr": float(numbers[3]),
+                            "5 Yr": float(numbers[4]),
+                            "10 Yr": float(numbers[5]),
+                        })
+                        fund_name = None
+    return pd.DataFrame(performance_data)
 
-# === Sidebar navigation ===
-st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
-nav_button("Getting Started", "Getting_Started.py")
-nav_button("Capabilities & Potential", "Capabilities_and_Potential.py")
+# === Clean Bar Chart ===
+def plot_bar_chart(df, metric):
+    fig, ax = plt.subplots(figsize=(9, 4))
+    bars = ax.bar(df.index, df[metric], color="#4B89DC", width=0.5)
 
-st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
-nav_button("Fund Scorecard", "fund_scorecard.py")
-nav_button("Fund Scorecard Metrics", "mpi_criteria_check.py")
-nav_button("Article Analyzer", "article_analyzer.py")
-nav_button("Data Scanner", "data_scanner.py")
-nav_button("Company Lookup", "company_lookup.py")
+    for bar in bars:
+        height = bar.get_height()
+        ax.annotate(f'{height:.2f}',
+                    xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3),
+                    textcoords="offset points",
+                    ha='center', va='bottom',
+                    fontsize=9)
 
-st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', unsafe_allow_html=True)
-nav_button("Fund Summaries", "fund_charts_ppt.py")
-nav_button("Fund Comparison", "fund_comparison.py")
+    ax.set_ylabel(metric)
+    ax.set_title(f"{metric} Comparison")
+    ax.grid(axis='y', linestyle='--', linewidth=0.5, alpha=0.7)
+    ax.set_axisbelow(True)
+    plt.xticks(rotation=15)
+    plt.tight_layout()
+    return fig
 
-# === Page router ===
-query_params = st.query_params
-selected_page = query_params.get("page")
-PAGES_DIR = "app_pages"
+# === Heatmap ===
+def plot_heatmap(df):
+    fig, ax = plt.subplots(figsize=(10, 5))
+    sns.heatmap(df, annot=True, fmt=".2f", cmap="coolwarm", linewidths=0.5, ax=ax, cbar=True)
+    ax.set_title("Fund Performance Heatmap")
+    plt.xticks(rotation=15)
+    return fig
 
-# Optional legacy redirects
-legacy_redirects = {
-    "company_scraper.py": "data_scanner.py"
-}
-if selected_page in legacy_redirects:
-    selected_page = legacy_redirects[selected_page]
-    st.query_params.update({"page": selected_page})
-    st.rerun()
+# === Streamlit App Runner ===
+def run():
+    st.set_page_config(page_title="FidSync Beta - Fund Comparison", layout="wide")
+    st.title("📊 Fund Performance Comparison")
 
-if selected_page:
-    page_path = os.path.join(PAGES_DIR, selected_page)
+    uploaded_pdf = st.file_uploader("Upload MPI-style PDF", type=["pdf"])
+    if not uploaded_pdf:
+        st.stop()
 
-    if os.path.exists(page_path):
-        try:
-            spec = importlib.util.spec_from_file_location("page_module", page_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            module.run()
-        except Exception as e:
-            st.error(f"❌ Failed to load page: {e}")
+    with st.spinner("Extracting fund data..."):
+        df = extract_fund_performance(uploaded_pdf)
+
+    if df.empty:
+        st.error("No fund performance data found.")
+        st.stop()
+
+    selected_funds = st.multiselect("Select funds to compare:", df["Fund"].unique())
+    if not selected_funds:
+        st.warning("Select at least one fund to display comparison.")
+        st.stop()
+
+    subset = df[df["Fund"].isin(selected_funds)].set_index("Fund")
+
+    st.subheader("🧾 Raw Performance Table")
+    st.dataframe(subset.style.format("{:.2f}"))
+
+    if len(subset) > 1:
+        st.subheader("📈 Metric-by-Metric Bar Charts")
+        for col in subset.columns:
+            fig = plot_bar_chart(subset, col)
+            st.pyplot(fig)
+
+        if st.checkbox("Show heatmap instead of bar charts"):
+            st.subheader("🌡️ Fund Performance Heatmap")
+            fig = plot_heatmap(subset)
+            st.pyplot(fig)
     else:
-        st.warning(f"Page '{selected_page}' was not found. Redirecting to homepage.")
-        st.query_params.clear()
-        st.rerun()
-else:
-    st.markdown("# Welcome to FidSync Beta")
-    st.markdown("""
-    **FidSync Beta** is a data processing toolkit designed to streamline and modernize workflows by turning raw data into clear, actionable results.
-    """)
+        st.info("Charts will appear once more than one fund is selected.")
