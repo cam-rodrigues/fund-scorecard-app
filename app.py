@@ -15,13 +15,12 @@ st.markdown("""
             position: relative;
         }
 
-        /* Full-height vertical line starting just below logo underline */
         .sidebar-right-line {
             position: absolute;
-            top: 3.65rem;  /* aligned with underline bottom */
+            top: calc(0.8rem + 1.5rem + 1.7rem);
             right: 0;
             width: 2px;
-            height: calc(100% - 3.65rem);
+            height: calc(100% - 2.5rem);
             background-color: #b4c3d3;
             z-index: 2;
         }
@@ -81,11 +80,10 @@ st.markdown("""
             display: flex;
             align-items: center;
             justify-content: flex-start;
-            margin-top: 0.8rem;  /* helps align with vertical line */
-            margin-left: 0.3rem;
-            margin-right: 0;
-            padding-right: 0;
+            margin-top: 0.8rem; 
             width: 100%;
+            height: 2px;
+            background-color: #b4c3d3
             box-sizing: border-box;
         }
 
@@ -133,9 +131,7 @@ st.sidebar.markdown(
             <div class="beta-badge">BETA</div>
         </div>
         <div class="logo-underline-wrapper">
-            <div class="line-left"></div>
-            <div class="line-gap"></div>
-            <div class="line-right"></div>
+            <div class="logo-underline-wrapper"></div>
         </div>
     </div>
     ''',
