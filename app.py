@@ -81,7 +81,7 @@ st.markdown("""
             display: flex;
             align-items: center;
             justify-content: flex-start;
-            margin-top: 0.5rem;  /* helps align with vertical line */
+            margin-top: 0.8rem;  /* helps align with vertical line */
             margin-left: 0.3rem;
             margin-right: 0;
             padding-right: 0;
