@@ -21,7 +21,7 @@ st.markdown("""
             top: 0;
             left: 16rem;
             width: 2px;
-            height: 70vh;
+            height: 100vh;
             background-color: #b4c3d3;
             z-index: 9999;
         }
@@ -105,7 +105,7 @@ st.markdown("""
             height: 2px;
             background-color: #b4c3d3;
             flex-grow: 1;
-            min-width: 0;
+            min-width: 5;
             margin-left: 0.8rem;
         }
 
