@@ -13,17 +13,17 @@ st.markdown("""
             padding-left: 1.2rem;
             padding-right: 1.2rem;
             position: relative;
+            z-index: 1;
         }
 
-        /* Draw vertical line along the inner right edge of the sidebar */
-        [data-testid="stSidebar"]::after {
-            content: "";
-            position: absolute;
+        .sidebar-right-line-absolute {
+            position: fixed;
             top: 0;
-            right: 0;
+            left: calc(var(--sidebar-width, 16rem));
             width: 2px;
-            height: 100%;
+            height: 100vh;
             background-color: #b4c3d3;
+            z-index: 9999;
         }
 
         [data-testid="stSidebar"] .stButton>button {
@@ -77,12 +77,36 @@ st.markdown("""
             z-index: 10;
         }
 
-        .logo-underline-solid {
+        .logo-underline-wrapper {
             position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            margin-top: 1rem;
+            margin-left: 0.3rem;
+            margin-right: 0;
+            width: calc(100% - 0.3rem);
+            height: 2px;
+        }
+
+        .line-left {
             height: 2px;
             background-color: #b4c3d3;
-            width: 100%;
-            margin-top: 1rem;
+            width: 5.6rem;
+            flex-shrink: 0;
+        }
+
+        .line-gap {
+            width: 2.4rem;
+            flex-shrink: 0;
+        }
+
+        .line-right {
+            height: 2px;
+            background-color: #b4c3d3;
+            flex-grow: 1;
+            min-width: 0;
+            margin-left: 0.8rem;
         }
 
         .sidebar-section {
@@ -96,6 +120,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# === Draw TRUE right-edge line ===
+st.markdown('<div class="sidebar-right-line-absolute"></div>', unsafe_allow_html=True)
+
 # === Sidebar logo block ===
 st.sidebar.markdown(
     '''
@@ -104,7 +131,11 @@ st.sidebar.markdown(
             <div class="sidebar-title">FidSync</div>
             <div class="beta-badge">BETA</div>
         </div>
-        <div class="logo-underline-solid"></div>
+        <div class="logo-underline-wrapper">
+            <div class="line-left"></div>
+            <div class="line-gap"></div>
+            <div class="line-right"></div>
+        </div>
     </div>
     ''',
     unsafe_allow_html=True
