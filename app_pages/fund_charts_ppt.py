@@ -6,11 +6,10 @@ from PyPDF2 import PdfReader
 
 def run():
     st.set_page_config(page_title="AI-Powered Fund Summary", layout="wide")
-    st.title("🧠 AI-Powered Fund Summary")
-    st.markdown("Upload an MPI PDF and choose an AI model to generate a smart summary of the financial insights.")
+    st.title("Fund Summary")
+    st.markdown("Upload an MPI PDF  to generate a smart summary of the financial insights.")
 
     # === Select Model ===
-    model_choice = st.selectbox("Choose Model", ["Together AI", "FinGPT (Hugging Face)"])
     uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"])
 
     if uploaded_file is None:
