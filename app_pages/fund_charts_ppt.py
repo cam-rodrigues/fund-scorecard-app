@@ -1,83 +1,78 @@
 import streamlit as st
 import pdfplumber
-import requests
+import re
 from collections import defaultdict
 
-# === Load secrets ===
-HUGGINGFACE_API_KEY = st.secrets.get("huggingface", {}).get("api_key", "")
-TOGETHER_API_KEY = st.secrets.get("together", {}).get("api_key", "")
+# === Patterns for matching ===
+METRIC_TERMS = [
+    "Sharpe Ratio", "Information Ratio", "Sortino Ratio", "Treynor Ratio",
+    "Standard Deviation", "Tracking Error", "Alpha", "Beta", "R²", "Upside Capture",
+    "Downside Capture", "Expense Ratio", "Manager Tenure", "Net Assets",
+    "Turnover Ratio", "Benchmark", "Category"
+]
 
-# === Config ===
-FINGPT_ENDPOINT = "https://api-inference.huggingface.co/models/AI4Finance/FinGPT-4B-Chat"
-TOGETHER_ENDPOINT = "https://api.together.xyz/v1/chat/completions"
+FUND_HEADER_PATTERNS = [
+    r"Manager Name[:\s]", r"Benchmark[:\s]", r"Category[:\s]",
+    r"(?i)^([A-Za-z].+?)\s+[A-Z]{4,6}X\b",  # Fund Name + Ticker
+    r"\bExpense Ratio\b", r"\b03/3[01]/\d{4}\b"
+]
 
+def detect_terms(text):
+    matches = []
+    for term in METRIC_TERMS:
+        if term.lower() in text.lower():
+            matches.append(term)
+    return matches
+
+def detect_fund_header(text):
+    return any(re.search(pattern, text) for pattern in FUND_HEADER_PATTERNS)
 
 def main():
     st.title("🔍 PDF Financial Term & Fund Navigator")
-    st.markdown("Upload an MPI-style PDF. This tool extracts financial terms and fund sections, then lets you navigate to them.")
+    st.markdown("Upload an MPI-style PDF. This tool finds financial terms and fund sections using fast pattern detection — no AI required.")
 
-    uploaded_pdf = st.file_uploader("Upload PDF", type=["pdf"], key="fund_term_pdf")
-    model_choice = st.selectbox("Choose Model", ["FinGPT (Hugging Face)", "Together AI"], key="model_picker")
+    uploaded_pdf = st.file_uploader("Upload PDF", type=["pdf"], key="fast_navigator_pdf")
 
     if uploaded_pdf:
         with pdfplumber.open(uploaded_pdf) as pdf:
-            pages = [page.extract_text() for page in pdf.pages]
+            pages = [page.extract_text() or "" for page in pdf.pages]
 
-        with st.spinner("Analyzing PDF..."):
-            found_terms = defaultdict(list)
+        term_to_pages = defaultdict(list)
+        fund_pages = {}
 
+        with st.spinner("Scanning PDF..."):
             for i, text in enumerate(pages):
-                if not text or len(text.strip()) < 100:
-                    continue
+                clean_text = text.replace("\n", " ").strip()
 
-                prompt = f"""You are a financial analyst. Read the following PDF page text and extract:
-- Key financial metrics mentioned (e.g., Sharpe Ratio, Expense Ratio)
-- Any fund name headers
-Reply with a list of terms only, separated by commas. Don't explain.
+                # Find known metrics
+                terms_found = detect_terms(clean_text)
+                for term in terms_found:
+                    term_to_pages[term].append(i)
 
-Text:
-{text[:3000]}
-"""
+                # Find fund pages
+                if detect_fund_header(clean_text) and i > 20:
+                    first_line = clean_text.splitlines()[0].strip()
+                    if len(first_line.split()) > 2:
+                        fund_pages[first_line] = i
 
-                response = None
-                text_out = ""
-
-                if model_choice.startswith("FinGPT") and HUGGINGFACE_API_KEY:
-                    headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
-                    response = requests.post(FINGPT_ENDPOINT, headers=headers, json={"inputs": prompt})
-                    if response.status_code == 200:
-                        terms = response.json()
-                        text_out = terms[0].get("generated_text", "") if isinstance(terms, list) else ""
-                elif model_choice.startswith("Together") and TOGETHER_API_KEY:
-                    headers = {
-                        "Authorization": f"Bearer {TOGETHER_API_KEY}",
-                        "Content-Type": "application/json"
-                    }
-                    json_data = {
-                        "model": "mistralai/Mixtral-8x7B-Instruct-v0.1",
-                        "max_tokens": 128,
-                        "messages": [{"role": "user", "content": prompt}]
-                    }
-                    response = requests.post(TOGETHER_ENDPOINT, headers=headers, json=json_data)
-                    try:
-                        text_out = response.json()["choices"][0]["message"]["content"]
-                    except Exception:
-                        text_out = ""
-
-                for term in [t.strip() for t in text_out.split(",") if t.strip()]:
-                    found_terms[term].append(i)
-
-        if not found_terms:
-            st.warning("No financial terms or fund headers were detected.")
+        st.markdown("## Select by Financial Term")
+        if term_to_pages:
+            term = st.selectbox("Choose a financial metric:", sorted(term_to_pages))
+            for pg in term_to_pages[term]:
+                st.markdown(f"### Page {pg + 1}")
+                st.text_area(f"Match for '{term}'", pages[pg], height=400)
         else:
-            term_selection = st.selectbox("Select a financial term or fund section:", sorted(found_terms.keys()))
-            if term_selection:
-                pages_to_show = found_terms[term_selection]
-                st.markdown(f"### Showing {len(pages_to_show)} page(s) for: `{term_selection}`")
-                for pg in pages_to_show:
-                    st.markdown(f"#### Page {pg + 1} of {len(pages)}")
-                    st.text_area("Page Content", pages[pg], height=400)
+            st.info("No standard financial metrics found.")
 
+        st.markdown("---")
+        st.markdown("## Select by Fund Page")
+        if fund_pages:
+            fund = st.selectbox("Choose a fund section:", sorted(fund_pages))
+            pg = fund_pages[fund]
+            st.markdown(f"### Fund Page {pg + 1}")
+            st.text_area(f"Fund: {fund}", pages[pg], height=400)
+        else:
+            st.info("No fund section pages detected.")
 
 def run():
     main()
