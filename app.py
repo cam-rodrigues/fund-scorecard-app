@@ -15,7 +15,6 @@ st.markdown("""
             position: relative;
         }
 
-        /* Vertical line down right edge of sidebar */
         .sidebar-right-line {
             content: "";
             position: absolute;
@@ -79,10 +78,32 @@ st.markdown("""
 
         .logo-underline-wrapper {
             position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
             margin-top: 0.8rem;
-            height: 2px;
             width: 100%;
+            height: 2px;
+        }
+
+        .line-left {
+            height: 2px;
             background-color: #b4c3d3;
+            flex-grow: 1;
+            margin-right: 0.4rem;
+        }
+
+        .line-gap {
+            position: relative;
+            height: 0;
+            width: auto;
+        }
+
+        .line-right {
+            height: 2px;
+            background-color: #b4c3d3;
+            flex-grow: 1;
+            margin-left: 0.4rem;
         }
 
         .sidebar-section {
@@ -99,7 +120,7 @@ st.markdown("""
 # === Vertical sidebar line ===
 st.sidebar.markdown('<div class="sidebar-right-line"></div>', unsafe_allow_html=True)
 
-# === Sidebar logo block with full-width underline ===
+# === Sidebar logo block ===
 st.sidebar.markdown(
     '''
     <div class="sidebar-logo-wrapper">
@@ -107,18 +128,22 @@ st.sidebar.markdown(
             <div class="sidebar-title">FidSync</div>
             <div class="beta-badge">BETA</div>
         </div>
-        <div class="logo-underline-wrapper"></div>
+        <div class="logo-underline-wrapper">
+            <div class="line-left"></div>
+            <div class="line-gap"></div>
+            <div class="line-right"></div>
+        </div>
     </div>
     ''',
     unsafe_allow_html=True
 )
 
-# === Sidebar nav button helper ===
+# === Navigation helper ===
 def nav_button(label, filename):
     if st.sidebar.button(label, key=label):
         st.query_params.update({"page": filename})
 
-# === Sidebar navigation ===
+# === Navigation structure ===
 st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
 nav_button("Getting Started", "Getting_Started.py")
 nav_button("Capabilities & Potential", "capabilities_and_potential.py")
@@ -141,7 +166,7 @@ query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
-# Optional legacy redirects
+# Redirect old names if needed
 legacy_redirects = {
     "company_scraper.py": "data_scanner.py"
 }
@@ -150,9 +175,9 @@ if selected_page in legacy_redirects:
     st.query_params.update({"page": selected_page})
     st.rerun()
 
+# Load selected page
 if selected_page:
     page_path = os.path.join(PAGES_DIR, selected_page)
-
     if os.path.exists(page_path):
         try:
             spec = importlib.util.spec_from_file_location("page_module", page_path)
