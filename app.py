@@ -28,14 +28,17 @@ st.markdown("""
             color: #000000;
         }
 
+        .sidebar-logo-wrapper {
+            margin-top: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
         .sidebar-title-container {
             position: relative;
             display: inline-block;
-            margin-top: 0.5rem;       /* moved up slightly */
-            margin-bottom: 2rem;
-            margin-left: 0.3rem;
             transform: scale(1.35);
             transform-origin: top left;
+            margin-left: 0.3rem;
         }
 
         .sidebar-title {
@@ -61,12 +64,11 @@ st.markdown("""
             white-space: nowrap;
         }
 
-        .sidebar-title-container::after {
-            content: "";
-            display: block;
-            margin-top: 1.05rem;
+        .logo-underline {
             border-bottom: 2px solid #b4c3d3;
-            width: 10rem;  /* longer underline */
+            width: 10rem;  /* now truly extends */
+            margin-top: 1.1rem;
+            margin-left: 0.3rem;
         }
 
         .sidebar-section {
@@ -80,12 +82,15 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar logo block ===
+# === Sidebar logo block with detached underline ===
 st.sidebar.markdown(
     '''
-    <div class="sidebar-title-container">
-        <div class="sidebar-title">FidSync</div>
-        <div class="beta-badge">BETA</div>
+    <div class="sidebar-logo-wrapper">
+        <div class="sidebar-title-container">
+            <div class="sidebar-title">FidSync</div>
+            <div class="beta-badge">BETA</div>
+        </div>
+        <div class="logo-underline"></div>
     </div>
     ''',
     unsafe_allow_html=True
