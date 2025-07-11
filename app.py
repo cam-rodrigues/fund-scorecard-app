@@ -33,8 +33,8 @@ st.markdown("""
             display: inline-block;
             margin-top: 1rem;
             margin-bottom: 2rem;
-            margin-left: 0.3rem;  /* fine-tune for centering */
-            transform: scale(1.35);  /* slightly larger */
+            margin-left: 0.3rem;
+            transform: scale(1.35);  /* scale up */
             transform-origin: top left;
         }
 
@@ -49,7 +49,7 @@ st.markdown("""
         .beta-badge {
             position: absolute;
             top: 1.62rem;
-            left: 4.55rem;  /* adjust to sit under 'y' */
+            left: 4.55rem;
             background-color: #2b6cb0;
             color: white;
             font-size: 0.48rem;
@@ -66,7 +66,7 @@ st.markdown("""
             display: block;
             margin-top: 1.05rem;
             border-bottom: 2px solid #b4c3d3;
-            width: 100%;
+            width: 6rem;  /* extended underline */
         }
 
         .sidebar-section {
@@ -80,7 +80,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar logo block (scaled and centered) ===
+# === Sidebar logo block (scaled, centered, extended underline) ===
 st.sidebar.markdown(
     '''
     <div class="sidebar-title-container">
