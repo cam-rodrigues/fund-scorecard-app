@@ -10,7 +10,7 @@ st.markdown("""
         [data-testid="stSidebar"] {
             background-color: #f4f6fa;
             border-right: none;
-            padding-left: 1.2rem;
+            padding-left: none;
             padding-right: 1.2rem;
             position: relative;
             z-index: 1;
