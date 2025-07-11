@@ -1,3 +1,4 @@
+
 import streamlit as st
 import os
 import importlib.util
@@ -61,10 +62,8 @@ st.sidebar.markdown(
     unsafe_allow_html=True
 )
 
-# === Navigation Button ===
 def nav_button(label, filename):
-    key = f"nav_{filename.replace('.', '_')}"
-    if st.sidebar.button(label, key=key):
+    if st.sidebar.button(label, key=label):
         st.query_params.update({"page": filename})
 
 # === Sidebar navigation ===
