@@ -92,7 +92,7 @@ st.markdown("""
         .line-left {
             height: 2px;
             background-color: #b4c3d3;
-            width: 5.6rem;
+            width: 4.6rem;
             flex-shrink: 0;
         }
 
