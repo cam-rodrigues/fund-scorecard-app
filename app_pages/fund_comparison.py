@@ -90,17 +90,17 @@ def run():
 
     subset = df[df["Fund"].isin(selected_funds)].set_index("Fund")
 
-    st.subheader("🧾 Raw Performance Table")
+    st.subheader("Raw Performance Table")
     st.dataframe(subset.style.format("{:.2f}"))
 
     if len(subset) > 1:
-        st.subheader("📈 Metric-by-Metric Bar Charts")
+        st.subheader("Metric-by-Metric Bar Charts")
         for col in subset.columns:
             fig = plot_bar_chart(subset, col)
             st.pyplot(fig)
 
         if st.checkbox("Show heatmap instead of bar charts"):
-            st.subheader("🌡️ Fund Performance Heatmap")
+            st.subheader("Fund Performance Heatmap")
             fig = plot_heatmap(subset)
             st.pyplot(fig)
     else:
