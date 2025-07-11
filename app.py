@@ -4,12 +4,14 @@ import importlib.util
 
 st.set_page_config(page_title="FidSync Beta", layout="wide")
 
-# === Clean, static sidebar styles ===
+# === Sidebar + Logo Block Styling ===
 st.markdown("""
     <style>
         [data-testid="stSidebar"] {
             background-color: #f4f6fa;
             border-right: 1px solid #d3d3d3;
+            padding-left: 1.2rem;
+            padding-right: 1.2rem;
         }
         [data-testid="stSidebar"] .stButton>button {
             background-color: #e8eef8;
@@ -27,20 +29,24 @@ st.markdown("""
         .sidebar-title-container {
             position: relative;
             display: inline-block;
-            margin-bottom: 1.5rem;
+            max-width: 100%;
+            margin-top: 0.25rem;
+            margin-bottom: 1.25rem;
+            padding-right: 0.5rem;
         }
 
         .sidebar-title {
-            font-size: 1.7rem;
+            font-size: 1.65rem;
             font-weight: 800;
             color: #102542;
             line-height: 1;
+            white-space: nowrap;
         }
 
         .beta-badge {
             position: absolute;
-            top: 1.6rem;  /* vertical position under "y" */
-            left: 4.6rem; /* horizontal position to nest under "y" */
+            top: 1.55rem;
+            left: 4.45rem;
             background-color: #2b6cb0;
             color: white;
             font-size: 0.48rem;
@@ -55,8 +61,9 @@ st.markdown("""
         .sidebar-title-container::after {
             content: "";
             display: block;
+            margin-top: 1.05rem;
             border-bottom: 2px solid #b4c3d3;
-            margin-top: 1rem;
+            width: 100%;
         }
 
         .sidebar-section {
@@ -70,7 +77,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar header with BETA badge nestled under the “y” ===
+# === Sidebar logo with clean fit ===
 st.sidebar.markdown(
     '''
     <div class="sidebar-title-container">
