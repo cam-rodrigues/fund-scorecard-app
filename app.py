@@ -44,24 +44,26 @@ st.markdown("""
 
 # === Sidebar Logo and Divider ===
 st.sidebar.markdown("""
-<div style='text-align: center; margin-top: 1rem; margin-bottom: 1.75rem;'>
-  <div style='display: inline-flex; align-items: flex-end; gap: 6px;'>
+<!-- Load Montserrat font -->
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
+
+<div style='text-align: center; margin-top: 1.2rem; margin-bottom: 1.75rem;'>
+  <div style='display: inline-flex; align-items: flex-end; gap: 4px;'>
     <span style='
-        font-family: Montserrat, sans-serif;
-        font-size: 32px;
+        font-family: "Montserrat", sans-serif;
+        font-size: 30px;
         font-weight: 600;
-        color: #15395C;
-        letter-spacing: -0.5px;
+        color: #102542;
+        letter-spacing: -0.25px;
     '>FidSync</span>
     <span style='
-        display: inline-block;
-        font-family: Montserrat, sans-serif;
-        font-size: 14px;
+        font-family: "Montserrat", sans-serif;
+        font-size: 12.5px;
         font-weight: 700;
-        letter-spacing: 0.7px;
-        background-color: #1F6FEB;
+        letter-spacing: 0.6px;
         color: white;
-        padding: 3px 10px 4px 10px;
+        background-color: #256DFF;
+        padding: 2px 9px 3px 9px;
         border-radius: 6px;
         position: relative;
         top: 3px;
@@ -70,6 +72,7 @@ st.sidebar.markdown("""
 </div>
 <hr style='margin: 0 auto 1.5rem auto; border: none; border-top: 1px solid #c3cfe0; width: 90%;'>
 """, unsafe_allow_html=True)
+
 
 
 
