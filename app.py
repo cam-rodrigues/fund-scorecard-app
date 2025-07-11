@@ -5,6 +5,11 @@ import importlib.util
 # === Page Setup ===
 st.set_page_config(page_title="FidSync Beta", layout="wide")
 
+# === Load Montserrat Font ===
+st.markdown("""
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
+""", unsafe_allow_html=True)
+
 # === Sidebar Styles ===
 st.markdown("""
     <style>
@@ -24,28 +29,6 @@ st.markdown("""
             background-color: #cbd9f0;
             color: #000000;
         }
-        .sidebar-title {
-            font-size: 1.7rem;
-            font-weight: 800;
-            color: #102542;
-            padding-bottom: 0.5rem;
-            border-bottom: 2px solid #b4c3d3;
-            margin: 1.5rem auto 1.5rem auto;
-            text-align: center;
-        }
-        .beta-badge {
-            display: inline-block;
-            background-color: #2b6cb0;
-            color: white;
-            font-size: 0.65rem;
-            font-weight: 700;
-            padding: 0.15rem 0.4rem;
-            margin-left: 0.5rem;
-            border-radius: 0.25rem;
-            vertical-align: middle;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-        }
         .sidebar-section {
             font-size: 0.85rem;
             font-weight: 600;
@@ -57,12 +40,33 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar Logo (Text-Based) ===
+# === Sidebar Logo (Text-Based Replica) ===
 with st.sidebar:
-    st.markdown(
-        '<div class="sidebar-title">FidSync <span class="beta-badge">BETA</span></div>',
-        unsafe_allow_html=True
-    )
+    st.markdown("""
+    <div style="text-align:center; margin: 2rem auto 1.5rem auto;">
+        <span style="
+            font-size: 2rem;
+            font-weight: 700;
+            font-family: 'Montserrat', sans-serif;
+            color: #153e75;">
+            FidSync
+        </span>
+        <span style="
+            background-color: #1a4fb0;
+            color: white;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 0.2rem 0.5rem;
+            margin-left: 0.4rem;
+            border-radius: 0.25rem;
+            vertical-align: middle;
+            font-family: 'Montserrat', sans-serif;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;">
+            BETA
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
 
 # === Navigation Buttons ===
 def nav_button(label, filename):
