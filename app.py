@@ -107,6 +107,7 @@ st.markdown("""
             flex-grow: 1;
             min-width: 5;
             margin-left: 0.9rem;
+            margine-right: none;
         }
 
         .sidebar-section {
