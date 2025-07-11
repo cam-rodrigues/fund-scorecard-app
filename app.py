@@ -9,20 +9,19 @@ st.markdown("""
     <style>
         [data-testid="stSidebar"] {
             background-color: #f4f6fa;
-            border-right: none;  /* Removed default sidebar border */
+            border-right: none;
             padding-left: 1.2rem;
             padding-right: 1.2rem;
-            position: relative;  /* Allows absolute positioning inside */
+            position: relative;
         }
 
-        /* Full-height vertical line at sidebar edge */
+        /* Vertical line starting below logo underline */
         .sidebar-right-line {
-            content: "";
             position: absolute;
-            top: 0;
-            right: 0;
+            top: 4.65rem;  /* aligns with logo underline visually */
+            right: 1.2rem; /* matches sidebar padding */
             width: 2px;
-            height: 100%;
+            height: calc(100% - 4.65rem); /* runs to bottom */
             background-color: #b4c3d3;
             z-index: 1;
         }
@@ -104,21 +103,11 @@ st.markdown("""
 
         .line-right {
             height: 2px;
-            background-color: #b4c3d3;
+            background-color: #2b6cb0;
             flex-grow: 1;
             min-width: 0;
             margin-left: 0.8rem;
             position: relative;
-        }
-
-        .line-right::after {
-            content: "";
-            position: absolute;
-            top: 2px;
-            right: 0;
-            width: 2px;
-            height: 100vh;
-            background-color: transparent;  /* disabled since we use sidebar-right-line */
         }
 
         .sidebar-section {
@@ -132,10 +121,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Vertical sidebar line ===
+# === Vertical sidebar edge line ===
 st.sidebar.markdown('<div class="sidebar-right-line"></div>', unsafe_allow_html=True)
 
-# === Sidebar logo block with final polished underline ===
+# === Sidebar logo block with underline ===
 st.sidebar.markdown(
     '''
     <div class="sidebar-logo-wrapper">
