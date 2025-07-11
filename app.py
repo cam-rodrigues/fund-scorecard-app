@@ -82,6 +82,7 @@ st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', uns
 nav_button("Fund Summary", "fund_summary.py")
 nav_button("Fund Comparison", "fund_comparison.py")
 nav_button("Multi Fund Comparison", "multi_fund_comparison.py")
+nav_button("Quarterly Comparison", "qtrly_comparison.py")
 
 # === Page router ===
 query_params = st.query_params
