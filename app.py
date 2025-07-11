@@ -18,7 +18,7 @@ st.markdown("""
 
         .sidebar-right-line-absolute {
             position: fixed;
-            top: 0;
+            top: 20;
             left: 16rem;
             width: 2px;
             height: 100vh;
