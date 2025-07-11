@@ -64,11 +64,22 @@ st.markdown("""
             white-space: nowrap;
         }
 
-        .logo-underline {
-            border-bottom: 2px solid #b4c3d3;
-            width: 10rem;
-            margin-top: 2.2rem;  /* adjusted to clear scaled logo */
+        .logo-underline-wrapper {
+            display: flex;
+            align-items: center;
+            margin-top: 2.2rem;
             margin-left: 0.3rem;
+            gap: 0.5rem; /* space between lines and beta badge */
+        }
+
+        .line-segment {
+            height: 2px;
+            background-color: #b4c3d3;
+            flex-grow: 1;
+        }
+
+        .invisible-badge-space {
+            width: 2.8rem;  /* approx width of beta badge + buffer */
         }
 
         .sidebar-section {
@@ -82,7 +93,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar logo block with fixed underline spacing ===
+# === Sidebar logo block with split underline around badge ===
 st.sidebar.markdown(
     '''
     <div class="sidebar-logo-wrapper">
@@ -90,7 +101,11 @@ st.sidebar.markdown(
             <div class="sidebar-title">FidSync</div>
             <div class="beta-badge">BETA</div>
         </div>
-        <div class="logo-underline"></div>
+        <div class="logo-underline-wrapper">
+            <div class="line-segment"></div>
+            <div class="invisible-badge-space"></div>
+            <div class="line-segment"></div>
+        </div>
     </div>
     ''',
     unsafe_allow_html=True
