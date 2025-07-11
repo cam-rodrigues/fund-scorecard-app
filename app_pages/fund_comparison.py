@@ -7,7 +7,6 @@ import numpy as np
 import re
 from docx import Document
 from docx.shared import Pt, Inches
-from docx.enum.section import WD_HEADER_FOOTER
 import matplotlib.pyplot as plt
 from datetime import datetime
 import os
@@ -77,6 +76,8 @@ def generate_summary(df):
         return ""
     benchmark = df[df["Fund"] == "S&P 500 (Benchmark)"].iloc[0]
     others = df[df["Fund"] != "S&P 500 (Benchmark)"]
+    if others.empty:
+        return "_No comparable fund data available._"
     trailing = ["QTD", "YTD", "1 Yr", "3 Yr", "5 Yr", "10 Yr"]
     beat_counts = (others[trailing] > benchmark[trailing]).sum(axis=1)
     avg_returns = others[trailing].mean(axis=1)
@@ -93,11 +94,11 @@ def generate_summary(df):
 def generate_proposal_text(df):
     trailing_cols = ["QTD", "YTD", "1 Yr", "3 Yr", "5 Yr", "10 Yr"]
     main_funds = df[df["Fund"] != "S&P 500 (Benchmark)"].copy()
+    if main_funds.empty:
+        return "<i>No valid funds available for proposal generation.</i>"
     benchmark = df[df["Fund"] == "S&P 500 (Benchmark)"].iloc[0]
     main_funds["Avg Return"] = main_funds[trailing_cols].mean(axis=1)
     main_funds["Beats Benchmark"] = (main_funds[trailing_cols] > benchmark[trailing_cols]).sum(axis=1)
-    if main_funds.empty:
-        return "<i>No valid funds available for proposal generation.</i>"
     ranked = main_funds.sort_values(["Avg Return", "Sharpe Ratio"], ascending=False)
     top_fund = ranked.iloc[0]
     runner_up = ranked.iloc[1] if len(ranked) > 1 else None
@@ -148,6 +149,7 @@ def generate_bar_chart(df, chart_path):
 # === Export Branded DOCX ===
 def export_proposal_branded(df, proposal_text, doc_path, chart_path, logo_path=None, user="Cameron Rodrigues", firm="Procyon Partners"):
     generate_bar_chart(df, chart_path)
+    os.makedirs(os.path.dirname(doc_path), exist_ok=True)
     doc = Document()
     style = doc.styles['Normal']
     font = style.font
@@ -156,10 +158,8 @@ def export_proposal_branded(df, proposal_text, doc_path, chart_path, logo_path=N
     section = doc.sections[0]
     header = section.header
     header.paragraphs[0].text = f"Prepared by {user} | {firm} | {datetime.now().strftime('%B %d, %Y')}"
-
     if logo_path and os.path.exists(logo_path):
         doc.add_picture(logo_path, width=Inches(2.5))
-
     doc.add_paragraph("FidSync Proposal", "Title")
     doc.add_paragraph("Prepared for review")
     for line in proposal_text.strip().split("\n"):
@@ -173,7 +173,7 @@ def export_proposal_branded(df, proposal_text, doc_path, chart_path, logo_path=N
     )
     doc.save(doc_path)
 
-# === Main App ===
+# === Streamlit App ===
 def run():
     st.set_page_config(page_title="FidSync Beta - Fund Comparison", layout="wide")
     st.title("Fund Performance Comparison")
@@ -204,9 +204,6 @@ def run():
 
     if st.session_state.show_results:
         filtered = df[df["Fund"].isin(selected)]
-        if filtered.empty:
-            st.warning("No valid non-benchmark funds to compare. Please select at least one.")
-            st.stop()
         full_df = enhance_with_benchmark(filtered)
 
         st.markdown("### Summary")
@@ -227,8 +224,15 @@ def run():
             doc_path = "fydsync/assets/FidSync_Proposal_Branded.docx"
             chart_path = "fydsync/assets/fund_chart.png"
             logo_path = "fydsync/assets/fidsync_logo.png"
+
             export_proposal_branded(full_df, proposal_text, doc_path, chart_path, logo_path)
-            import shutil
-            shutil.copy(doc_path, "/mnt/data/FidSync_Proposal_Branded.docx")
+
             st.success("Proposal ready. Use the button below to download.")
-            
+
+            with open(doc_path, "rb") as file:
+                st.download_button(
+                    label="Download Proposal",
+                    data=file,
+                    file_name="FidSync_Proposal_Branded.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
