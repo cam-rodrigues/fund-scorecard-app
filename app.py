@@ -19,9 +19,9 @@ st.markdown("""
         .sidebar-right-line-absolute {
             position: fixed;
             top: 0;
-            left: calc(var(--sidebar-width, 16rem));
+            left: 16rem;
             width: 2px;
-            height: 100vh;
+            height: 70vh;
             background-color: #b4c3d3;
             z-index: 9999;
         }
