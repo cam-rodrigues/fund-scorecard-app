@@ -44,7 +44,7 @@ st.markdown("""
 
 # === Sidebar Logo and Divider ===
 with st.sidebar:
-    logo_path = os.path.join("assets", "fidsync_logo_fixed.png")  # <- Your new optimized logo
+    logo_path = os.path.join("assets", "logo.png")  # <- Your new optimized logo
     if os.path.exists(logo_path):
         logo = Image.open(logo_path)
         st.image(logo, use_container_width=False, width=150)
