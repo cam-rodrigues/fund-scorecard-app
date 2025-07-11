@@ -1,8 +1,20 @@
 import streamlit as st
 import os
 from PIL import Image
+import importlib.util
 
 st.set_page_config(page_title="FidSync Beta", layout="wide")
+
+# === Main Page Logo (Top-Left) ===
+logo_path = os.path.join("assets", "fidsync_logo.png")
+if os.path.exists(logo_path):
+    col1, col2 = st.columns([1, 6])
+    with col1:
+        st.image(logo_path, width=160)
+    with col2:
+        st.markdown("### ")  # slight spacing if needed
+else:
+    st.warning("Logo not found")
 
 # === Sidebar Styles ===
 st.markdown("""
@@ -13,22 +25,12 @@ st.markdown("""
         padding-top: 1.25rem;
         padding-bottom: 0;
     }
-
-    [data-testid="stSidebar"] img {
-        display: block;
-        margin: 0 auto 0.2rem auto;
-        width: 100%;
-        max-width: 160px;
-        height: auto;
-    }
-
     [data-testid="stSidebar"] hr {
         border: none;
         border-top: 1px solid #c3cfe0;
         margin: 0.5rem auto 1rem auto;
         width: 90%;
     }
-
     [data-testid="stSidebar"] .stButton>button {
         background-color: #e8eef8;
         color: #1a2a44;
@@ -37,12 +39,10 @@ st.markdown("""
         padding: 0.4rem 0.75rem;
         font-weight: 600;
     }
-
     [data-testid="stSidebar"] .stButton>button:hover {
         background-color: #cbd9f0;
         color: #000000;
     }
-
     .sidebar-section-title {
         font-size: 0.9rem;
         font-weight: 700;
@@ -53,26 +53,16 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Logo ===
-logo_path = os.path.join("assets", "fidsync_logo.png")
-if os.path.exists(logo_path):
-    logo = Image.open(logo_path)
-    st.sidebar.image(logo, use_container_width=True)
-else:
-    st.sidebar.warning("Logo not found")
-
-st.sidebar.markdown("<hr />", unsafe_allow_html=True)
-
-# === Navigation ===
+# === Sidebar Navigation ===
 st.sidebar.markdown('<div class="sidebar-section-title">Documentation</div>', unsafe_allow_html=True)
-st.sidebar.button("Getting Started")
-st.sidebar.button("Capabilities & Potential")
+nav_button("Getting Started", "getting_started.py")
+nav_button("Capabilities & Potential", "capabilities_and_potential.py")
 
 st.sidebar.markdown('<div class="sidebar-section-title">Tools</div>', unsafe_allow_html=True)
-st.sidebar.button("Fund Scorecard")
-st.sidebar.button("Fund Scorecard Metrics")
-st.sidebar.button("Article Analyzer")
-st.sidebar.button("Data Scanner")
+nav_button("Fund Scorecard", "fund_scorecard.py")
+nav_button("Fund Scorecard Metrics", "fund_scorecard_metrics.py")
+nav_button("Article Analyzer", "article_analyzer.py")
+nav_button("Data Scanner", "data_scanner.py")
 st.sidebar.button("Company Lookup")
 
 st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', unsafe_allow_html=True)
@@ -86,7 +76,7 @@ query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
-# Legacy redirects
+# Handle legacy redirects
 legacy_redirects = {
     "company_scraper.py": "data_scanner.py"
 }
@@ -97,7 +87,6 @@ if selected_page in legacy_redirects:
 
 if selected_page:
     page_path = os.path.join(PAGES_DIR, selected_page)
-
     if os.path.exists(page_path):
         try:
             spec = importlib.util.spec_from_file_location("page_module", page_path)
