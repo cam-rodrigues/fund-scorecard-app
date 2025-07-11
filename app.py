@@ -6,128 +6,75 @@ from PIL import Image
 # === Page Setup ===
 st.set_page_config(page_title="FidSync Beta", layout="wide")
 
-# === Sidebar Styles ===
+# === Sidebar Styling ===
 st.markdown("""
     <style>
-        [data-testid="stSidebar"] {
-            background-color: #f4f6fa;
-            border-right: 1px solid #d3d3d3;
-        }
-        [data-testid="stSidebar"] img {
-            display: block;
-            margin: 1rem auto 0.75rem auto;
-            height: auto;
-            border-radius: 0.25rem;
-        }
-        [data-testid="stSidebar"] .stButton>button {
-            background-color: #e8eef8;
-            color: #1a2a44;
-            border: 1px solid #c3cfe0;
-            border-radius: 0.5rem;
-            padding: 0.4rem 0.75rem;
-            font-weight: 600;
-        }
-        [data-testid="stSidebar"] .stButton>button:hover {
-            background-color: #cbd9f0;
-            color: #000000;
-        }
-        .sidebar-section {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: #666;
-            margin-top: 2rem;
-            margin-bottom: 0.3rem;
-            letter-spacing: 0.5px;
-        }
+    [data-testid="stSidebar"] {
+        background-color: #f4f6fa;
+        border-right: 1px solid #d3d3d3;
+        padding-top: 2.5rem;
+    }
+
+    [data-testid="stSidebar"] img {
+        display: block;
+        margin: 0 auto 1rem auto;
+        max-width: 220px;
+        height: auto;
+    }
+
+    [data-testid="stSidebar"] .stButton>button {
+        background-color: #e8eef8;
+        color: #1a2a44;
+        border: 1px solid #c3cfe0;
+        border-radius: 0.5rem;
+        padding: 0.4rem 0.75rem;
+        font-weight: 600;
+    }
+
+    [data-testid="stSidebar"] .stButton>button:hover {
+        background-color: #cbd9f0;
+        color: #000000;
+    }
+
+    .sidebar-title {
+        font-size: 1.7rem;
+        font-weight: 800;
+        color: #102542;
+        padding-bottom: 0.25rem;
+    }
+
+    hr {
+        border: none;
+        border-top: 1px solid #c3cfe0;
+        margin: 1rem auto;
+        width: 90%;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar Logo and Divider ===
-st.sidebar.markdown("""
-<!-- Load Montserrat -->
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
-
-<div style='text-align: center; margin-top: 1.2rem; margin-bottom: 1.75rem;'>
-  <div style='display: inline-block; line-height: 1;'>
-    <span style='
-        font-family: "Montserrat", sans-serif;
-        font-size: 30px;
-        font-weight: 600;
-        color: #102542;
-        letter-spacing: -0.25px;
-    '>FidSync</span><br>
-    <span style='
-        font-family: "Montserrat", sans-serif;
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 0.5px;
-        color: white;
-        background-color: #1E63E9;
-        padding: 2px 9px 3px 9px;
-        border-radius: 5px;
-        display: inline-block;
-        margin-left: 82px;
-        margin-top: 4px;
-    '>BETA</span>
-  </div>
-</div>
-<hr style='margin: 0 auto 1.5rem auto; border: none; border-top: 1px solid #c3cfe0; width: 90%;'>
-""", unsafe_allow_html=True)
-
-
-# === Navigation Buttons ===
-def nav_button(label, filename):
-    if st.sidebar.button(label, key=label):
-        st.query_params.update({"page": filename})
-
-st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
-nav_button("Getting Started", "Getting_Started.py")
-nav_button("Capabilities & Potential", "capabilities_and_potential.py")
-
-st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
-nav_button("Fund Scorecard", "fund_scorecard.py")
-nav_button("Fund Scorecard Metrics", "fund_scorecard_metrics.py")
-nav_button("Article Analyzer", "article_analyzer.py")
-nav_button("Data Scanner", "data_scanner.py")
-nav_button("Company Lookup", "company_lookup.py")
-
-st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', unsafe_allow_html=True)
-nav_button("Fund Summary", "fund_summary.py")
-nav_button("Fund Comparison", "fund_comparison.py")
-nav_button("Multi Fund Comparison", "multi_fund_comparison.py")
-nav_button("Quarterly Comparison", "qtrly_comparison.py")
-
-# === Page Router Logic ===
-query_params = st.query_params
-selected_page = query_params.get("page")
-PAGES_DIR = "app_pages"
-
-# Handle legacy redirects
-legacy_redirects = {
-    "company_scraper.py": "data_scanner.py"
-}
-if selected_page in legacy_redirects:
-    selected_page = legacy_redirects[selected_page]
-    st.query_params.update({"page": selected_page})
-    st.rerun()
-
-if selected_page:
-    page_path = os.path.join(PAGES_DIR, selected_page)
-
-    if os.path.exists(page_path):
-        try:
-            spec = importlib.util.spec_from_file_location("page_module", page_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            module.run()
-        except Exception as e:
-            st.error(f"❌ Failed to load page: {e}")
-    else:
-        st.warning(f"Page '{selected_page}' was not found. Redirecting to homepage.")
-        st.query_params.clear()
-        st.rerun()
+# === Logo Display ===
+logo_path = os.path.join("assets", "logo.png")
+if os.path.exists(logo_path):
+    logo = Image.open(logo_path)
+    st.sidebar.image(logo, use_container_width=True)
 else:
-    st.markdown("# Welcome to FidSync Beta")
-    st.markdown("""
-    **FidSync Beta** is a data processing toolkit designed to streamline and modernize workflows by turning raw data into clear, actionable results.
-    """)
+    st.sidebar.warning("Logo not found in assets/logo.png")
+
+# === Sidebar Navigation Buttons ===
+st.sidebar.markdown("#### Documentation")
+st.sidebar.button("Getting Started")
+st.sidebar.button("Capabilities & Potential")
+
+st.sidebar.markdown("#### Tools")
+st.sidebar.button("Fund Scorecard")
+st.sidebar.button("Fund Scorecard Metrics")
+st.sidebar.button("Article Analyzer")
+st.sidebar.button("Data Scanner")
+st.sidebar.button("Company Lookup")
+
+# === Main Page Placeholder ===
+st.title("Quarterly Fund Comparison Tool")
+st.markdown("Upload multiple MPI PDFs (different quarters)")
+
+st.file_uploader("Drag and drop files here", type=["pdf"], accept_multiple_files=True)
+st.info("Please upload at least two MPI PDFs from different quarters.")
