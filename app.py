@@ -43,16 +43,29 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # === Sidebar Logo and Divider ===
-with st.sidebar:
-    logo_path = os.path.join("assets", "logo.png")  # <- Your new optimized logo
-    if os.path.exists(logo_path):
-        logo = Image.open(logo_path)
-        st.image(logo, use_container_width=False, width=150)
+st.sidebar.markdown("""
+<div style='text-align: center; margin-top: 1rem; margin-bottom: 1.25rem; line-height: 1;'>
+  <span style='font-family: "Segoe UI", sans-serif; font-size: 28px; font-weight: 700; color: #15395C;'>
+    FidSync
+  </span><br>
+  <span style='
+      display: inline-block;
+      background-color: #256DFF;
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 3px 10px;
+      margin-top: 4px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+      font-family: "Segoe UI", sans-serif;
+  '>
+    BETA
+  </span>
+</div>
+<hr style='margin: 0 auto 1.5rem auto; border: none; border-top: 1px solid #c3cfe0; width: 90%;'>
+""", unsafe_allow_html=True)
 
-    st.markdown(
-        """<hr style='margin-top: 1.25rem; margin-bottom: 1.5rem; border: none; border-top: 1px solid #c3cfe0;'>""",
-        unsafe_allow_html=True
-    )
 
 # === Navigation Buttons ===
 def nav_button(label, filename):
