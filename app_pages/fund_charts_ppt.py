@@ -1,84 +1,50 @@
 import streamlit as st
 import pdfplumber
 import re
-from collections import defaultdict
 
-# === Patterns for matching ===
-METRIC_TERMS = [
+# === Config ===
+KEY_TERMS = [
     "Sharpe Ratio", "Information Ratio", "Sortino Ratio", "Treynor Ratio",
-    "Standard Deviation", "Tracking Error", "Alpha", "Beta", "R²", "Upside Capture",
-    "Downside Capture", "Expense Ratio", "Manager Tenure", "Net Assets",
-    "Turnover Ratio", "Benchmark", "Category", "Calendar Year Returns"
+    "Standard Deviation", "Tracking Error", "Alpha", "Beta", "R²",
+    "Expense Ratio", "Manager Tenure", "Net Assets", "Turnover Ratio",
+    "Benchmark", "Category", "Calendar Year Returns", "Portfolio Composition",
+    "Top 10 Holdings", "Fund Exposures"
 ]
 
-FUND_HEADER_PATTERNS = [
-    r"Manager Name[:\s]", r"Benchmark[:\s]", r"Category[:\s]",
-    r"(?i)^([A-Za-z].+?)\s+[A-Z]{4,6}X\b",  # Fund Name + Ticker
-    r"\bExpense Ratio\b", r"\b03/3[01]/\d{4}\b",
-    r"Fund Facts", r"Calendar Year Returns", r"PORTFOLIO COMPOSITION"
-]
+# === Functions ===
+def extract_summary(pdf_file):
+    results = []
 
-def detect_terms(text):
-    matches = []
-    for term in METRIC_TERMS:
-        if term.lower() in text.lower():
-            matches.append(term)
-    return matches
+    with pdfplumber.open(pdf_file) as pdf:
+        for i, page in enumerate(pdf.pages):
+            text = page.extract_text() or ""
+            terms_found = [term for term in KEY_TERMS if term.lower() in text.lower()]
+            if terms_found:
+                cleaned = re.sub(r'\n+', ' ', text.strip())
+                snippet = cleaned[:1500] + "..." if len(cleaned) > 1500 else cleaned
+                results.append({
+                    "Page": i + 1,
+                    "Terms": terms_found,
+                    "Snippet": snippet
+                })
 
-def detect_fund_header(text):
-    return any(re.search(pattern, text) for pattern in FUND_HEADER_PATTERNS)
+    return results
 
-def extract_fund_name(text):
-    for line in text.splitlines():
-        if "Fund" in line and len(line) < 100:
-            return line.strip()
-    return "Unknown Fund"
-
-def main():
-    st.title("🔍 PDF Financial Term & Fund Navigator")
-    st.markdown("Upload an MPI-style PDF. This tool finds financial terms and fund sections using fast pattern detection — no AI required.")
-
-    uploaded_pdf = st.file_uploader("Upload PDF", type=["pdf"], key="fast_navigator_pdf")
-
-    if uploaded_pdf:
-        with pdfplumber.open(uploaded_pdf) as pdf:
-            pages = [page.extract_text() or "" for page in pdf.pages]
-
-        term_to_pages = defaultdict(list)
-        fund_pages = {}
-
-        with st.spinner("Scanning PDF..."):
-            for i, text in enumerate(pages):
-                clean_text = text.replace("\n", " ").strip()
-
-                # Find known metrics
-                terms_found = detect_terms(clean_text)
-                for term in terms_found:
-                    term_to_pages[term].append(i)
-
-                # Find fund pages
-                if detect_fund_header(clean_text) and i > 20:
-                    fund_name = extract_fund_name(pages[i])
-                    fund_pages[fund_name + f" (p{i+1})"] = i
-
-        st.markdown("## Select by Financial Term")
-        if term_to_pages:
-            term = st.selectbox("Choose a financial metric:", sorted(term_to_pages))
-            for pg in term_to_pages[term]:
-                with st.expander(f"Page {pg + 1}"):
-                    st.text_area(f"'{term}' on Page {pg+1}", pages[pg], height=400)
-        else:
-            st.info("No standard financial metrics found.")
-
-        st.markdown("---")
-        st.markdown("## Select by Fund Page")
-        if fund_pages:
-            fund = st.selectbox("Choose a fund section:", sorted(fund_pages))
-            pg = fund_pages[fund]
-            st.markdown(f"### Fund Page {pg + 1}")
-            st.text_area(f"Fund: {fund}", pages[pg], height=400)
-        else:
-            st.info("No fund section pages detected.")
-
+# === App ===
 def run():
-    main()
+    st.title("🔍 MPI PDF Summary Tool")
+    st.markdown("Upload an MPI-style PDF and this tool will summarize the main financial metrics it finds.")
+
+    pdf_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="summary_pdf")
+
+    if pdf_file:
+        with st.spinner("Analyzing document..."):
+            summary = extract_summary(pdf_file)
+
+        if summary:
+            for section in summary:
+                with st.expander(f"Page {section['Page']} — {', '.join(section['Terms'])}"):
+                    st.text_area("Excerpt", section["Snippet"], height=300)
+        else:
+            st.warning("No key financial metrics detected in this PDF.")
+
