@@ -33,7 +33,7 @@ st.markdown("""
         }
         .beta-badge {
             display: inline-block;
-            background-color: #e64a19;
+            background-color: #2b6cb0;
             color: white;
             font-size: 0.65rem;
             font-weight: 700;
@@ -41,6 +41,8 @@ st.markdown("""
             margin-left: 0.5rem;
             border-radius: 0.25rem;
             vertical-align: middle;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
         }
         .sidebar-section {
             font-size: 0.85rem;
