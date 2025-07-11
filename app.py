@@ -13,18 +13,17 @@ st.markdown("""
             padding-left: 1.2rem;
             padding-right: 1.2rem;
             position: relative;
-            z-index: 1;
         }
 
-        /* Exact vertical line positioned at the outer right edge of the sidebar */
-        .sidebar-right-line-absolute {
-            position: fixed;
+        /* Draws the vertical line along the inner edge of sidebar */
+        [data-testid="stSidebar"]::after {
+            content: "";
+            position: absolute;
             top: 0;
-            left: 16rem;  /* Fixed width of sidebar */
+            right: 0;
             width: 2px;
-            height: 100vh;
+            height: 100%;
             background-color: #b4c3d3;
-            z-index: 10000;
         }
 
         [data-testid="stSidebar"] .stButton>button {
@@ -120,9 +119,6 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
-
-# === Draw vertical edge line ===
-st.markdown('<div class="sidebar-right-line-absolute"></div>', unsafe_allow_html=True)
 
 # === Sidebar logo block ===
 st.sidebar.markdown(
