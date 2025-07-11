@@ -7,7 +7,7 @@ import os
 def call_ai_summary(api_type, text):
     if api_type == "Together AI":
         url = "https://api.together.xyz/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {os.environ['API_KEY']}"}
+        headers = {"Authorization": f"Bearer {os.environ['api_key']}"}
         body = {
             "model": "mistralai/Mixtral-8x7B-Instruct-v0.1",
             "messages": [
