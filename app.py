@@ -69,17 +69,18 @@ st.markdown("""
             align-items: center;
             margin-top: 2.2rem;
             margin-left: 0.3rem;
-            gap: 0.5rem; /* space between lines and beta badge */
+            gap: 0.3rem;  /* tighter spacing */
         }
 
         .line-segment {
             height: 2px;
             background-color: #b4c3d3;
-            flex-grow: 1;
+            flex-basis: 3.5rem;  /* longer lines */
+            flex-shrink: 0;
         }
 
         .invisible-badge-space {
-            width: 2.8rem;  /* approx width of beta badge + buffer */
+            width: 2.6rem;  /* buffer around badge */
         }
 
         .sidebar-section {
@@ -93,7 +94,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar logo block with split underline around badge ===
+# === Sidebar logo block with split underline ===
 st.sidebar.markdown(
     '''
     <div class="sidebar-logo-wrapper">
@@ -167,3 +168,4 @@ else:
     st.markdown("""
     **FidSync Beta** is a data processing toolkit designed to streamline and modernize workflows by turning raw data into clear, actionable results.
     """)
+
