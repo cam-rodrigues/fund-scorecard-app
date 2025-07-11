@@ -67,10 +67,11 @@ st.markdown("""
         .logo-underline-wrapper {
             display: flex;
             align-items: center;
+            justify-content: flex-start;
             margin-top: 1.0rem;
             margin-left: 0.3rem;
             margin-right: 0;        
-            padding-right: 0.3rem;        
+            padding-right: 0;        
             width: 100%;                  
             box-sizing: border-box;
         }
@@ -78,12 +79,12 @@ st.markdown("""
         .line-left {
             height: 2px;
             background-color: #b4c3d3;
-            width: 5.6rem; /* underlines "FidSy" */
+            width: 5.6rem;
             flex-shrink: 0;
         }
 
         .line-gap {
-            width: 2.4rem; /* exactly fits BETA + breathing room */
+            width: 2.4rem; 
             flex-shrink: 0;
         }
 
