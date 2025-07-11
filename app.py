@@ -44,29 +44,30 @@ st.markdown("""
 
 # === Sidebar Logo and Divider ===
 st.sidebar.markdown("""
-<!-- Load Montserrat font -->
+<!-- Load Montserrat -->
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
 
 <div style='text-align: center; margin-top: 1.2rem; margin-bottom: 1.75rem;'>
-  <div style='display: inline-flex; align-items: flex-end; gap: 4px;'>
+  <div style='display: inline-block; line-height: 1;'>
     <span style='
         font-family: "Montserrat", sans-serif;
         font-size: 30px;
         font-weight: 600;
         color: #102542;
         letter-spacing: -0.25px;
-    '>FidSync</span>
+    '>FidSync</span><br>
     <span style='
         font-family: "Montserrat", sans-serif;
-        font-size: 12.5px;
+        font-size: 11px;
         font-weight: 700;
-        letter-spacing: 0.6px;
+        letter-spacing: 0.5px;
         color: white;
         background-color: #256DFF;
-        padding: 2px 9px 3px 9px;
+        padding: 2px 8px;
         border-radius: 6px;
-        position: relative;
-        top: 3px;
+        display: inline-block;
+        margin-left: 84px;
+        margin-top: 3px;
     '>BETA</span>
   </div>
 </div>
