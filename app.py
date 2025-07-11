@@ -61,12 +61,13 @@ with st.sidebar:
     logo_path = os.path.join("assets", "fidsync_logo.png")
     if os.path.exists(logo_path):
         logo = Image.open(logo_path)
-        st.image(logo, use_column_width=True)
+        st.image(logo, use_container_width=True)
 
     st.markdown(
         '<div class="sidebar-title">FidSync <span class="beta-badge">BETA</span></div>',
         unsafe_allow_html=True
     )
+
 
 def nav_button(label, filename):
     if st.sidebar.button(label, key=label):
