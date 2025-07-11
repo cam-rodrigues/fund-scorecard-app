@@ -70,24 +70,25 @@ st.markdown("""
             margin-top: 2.2rem;
             margin-left: 0.3rem;
             margin-right: 0.3rem;
+            width: 100%;
         }
 
         .line-left {
             height: 2px;
             background-color: #b4c3d3;
-            width: 5.2rem;
-            margin-right: 0.25rem;
+            width: 5.5rem;  /* underline under FidSy */
+            flex-shrink: 0;
         }
 
         .line-gap {
-            width: 2.8rem;
+            width: 2.6rem;  /* space for BETA + buffer */
+            flex-shrink: 0;
         }
 
         .line-right {
             height: 2px;
             background-color: #b4c3d3;
-            flex-grow: 1;
-            margin-left: 0.25rem;
+            flex-grow: 1;  /* fill remaining sidebar width */
         }
 
         .sidebar-section {
@@ -101,7 +102,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar logo block with final split underline ===
+# === Sidebar logo block with perfect split underline ===
 st.sidebar.markdown(
     '''
     <div class="sidebar-logo-wrapper">
