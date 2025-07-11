@@ -43,30 +43,30 @@ st.markdown("""
 # === Sidebar Logo (Text-Based Replica) ===
 with st.sidebar:
     st.markdown("""
-    <div style="text-align:center; margin: 2rem auto 1.5rem auto;">
-        <span style="
-            font-size: 2rem;
-            font-weight: 700;
-            font-family: 'Montserrat', sans-serif;
-            color: #153e75;">
+    <div style="text-align:center; margin: 2rem auto 1.5rem auto; font-family: 'Montserrat', sans-serif;">
+        <div style="font-size: 2rem; font-weight: 700; color: #153e75; display: inline-block;">
             FidSync
-        </span>
-        <span style="
+        </div>
+        <div style="
+            display: inline-block;
             background-color: #1a4fb0;
             color: white;
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             font-weight: 700;
-            padding: 0.2rem 0.5rem;
-            margin-left: 0.4rem;
+            padding: 0.15rem 0.5rem;
+            margin-left: 0.35rem;
+            margin-top: 0.15rem;
             border-radius: 0.25rem;
-            vertical-align: middle;
-            font-family: 'Montserrat', sans-serif;
+            vertical-align: baseline;
+            position: relative;
+            top: 4px;
             letter-spacing: 0.5px;
             text-transform: uppercase;">
             BETA
-        </span>
+        </div>
     </div>
     """, unsafe_allow_html=True)
+
 
 # === Navigation Buttons ===
 def nav_button(label, filename):
