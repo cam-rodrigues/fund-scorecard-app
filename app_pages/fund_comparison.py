@@ -1,74 +1,118 @@
+
 import streamlit as st
-import pdfplumber
-import pandas as pd
-import re
-import matplotlib.pyplot as plt
+import os
+import importlib.util
 
-# === Utility: Extract trailing returns section ===
-def extract_fund_performance(pdf_file):
-    performance_data = []
-    with pdfplumber.open(pdf_file) as pdf:
-        for page in pdf.pages:
-            text = page.extract_text()
-            if not text or "Fund Performance: Current vs." not in text:
-                continue
+st.set_page_config(page_title="FidSync Beta", layout="wide")
 
-            lines = text.split("\n")
-            fund_name = None
+# === Clean, static sidebar styles ===
+st.markdown("""
+    <style>
+        [data-testid="stSidebar"] {
+            background-color: #f4f6fa;
+            border-right: 1px solid #d3d3d3;
+        }
+        [data-testid="stSidebar"] .stButton>button {
+            background-color: #e8eef8;
+            color: #1a2a44;
+            border: 1px solid #c3cfe0;
+            border-radius: 0.5rem;
+            padding: 0.4rem 0.75rem;
+            font-weight: 600;
+        }
+        [data-testid="stSidebar"] .stButton>button:hover {
+            background-color: #cbd9f0;
+            color: #000000;
+        }
+        .sidebar-title {
+            font-size: 1.7rem;
+            font-weight: 800;
+            color: #102542;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #b4c3d3;
+            margin-bottom: 1rem;
+        }
+        .beta-badge {
+            display: inline-block;
+            background-color: #2b6cb0;
+            color: white;
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 0.15rem 0.4rem;
+            margin-left: 0.5rem;
+            border-radius: 0.25rem;
+            vertical-align: middle;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .sidebar-section {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #666;
+            margin-top: 2rem;
+            margin-bottom: 0.3rem;
+            letter-spacing: 0.5px;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-            for line in lines:
-                # Identify fund ticker or name
-                if re.search(r"[A-Z]{4,6}X", line):
-                    fund_name = line.strip()
-                    continue
+# === Sidebar header with Beta label ===
+st.sidebar.markdown(
+    '<div class="sidebar-title">FidSync <span class="beta-badge">BETA</span></div>',
+    unsafe_allow_html=True
+)
 
-                # Parse numeric lines
-                if fund_name and re.search(r"[-+]?\d+\.\d+", line):
-                    numbers = re.findall(r"[-+]?\d+\.\d+", line)
-                    if len(numbers) >= 6:
-                        performance_data.append({
-                            "Fund": fund_name,
-                            "QTD": float(numbers[0]),
-                            "YTD": float(numbers[1]),
-                            "1 Yr": float(numbers[2]),
-                            "3 Yr": float(numbers[3]),
-                            "5 Yr": float(numbers[4]),
-                            "10 Yr": float(numbers[5]),
-                        })
-                        fund_name = None  # reset
-    return pd.DataFrame(performance_data)
+def nav_button(label, filename):
+    if st.sidebar.button(label, key=label):
+        st.query_params.update({"page": filename})
 
-# === Streamlit App ===
-def run():
-    st.set_page_config(page_title="Fund Comparison", layout="wide")
-    st.title("📊 Fund Performance Comparison Tool")
+# === Sidebar navigation ===
+st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
+nav_button("Getting Started", "Getting_Started.py")
+nav_button("Capabilities & Potential", "Capabilities_and_Potential.py")
 
-    uploaded_pdf = st.file_uploader("Upload MPI Fund PDF", type=["pdf"])
-    if not uploaded_pdf:
-        st.stop()
+st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
+nav_button("Fund Scorecard", "fund_scorecard.py")
+nav_button("Fund Scorecard Metrics", "mpi_criteria_check.py")
+nav_button("Article Analyzer", "article_analyzer.py")
+nav_button("Data Scanner", "data_scanner.py")
+nav_button("Company Lookup", "company_lookup.py")
 
-    with st.spinner("Extracting fund performance..."):
-        df = extract_fund_performance(uploaded_pdf)
+st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', unsafe_allow_html=True)
+nav_button("Fund Summaries", "fund_charts_ppt.py")
+nav_button("Fund Comparison", "fund_comparison.py")
 
-    if df.empty:
-        st.error("No fund data found.")
-        st.stop()
+# === Page router ===
+query_params = st.query_params
+selected_page = query_params.get("page")
+PAGES_DIR = "app_pages"
 
-    selected_funds = st.multiselect("Select funds to compare", options=df["Fund"].unique())
+# Optional legacy redirects
+legacy_redirects = {
+    "company_scraper.py": "data_scanner.py"
+}
+if selected_page in legacy_redirects:
+    selected_page = legacy_redirects[selected_page]
+    st.query_params.update({"page": selected_page})
+    st.rerun()
 
-    if selected_funds:
-        subset = df[df["Fund"].isin(selected_funds)].set_index("Fund")
-        st.subheader("Selected Fund Metrics")
-        st.dataframe(subset.style.format("{:.2f}"))
+if selected_page:
+    page_path = os.path.join(PAGES_DIR, selected_page)
 
-        st.subheader("Visual Comparison")
-        for col in subset.columns:
-            st.write(f"**{col}**")
-            fig, ax = plt.subplots()
-            subset[col].plot(kind="bar", ax=ax)
-            ax.set_ylabel(col)
-            ax.set_title(f"Comparison: {col}")
-            st.pyplot(fig)
-
-if __name__ == "__main__":
-    run()
+    if os.path.exists(page_path):
+        try:
+            spec = importlib.util.spec_from_file_location("page_module", page_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            module.run()
+        except Exception as e:
+            st.error(f"❌ Failed to load page: {e}")
+    else:
+        st.warning(f"Page '{selected_page}' was not found. Redirecting to homepage.")
+        st.query_params.clear()
+        st.rerun()
+else:
+    st.markdown("# Welcome to FidSync Beta")
+    st.markdown("""
+    **FidSync Beta** is a data processing toolkit designed to streamline and modernize workflows by turning raw data into clear, actionable results.
+    """)
