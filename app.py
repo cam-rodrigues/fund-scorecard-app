@@ -3,14 +3,19 @@ import os
 import importlib.util
 from PIL import Image
 
+# === Page Setup ===
 st.set_page_config(page_title="FidSync Beta", layout="wide")
 
-# === Clean, static sidebar styles ===
+# === Sidebar Styles ===
 st.markdown("""
     <style>
         [data-testid="stSidebar"] {
             background-color: #f4f6fa;
             border-right: 1px solid #d3d3d3;
+        }
+        [data-testid="stSidebar"] img {
+            max-height: 100px;
+            margin-bottom: 1rem;
         }
         [data-testid="stSidebar"] .stButton>button {
             background-color: #e8eef8;
@@ -56,24 +61,24 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar layout with logo and title ===
+# === Sidebar Layout with Logo ===
 with st.sidebar:
     logo_path = os.path.join("assets", "fidsync_logo.png")
     if os.path.exists(logo_path):
         logo = Image.open(logo_path)
         st.image(logo, use_container_width=True)
 
-    st.markdown(
-        '<div class="sidebar-title">FidSync <span class="beta-badge">BETA</span></div>',
-        unsafe_allow_html=True
-    )
+    # Optional: Remove this if your logo already says "FidSync BETA"
+    # st.markdown(
+    #     '<div class="sidebar-title">FidSync <span class="beta-badge">BETA</span></div>',
+    #     unsafe_allow_html=True
+    # )
 
-
+# === Navigation Buttons ===
 def nav_button(label, filename):
     if st.sidebar.button(label, key=label):
         st.query_params.update({"page": filename})
 
-# === Sidebar navigation ===
 st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
 nav_button("Getting Started", "Getting_Started.py")
 nav_button("Capabilities & Potential", "capabilities_and_potential.py")
@@ -91,12 +96,12 @@ nav_button("Fund Comparison", "fund_comparison.py")
 nav_button("Multi Fund Comparison", "multi_fund_comparison.py")
 nav_button("Quarterly Comparison", "qtrly_comparison.py")
 
-# === Page router ===
+# === Page Router Logic ===
 query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
-# Optional legacy redirects
+# Handle legacy filenames
 legacy_redirects = {
     "company_scraper.py": "data_scanner.py"
 }
