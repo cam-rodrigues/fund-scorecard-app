@@ -69,18 +69,25 @@ st.markdown("""
             align-items: center;
             margin-top: 2.2rem;
             margin-left: 0.3rem;
-            gap: 0.3rem;  /* tighter spacing */
+            margin-right: 0.3rem;
         }
 
-        .line-segment {
+        .line-left {
             height: 2px;
             background-color: #b4c3d3;
-            flex-basis: 3.5rem;  /* longer lines */
-            flex-shrink: 0;
+            width: 5.2rem;
+            margin-right: 0.25rem;
         }
 
-        .invisible-badge-space {
-            width: 2.6rem;  /* buffer around badge */
+        .line-gap {
+            width: 2.8rem;
+        }
+
+        .line-right {
+            height: 2px;
+            background-color: #b4c3d3;
+            flex-grow: 1;
+            margin-left: 0.25rem;
         }
 
         .sidebar-section {
@@ -94,7 +101,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar logo block with split underline ===
+# === Sidebar logo block with final split underline ===
 st.sidebar.markdown(
     '''
     <div class="sidebar-logo-wrapper">
@@ -103,9 +110,9 @@ st.sidebar.markdown(
             <div class="beta-badge">BETA</div>
         </div>
         <div class="logo-underline-wrapper">
-            <div class="line-segment"></div>
-            <div class="invisible-badge-space"></div>
-            <div class="line-segment"></div>
+            <div class="line-left"></div>
+            <div class="line-gap"></div>
+            <div class="line-right"></div>
         </div>
     </div>
     ''',
@@ -168,4 +175,3 @@ else:
     st.markdown("""
     **FidSync Beta** is a data processing toolkit designed to streamline and modernize workflows by turning raw data into clear, actionable results.
     """)
-
