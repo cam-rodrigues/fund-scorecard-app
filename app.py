@@ -92,7 +92,7 @@ st.markdown("""
         .line-left {
             height: 2px;
             background-color: #b4c3d3;
-            width: 4.6rem;
+            width: 4.8rem;
             flex-shrink: 0;
         }
 
@@ -106,7 +106,7 @@ st.markdown("""
             background-color: #b4c3d3;
             flex-grow: 1;
             min-width: 5;
-            margin-left: 0.8rem;
+            margin-left: 0.6rem;
         }
 
         .sidebar-section {
