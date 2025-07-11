@@ -1,23 +1,16 @@
+
 import streamlit as st
 import os
 import importlib.util
-from PIL import Image
 
-# === Page Setup ===
 st.set_page_config(page_title="FidSync Beta", layout="wide")
 
-# === Sidebar Styles ===
+# === Clean, static sidebar styles ===
 st.markdown("""
     <style>
         [data-testid="stSidebar"] {
             background-color: #f4f6fa;
             border-right: 1px solid #d3d3d3;
-        }
-        [data-testid="stSidebar"] img {
-            display: block;
-            margin: 2rem auto 1rem auto;
-            max-width: 180px;
-            height: auto;
         }
         [data-testid="stSidebar"] .stButton>button {
             background-color: #e8eef8;
@@ -31,6 +24,27 @@ st.markdown("""
             background-color: #cbd9f0;
             color: #000000;
         }
+        .sidebar-title {
+            font-size: 1.7rem;
+            font-weight: 800;
+            color: #102542;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #b4c3d3;
+            margin-bottom: 1rem;
+        }
+        .beta-badge {
+            display: inline-block;
+            background-color: #2b6cb0;
+            color: white;
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 0.15rem 0.4rem;
+            margin-left: 0.5rem;
+            border-radius: 0.25rem;
+            vertical-align: middle;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
         .sidebar-section {
             font-size: 0.85rem;
             font-weight: 600;
@@ -42,18 +56,17 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar with New Clean Logo ===
-with st.sidebar:
-    logo_path = os.path.join("assets", "logo.png")
-    if os.path.exists(logo_path):
-        logo = Image.open(logo_path)
-        st.image(logo, width=180)
+# === Sidebar header with Beta label ===
+st.sidebar.markdown(
+    '<div class="sidebar-title">FidSync <span class="beta-badge">BETA</span></div>',
+    unsafe_allow_html=True
+)
 
-# === Navigation Buttons ===
 def nav_button(label, filename):
     if st.sidebar.button(label, key=label):
         st.query_params.update({"page": filename})
 
+# === Sidebar navigation ===
 st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
 nav_button("Getting Started", "Getting_Started.py")
 nav_button("Capabilities & Potential", "capabilities_and_potential.py")
@@ -71,12 +84,12 @@ nav_button("Fund Comparison", "fund_comparison.py")
 nav_button("Multi Fund Comparison", "multi_fund_comparison.py")
 nav_button("Quarterly Comparison", "qtrly_comparison.py")
 
-# === Page Router Logic ===
+# === Page router ===
 query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
-# Legacy redirects
+# Optional legacy redirects
 legacy_redirects = {
     "company_scraper.py": "data_scanner.py"
 }
