@@ -22,3 +22,41 @@ yfinance
 python-pptx
 
 together
+PyPDF2
+
+
+# === Optional/Future Tools ===
+
+# General Utilities
+python-dotenv
+python-dateutil
+pyyaml
+
+# Data Visualization
+matplotlib
+seaborn
+plotly
+
+# AI / NLP / ML
+transformers
+sentence-transformers
+huggingface_hub
+scikit-learn
+
+# Databases / Cloud / Storage
+sqlalchemy
+psycopg2-binary
+firebase-admin
+
+# Security / Encryption
+pyjwt
+cryptography
+
+# Testing / Monitoring
+pytest
+loguru
+
+# Other Utilities
+tqdm
+beautifulsoup4
+pytz
