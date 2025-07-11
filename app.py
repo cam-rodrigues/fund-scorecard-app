@@ -76,19 +76,20 @@ st.markdown("""
         .line-left {
             height: 2px;
             background-color: #b4c3d3;
-            width: 5.5rem;  /* underline under FidSy */
+            width: 5.6rem; /* underlines "FidSy" */
             flex-shrink: 0;
         }
 
         .line-gap {
-            width: 2.6rem;  /* space for BETA + buffer */
+            width: 2.4rem; /* exactly fits BETA + breathing room */
             flex-shrink: 0;
         }
 
         .line-right {
             height: 2px;
             background-color: #b4c3d3;
-            flex-grow: 1;  /* fill remaining sidebar width */
+            flex-grow: 1;
+            min-width: 3.5rem;
         }
 
         .sidebar-section {
@@ -102,7 +103,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar logo block with perfect split underline ===
+# === Sidebar logo block with final polished underline ===
 st.sidebar.markdown(
     '''
     <div class="sidebar-logo-wrapper">
