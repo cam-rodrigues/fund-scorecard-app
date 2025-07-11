@@ -27,8 +27,8 @@ def extract_fund_sections(full_text):
     return fund_sections
 
 def run():
-    st.set_page_config(page_title="AI Fund Summary (by Fund)", layout="wide")
-    st.title("📘 Fund-by-Fund Smart Summary")
+    st.set_page_config(page_title="Fund Summary (by Fund)", layout="wide")
+    st.title("Fund-by-Fund Smart Summary")
 
     uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"])
     if not uploaded_file:
@@ -64,7 +64,7 @@ Include performance data, expense ratios, manager tenure, notable risks, and any
                     temperature=0.4,
                 )
                 summary = response.choices[0].message.content.strip()
-                st.subheader(f"📌 {fund_name}")
+                st.subheader(f"{fund_name}")
                 st.markdown(summary)
                 st.divider()
             except Exception as e:
