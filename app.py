@@ -14,8 +14,9 @@ st.markdown("""
             border-right: 1px solid #d3d3d3;
         }
         [data-testid="stSidebar"] img {
-            max-height: 100px;
-            margin-bottom: 1rem;
+            display: block;
+            margin: 0.5rem auto 1rem auto;
+            max-height: 80px;
         }
         [data-testid="stSidebar"] .stButton>button {
             background-color: #e8eef8;
@@ -29,27 +30,6 @@ st.markdown("""
             background-color: #cbd9f0;
             color: #000000;
         }
-        .sidebar-title {
-            font-size: 1.7rem;
-            font-weight: 800;
-            color: #102542;
-            padding-bottom: 0.5rem;
-            border-bottom: 2px solid #b4c3d3;
-            margin-bottom: 1rem;
-        }
-        .beta-badge {
-            display: inline-block;
-            background-color: #2b6cb0;
-            color: white;
-            font-size: 0.65rem;
-            font-weight: 700;
-            padding: 0.15rem 0.4rem;
-            margin-left: 0.5rem;
-            border-radius: 0.25rem;
-            vertical-align: middle;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-        }
         .sidebar-section {
             font-size: 0.85rem;
             font-weight: 600;
@@ -61,18 +41,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar Layout with Logo ===
+# === Sidebar with Image Logo ===
 with st.sidebar:
     logo_path = os.path.join("assets", "fidsync_logo.png")
     if os.path.exists(logo_path):
         logo = Image.open(logo_path)
         st.image(logo, use_container_width=True)
-
-    # Optional: Remove this if your logo already says "FidSync BETA"
-    # st.markdown(
-    #     '<div class="sidebar-title">FidSync <span class="beta-badge">BETA</span></div>',
-    #     unsafe_allow_html=True
-    # )
 
 # === Navigation Buttons ===
 def nav_button(label, filename):
@@ -101,7 +75,7 @@ query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
-# Handle legacy filenames
+# Legacy redirects
 legacy_redirects = {
     "company_scraper.py": "data_scanner.py"
 }
