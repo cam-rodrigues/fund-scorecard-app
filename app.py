@@ -54,7 +54,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # === Logo ===
-logo_path = os.path.join("assets", "logo.png")
+logo_path = os.path.join("assets", "fidsync_logo.png")
 if os.path.exists(logo_path):
     logo = Image.open(logo_path)
     st.sidebar.image(logo, use_container_width=True)
