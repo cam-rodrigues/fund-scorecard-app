@@ -8,13 +8,14 @@ METRIC_TERMS = [
     "Sharpe Ratio", "Information Ratio", "Sortino Ratio", "Treynor Ratio",
     "Standard Deviation", "Tracking Error", "Alpha", "Beta", "R²", "Upside Capture",
     "Downside Capture", "Expense Ratio", "Manager Tenure", "Net Assets",
-    "Turnover Ratio", "Benchmark", "Category"
+    "Turnover Ratio", "Benchmark", "Category", "Calendar Year Returns"
 ]
 
 FUND_HEADER_PATTERNS = [
     r"Manager Name[:\s]", r"Benchmark[:\s]", r"Category[:\s]",
     r"(?i)^([A-Za-z].+?)\s+[A-Z]{4,6}X\b",  # Fund Name + Ticker
-    r"\bExpense Ratio\b", r"\b03/3[01]/\d{4}\b"
+    r"\bExpense Ratio\b", r"\b03/3[01]/\d{4}\b",
+    r"Fund Facts", r"Calendar Year Returns", r"PORTFOLIO COMPOSITION"
 ]
 
 def detect_terms(text):
@@ -26,6 +27,12 @@ def detect_terms(text):
 
 def detect_fund_header(text):
     return any(re.search(pattern, text) for pattern in FUND_HEADER_PATTERNS)
+
+def extract_fund_name(text):
+    for line in text.splitlines():
+        if "Fund" in line and len(line) < 100:
+            return line.strip()
+    return "Unknown Fund"
 
 def main():
     st.title("🔍 PDF Financial Term & Fund Navigator")
@@ -51,16 +58,15 @@ def main():
 
                 # Find fund pages
                 if detect_fund_header(clean_text) and i > 20:
-                    first_line = clean_text.splitlines()[0].strip()
-                    if len(first_line.split()) > 2:
-                        fund_pages[first_line] = i
+                    fund_name = extract_fund_name(pages[i])
+                    fund_pages[fund_name + f" (p{i+1})"] = i
 
         st.markdown("## Select by Financial Term")
         if term_to_pages:
             term = st.selectbox("Choose a financial metric:", sorted(term_to_pages))
             for pg in term_to_pages[term]:
-                st.markdown(f"### Page {pg + 1}")
-                st.text_area(f"Match for '{term}'", pages[pg], height=400)
+                with st.expander(f"Page {pg + 1}"):
+                    st.text_area(f"'{term}' on Page {pg+1}", pages[pg], height=400)
         else:
             st.info("No standard financial metrics found.")
 
