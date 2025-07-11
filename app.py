@@ -80,11 +80,11 @@ st.markdown("""
         .logo-underline-wrapper {
             position: relative;
             display: flex;
-            align-items: right;
+            align-items: center;
             justify-content: flex-start;
             margin-top: 1rem;
             margin-left: 0.3rem;
-            margin-right: 0;
+            margin-right: none;
             width: calc(100% - 0.3rem);
             height: 2px;
         }
