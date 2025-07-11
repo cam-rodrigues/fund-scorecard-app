@@ -10,6 +10,7 @@ from docx.shared import Pt, Inches
 from docx.enum.section import WD_HEADER_FOOTER
 import matplotlib.pyplot as plt
 from datetime import datetime
+import os
 
 # === Extract Fund Performance ===
 def extract_fund_performance(pdf_file):
@@ -142,7 +143,7 @@ def generate_bar_chart(df, chart_path):
     plt.close(fig)
 
 # === Export Branded DOCX ===
-def export_proposal_branded(df, proposal_text, doc_path, chart_path, logo_path, user="Cameron Rodrigues", firm="Procyon Partners"):
+def export_proposal_branded(df, proposal_text, doc_path, chart_path, logo_path=None, user="Cameron Rodrigues", firm="Procyon Partners"):
     generate_bar_chart(df, chart_path)
     doc = Document()
     style = doc.styles['Normal']
@@ -152,7 +153,10 @@ def export_proposal_branded(df, proposal_text, doc_path, chart_path, logo_path, 
     section = doc.sections[0]
     header = section.header
     header.paragraphs[0].text = f"Prepared by {user} | {firm} | {datetime.now().strftime('%B %d, %Y')}"
-    doc.add_picture(logo_path, width=Inches(2.5))
+
+    if logo_path and os.path.exists(logo_path):
+        doc.add_picture(logo_path, width=Inches(2.5))
+
     doc.add_paragraph("FidSync Proposal", "Title")
     doc.add_paragraph("Prepared for review")
     for line in proposal_text.strip().split("\n"):
@@ -216,7 +220,7 @@ def run():
         if st.button("Download Branded Proposal (.docx)"):
             doc_path = "/mnt/data/FidSync_Proposal_Branded.docx"
             chart_path = "/mnt/data/fund_chart.png"
-            logo_path = "/mnt/data/fidsync_logo.png"  # Make sure this file exists
+            logo_path = "fydsync/assets/fidsync_logo.png"
             export_proposal_branded(full_df, proposal_text, doc_path, chart_path, logo_path)
             st.success("Branded proposal exported successfully.")
             st.markdown(f"[Download Proposal](sandbox:{doc_path})", unsafe_allow_html=True)
