@@ -15,7 +15,7 @@ st.markdown("""
             position: relative;
         }
 
-        /* Draws the vertical line along the inner edge of sidebar */
+        /* Draw vertical line along the inner right edge of the sidebar */
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
@@ -77,36 +77,12 @@ st.markdown("""
             z-index: 10;
         }
 
-        .logo-underline-wrapper {
+        .logo-underline-solid {
             position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
+            height: 2px;
+            background-color: #b4c3d3;
+            width: 100%;
             margin-top: 1rem;
-            margin-left: 0.3rem;
-            margin-right: 0;
-            height: 2px;
-            width: calc(100% - 0.3rem);
-        }
-
-        .line-left {
-            height: 2px;
-            background-color: #b4c3d3;
-            width: 5.5rem;
-            flex-shrink: 0;
-        }
-
-        .line-gap {
-            width: 2.2rem;
-            flex-shrink: 0;
-        }
-
-        .line-right {
-            height: 2px;
-            background-color: #b4c3d3;
-            flex-grow: 1;
-            min-width: 0;
-            margin-left: 0;
         }
 
         .sidebar-section {
@@ -128,11 +104,7 @@ st.sidebar.markdown(
             <div class="sidebar-title">FidSync</div>
             <div class="beta-badge">BETA</div>
         </div>
-        <div class="logo-underline-wrapper">
-            <div class="line-left"></div>
-            <div class="line-gap"></div>
-            <div class="line-right"></div>
-        </div>
+        <div class="logo-underline-solid"></div>
     </div>
     ''',
     unsafe_allow_html=True
