@@ -66,8 +66,8 @@ st.markdown("""
 
         .logo-underline {
             border-bottom: 2px solid #b4c3d3;
-            width: 10rem;  /* now truly extends */
-            margin-top: 1.1rem;
+            width: 10rem;
+            margin-top: 2.2rem;  /* adjusted to clear scaled logo */
             margin-left: 0.3rem;
         }
 
@@ -82,7 +82,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar logo block with detached underline ===
+# === Sidebar logo block with fixed underline spacing ===
 st.sidebar.markdown(
     '''
     <div class="sidebar-logo-wrapper">
