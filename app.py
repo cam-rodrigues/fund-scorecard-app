@@ -106,6 +106,7 @@ st.markdown("""
             background-color: #b4c3d3;
             flex-grow: 1;
             min-width: 5;
+            width: 5.0rem;
             margin-left: 0.9rem;
             margine-right: none;
         }
