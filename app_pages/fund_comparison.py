@@ -1,19 +1,17 @@
-# === fund_comparison.py ===
-
 import streamlit as st
 import pdfplumber
 import pandas as pd
 import numpy as np
 import re
-from docx import Document
-from docx.shared import Pt, Inches
-import matplotlib.pyplot as plt
 from datetime import datetime
 import os
-from bs4 import BeautifulSoup
-from fpdf import FPDF
 
-# === Performance Extraction ===
+# Import external utilities
+from utils.export_client_docx import export_client_docx
+from utils.export_internal_docx import export_internal_docx
+from utils.export_pdf import export_pdf
+
+# === Extract Fund Performance ===
 def extract_fund_performance(pdf_file):
     performance_data = []
     with pdfplumber.open(pdf_file) as pdf:
@@ -72,12 +70,12 @@ def generate_summary(df):
     if df.index.name == "Fund":
         df.reset_index(inplace=True)
     if "S&P 500 (Benchmark)" not in df["Fund"].values:
-        return ""
+        return "_No comparable benchmark available._"
     benchmark = df[df["Fund"] == "S&P 500 (Benchmark)"].iloc[0]
     others = df[df["Fund"] != "S&P 500 (Benchmark)"]
+    trailing = ["QTD", "YTD", "1 Yr", "3 Yr", "5 Yr", "10 Yr"]
     if others.empty:
         return "_No comparable fund data available._"
-    trailing = ["QTD", "YTD", "1 Yr", "3 Yr", "5 Yr", "10 Yr"]
     beat_counts = (others[trailing] > benchmark[trailing]).sum(axis=1)
     avg_returns = others[trailing].mean(axis=1)
     top_beat = others.iloc[beat_counts.idxmax()]
@@ -92,10 +90,11 @@ def generate_summary(df):
 - Top average return: **{top_name}**  
 - Lowest performer: **{low_name}**"""
 
-# === Proposal Recommendation ===
 def generate_proposal_text(df):
     trailing_cols = ["QTD", "YTD", "1 Yr", "3 Yr", "5 Yr", "10 Yr"]
     main_funds = df[df["Fund"] != "S&P 500 (Benchmark)"].copy()
+    if main_funds.empty:
+        return "<i>No valid funds available for proposal generation.</i>"
     benchmark = df[df["Fund"] == "S&P 500 (Benchmark)"].iloc[0]
     main_funds["Avg Return"] = main_funds[trailing_cols].mean(axis=1)
     main_funds["Beats Benchmark"] = (main_funds[trailing_cols] > benchmark[trailing_cols]).sum(axis=1)
@@ -130,65 +129,12 @@ def generate_proposal_text(df):
 """
     return proposal
 
-# === PDF Export ===
-def export_proposal_pdf(text, filename):
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
-    pdf.set_font("Times", size=12)
-    for line in text.splitlines():
-        pdf.multi_cell(0, 10, line)
-    pdf.output(filename)
-
-# === DOCX Export (Client & Internal) ===
-def add_clean_html_paragraphs(doc, html_text):
-    soup = BeautifulSoup(html_text, "html.parser")
-    for elem in soup.contents:
-        if elem.name == "h3":
-            para = doc.add_paragraph()
-            run = para.add_run(elem.get_text())
-            run.bold = True
-            run.font.size = Pt(14)
-        elif elem.name == "b":
-            para = doc.add_paragraph()
-            run = para.add_run(elem.get_text())
-            run.bold = True
-        elif elem.name == "em":
-            para = doc.add_paragraph()
-            run = para.add_run(elem.get_text())
-            run.italic = True
-        elif elem.name == "ul":
-            for li in elem.find_all("li"):
-                doc.add_paragraph(li.get_text(), style='List Bullet')
-        elif elem.name == "br":
-            doc.add_paragraph("")
-        elif elem.string and elem.string.strip():
-            doc.add_paragraph(elem.string.strip())
-
-def export_proposal_docx(df, html, path, user="Cameron Rodrigues", firm="Procyon Partners", logo_path=None, internal=False):
-    doc = Document()
-    font = doc.styles['Normal'].font
-    font.name = "Times New Roman"
-    font.size = Pt(12)
-    section = doc.sections[0]
-    header = section.header
-    header.paragraphs[0].text = f"Prepared by {user} | {firm} | {datetime.now().strftime('%B %d, %Y')}"
-    if logo_path and os.path.exists(logo_path):
-        doc.add_picture(logo_path, width=Inches(2.5))
-    doc.add_paragraph("Proposal Recommendation", style="Title")
-    doc.add_paragraph("This proposal is generated based on benchmark performance and return characteristics of selected funds.\n")
-    add_clean_html_paragraphs(doc, html)
-    doc.add_paragraph("FidSync Beta – Auto-generated Report")
-    if internal:
-        doc.add_paragraph("Internal Use Only", style="Heading 2")
-    doc.save(path)
-
-# === Streamlit ===
+# === Streamlit App ===
 def run():
-    st.set_page_config("FidSync Beta - Fund Comparison", layout="wide")
-    st.title("📊 Fund Comparison Tool")
+    st.set_page_config(page_title="FidSync Beta - Fund Comparison", layout="wide")
+    st.title("Fund Performance Comparison")
 
-    uploaded_pdf = st.file_uploader("Upload an MPI PDF", type="pdf")
+    uploaded_pdf = st.file_uploader("Upload MPI-style PDF", type=["pdf"])
     if not uploaded_pdf:
         st.stop()
 
@@ -198,38 +144,40 @@ def run():
         st.stop()
 
     fund_choices = df["Fund"].unique()
-    selected = st.multiselect("Select funds to compare:", fund_choices)
+    selected = st.multiselect("Select funds to compare", fund_choices)
     if not selected:
+        st.warning("Please select at least one fund.")
         st.stop()
 
     enhanced_df = enhance_with_benchmark(df[df["Fund"].isin(selected)])
     summary = generate_summary(enhanced_df)
-    st.markdown("### 🔍 Summary")
+    proposal = generate_proposal_text(enhanced_df)
+
+    st.markdown("### Summary")
     st.markdown(summary)
 
-    st.markdown("### 📈 Scorecard")
+    st.markdown("### Scorecard")
     st.dataframe(style_scorecard(enhanced_df.set_index("Fund")), use_container_width=True)
 
-    st.markdown("### 📝 Proposal")
-    proposal = generate_proposal_text(enhanced_df)
+    st.markdown("### Proposal")
     st.markdown(proposal, unsafe_allow_html=True)
 
     st.divider()
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("📤 Export Client Proposal (DOCX)"):
-            export_proposal_docx(enhanced_df, proposal, "fydsync/assets/client_proposal.docx")
+        if st.button("Export Client Proposal (DOCX)"):
+            export_client_docx(enhanced_df, proposal, "fydsync/assets/client_proposal.docx")
             with open("fydsync/assets/client_proposal.docx", "rb") as file:
                 st.download_button("Download Client DOCX", file, "Client_Proposal.docx")
 
     with col2:
-        if st.button("📤 Export Internal Summary (DOCX)"):
-            export_proposal_docx(enhanced_df, proposal, "fydsync/assets/internal_proposal.docx", internal=True)
+        if st.button("Export Internal Summary (DOCX)"):
+            export_internal_docx(enhanced_df, proposal, "fydsync/assets/internal_proposal.docx")
             with open("fydsync/assets/internal_proposal.docx", "rb") as file:
                 st.download_button("Download Internal DOCX", file, "Internal_Proposal.docx")
 
     with col3:
-        if st.button("📄 Export Summary as PDF"):
-            export_proposal_pdf(summary + "\n\n" + proposal, "fydsync/assets/proposal_summary.pdf")
+        if st.button("Export Summary as PDF"):
+            export_pdf(summary, proposal, "fydsync/assets/proposal_summary.pdf")
             with open("fydsync/assets/proposal_summary.pdf", "rb") as file:
                 st.download_button("Download PDF", file, "Proposal_Summary.pdf")
