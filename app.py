@@ -19,7 +19,7 @@ st.markdown("""
         .sidebar-right-line-absolute {
             position: fixed;
             top: 0;
-            left: calc(var(--sidebar-width, 15rem));
+            left: calc(var(--sidebar-width, 15.5rem));
             width: 2px;
             height: 100vh;
             background-color: #b4c3d3;
