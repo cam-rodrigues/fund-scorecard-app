@@ -38,7 +38,7 @@ def extract_fund_performance(pdf_file):
 # === Streamlit App ===
 def run():
     st.set_page_config(page_title="Multi-MPI Fund Extractor", layout="wide")
-    st.title("📂 Multi-MPI Fund Comparison Tool")
+    st.title("Multi-MPI Fund Comparison Tool")
 
     uploaded_pdfs = st.file_uploader("Upload one or more MPI-style PDFs", type="pdf", accept_multiple_files=True)
     if not uploaded_pdfs:
@@ -62,7 +62,7 @@ def run():
     st.dataframe(combined_df, use_container_width=True)
 
     csv = combined_df.to_csv(index=False).encode("utf-8")
-    st.download_button("📥 Download as CSV", data=csv, file_name="funds_combined.csv", mime="text/csv")
+    st.download_button("Download as CSV", data=csv, file_name="funds_combined.csv", mime="text/csv")
 
 # === Run the app ===
 if __name__ == "__main__":
