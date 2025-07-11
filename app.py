@@ -1,15 +1,9 @@
+
 import streamlit as st
 import os
 import importlib.util
-from PIL import Image
 
 st.set_page_config(page_title="FidSync Beta", layout="wide")
-
-# === Load logo ===
-logo_path = "assets/fidsync_logo.png"
-if os.path.exists(logo_path):
-    logo = Image.open(logo_path)
-    st.sidebar.image(logo, use_column_width=True)
 
 # === Clean, static sidebar styles ===
 st.markdown("""
@@ -62,7 +56,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Optional extra text title below logo
+# === Sidebar header with Beta label ===
 st.sidebar.markdown(
     '<div class="sidebar-title">FidSync <span class="beta-badge">BETA</span></div>',
     unsafe_allow_html=True
@@ -92,6 +86,7 @@ query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
+# Optional legacy redirects
 legacy_redirects = {
     "company_scraper.py": "data_scanner.py"
 }
@@ -102,6 +97,7 @@ if selected_page in legacy_redirects:
 
 if selected_page:
     page_path = os.path.join(PAGES_DIR, selected_page)
+
     if os.path.exists(page_path):
         try:
             spec = importlib.util.spec_from_file_location("page_module", page_path)
@@ -115,9 +111,7 @@ if selected_page:
         st.query_params.clear()
         st.rerun()
 else:
-    if os.path.exists(logo_path):
-        st.image(logo, width=200)
-    st.markdown("### Welcome to FidSync Beta")
+    st.markdown("# Welcome to FidSync Beta")
     st.markdown("""
     **FidSync Beta** is a data processing toolkit designed to streamline and modernize workflows by turning raw data into clear, actionable results.
     """)
