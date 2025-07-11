@@ -31,10 +31,10 @@ st.markdown("""
         .sidebar-title-container {
             position: relative;
             display: inline-block;
-            margin-top: 0.5rem;
+            margin-top: 1rem;
             margin-bottom: 2rem;
-            padding-right: 0.75rem;
-            transform: scale(1.25);  /* SCALE everything up */
+            margin-left: 0.3rem;  /* fine-tune for centering */
+            transform: scale(1.35);  /* slightly larger */
             transform-origin: top left;
         }
 
@@ -48,8 +48,8 @@ st.markdown("""
 
         .beta-badge {
             position: absolute;
-            top: 1.6rem;
-            left: 4.55rem;
+            top: 1.62rem;
+            left: 4.55rem;  /* adjust to sit under 'y' */
             background-color: #2b6cb0;
             color: white;
             font-size: 0.48rem;
@@ -80,7 +80,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar logo block with consistent scaling ===
+# === Sidebar logo block (scaled and centered) ===
 st.sidebar.markdown(
     '''
     <div class="sidebar-title-container">
