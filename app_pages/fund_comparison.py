@@ -70,7 +70,7 @@ def plot_heatmap(df):
 # === Streamlit App Runner ===
 def run():
     st.set_page_config(page_title="FidSync Beta - Fund Comparison", layout="wide")
-    st.title("📊 Fund Performance Comparison")
+    st.title("Fund Performance Comparison")
 
     uploaded_pdf = st.file_uploader("Upload MPI-style PDF", type=["pdf"])
     if not uploaded_pdf:
