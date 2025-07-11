@@ -89,25 +89,24 @@ st.markdown("""
             height: 2px;
         }
 
-        .line-left,
-        .line-right {
+        .line-left {
             height: 2px;
             background-color: #b4c3d3;
             flex-grow: 1;
-        }
-
-        .line-left {
-            margin-right: 0.5rem;
-        }
-
-        .line-right {
-            margin-left: 0.5rem;
+            margin-right: 0.4rem;
         }
 
         .line-gap {
             position: relative;
-            width: auto;
             height: 0;
+            width: auto;
+        }
+
+        .line-right {
+            height: 2px;
+            background-color: #b4c3d3;
+            flex-grow: 1;
+            margin-left: 0.4rem;
         }
 
         .sidebar-section {
