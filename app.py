@@ -15,6 +15,31 @@ st.markdown("""
             position: relative;
         }
 
+        /* Full-height vertical line starting just below logo underline */
+        .sidebar-right-line {
+            position: absolute;
+            top: 3.65rem;  /* aligned with underline bottom */
+            right: 0;
+            width: 2px;
+            height: calc(100% - 3.65rem);
+            background-color: #b4c3d3;
+            z-index: 2;
+        }
+
+        [data-testid="stSidebar"] .stButton>button {
+            background-color: #e8eef8;
+            color: #1a2a44;
+            border: 1px solid #c3cfe0;
+            border-radius: 0.5rem;
+            padding: 0.4rem 0.75rem;
+            font-weight: 600;
+        }
+
+        [data-testid="stSidebar"] .stButton>button:hover {
+            background-color: #cbd9f0;
+            color: #000000;
+        }
+
         .sidebar-logo-wrapper {
             margin-top: 0.5rem;
             margin-bottom: 1.5rem;
@@ -56,7 +81,7 @@ st.markdown("""
             display: flex;
             align-items: center;
             justify-content: flex-start;
-            margin-top: 1.0rem;
+            margin-top: 1.4rem;  /* helps align with vertical line */
             margin-left: 0.3rem;
             margin-right: 0;
             padding-right: 0;
@@ -82,17 +107,6 @@ st.markdown("""
             flex-grow: 1;
             min-width: 0;
             margin-left: 0.8rem;
-            position: relative;
-        }
-
-        .sidebar-right-line {
-            position: absolute;
-            top: 5.15rem;   /* Adjust until it aligns perfectly */
-            right: 0.9rem;  /* Same as line-right position */
-            width: 2px;
-            height: calc(100% - 5.15rem);  /* Start from line down */
-            background-color: #2b6cb0;
-            z-index: 0;
         }
 
         .sidebar-section {
@@ -103,24 +117,13 @@ st.markdown("""
             margin-bottom: 0.3rem;
             letter-spacing: 0.5px;
         }
-
-        [data-testid="stSidebar"] .stButton>button {
-            background-color: #e8eef8;
-            color: #1a2a44;
-            border: 1px solid #c3cfe0;
-            border-radius: 0.5rem;
-            padding: 0.4rem 0.75rem;
-            font-weight: 600;
-        }
-
-        [data-testid="stSidebar"] .stButton>button:hover {
-            background-color: #cbd9f0;
-            color: #000000;
-        }
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar logo block with underline ===
+# === Vertical sidebar line ===
+st.sidebar.markdown('<div class="sidebar-right-line"></div>', unsafe_allow_html=True)
+
+# === Sidebar logo block with final polished underline ===
 st.sidebar.markdown(
     '''
     <div class="sidebar-logo-wrapper">
@@ -138,14 +141,11 @@ st.sidebar.markdown(
     unsafe_allow_html=True
 )
 
-# === Vertical line (runs down from edge of underline) ===
-st.sidebar.markdown('<div class="sidebar-right-line"></div>', unsafe_allow_html=True)
-
-# === Navigation buttons
 def nav_button(label, filename):
     if st.sidebar.button(label, key=label):
         st.query_params.update({"page": filename})
 
+# === Sidebar navigation ===
 st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
 nav_button("Getting Started", "Getting_Started.py")
 nav_button("Capabilities & Potential", "capabilities_and_potential.py")
@@ -179,6 +179,7 @@ if selected_page in legacy_redirects:
 
 if selected_page:
     page_path = os.path.join(PAGES_DIR, selected_page)
+
     if os.path.exists(page_path):
         try:
             spec = importlib.util.spec_from_file_location("page_module", page_path)
