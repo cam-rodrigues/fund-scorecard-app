@@ -90,7 +90,7 @@ st.markdown("""
             background-color: #b4c3d3;
             flex-grow: 1;
             min-width: 3.5rem;
-            margin-left: 0.6rem;
+            margin-left: 0.8rem;
         }
 
         .sidebar-section {
