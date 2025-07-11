@@ -67,9 +67,9 @@ st.markdown("""
         .logo-underline-wrapper {
             display: flex;
             align-items: center;
-            margin-top: 1.2rem;
+            margin-top: 1.0rem;
             margin-left: 0.3rem;
-            margin-right: 0.4rem;
+            margin-right: 0.7rem;
             width: 100%;
         }
 
