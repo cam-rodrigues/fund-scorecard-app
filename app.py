@@ -11,19 +11,19 @@ st.markdown("""
             background-color: #f4f6fa;
             border-right: none;
             padding-left: 0.5rem;
-            padding-right: none;
+            padding-right: 0;
             position: relative;
             z-index: 1;
         }
 
         .sidebar-right-line-absolute {
-            position: fixed;
-            top: 5.2rem;
-            left: 16rem;
+            position: absolute;
+            top: 5.2rem;  /* Starts below the logo */
+            right: 0;
             width: 2px;
-            height: calc(100vh - 5.2rem);
+            height: calc(100% - 5.2rem);
             background-color: #b4c3d3;
-            z-index: 9999;
+            z-index: 1;
         }
 
         [data-testid="stSidebar"] .stButton>button {
@@ -84,7 +84,7 @@ st.markdown("""
             justify-content: flex-start;
             margin-top: 1rem;
             margin-left: 0.3rem;
-            margin-right: none;
+            margin-right: 0;
             width: calc(100% - 0.3rem);
             height: 2px;
         }
@@ -107,7 +107,7 @@ st.markdown("""
             flex-grow: 1;
             min-width: 5;
             margin-left: 0.9rem;
-            margin-right: none;
+            margin-right: 0;
         }
 
         .sidebar-section {
@@ -121,8 +121,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Draw TRUE right-edge line ===
-st.markdown('<div class="sidebar-right-line-absolute"></div>', unsafe_allow_html=True)
+# === Draw right-edge vertical line inside the sidebar ===
+st.sidebar.markdown('<div class="sidebar-right-line-absolute"></div>', unsafe_allow_html=True)
 
 # === Sidebar logo block ===
 st.sidebar.markdown(
