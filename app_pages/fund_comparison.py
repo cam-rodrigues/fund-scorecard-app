@@ -223,7 +223,9 @@ def run():
             chart_path = "fydsync/assets/fund_chart.png"
             logo_path = "fydsync/assets/fidsync_logo.png"
             export_proposal_branded(full_df, proposal_text, doc_path, chart_path, logo_path)
-            import shutil
+            import shutil, os
+            os.makedirs("/mnt/data", exist_ok=True)
             shutil.copy(doc_path, "/mnt/data/FidSync_Proposal_Branded.docx")
+            
             st.success("Branded proposal exported successfully.")
             st.markdown("[Download Proposal](sandbox:/mnt/data/FidSync_Proposal_Branded.docx)", unsafe_allow_html=True)
