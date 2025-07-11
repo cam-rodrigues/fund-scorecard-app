@@ -1,50 +1,66 @@
 import streamlit as st
 import pdfplumber
+import requests
 import re
+import os
 
-# === Config ===
-KEY_TERMS = [
-    "Sharpe Ratio", "Information Ratio", "Sortino Ratio", "Treynor Ratio",
-    "Standard Deviation", "Tracking Error", "Alpha", "Beta", "R²",
-    "Expense Ratio", "Manager Tenure", "Net Assets", "Turnover Ratio",
-    "Benchmark", "Category", "Calendar Year Returns", "Portfolio Composition",
-    "Top 10 Holdings", "Fund Exposures"
-]
+def call_ai_summary(api_type, text):
+    if api_type == "Together AI":
+        url = "https://api.together.xyz/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {os.environ['TOGETHER_API_KEY']}"}
+        body = {
+            "model": "mistralai/Mixtral-8x7B-Instruct-v0.1",
+            "messages": [
+                {"role": "system", "content": "You're a finance analyst. Summarize insights from this investment fund report."},
+                {"role": "user", "content": text}
+            ],
+            "temperature": 0.3,
+        }
+        r = requests.post(url, json=body, headers=headers)
+        return r.json().get("choices", [{}])[0].get("message", {}).get("content", "")
 
-# === Functions ===
-def extract_summary(pdf_file):
-    results = []
+    elif api_type == "OpenAI":
+        import openai
+        openai.api_key = os.environ["OPENAI_API_KEY"]
+        chat = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You're a financial analyst. Summarize this PDF section for an advisor."},
+                {"role": "user", "content": text}
+            ],
+            temperature=0.3,
+        )
+        return chat.choices[0].message.content
 
+    else:
+        return "❌ Unknown API selected."
+
+def extract_pdf_chunks(pdf_file, max_chars=3000):
     with pdfplumber.open(pdf_file) as pdf:
-        for i, page in enumerate(pdf.pages):
-            text = page.extract_text() or ""
-            terms_found = [term for term in KEY_TERMS if term.lower() in text.lower()]
-            if terms_found:
-                cleaned = re.sub(r'\n+', ' ', text.strip())
-                snippet = cleaned[:1500] + "..." if len(cleaned) > 1500 else cleaned
-                results.append({
-                    "Page": i + 1,
-                    "Terms": terms_found,
-                    "Snippet": snippet
-                })
+        full_text = " ".join(page.extract_text() or "" for page in pdf.pages)
+    full_text = re.sub(r'\s+', ' ', full_text).strip()
+    return [full_text[i:i+max_chars] for i in range(0, len(full_text), max_chars)]
 
-    return results
-
-# === App ===
 def run():
-    st.title("🔍 MPI PDF Summary Tool")
-    st.markdown("Upload an MPI-style PDF and this tool will summarize the main financial metrics it finds.")
+    st.title("🧠 AI-Powered Fund Summary")
+    st.markdown("Upload an MPI PDF and choose an AI model to generate a smart summary of the financial insights.")
 
-    pdf_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="summary_pdf")
+    api_type = st.selectbox("Choose Model", ["Together AI", "OpenAI"])
+    pdf_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="ai_fund_pdf")
 
-    if pdf_file:
-        with st.spinner("Analyzing document..."):
-            summary = extract_summary(pdf_file)
+    if pdf_file and api_type:
+        with st.spinner("Extracting and summarizing..."):
+            chunks = extract_pdf_chunks(pdf_file)
+            summaries = []
 
-        if summary:
-            for section in summary:
-                with st.expander(f"Page {section['Page']} — {', '.join(section['Terms'])}"):
-                    st.text_area("Excerpt", section["Snippet"], height=300)
-        else:
-            st.warning("No key financial metrics detected in this PDF.")
+            for i, chunk in enumerate(chunks):
+                try:
+                    summary = call_ai_summary(api_type, chunk)
+                    summaries.append(f"### Section {i+1}\n{summary.strip()}")
+                except Exception as e:
+                    summaries.append(f"**Error in section {i+1}:** {str(e)}")
+
+        st.markdown("## 📊 Summary")
+        for s in summaries:
+            st.markdown(s)
 
