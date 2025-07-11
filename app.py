@@ -15,8 +15,7 @@ st.markdown("""
         }
         [data-testid="stSidebar"] img {
             display: block;
-            margin: 1.25rem auto 1rem auto;
-            max-width: 180px;
+            margin: 1rem auto 0.75rem auto;
             height: auto;
             border-radius: 0.25rem;
         }
@@ -45,14 +44,13 @@ st.markdown("""
 
 # === Sidebar Logo and Divider ===
 with st.sidebar:
-    logo_path = os.path.join("assets", "fidsync_logo_cropped.png")
+    logo_path = os.path.join("assets", "fidsync_logo_cropped.png")  # <- Your new optimized logo
     if os.path.exists(logo_path):
         logo = Image.open(logo_path)
-        st.image(logo, use_container_width=True)
+        st.image(logo, use_container_width=False, width=150)
 
-    # Subtle horizontal divider
     st.markdown(
-        """<hr style='margin-top: 1.5rem; margin-bottom: 1.5rem; border: none; border-top: 1px solid #c3cfe0;'>""",
+        """<hr style='margin-top: 1.25rem; margin-bottom: 1.5rem; border: none; border-top: 1px solid #c3cfe0;'>""",
         unsafe_allow_html=True
     )
 
@@ -83,7 +81,7 @@ query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
-# Legacy redirects
+# Handle legacy redirects
 legacy_redirects = {
     "company_scraper.py": "data_scanner.py"
 }
