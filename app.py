@@ -69,8 +69,7 @@ st.markdown("""
             align-items: center;
             margin-top: 1.0rem;
             margin-left: 0.3rem;
-            margin-right: 0.0rem;
-            width: 100%;
+            width: calc(100% - 0.3rem);
         }
 
         .line-left {
