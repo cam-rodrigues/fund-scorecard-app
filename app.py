@@ -65,6 +65,7 @@ st.markdown("""
         }
 
         .logo-underline-wrapper {
+            position: relative;
             display: flex;
             align-items: center;
             justify-content: flex-start;
@@ -94,8 +95,19 @@ st.markdown("""
             flex-grow: 1;
             min-width: 0;
             margin-left: 0.8rem;
+            position: relative;
         }
 
+        .line-right: :after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            right: 0;
+            width: 2px;
+            height: 200vh;
+            background-color: #b4c3d3;
+        }
+        
         .sidebar-section {
             font-size: 0.85rem;
             font-weight: 600;
