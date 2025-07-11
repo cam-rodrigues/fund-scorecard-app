@@ -14,8 +14,8 @@ st.markdown("""
             border-right: 1px solid #d3d3d3;
         }
         [data-testid="stSidebar"] img {
-            margin: 0.5rem auto 1rem auto;
             display: block;
+            margin: 2rem auto 1rem auto;
             max-width: 180px;
             height: auto;
         }
@@ -42,12 +42,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar with Logo ===
+# === Sidebar with New Clean Logo ===
 with st.sidebar:
-    logo_path = os.path.join("assets", "fidsync_logo.png")
+    logo_path = os.path.join("assets", "fidsync_logo_clean.png")
     if os.path.exists(logo_path):
         logo = Image.open(logo_path)
-        st.image(logo, width=160)  # clean, no stretching
+        st.image(logo, width=180)
 
 # === Navigation Buttons ===
 def nav_button(label, filename):
@@ -76,7 +76,7 @@ query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
-# Handle legacy redirects
+# Legacy redirects
 legacy_redirects = {
     "company_scraper.py": "data_scanner.py"
 }
