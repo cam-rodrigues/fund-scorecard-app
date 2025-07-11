@@ -14,9 +14,10 @@ st.markdown("""
             border-right: 1px solid #d3d3d3;
         }
         [data-testid="stSidebar"] img {
-            display: block;
             margin: 0.5rem auto 1rem auto;
-            max-height: 80px;
+            display: block;
+            max-width: 180px;
+            height: auto;
         }
         [data-testid="stSidebar"] .stButton>button {
             background-color: #e8eef8;
@@ -41,12 +42,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar with Image Logo ===
+# === Sidebar with Logo ===
 with st.sidebar:
     logo_path = os.path.join("assets", "fidsync_logo.png")
     if os.path.exists(logo_path):
         logo = Image.open(logo_path)
-        st.image(logo, use_container_width=True)
+        st.image(logo, width=160)  # clean, no stretching
 
 # === Navigation Buttons ===
 def nav_button(label, filename):
@@ -75,7 +76,7 @@ query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
-# Legacy redirects
+# Handle legacy redirects
 legacy_redirects = {
     "company_scraper.py": "data_scanner.py"
 }
