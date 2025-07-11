@@ -15,14 +15,16 @@ st.markdown("""
             position: relative;
         }
 
+        /* Vertical line down right edge of sidebar */
         .sidebar-right-line {
+            content: "";
             position: absolute;
-            top: calc(0.8rem + 1.5rem + 1.7rem);
+            top: 0;
             right: 0;
             width: 2px;
-            height: calc(100% - 2.5rem);
+            height: 100%;
             background-color: #b4c3d3;
-            z-index: 2;
+            z-index: 1;
         }
 
         [data-testid="stSidebar"] .stButton>button {
@@ -77,35 +79,10 @@ st.markdown("""
 
         .logo-underline-wrapper {
             position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            margin-top: 0.8rem; 
+            margin-top: 0.8rem;
+            height: 2px;
             width: 100%;
-            height: 2px;
-            background-color: #b4c3d3
-            box-sizing: border-box;
-        }
-
-        .line-left {
-            height: 2px;
             background-color: #b4c3d3;
-            width: 5.6rem;
-            flex-shrink: 0;
-        }
-
-        .line-gap {
-            width: 2.4rem;
-            flex-shrink: 0;
-        }
-
-        .line-right {
-            height: 2px;
-            background-color: #b4c3d3;
-            flex-grow: 1;
-            min-width: 0;
-            margin-left: 0.8rem;
-            margin-right: 0;
         }
 
         .sidebar-section {
@@ -122,7 +99,7 @@ st.markdown("""
 # === Vertical sidebar line ===
 st.sidebar.markdown('<div class="sidebar-right-line"></div>', unsafe_allow_html=True)
 
-# === Sidebar logo block with final polished underline ===
+# === Sidebar logo block with full-width underline ===
 st.sidebar.markdown(
     '''
     <div class="sidebar-logo-wrapper">
@@ -130,14 +107,13 @@ st.sidebar.markdown(
             <div class="sidebar-title">FidSync</div>
             <div class="beta-badge">BETA</div>
         </div>
-        <div class="logo-underline-wrapper">
-            <div class="logo-underline-wrapper"></div>
-        </div>
+        <div class="logo-underline-wrapper"></div>
     </div>
     ''',
     unsafe_allow_html=True
 )
 
+# === Sidebar nav button helper ===
 def nav_button(label, filename):
     if st.sidebar.button(label, key=label):
         st.query_params.update({"page": filename})
