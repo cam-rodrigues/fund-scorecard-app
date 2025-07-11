@@ -92,21 +92,21 @@ st.markdown("""
         .line-left {
             height: 2px;
             background-color: #b4c3d3;
-            flex-grow: 1;
-            margin-right: 0.4rem;
+            width: 5.6rem;
+            flex-shrink: 0;
         }
 
         .line-gap {
-            position: relative;
-            height: 0;
-            width: auto;
+            width: 2.4rem;
+            flex-shrink: 0;
         }
 
         .line-right {
             height: 2px;
             background-color: #b4c3d3;
             flex-grow: 1;
-            margin-left: 0.4rem;
+            min-width: 0;
+            margin-left: 0.8rem;
         }
 
         .sidebar-section {
