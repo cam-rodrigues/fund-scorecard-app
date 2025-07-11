@@ -164,3 +164,8 @@ def run():
         st.dataframe(
             enhanced.set_index("Fund").style.background_gradient(cmap="coolwarm").format("{:.2f}")
         )
+
+
+    st.markdown("### Proposal Draft")
+    st.markdown(generate_proposal(enhanced))
+
