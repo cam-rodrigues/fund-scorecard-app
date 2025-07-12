@@ -87,7 +87,7 @@ st.markdown("""
             top: 0;
             height: 2px;
             background-color: #b4c3d3;
-            width: calc(100% - 0.3rem - 4.8rem - 3rem);
+            width: calc(100% - 0.3rem - 4.8rem - 3rem + 1px);
             transform: scaleX(0);
             transform-origin: left center;
             animation: drawLineRight 0.6s ease-in-out 0.6s forwards;
@@ -97,10 +97,10 @@ st.markdown("""
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
-            top: 9.3rem;
+            top: 7.75rem;
             right: 0;
             width: 2px;
-            height: calc(100% - 9.3rem);
+            height: calc(100% - 7.75rem);
             background-color: #b4c3d3;
             transform: scaleY(0);
             transform-origin: top center;
