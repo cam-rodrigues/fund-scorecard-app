@@ -16,15 +16,17 @@ st.markdown("""
             z-index: 1;
         }
 
+        /* Vertical line with animation */
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
             top: 7.75rem;
             right: 0;
             width: 2px;
-            height: calc(100% - 7.75rem);
+            height: 0;
             background-color: #b4c3d3;
             z-index: 1;
+            animation: drawVertical 0.4s ease-out 0.4s forwards;
         }
 
         [data-testid="stSidebar"] .stButton>button {
@@ -109,6 +111,7 @@ st.markdown("""
             min-width: 5;
             margin-left: 0.9rem;
             margin-right: 0;
+            animation: drawHorizontal 0.4s ease-out forwards;
         }
 
         .sidebar-section {
@@ -118,6 +121,17 @@ st.markdown("""
             margin-top: 2rem;
             margin-bottom: 0.3rem;
             letter-spacing: 0.5px;
+        }
+
+        /* === Line Animations === */
+        @keyframes drawHorizontal {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+
+        @keyframes drawVertical {
+            from { height: 0; }
+            to { height: calc(100% - 7.75rem); }
         }
     </style>
 """, unsafe_allow_html=True)
