@@ -16,7 +16,6 @@ st.markdown("""
             z-index: 1;
         }
 
-        /* Vertical line starts BELOW the logo using pseudo-element */
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
@@ -87,7 +86,7 @@ st.markdown("""
             margin-top: 1rem;
             margin-left: 0.3rem;
             margin-right: 0;
-            width: calc(100% - 0.3rem);
+            width: 100%;
             height: 2px;
         }
 
