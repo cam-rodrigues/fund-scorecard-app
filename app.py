@@ -98,7 +98,7 @@ st.markdown("""
             background-color: #b4c3d3;
             width: 0;
             flex-shrink: 0;
-            animation: drawLeft 0.4s ease-out forwards;
+            animation: drawLeft 0.8s ease-in-out forwards;
         }
 
         .line-gap {
@@ -123,7 +123,7 @@ st.markdown("""
             background-color: #b4c3d3;
             width: 0;
             z-index: 4;
-            animation: drawHorizontal 0.4s ease-out forwards;
+            animation: drawHorizontal 0.8s ease-in-out 0.4s forwards;
         }
 
         .sidebar-section {
