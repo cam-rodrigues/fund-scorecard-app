@@ -5,7 +5,7 @@ def run():
     st.title("Trusted Financial Sources")
     st.write("Hover over any logo to see the full name. Click a logo to visit the site.")
 
-    # Inject CSS
+    # === Inject CSS ===
     st.markdown("""
     <style>
     .grid-wrapper {
@@ -38,7 +38,7 @@ def run():
     </style>
     """, unsafe_allow_html=True)
 
-    # Source categories
+    # === Source categories ===
     categories = {
         "Financial News": {
             "Bloomberg": ("https://www.bloomberg.com", "https://logo.clearbit.com/bloomberg.com"),
@@ -81,15 +81,15 @@ def run():
             "IMF": ("https://www.imf.org", "https://logo.clearbit.com/imf.org"),
             "World Bank": ("https://www.worldbank.org", "https://logo.clearbit.com/worldbank.org"),
             "OECD": ("https://www.oecd.org", "https://logo.clearbit.com/oecd.org"),
-        },
+        }
     }
 
-    # Render each category
-    for header, sources in categories.items():
-        st.subheader(header)
-        render_logo_grid(sources)
+    # Render each section
+    for section, links in categories.items():
+        st.subheader(section)
+        render_logo_grid(links)
 
-    # CTA footer
+    # === Footer
     st.markdown("---")
     st.markdown(
         '<div style="text-align: center; font-size: 0.95rem;">'
@@ -98,7 +98,7 @@ def run():
         unsafe_allow_html=True
     )
 
-# Renders one category as a grid
+# === Renders grid using st.markdown (not st.write)
 def render_logo_grid(link_dict, max_per_row=5):
     html = '<div class="grid-wrapper">'
     for name, (url, logo) in link_dict.items():
@@ -109,8 +109,8 @@ def render_logo_grid(link_dict, max_per_row=5):
             </a>
         </div>
         """
-    # Pad the last row with invisible boxes if needed
     remainder = len(link_dict) % max_per_row
-    html += '<div class="logo-card" style="visibility: hidden;"></div>' * (max_per_row - remainder) if remainder > 0 else ""
+    if remainder > 0:
+        html += '<div class="logo-card" style="visibility: hidden;"></div>' * (max_per_row - remainder)
     html += '</div>'
     st.markdown(html, unsafe_allow_html=True)
