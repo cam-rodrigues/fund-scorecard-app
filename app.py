@@ -4,19 +4,19 @@ import importlib.util
 
 st.set_page_config(page_title="FidSync Beta", layout="wide")
 
-# === Sidebar + Logo Block Styling ===
+# === Sidebar Styling ===
 st.markdown("""
     <style>
         [data-testid="stSidebar"] {
             background-color: #f4f6fa;
             border-right: none;
-            padding-left: 0;  /* ✅ remove left padding */
+            padding-left: 0;
             padding-right: 0;
             position: relative;
             z-index: 1;
         }
 
-        /* Vertical edge line */
+        /* Vertical line */
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
@@ -26,6 +26,17 @@ st.markdown("""
             height: calc(100% - 6.5rem);
             background-color: #b4c3d3;
             z-index: 1;
+        }
+
+        /* Horizontal line at the base of the logo */
+        .sidebar-full-underline {
+            position: absolute;
+            top: 6.45rem;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: #b4c3d3;
+            z-index: 2;
         }
 
         [data-testid="stSidebar"] .stButton>button {
@@ -43,11 +54,9 @@ st.markdown("""
         }
 
         .sidebar-logo-wrapper {
-            margin: 0;
-            padding: 0;
             margin-top: 0.5rem;
             margin-bottom: 1.5rem;
-            position: relative;  /* contains absolute underline */
+            position: relative;
         }
 
         .sidebar-title-container {
@@ -82,16 +91,6 @@ st.markdown("""
             z-index: 10;
         }
 
-        .logo-underline-bar {
-            position: absolute;
-            top: 3.05rem;
-            left: 0;
-            right: 0;  /* ✅ ensure it stretches to sidebar edge */
-            height: 2px;
-            background-color: #b4c3d3;
-            z-index: 0;
-        }
-
         .sidebar-section {
             font-size: 0.85rem;
             font-weight: 600;
@@ -103,7 +102,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar logo block ===
+# === Sidebar Logo + Underline ===
 st.sidebar.markdown(
     '''
     <div class="sidebar-logo-wrapper">
@@ -111,18 +110,18 @@ st.sidebar.markdown(
             <div class="sidebar-title">FidSync</div>
             <div class="beta-badge">BETA</div>
         </div>
-        <div class="logo-underline-bar"></div>
     </div>
+    <div class="sidebar-full-underline"></div>
     ''',
     unsafe_allow_html=True
 )
 
-# === Navigation helper ===
+# === Navigation Helper ===
 def nav_button(label, filename):
     if st.sidebar.button(label, key=label):
         st.query_params.update({"page": filename})
 
-# === Navigation structure ===
+# === Sidebar Navigation ===
 st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
 nav_button("Getting Started", "Getting_Started.py")
 nav_button("Capabilities & Potential", "capabilities_and_potential.py")
@@ -140,12 +139,11 @@ nav_button("Fund Comparison", "fund_comparison.py")
 nav_button("Multi Fund Comparison", "multi_fund_comparison.py")
 nav_button("Quarterly Comparison", "qtrly_comparison.py")
 
-# === Page router ===
+# === Page Router ===
 query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
-# Redirect old names if needed
 legacy_redirects = {
     "company_scraper.py": "data_scanner.py"
 }
@@ -154,7 +152,6 @@ if selected_page in legacy_redirects:
     st.query_params.update({"page": selected_page})
     st.rerun()
 
-# Load selected page
 if selected_page:
     page_path = os.path.join(PAGES_DIR, selected_page)
     if os.path.exists(page_path):
