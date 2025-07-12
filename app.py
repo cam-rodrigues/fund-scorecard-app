@@ -16,18 +16,6 @@ st.markdown("""
     z-index: 1;
 }
 
-[data-testid="stSidebar"]::after {
-    content: "";
-    position: absolute;
-    top: 7.75rem;
-    right: 0;
-    width: 2px;
-    height: 0;
-    background-color: #b4c3d3;
-    z-index: 1;
-    animation: drawVertical 0.4s ease-out 0.4s forwards;
-}
-
 [data-testid="stSidebar"] .stButton>button {
     background-color: #e8eef8;
     color: #1a2a44;
@@ -78,85 +66,30 @@ st.markdown("""
     z-index: 10;
 }
 
+/* New single-path underline + vertical L */
 .logo-underline-wrapper {
     position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
     margin-top: 1rem;
     margin-left: 0.3rem;
-    margin-right: 0;
-    width: calc(100% - 0.3rem);
-    height: 2px;
-    overflow: visible;
+    height: 100px;
 }
 
-.line-left {
-    height: 2px;
-    background-color: #b4c3d3;
-    width: 0;
-    flex-shrink: 0;
-    animation: drawLeft 0.4s ease-out forwards;
+.logo-L {
+    width: 100%;
+    height: 100%;
 }
 
-.line-gap {
-    width: 2.4rem;
-    flex-shrink: 0;
-}
-
-.line-right-static {
-    height: 2px;
-    background-color: #b4c3d3;
-    flex-grow: 1;
-    min-width: 5;
-    margin-left: 0.9rem;
-    margin-right: 0;
-}
-
-.line-animate-overlay {
-    position: absolute;
-    left: calc(4.8rem + 2.4rem + 3.6rem);  /* left + gap + badge width */
-    top: 0;
-    height: 2px;
-    background-color: #b4c3d3;
-    width: 0;
-    z-index: 4;
-    animation: drawHorizontal 0.4s ease-out forwards;
-}
-
-/* === Vertical curve line === */
-.line-vertical-overlay {
-    position: absolute;
-    left: calc(4.8rem + 2.4rem + 3.6rem);
-    top: 0;
-    width: 10px;
-    height: 120px;
-    z-index: 3;
-}
-.line-vertical-overlay path {
+.logo-L path {
     stroke: #b4c3d3;
-    stroke-width: 2px;
+    stroke-width: 2.5;
     fill: none;
     stroke-linecap: round;
-    stroke-dasharray: 150;
-    stroke-dashoffset: 150;
-    animation: drawVerticalCurve 0.6s ease-out 0.8s forwards;
+    stroke-dasharray: 1000;
+    stroke-dashoffset: 1000;
+    animation: drawL 1.8s ease-out forwards;
 }
 
-/* === Animations === */
-@keyframes drawLeft {
-    from { width: 0; }
-    to { width: 4.8rem; }
-}
-@keyframes drawHorizontal {
-    from { width: 0; }
-    to { width: calc(100vw - 16rem - 0.3rem); }
-}
-@keyframes drawVertical {
-    from { height: 0; }
-    to { height: calc(100% - 7.75rem); }
-}
-@keyframes drawVerticalCurve {
+@keyframes drawL {
     to {
         stroke-dashoffset: 0;
     }
@@ -174,26 +107,19 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # === Sidebar logo block ===
-st.sidebar.markdown(
-    '''
-    <div class="sidebar-logo-wrapper">
-        <div class="sidebar-title-container">
-            <div class="sidebar-title">FidSync</div>
-            <div class="beta-badge">BETA</div>
-        </div>
-        <div class="logo-underline-wrapper">
-            <div class="line-left"></div>
-            <div class="line-gap"></div>
-            <div class="line-right-static"></div>
-            <div class="line-animate-overlay"></div>
-            <svg class="line-vertical-overlay" viewBox="0 0 10 120" xmlns="http://www.w3.org/2000/svg">
-                <path d="M0 0 Q0 10 10 10 V120" />
-            </svg>
-        </div>
+st.sidebar.markdown('''
+<div class="sidebar-logo-wrapper">
+    <div class="sidebar-title-container">
+        <div class="sidebar-title">FidSync</div>
+        <div class="beta-badge">BETA</div>
     </div>
-    ''',
-    unsafe_allow_html=True
-)
+    <div class="logo-underline-wrapper">
+        <svg class="logo-L" viewBox="0 0 300 600" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0 2 H173 Q178 2 178 8 V600" />
+        </svg>
+    </div>
+</div>
+''', unsafe_allow_html=True)
 
 # === Navigation helper ===
 def nav_button(label, filename):
