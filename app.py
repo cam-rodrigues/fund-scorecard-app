@@ -116,7 +116,7 @@ st.sidebar.markdown('''
     </div>
     <div class="logo-underline-wrapper">
         <svg class="logo-L" viewBox="0 0 400 600" xmlns="http://www.w3.org/2000/svg">
-            <path d="M0 2 H285 Q295 2 295 12 V600" />
+            <path d="M0 2 H76" />
         </svg>
     </div>
 </div>
