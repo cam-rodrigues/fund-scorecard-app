@@ -5,7 +5,7 @@ def run():
     st.title("Trusted Financial Sources")
     st.write("Hover over any logo to see the full name. Click a logo to visit the site.")
 
-    # === Inject CSS ===
+    # === Inject CSS for styling ===
     st.markdown('''
     <style>
     .grid-wrapper {
@@ -38,7 +38,7 @@ def run():
     </style>
     ''', unsafe_allow_html=True)
 
-    # === Source categories ===
+    # === Source categories and logos ===
     categories = {
         "Financial News": {
             "Bloomberg": ("https://www.bloomberg.com", "https://logo.clearbit.com/bloomberg.com"),
@@ -96,21 +96,31 @@ def run():
         unsafe_allow_html=True
     )
 
+# === Grid rendering logic (corrected HTML injection) ===
 def render_logo_grid(link_dict, max_per_row=5):
-    html = '<div class="grid-wrapper">'
+    rows = []
+    row = []
+
     for name, (url, logo) in link_dict.items():
-        html += f'''
+        row.append(f'''
         <div class="logo-card">
             <a href="{url}" target="_blank">
                 <img src="{logo}" title="{name}" alt="{name}" />
             </a>
         </div>
-        '''
-    remainder = len(link_dict) % max_per_row
-    if remainder > 0:
-        html += '<div class="logo-card" style="visibility: hidden;"></div>' * (max_per_row - remainder)
-    html += '</div>'
+        ''')
+        if len(row) == max_per_row:
+            rows.append("".join(row))
+            row = []
+
+    if row:
+        while len(row) < max_per_row:
+            row.append('<div class="logo-card" style="visibility: hidden;"></div>')
+        rows.append("".join(row))
+
+    html = '<div class="grid-wrapper">' + "".join(rows) + '</div>'
     st.markdown(html, unsafe_allow_html=True)
 
+# === Entry point for standalone use ===
 if __name__ == "__main__":
     run()
