@@ -10,17 +10,17 @@ st.markdown("""
         [data-testid="stSidebar"] {
             background-color: #f4f6fa;
             border-right: none;
-            padding-left: 0.5rem;
+            padding-left: 0;  /* ✅ remove left padding */
             padding-right: 0;
             position: relative;
             z-index: 1;
         }
 
-        /* Vertical line down the right edge */
+        /* Vertical edge line */
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
-            top: 6.5rem;  /* aligns exactly with the horizontal line */
+            top: 6.5rem;
             right: 0;
             width: 2px;
             height: calc(100% - 6.5rem);
@@ -43,9 +43,11 @@ st.markdown("""
         }
 
         .sidebar-logo-wrapper {
+            margin: 0;
+            padding: 0;
             margin-top: 0.5rem;
             margin-bottom: 1.5rem;
-            position: relative;  /* so absolute underline is contained */
+            position: relative;  /* contains absolute underline */
         }
 
         .sidebar-title-container {
@@ -82,9 +84,9 @@ st.markdown("""
 
         .logo-underline-bar {
             position: absolute;
-            top: 3.05rem;  /* aligns exactly under 'FidSync' and badge */
+            top: 3.05rem;
             left: 0;
-            width: 100%;
+            right: 0;  /* ✅ ensure it stretches to sidebar edge */
             height: 2px;
             background-color: #b4c3d3;
             z-index: 0;
