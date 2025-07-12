@@ -59,7 +59,7 @@ st.markdown("""
             display: flex;
             align-items: center;
             justify-content: flex-start;
-            margin-top: none; /* space below beta badge */
+            margin-top: 2rem; /* space below beta badge */
             margin-left: 0.3rem;
             width: calc(100% - 0.3rem);
             height: 2px;
