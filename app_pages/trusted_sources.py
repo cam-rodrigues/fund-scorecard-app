@@ -3,7 +3,29 @@ import streamlit as st
 def run():
     st.set_page_config(page_title="Trusted Financial Sources", layout="wide")
     st.title("Trusted Financial Sources")
-    st.write("Hover over any logo to see the full name. Click to visit the site.")
+    st.write("Hover over any logo to see the source name. Click a logo to visit the site.")
+
+    # Add CSS for hover lift effect
+    st.markdown("""
+    <style>
+    .logo-card {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 1.25rem;
+        border: 1px solid #c9d6e5;
+        border-radius: 0.75rem;
+        background-color: #f8fbfe;
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .logo-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+        border-color: #aabdd2;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     # === Source Data ===
     financial_news = {
@@ -52,30 +74,32 @@ def run():
         "OECD": ("https://www.oecd.org", "https://logo.clearbit.com/oecd.org"),
     }
 
+    # === Sections
     st.subheader("Financial News")
-    render_logo_grid_with_tooltips(financial_news)
+    render_logo_grid(financial_news)
 
     st.subheader("Investment Firms")
-    render_logo_grid_with_tooltips(investment_firms)
+    render_logo_grid(investment_firms)
 
     st.subheader("Education & Research")
-    render_logo_grid_with_tooltips(education_research)
+    render_logo_grid(education_research)
 
     st.subheader("Government & Policy")
-    render_logo_grid_with_tooltips(government_policy)
+    render_logo_grid(government_policy)
 
-# === Grid Renderer: 96px Logos, Centered, with Tooltip ===
-def render_logo_grid_with_tooltips(link_dict, cols_per_row=5):
+
+# === Grid Renderer with Lift-on-Hover Cards ===
+def render_logo_grid(link_dict, cols_per_row=5):
     keys = list(link_dict.keys())
     for i in range(0, len(keys), cols_per_row):
         row = keys[i:i + cols_per_row]
         cols = st.columns(len(row))
         for col, name in zip(cols, row):
             url, logo = link_dict[name]
-            with col.container(border=True):
+            with col:
                 col.markdown(
                     f"""
-                    <div style="display: flex; justify-content: center; align-items: center; padding: 1rem;">
+                    <div class="logo-card">
                         <a href="{url}" target="_blank">
                             <img src="{logo}" title="{name}" alt="{name}" style="width: 96px; height: 96px; object-fit: contain;" />
                         </a>
