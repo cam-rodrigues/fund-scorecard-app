@@ -100,7 +100,7 @@ st.markdown("""
             background-color: transparent;
             flex-grow: 1;
             margin-left: 0.9rem;
-            margin-right: -2.0rem;
+            margin-right: 0;
         }
 
         .line-animate-overlay {
@@ -119,10 +119,10 @@ st.markdown("""
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
-            top: 7.7rem;  /* aligns with bottom of the underline */
+            top: 7.9rem;  /* aligns with bottom of the underline */
             right: 0;
             width: 2px;
-            height: calc(100% - 7.7rem);
+            height: calc(100% - 7.9rem);
             background-color: #b4c3d3;
             transform: scaleY(0);
             transform-origin: top center;
