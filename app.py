@@ -18,7 +18,7 @@ st.markdown("""
 
         /* === Logo + Line === */
         .sidebar-logo-wrapper {
-            margin-top: .15rem;
+            margin-top: none;
             margin-bottom: 1.5rem;
         }
 
