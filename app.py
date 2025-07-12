@@ -77,7 +77,7 @@ st.markdown("""
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
-            top: 10.9rem;  /* starts just below the horizontal line */
+            top: 8.9rem;  /* starts just below the horizontal line */
             right: 0;
             width: 2px;
             height: 0;
