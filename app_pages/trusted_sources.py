@@ -5,7 +5,7 @@ def run():
     st.title("Trusted Financial Sources")
     st.markdown("Hover over a logo to see its name. Click to visit the source in a new tab.")
 
-    # Inject CSS for styling
+    # --- Inject CSS ---
     st.markdown("""
     <style>
     .grid {
@@ -38,7 +38,7 @@ def run():
     </style>
     """, unsafe_allow_html=True)
 
-    # Define sources
+    # --- Source List ---
     sources = {
         "Bloomberg": "https://logo.clearbit.com/bloomberg.com",
         "WSJ": "https://logo.clearbit.com/wsj.com",
@@ -52,7 +52,7 @@ def run():
         "The Economist": "https://logo.clearbit.com/economist.com"
     }
 
-    # Render grid
+    # --- Render HTML ---
     html = '<div class="grid">'
     for name, logo_url in sources.items():
         site_url = "https://" + logo_url.replace("https://logo.clearbit.com/", "")
@@ -64,8 +64,10 @@ def run():
         </div>
         """
     html += "</div>"
+
     st.markdown(html, unsafe_allow_html=True)
 
+    # --- Footer ---
     st.markdown("---")
     st.markdown(
         '<div style="text-align:center; font-size: 0.9rem;">'
@@ -73,6 +75,6 @@ def run():
         '</div>', unsafe_allow_html=True
     )
 
-# Run standalone
+# --- Run Page ---
 if __name__ == "__main__":
     run()
