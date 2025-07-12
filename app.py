@@ -51,7 +51,6 @@ st.markdown("""
             display: inline-block;
             transform: scale(1.35);
             transform-origin: top left;
-            margin-left: 0.3rem;
         }
 
         .sidebar-title {
