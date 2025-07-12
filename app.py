@@ -6,152 +6,171 @@ st.set_page_config(page_title="FidSync Beta", layout="wide")
 
 # === Sidebar + Logo Block Styling ===
 st.markdown("""
-    <style>
-        [data-testid="stSidebar"] {
-            background-color: #f4f6fa;
-            border-right: none;
-            padding-left: 0.15rem;
-            padding-right: 0;
-            position: relative;
-            z-index: 1;
-        }
+<style>
+[data-testid="stSidebar"] {
+    background-color: #f4f6fa;
+    border-right: none;
+    padding-left: 0.15rem;
+    padding-right: 0;
+    position: relative;
+    z-index: 1;
+}
 
-        /* Vertical line animation */
-        [data-testid="stSidebar"]::after {
-            content: "";
-            position: absolute;
-            top: 7.75rem;
-            right: 0;
-            width: 2px;
-            height: 0;
-            background-color: #b4c3d3;
-            z-index: 1;
-            animation: drawVertical 0.4s ease-out 0.4s forwards;
-        }
+[data-testid="stSidebar"]::after {
+    content: "";
+    position: absolute;
+    top: 7.75rem;
+    right: 0;
+    width: 2px;
+    height: 0;
+    background-color: #b4c3d3;
+    z-index: 1;
+    animation: drawVertical 0.4s ease-out 0.4s forwards;
+}
 
-        [data-testid="stSidebar"] .stButton>button {
-            background-color: #e8eef8;
-            color: #1a2a44;
-            border: 1px solid #c3cfe0;
-            border-radius: 0.5rem;
-            padding: 0.4rem 0.75rem;
-            font-weight: 600;
-        }
+[data-testid="stSidebar"] .stButton>button {
+    background-color: #e8eef8;
+    color: #1a2a44;
+    border: 1px solid #c3cfe0;
+    border-radius: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    font-weight: 600;
+}
+[data-testid="stSidebar"] .stButton>button:hover {
+    background-color: #cbd9f0;
+    color: #000000;
+}
 
-        [data-testid="stSidebar"] .stButton>button:hover {
-            background-color: #cbd9f0;
-            color: #000000;
-        }
+.sidebar-logo-wrapper {
+    margin-top: .15rem;
+    margin-bottom: 1.5rem;
+}
 
-        .sidebar-logo-wrapper {
-            margin-top: .15rem;
-            margin-bottom: 1.5rem;
-        }
+.sidebar-title-container {
+    position: relative;
+    display: inline-block;
+    transform: scale(1.35);
+    transform-origin: top left;
+    margin-left: 0.3rem;
+}
 
-        .sidebar-title-container {
-            position: relative;
-            display: inline-block;
-            transform: scale(1.35);
-            transform-origin: top left;
-            margin-left: 0.3rem;
-        }
+.sidebar-title {
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: #102542;
+    line-height: 1;
+    white-space: nowrap;
+}
 
-        .sidebar-title {
-            font-size: 1.7rem;
-            font-weight: 800;
-            color: #102542;
-            line-height: 1;
-            white-space: nowrap;
-        }
+.beta-badge {
+    position: absolute;
+    top: 1.62rem;
+    left: 4.0rem;
+    background-color: #2b6cb0;
+    color: white;
+    font-size: 0.48rem;
+    font-weight: 700;
+    padding: 0.05rem 0.25rem;
+    border-radius: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    z-index: 10;
+}
 
-        .beta-badge {
-            position: absolute;
-            top: 1.62rem;
-            left: 4.0rem;
-            background-color: #2b6cb0;
-            color: white;
-            font-size: 0.48rem;
-            font-weight: 700;
-            padding: 0.05rem 0.25rem;
-            border-radius: 0.25rem;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            white-space: nowrap;
-            z-index: 10;
-        }
+.logo-underline-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    margin-top: 1rem;
+    margin-left: 0.3rem;
+    margin-right: 0;
+    width: calc(100% - 0.3rem);
+    height: 2px;
+    overflow: visible;
+}
 
-        .logo-underline-wrapper {
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            margin-top: 1rem;
-            margin-left: 0.3rem;
-            margin-right: 0;
-            width: calc(100% - 0.3rem);
-            height: 2px;
-            overflow: visible;
-        }
+.line-left {
+    height: 2px;
+    background-color: #b4c3d3;
+    width: 0;
+    flex-shrink: 0;
+    animation: drawLeft 0.4s ease-out forwards;
+}
 
-        .line-left {
-            height: 2px;
-            background-color: #b4c3d3;
-            width: 0;
-            flex-shrink: 0;
-            animation: drawLeft 0.4s ease-out forwards;
-        }
+.line-gap {
+    width: 2.4rem;
+    flex-shrink: 0;
+}
 
-        .line-gap {
-            width: 2.4rem;
-            flex-shrink: 0;
-        }
+.line-right-static {
+    height: 2px;
+    background-color: #b4c3d3;
+    flex-grow: 1;
+    min-width: 5;
+    margin-left: 0.9rem;
+    margin-right: 0;
+}
 
-        .line-right-static {
-            height: 2px;
-            background-color: #b4c3d3;
-            flex-grow: 1;
-            min-width: 5;
-            margin-left: 0.9rem;
-            margin-right: 0;
-        }
+.line-animate-overlay {
+    position: absolute;
+    left: calc(4.8rem + 2.4rem + 3.6rem);  /* left + gap + badge width */
+    top: 0;
+    height: 2px;
+    background-color: #b4c3d3;
+    width: 0;
+    z-index: 4;
+    animation: drawHorizontal 0.4s ease-out forwards;
+}
 
-        .line-animate-overlay {
-            position: absolute;
-            left: calc(4.8rem + 2.4rem + 3.6rem);  /* left line + gap + badge */
-            top: 0;
-            height: 2px;
-            background-color: #b4c3d3;
-            width: 0;
-            z-index: 4;
-            animation: drawHorizontal 0.4s ease-out forwards;
-        }
+/* === Vertical curve line === */
+.line-vertical-overlay {
+    position: absolute;
+    left: calc(4.8rem + 2.4rem + 3.6rem);
+    top: 0;
+    width: 10px;
+    height: 120px;
+    z-index: 3;
+}
+.line-vertical-overlay path {
+    stroke: #b4c3d3;
+    stroke-width: 2px;
+    fill: none;
+    stroke-linecap: round;
+    stroke-dasharray: 150;
+    stroke-dashoffset: 150;
+    animation: drawVerticalCurve 0.6s ease-out 0.8s forwards;
+}
 
-        .sidebar-section {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: #666;
-            margin-top: 2rem;
-            margin-bottom: 0.3rem;
-            letter-spacing: 0.5px;
-        }
+/* === Animations === */
+@keyframes drawLeft {
+    from { width: 0; }
+    to { width: 4.8rem; }
+}
+@keyframes drawHorizontal {
+    from { width: 0; }
+    to { width: calc(100vw - 16rem - 0.3rem); }
+}
+@keyframes drawVertical {
+    from { height: 0; }
+    to { height: calc(100% - 7.75rem); }
+}
+@keyframes drawVerticalCurve {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
 
-        /* === Animations === */
-
-        @keyframes drawLeft {
-            from { width: 0; }
-            to { width: 4.8rem; }
-        }
-
-        @keyframes drawHorizontal {
-            from { width: 0; }
-            to { width: calc(100vw - 16rem - 0.3rem); }
-        }
-
-        @keyframes drawVertical {
-            from { height: 0; }
-            to { height: calc(100% - 7.75rem); }
-        }
-    </style>
+.sidebar-section {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #666;
+    margin-top: 2rem;
+    margin-bottom: 0.3rem;
+    letter-spacing: 0.5px;
+}
+</style>
 """, unsafe_allow_html=True)
 
 # === Sidebar logo block ===
@@ -167,6 +186,9 @@ st.sidebar.markdown(
             <div class="line-gap"></div>
             <div class="line-right-static"></div>
             <div class="line-animate-overlay"></div>
+            <svg class="line-vertical-overlay" viewBox="0 0 10 120" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0 0 Q0 10 10 10 V120" />
+            </svg>
         </div>
     </div>
     ''',
@@ -201,16 +223,12 @@ query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
-# Redirect old names if needed
-legacy_redirects = {
-    "company_scraper.py": "data_scanner.py"
-}
+legacy_redirects = {"company_scraper.py": "data_scanner.py"}
 if selected_page in legacy_redirects:
     selected_page = legacy_redirects[selected_page]
     st.query_params.update({"page": selected_page})
     st.rerun()
 
-# Load selected page
 if selected_page:
     page_path = os.path.join(PAGES_DIR, selected_page)
     if os.path.exists(page_path):
