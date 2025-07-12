@@ -1,24 +1,63 @@
 import streamlit as st
 
 st.set_page_config(page_title="Trusted Financial Sources", layout="wide")
-st.title("📚 Trusted Financial Sources")
+st.title("Trusted Financial Sources")
 
 st.markdown("""
-This page contains grouped links to **reputable financial websites** across news, research, investment, and policy categories.
-""")
+Browse grouped links to **reputable financial websites**. Each source is shown as a clickable square block for easier scanning.
+""", unsafe_allow_html=True)
 
-# === Helper Function
-def link_block(title, links):
-    st.markdown(f"### {title}")
+# === Define CSS for square blocks ===
+st.markdown("""
+<style>
+.source-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+    margin-bottom: 2.5rem;
+}
+
+.source-box {
+    background-color: #f0f4fa;
+    border: 1px solid #d4ddec;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    text-align: center;
+    transition: 0.2s ease-in-out;
+    font-weight: 600;
+    color: #1a2a44;
+}
+
+.source-box:hover {
+    background-color: #dce7f8;
+    border-color: #a3b9da;
+    transform: scale(1.02);
+}
+
+.source-box a {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# === Helper Function to Render Grid ===
+def render_link_grid(title, links):
+    st.markdown(f"## {title}")
+    html = '<div class="source-grid">'
     for name, url in links.items():
-        st.markdown(f"- [{name}]({url})")
+        html += f'<div class="source-box"><a href="{url}" target="_blank">{name}</a></div>'
+    html += '</div>'
+    st.markdown(html, unsafe_allow_html=True)
 
 # === Link Groups
 financial_news = {
     "Bloomberg": "https://www.bloomberg.com",
-    "Wall Street Journal": "https://www.wsj.com",
+    "WSJ": "https://www.wsj.com",
     "Reuters": "https://www.reuters.com",
-    "Financial Times": "https://www.ft.com",
+    "FT": "https://www.ft.com",
     "CNBC": "https://www.cnbc.com",
     "MarketWatch": "https://www.marketwatch.com",
     "Yahoo Finance": "https://finance.yahoo.com",
@@ -34,32 +73,31 @@ investment_firms = {
     "Charles Schwab": "https://www.schwab.com",
     "J.P. Morgan": "https://www.jpmorgan.com",
     "Goldman Sachs": "https://www.goldmansachs.com",
-    "Morgan Stanley": "https://www.morganstanley.com",
-    "AllianceBernstein": "https://www.alliancebernstein.com"
+    "Morgan Stanley": "https://www.morganstanley.com"
 }
 
-research_and_education = {
+education_research = {
     "Morningstar": "https://www.morningstar.com",
     "Investopedia": "https://www.investopedia.com",
-    "The Motley Fool": "https://www.fool.com",
+    "Motley Fool": "https://www.fool.com",
     "CFA Institute": "https://www.cfainstitute.org",
-    "Wharton School": "https://www.wharton.upenn.edu",
-    "Harvard Business School": "https://www.hbs.edu",
+    "Wharton": "https://www.wharton.upenn.edu",
+    "Harvard Business": "https://www.hbs.edu",
     "MIT Sloan": "https://mitsloan.mit.edu",
     "NBER": "https://www.nber.org"
 }
 
-government_and_policy = {
-    "SEC (U.S. Securities & Exchange Commission)": "https://www.sec.gov",
+government_policy = {
+    "SEC": "https://www.sec.gov",
     "Federal Reserve": "https://www.federalreserve.gov",
     "U.S. Treasury": "https://home.treasury.gov",
-    "IMF (International Monetary Fund)": "https://www.imf.org",
+    "IMF": "https://www.imf.org",
     "World Bank": "https://www.worldbank.org",
     "OECD": "https://www.oecd.org"
 }
 
-# === Render All Sections
-link_block("Financial News & Media", financial_news)
-link_block("Major Investment Firms", investment_firms)
-link_block("Education & Research", research_and_education)
-link_block("Government & Policy", government_and_policy)
+# === Render All Blocks
+render_link_grid("Financial News", financial_news)
+render_link_grid("Major Investment Firms", investment_firms)
+render_link_grid("Education & Research", education_research)
+render_link_grid("Government & Policy", government_policy)
