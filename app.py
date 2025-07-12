@@ -4,117 +4,111 @@ import importlib.util
 
 st.set_page_config(page_title="FidSync Beta", layout="wide")
 
-# === Sidebar + Logo Block Styling ===
 st.markdown("""
-    <style>
-        [data-testid="stSidebar"] {
-            background-color: #f4f6fa;
-            border-right: none;
-            padding-left: 0.15rem;
-            padding-right: 0;
-            position: relative;
-            z-index: 1;
-        }
+<style>
+[data-testid="stSidebar"] {
+    background-color: #f4f6fa;
+    border-right: none;
+    padding-left: 0.15rem;
+    padding-right: 0;
+    position: relative;
+    z-index: 1;
+}
 
-        [data-testid="stSidebar"] .stButton>button {
-            background-color: #e8eef8;
-            color: #1a2a44;
-            border: 1px solid #c3cfe0;
-            border-radius: 0.5rem;
-            padding: 0.4rem 0.75rem;
-            font-weight: 600;
-        }
+[data-testid="stSidebar"] .stButton>button {
+    background-color: #e8eef8;
+    color: #1a2a44;
+    border: 1px solid #c3cfe0;
+    border-radius: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    font-weight: 600;
+}
+[data-testid="stSidebar"] .stButton>button:hover {
+    background-color: #cbd9f0;
+    color: #000000;
+}
 
-        [data-testid="stSidebar"] .stButton>button:hover {
-            background-color: #cbd9f0;
-            color: #000000;
-        }
+.sidebar-logo-wrapper {
+    margin-top: .15rem;
+    margin-bottom: 1.5rem;
+}
 
-        .sidebar-logo-wrapper {
-            margin-top: .15rem;
-            margin-bottom: 1.5rem;
-        }
+.sidebar-title-container {
+    position: relative;
+    display: inline-block;
+    transform: scale(1.35);
+    transform-origin: top left;
+    margin-left: 0.3rem;
+}
 
-        .sidebar-title-container {
-            position: relative;
-            display: inline-block;
-            transform: scale(1.35);
-            transform-origin: top left;
-            margin-left: 0.3rem;
-        }
+.sidebar-title {
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: #102542;
+    line-height: 1;
+    white-space: nowrap;
+}
 
-        .sidebar-title {
-            font-size: 1.7rem;
-            font-weight: 800;
-            color: #102542;
-            line-height: 1;
-            white-space: nowrap;
-        }
+.beta-badge {
+    position: absolute;
+    top: 1.62rem;
+    left: 4.0rem;
+    background-color: #2b6cb0;
+    color: white;
+    font-size: 0.48rem;
+    font-weight: 700;
+    padding: 0.05rem 0.25rem;
+    border-radius: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    z-index: 10;
+}
 
-        .beta-badge {
-            position: absolute;
-            top: 1.62rem;
-            left: 4.0rem;
-            background-color: #2b6cb0;
-            color: white;
-            font-size: 0.48rem;
-            font-weight: 700;
-            padding: 0.05rem 0.25rem;
-            border-radius: 0.25rem;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            white-space: nowrap;
-            z-index: 10;
-        }
+.logo-underline-wrapper {
+    margin-left: 0.3rem;
+    margin-top: 1rem;
+    height: 80px;
+    position: relative;
+    overflow: visible;
+}
 
-        .logo-underline-wrapper {
-            margin-left: 0.3rem;
-            margin-top: 1rem;
-            height: 80px;
-            position: relative;
-            overflow: visible;
-        }
+.animated-L path {
+    stroke-dasharray: 400;
+    stroke-dashoffset: 400;
+    animation: drawL 2s ease-in-out forwards;
+}
 
-        .animated-L path {
-            stroke-dasharray: 600;
-            stroke-dashoffset: 600;
-            animation: drawL 2s ease-in-out forwards;
-        }
+@keyframes drawL {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
 
-        @keyframes drawL {
-            to {
-                stroke-dashoffset: 0;
-            }
-        }
-
-        .sidebar-section {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: #666;
-            margin-top: 2rem;
-            margin-bottom: 0.3rem;
-            letter-spacing: 0.5px;
-        }
-    </style>
+.sidebar-section {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #666;
+    margin-top: 2rem;
+    margin-bottom: 0.3rem;
+    letter-spacing: 0.5px;
+}
+</style>
 """, unsafe_allow_html=True)
 
-# === Sidebar logo block ===
-st.sidebar.markdown(
-    '''
-    <div class="sidebar-logo-wrapper">
-        <div class="sidebar-title-container">
-            <div class="sidebar-title">FidSync</div>
-            <div class="beta-badge">BETA</div>
-        </div>
-        <div class="logo-underline-wrapper">
-            <svg class="animated-L" width="100%" height="80" viewBox="0 0 200 1000" xmlns="http://www.w3.org/2000/svg">
-                <path d="M0 2 H150 Q153 2 153 5 V1000" fill="none" stroke="#b4c3d3" stroke-width="2.25" stroke-linecap="round"/>
-            </svg>
-        </div>
+st.sidebar.markdown("""
+<div class="sidebar-logo-wrapper">
+    <div class="sidebar-title-container">
+        <div class="sidebar-title">FidSync</div>
+        <div class="beta-badge">BETA</div>
     </div>
-    ''',
-    unsafe_allow_html=True
-)
+    <div class="logo-underline-wrapper">
+        <svg class="animated-L" width="100%" height="80" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0 2 H140 Q145 2 145 7 V140" fill="none" stroke="#b4c3d3" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 # === Navigation helper ===
 def nav_button(label, filename):
@@ -144,16 +138,12 @@ query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
-# Redirect old names if needed
-legacy_redirects = {
-    "company_scraper.py": "data_scanner.py"
-}
+legacy_redirects = {"company_scraper.py": "data_scanner.py"}
 if selected_page in legacy_redirects:
     selected_page = legacy_redirects[selected_page]
     st.query_params.update({"page": selected_page})
     st.rerun()
 
-# Load selected page
 if selected_page:
     page_path = os.path.join(PAGES_DIR, selected_page)
     if os.path.exists(page_path):
@@ -170,6 +160,4 @@ if selected_page:
         st.rerun()
 else:
     st.markdown("# Welcome to FidSync Beta")
-    st.markdown("""
-    **FidSync Beta** is a data processing toolkit designed to streamline and modernize workflows by turning raw data into clear, actionable results.
-    """)
+    st.markdown("**FidSync Beta** is a data processing toolkit designed to streamline and modernize workflows by turning raw data into clear, actionable results.")
