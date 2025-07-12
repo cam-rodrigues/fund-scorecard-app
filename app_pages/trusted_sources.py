@@ -1,80 +1,113 @@
 import streamlit as st
+import base64
+from pathlib import Path
+
+def get_image_as_base64(path):
+    return base64.b64encode(Path(path).read_bytes()).decode()
 
 def run():
     st.set_page_config(page_title="Trusted Financial Sources", layout="wide")
     st.title("Trusted Financial Sources")
-    st.markdown("Hover over a logo to see its name. Click to visit the source in a new tab.")
 
-    # --- Inject CSS ---
     st.markdown("""
     <style>
-    .grid {
+    .source-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-        gap: 1.5rem;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 1.2rem;
         margin-top: 1.5rem;
-        margin-bottom: 2.5rem;
+        margin-bottom: 2rem;
     }
-    .logo-card {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 1px solid #c7d3e0;
+
+    .source-box {
+        background-color: #f0f4fa;
+        border: 1px solid #d4ddec;
         border-radius: 0.75rem;
-        background: #f8fbfe;
-        height: 120px;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        padding: 1rem;
+        text-align: center;
+        transition: transform 0.2s ease-in-out;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        cursor: pointer;
+        position: relative;
     }
-    .logo-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.07);
-        border-color: #aabbd0;
+
+    .source-box:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
-    .logo-card img {
-        max-height: 70px;
-        max-width: 90px;
-        object-fit: contain;
+
+    .source-box img {
+        max-width: 100%;
+        height: auto;
+        display: block;
+        margin: 0 auto;
+    }
+
+    .tooltip {
+        position: absolute;
+        bottom: -2.2rem;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #1a2a44;
+        color: white;
+        padding: 0.25rem 0.6rem;
+        border-radius: 0.4rem;
+        font-size: 0.75rem;
+        white-space: nowrap;
+        display: none;
+        z-index: 5;
+    }
+
+    .source-box:hover .tooltip {
+        display: block;
+    }
+
+    hr {
+        border: none;
+        border-top: 1px solid #c3cfe0;
+        margin: 1.25rem auto 0.5rem auto;
+        width: 100%;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- Source List ---
-    sources = {
-        "Bloomberg": "https://logo.clearbit.com/bloomberg.com",
-        "WSJ": "https://logo.clearbit.com/wsj.com",
-        "Reuters": "https://logo.clearbit.com/reuters.com",
-        "CNBC": "https://logo.clearbit.com/cnbc.com",
-        "FT": "https://logo.clearbit.com/ft.com",
-        "Yahoo Finance": "https://logo.clearbit.com/yahoo.com",
-        "Forbes": "https://logo.clearbit.com/forbes.com",
-        "CNN Business": "https://logo.clearbit.com/cnn.com",
-        "MarketWatch": "https://logo.clearbit.com/marketwatch.com",
-        "The Economist": "https://logo.clearbit.com/economist.com"
-    }
+    st.markdown("#### Financial News")
 
-    # --- Render HTML ---
-    html = '<div class="grid">'
-    for name, logo_url in sources.items():
-        site_url = "https://" + logo_url.replace("https://logo.clearbit.com/", "")
-        html += f"""
-        <div class="logo-card">
-            <a href="{site_url}" target="_blank">
-                <img src="{logo_url}" alt="{name}" title="{name}" />
-            </a>
-        </div>
-        """
-    html += "</div>"
+    render_sources([
+        ("https://www.bloomberg.com", "Bloomberg", "media/bloomberg.png"),
+        ("https://www.wsj.com", "Wall Street Journal", "media/wsj.png"),
+        ("https://www.cnbc.com", "CNBC", "media/cnbc.png"),
+        ("https://www.reuters.com", "Reuters", "media/reuters.png"),
+    ])
 
-    st.markdown(html, unsafe_allow_html=True)
+    st.markdown("#### Investment Research & Tools")
 
-    # --- Footer ---
-    st.markdown("---")
-    st.markdown(
-        '<div style="text-align:center; font-size: 0.9rem;">'
-        'Want a new source added? Use the <strong>User Request</strong> tool in the sidebar.'
-        '</div>', unsafe_allow_html=True
-    )
+    render_sources([
+        ("https://www.morningstar.com", "Morningstar", "media/morningstar.png"),
+        ("https://www.ycharts.com", "YCharts", "media/ycharts.png"),
+        ("https://www.finviz.com", "Finviz", "media/finviz.png"),
+        ("https://www.fidelity.com", "Fidelity", "media/fidelity.png"),
+        ("https://www.schwab.com", "Charles Schwab", "media/schwab.png"),
+        ("https://www.emoneyadvisor.com", "eMoney Advisor", "media/emoney.png"),
+    ])
 
-# --- Run Page ---
-if __name__ == "__main__":
-    run()
+    st.markdown("#### Government & Policy")
+
+    render_sources([
+        ("https://www.sec.gov", "SEC", "media/sec.png"),
+        ("https://fred.stlouisfed.org", "FRED (St. Louis Fed)", "media/fred.png"),
+        ("https://www.finra.org", "FINRA", "media/finra.png"),
+        ("https://www.treasury.gov", "U.S. Treasury", "media/treasury.png"),
+    ])
+
+def render_sources(sources):
+    st.markdown('<div class="source-grid">', unsafe_allow_html=True)
+    for url, name, logo_path in sources:
+        encoded = get_image_as_base64(logo_path)
+        st.markdown(f"""
+        <a href="{url}" target="_blank" class="source-box">
+            <img src="data:image/png;base64,{encoded}" alt="{name}" />
+            <div class="tooltip">{name}</div>
+        </a>
+        """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
