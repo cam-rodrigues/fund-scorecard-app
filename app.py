@@ -8,7 +8,7 @@ def run():
     Browse grouped links to reputable financial websites. Each source is displayed as a clickable square block with its logo.
     """, unsafe_allow_html=True)
 
-    # === CSS Styling for Grid Layout with Logo Boxes ===
+    # === Define CSS for square logo blocks ===
     st.markdown("""
     <style>
     .source-grid {
@@ -49,28 +49,27 @@ def run():
     .source-box a {
         text-decoration: none;
         color: inherit;
-        display: block;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    # === Function to Render Link Grid ===
+    # === Reusable Grid Block Function
     def render_link_grid(title, links):
         st.subheader(title)
         html = '<div class="source-grid">'
         for name, (url, logo_url) in links.items():
             html += f'''
-                <div class="source-box">
-                    <a href="{url}" target="_blank">
-                        <img src="{logo_url}" alt="{name} logo"/>
-                        <div>{name}</div>
-                    </a>
-                </div>
+            <div class="source-box">
+                <a href="{url}" target="_blank">
+                    <img src="{logo_url}" alt="{name} logo"/>
+                    {name}
+                </a>
+            </div>
             '''
         html += '</div>'
         st.markdown(html, unsafe_allow_html=True)
 
-    # === Data ===
+    # === Example Link Groups with Logos
     financial_news = {
         "Bloomberg": ("https://www.bloomberg.com", "https://logo.clearbit.com/bloomberg.com"),
         "WSJ": ("https://www.wsj.com", "https://logo.clearbit.com/wsj.com"),
@@ -114,7 +113,7 @@ def run():
         "OECD": ("https://www.oecd.org", "https://logo.clearbit.com/oecd.org"),
     }
 
-    # === Render Sections
+    # === Render All Grids
     render_link_grid("Financial News", financial_news)
     render_link_grid("Major Investment Firms", investment_firms)
     render_link_grid("Education & Research", education_research)
