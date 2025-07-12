@@ -106,9 +106,9 @@ st.markdown("""
             height: 2px;
             background-color: #b4c3d3;
             flex-grow: 1;
-            min-width: 6;
+            min-width: 0;
             margin-left: 0.9rem;
-            margin-right: 1;
+            margin-right: 0;
         }
 
         .sidebar-section {
