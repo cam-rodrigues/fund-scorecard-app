@@ -186,7 +186,7 @@ if selected_page:
         st.query_params.clear()
         st.rerun()
 else:
-    st.markdown("# Welcome to FidSync Beta")
+    st.markdown("# Welcome")
     st.markdown("""
     **FidSync Beta** is a data processing toolkit designed to streamline and modernize workflows by turning raw data into clear, actionable results.
     """)
