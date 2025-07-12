@@ -116,13 +116,14 @@ st.markdown("""
             z-index: 1;
         }
 
+        /* Connects with the right horizontal line perfectly */
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
-            top: 7.75rem;
+            top: 9.25rem;
             right: 0;
             width: 2px;
-            height: calc(100% - 7.75rem);
+            height: calc(100% - 9.25rem);
             background-color: #b4c3d3;
             transform: scaleY(0);
             transform-origin: top center;
