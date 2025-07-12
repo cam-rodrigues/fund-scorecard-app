@@ -75,7 +75,10 @@ st.markdown("""
             text-transform: uppercase;
             letter-spacing: 0.3px;
             white-space: nowrap;
-            z-index: 10;
+            z-index: 2;
+
+            opacity: 0;
+            animation: fadeScaleUp 0.5s ease-out 0.7s forwards;
         }
 
 
