@@ -70,7 +70,19 @@ st.markdown("""
             height: 2px;
             background-color: #b4c3d3;
             width: 0;
-            animation: drawUnderline 1s ease-in-out forwards;
+            animation: drawLeft 0.5s ease-out forwards;
+        }
+
+        .line-gap {
+            width: 3.2rem;  /* Matches beta badge width */
+            flex-shrink: 0;
+        }
+
+        .line-right {
+            height: 2px;
+            background-color: #b4c3d3;
+            width: 0;
+            animation: drawRight 0.5s ease-out 0.5s forwards;
         }
 
         /* === Vertical Line === */
@@ -80,7 +92,7 @@ st.markdown("""
             top: 7.5rem;  /* starts just below the horizontal line */
             right: 0;
             width: 2px;
-            height: calc(100vh - 7.5rem);
+            height: 0;
             background-color: #b4c3d3;
             z-index: 1;
             animation: drawVertical 0.8s ease-in-out 1.1s forwards;
@@ -111,7 +123,12 @@ st.markdown("""
         }
 
         /* === Animations === */
-        @keyframes drawUnderline {
+        @keyframes drawLeft {
+            from { width: 0; }
+            to { width: 4.8rem; }
+        }
+
+        @keyframes drawRight {
             from { width: 0; }
             to { width: 100%; }
         }
@@ -133,6 +150,8 @@ st.sidebar.markdown(
         </div>
         <div class="logo-underline-wrapper">
             <div class="line-left"></div>
+            <div class="line-gap"></div>
+            <div class="line-right"></div>
         </div>
     </div>
     ''',
