@@ -4,14 +4,15 @@ import importlib.util
 
 st.set_page_config(page_title="FidSync Beta", layout="wide")
 
+# === Sidebar + Logo Block Styling ===
 st.markdown("""
 <style>
 [data-testid="stSidebar"] {
     background-color: #f4f6fa;
-    border-right: none;
+    position: relative;
     padding-left: 0.15rem;
     padding-right: 0;
-    position: relative;
+    border-right: none;
     z-index: 1;
 }
 
@@ -31,6 +32,8 @@ st.markdown("""
 .sidebar-logo-wrapper {
     margin-top: .15rem;
     margin-bottom: 1.5rem;
+    position: relative;
+    z-index: 2;
 }
 
 .sidebar-title-container {
@@ -65,18 +68,28 @@ st.markdown("""
     z-index: 10;
 }
 
-.logo-underline-wrapper {
-    margin-left: 0.3rem;
-    margin-top: 1rem;
-    height: 100px;
-    position: relative;
-    overflow: visible;
+/* Full sidebar L line */
+.sidebar-L-line {
+    position: absolute;
+    top: 7.9rem;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
 }
-
-.animated-L path {
-    stroke-dasharray: 600;
-    stroke-dashoffset: 400;
+.sidebar-L-line svg {
+    width: 100%;
+    height: 100%;
+}
+.sidebar-L-line path {
+    stroke-dasharray: 1000;
+    stroke-dashoffset: 1000;
     animation: drawL 2s ease-in-out forwards;
+    stroke: #b4c3d3;
+    stroke-width: 2;
+    fill: none;
+    stroke-linecap: round;
 }
 
 @keyframes drawL {
@@ -96,18 +109,22 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.sidebar.markdown("""
+# === Sidebar content ===
+st.sidebar.markdown('''
 <div class="sidebar-logo-wrapper">
     <div class="sidebar-title-container">
         <div class="sidebar-title">FidSync</div>
         <div class="beta-badge">BETA</div>
     </div>
-    <div class="logo-underline-wrapper">
-    <svg class="animated-L" width="100%" height="100" viewBox="0 0 300 600" xmlns="http://www.w3.org/2000/svg">
-        <path d="M0 2 H285 Q290 2 290 7 V600" fill="none" stroke="#b4c3d3" stroke-width="2.5" stroke-linecap="round"/>
+</div>
+
+<!-- Curved animated L line along the edge -->
+<div class="sidebar-L-line">
+    <svg viewBox="0 0 300 800" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0 2 H285 Q295 2 295 7 V800" />
     </svg>
 </div>
-""", unsafe_allow_html=True)
+''', unsafe_allow_html=True)
 
 # === Navigation helper ===
 def nav_button(label, filename):
