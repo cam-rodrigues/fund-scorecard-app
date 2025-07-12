@@ -6,7 +6,7 @@ def run():
     st.write("Hover over any logo to see the full name. Click a logo to visit the site.")
 
     # === Inject CSS ===
-    st.markdown("""
+    st.markdown('''
     <style>
     .grid-wrapper {
         display: grid;
@@ -36,7 +36,7 @@ def run():
         object-fit: contain;
     }
     </style>
-    """, unsafe_allow_html=True)
+    ''', unsafe_allow_html=True)
 
     # === Source categories ===
     categories = {
@@ -84,12 +84,10 @@ def run():
         }
     }
 
-    # Render each section
     for section, links in categories.items():
         st.subheader(section)
         render_logo_grid(links)
 
-    # === Footer
     st.markdown("---")
     st.markdown(
         '<div style="text-align: center; font-size: 0.95rem;">'
@@ -98,23 +96,21 @@ def run():
         unsafe_allow_html=True
     )
 
-# === Renders a uniform grid of logos ===
 def render_logo_grid(link_dict, max_per_row=5):
     html = '<div class="grid-wrapper">'
     for name, (url, logo) in link_dict.items():
-        html += f"""
+        html += f'''
         <div class="logo-card">
             <a href="{url}" target="_blank">
                 <img src="{logo}" title="{name}" alt="{name}" />
             </a>
         </div>
-        """
+        '''
     remainder = len(link_dict) % max_per_row
     if remainder > 0:
         html += '<div class="logo-card" style="visibility: hidden;"></div>' * (max_per_row - remainder)
     html += '</div>'
     st.markdown(html, unsafe_allow_html=True)
 
-# === Run as standalone
 if __name__ == "__main__":
     run()
