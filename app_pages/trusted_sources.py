@@ -1,79 +1,49 @@
 import streamlit as st
+import requests
 
-def run():
-    st.set_page_config(page_title="Trusted Financial Sources", layout="wide")
-    st.title("Trusted Financial Sources")
-    st.markdown("Hover over a logo to see its name. Click to visit the source in a new tab.")
+# === CONFIG ===
+TRUSTED_DOMAINS = [
+    "forbes.com", "bloomberg.com", "wsj.com", "reuters.com", "nytimes.com", "cnn.com",
+    "npr.org", "nature.com", "sciencedirect.com", "harvard.edu", "stanford.edu"
+]
 
-    # Inject CSS
-    st.markdown("""
-    <style>
-    .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-        gap: 1.5rem;
-        margin-top: 1.5rem;
-        margin-bottom: 2.5rem;
+def fetch_reputable_sources(query, api_key):
+    url = "https://serpapi.com/search"
+    params = {
+        "q": query,
+        "api_key": api_key,
+        "engine": "google",
+        "num": "20"
     }
-    .logo-card {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 1px solid #c7d3e0;
-        border-radius: 0.75rem;
-        background: #f8fbfe;
-        height: 120px;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .logo-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.07);
-        border-color: #aabbd0;
-    }
-    .logo-card img {
-        max-height: 70px;
-        max-width: 90px;
-        object-fit: contain;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    res = requests.get(url, params=params)
+    results = res.json().get("organic_results", [])
 
-    # Sources
-    sources = {
-        "Bloomberg": "https://logo.clearbit.com/bloomberg.com",
-        "WSJ": "https://logo.clearbit.com/wsj.com",
-        "Reuters": "https://logo.clearbit.com/reuters.com",
-        "CNBC": "https://logo.clearbit.com/cnbc.com",
-        "FT": "https://logo.clearbit.com/ft.com",
-        "Yahoo Finance": "https://logo.clearbit.com/yahoo.com",
-        "Forbes": "https://logo.clearbit.com/forbes.com",
-        "CNN Business": "https://logo.clearbit.com/cnn.com",
-        "MarketWatch": "https://logo.clearbit.com/marketwatch.com",
-        "The Economist": "https://logo.clearbit.com/economist.com"
-    }
+    reputable = []
+    for result in results:
+        link = result.get("link", "")
+        source = link.split("/")[2] if "://" in link else ""
+        if any(domain in source for domain in TRUSTED_DOMAINS):
+            reputable.append({
+                "title": result.get("title", ""),
+                "link": link,
+                "snippet": result.get("snippet", "")
+            })
 
-    # Render Grid
-    html = '<div class="grid">'
-    for name, logo_url in sources.items():
-        site_url = "https://" + logo_url.replace("https://logo.clearbit.com/", "")
-        html += f"""
-        <div class="logo-card">
-            <a href="{site_url}" target="_blank">
-                <img src="{logo_url}" alt="{name}" title="{name}" />
-            </a>
-        </div>
-        """
-    html += "</div>"
-    st.markdown(html, unsafe_allow_html=True)
+    return reputable
 
-    # Footer
-    st.markdown("---")
-    st.markdown(
-        '<div style="text-align:center; font-size: 0.9rem;">'
-        'Want a new source added? Use the <strong>User Request</strong> tool in the sidebar.'
-        '</div>', unsafe_allow_html=True
-    )
+# === Streamlit UI ===
+st.title("Reputable Source Finder")
 
-# Allow standalone running
-if __name__ == "__main__":
-    run()
+query = st.text_input("Enter a topic to research:")
+api_key = st.text_input("Enter your SerpAPI key:", type="password")
+
+if st.button("Search") and query and api_key:
+    with st.spinner("Searching reputable sources..."):
+        sources = fetch_reputable_sources(query, api_key)
+
+    if sources:
+        st.success(f"Found {len(sources)} reputable sources:")
+        for s in sources:
+            st.markdown(f"**[{s['title']}]({s['link']})**\n\n{s['snippet']}\n")
+    else:
+        st.warning("No reputable sources found.")
