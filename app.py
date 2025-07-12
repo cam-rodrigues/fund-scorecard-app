@@ -116,7 +116,7 @@ st.markdown("""
 
         .line-animate-overlay {
             position: absolute;
-            left: calc(4.8rem + 2.4rem);  /* left line + gap + badge */
+            left: calc(4.8rem);  /* left line + gap + badge */
             top: 0;
             height: 2px;
             background-color: #b4c3d3;
