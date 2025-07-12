@@ -1,7 +1,7 @@
 import streamlit as st
 
 st.set_page_config(page_title="Trusted Financial Sources", layout="wide")
-st.title("📚 Trusted Financial Sources")
+st.title("Trusted Financial Sources")
 
 st.markdown("""
 Browse grouped links to **reputable financial websites**. Each source is shown as a clickable square block for easier scanning.
@@ -97,7 +97,7 @@ government_policy = {
 }
 
 # === Render All Blocks
-render_link_grid("📈 Financial News", financial_news)
-render_link_grid("🏢 Major Investment Firms", investment_firms)
-render_link_grid("📚 Education & Research", education_research)
-render_link_grid("🏛 Government & Policy", government_policy)
+render_link_grid("Financial News", financial_news)
+render_link_grid("Major Investment Firms", investment_firms)
+render_link_grid("Education & Research", education_research)
+render_link_grid("Government & Policy", government_policy)
