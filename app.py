@@ -118,7 +118,7 @@ st.markdown("""
 
         @keyframes drawVertical {
             from { height: 0; }
-            to { height: calc(100% - 10.9rem); }
+            to { height: calc(100% - 7.5rem); }
         }
     </style>
 """, unsafe_allow_html=True)
