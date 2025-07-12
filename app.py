@@ -96,19 +96,21 @@ st.markdown("""
         .line-left {
             height: 2px;
             background-color: #b4c3d3;
-            width: 0;
-            flex-shrink: 0;
-            animation: drawLeft 0.8s ease-in-out forwards;
+            width: 4.8rem;
+            transform: scaleX(0);
+            transform-origin: right center;
+            animation: drawLineLeft 0.6s ease-in-out forwards;
+            z-index: 1;
         }
 
         .line-gap {
-            width: 2.4rem;
+            width: 3rem;
             flex-shrink: 0;
         }
 
         .line-right-static {
             height: 2px;
-            background-color: #b4c3d3;
+            background-color: transparent;
             flex-grow: 1;
             min-width: 5;
             margin-left: 0.9rem;
@@ -117,16 +119,16 @@ st.markdown("""
 
         .line-animate-overlay {
             position: absolute;
-            left: calc(4.8rem + 3rem);  /* left line + gap */
-                top: 0;
+            left: calc(4.8rem + 3rem);
+            top: 0;
             height: 2px;
             background-color: #b4c3d3;
-            width: 0;
-            z-index: 1;  /* was 4 — lowered so it's behind the BETA badge */
+            width: calc(100vw - 16rem - 0.3rem - 4.8rem - 3rem);
+            transform: scaleX(0);
             transform-origin: left center;
-            animation: growRight 0.8s ease-in-out 0.4s forwards;
+            animation: drawLineRight 0.8s ease-in-out 0.6s forwards;
+            z-index: 1;
         }
-
 
         .sidebar-section {
             font-size: 0.85rem;
@@ -138,22 +140,20 @@ st.markdown("""
         }
 
         /* === Animations === */
-
-        @keyframes drawLeft {
-            from { width: 0; }
-            to { width: 4.8rem; }
-        }
-
-        @keyframes growRight {
-            from { width: 0; }
-            to { width: calc(100vw - 16rem - 0.3rem - 4.8rem - 2.4rem); }
-        }
-
         @keyframes drawVertical {
             from { height: 0; }
             to { height: calc(100% - 7.75rem); }
         }
 
+        @keyframes drawLineLeft {
+            from { transform: scaleX(0); }
+            to { transform: scaleX(1); }
+        }
+
+        @keyframes drawLineRight {
+            from { transform: scaleX(0); }
+            to { transform: scaleX(1); }
+        }
     </style>
 """, unsafe_allow_html=True)
 
