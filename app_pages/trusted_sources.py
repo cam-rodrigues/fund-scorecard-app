@@ -1,10 +1,25 @@
 import streamlit as st
 import requests
 
-# === CONFIG ===
+# === CONFIG: Curated List of Trusted Domains ===
 TRUSTED_DOMAINS = [
-    "forbes.com", "bloomberg.com", "wsj.com", "reuters.com", "nytimes.com", "cnn.com",
-    "npr.org", "nature.com", "sciencedirect.com", "harvard.edu", "stanford.edu"
+    # Tier 1 Financial News & Data
+    "bloomberg.com", "wsj.com", "reuters.com", "ft.com", "cnbc.com", "marketwatch.com",
+    "morningstar.com", "fool.com", "investopedia.com", "seekingalpha.com", "yahoo.com",
+
+    # Investment Firms & Institutional Insights
+    "blackrock.com", "vanguard.com", "fidelity.com", "schwab.com", "jpmorgan.com",
+    "goldmansachs.com", "morganstanley.com", "alliancebernstein.com", "bain.com", "mckinsey.com",
+
+    # Academic & Research Institutions
+    "cfainstitute.org", "harvard.edu", "mit.edu", "wharton.upenn.edu", "yale.edu",
+    "chicagobooth.edu", "mba.tuck.dartmouth.edu", "nber.org",
+
+    # Government & Policy Sources
+    "sec.gov", "federalreserve.gov", "treasury.gov", "imf.org", "worldbank.org", "oecd.org",
+
+    # General Reputable News
+    "nytimes.com", "npr.org", "forbes.com", "cnn.com", "economist.com"
 ]
 
 def fetch_reputable_sources(query, api_key):
@@ -32,9 +47,12 @@ def fetch_reputable_sources(query, api_key):
     return reputable
 
 # === Streamlit UI ===
-st.title("Reputable Source Finder")
+st.set_page_config(page_title="Reputable Source Finder", layout="wide")
+st.title("Reputable Financial Source Finder")
 
-query = st.text_input("Enter a topic to research:")
+st.markdown("Use this tool to discover **high-quality financial or economic sources** for any topic. It filters Google search results by trusted domains.")
+
+query = st.text_input("Enter a topic (e.g. '401k rollover fees', 'impact of interest rates on bonds'):")
 api_key = st.text_input("Enter your SerpAPI key:", type="password")
 
 if st.button("Search") and query and api_key:
@@ -46,4 +64,4 @@ if st.button("Search") and query and api_key:
         for s in sources:
             st.markdown(f"**[{s['title']}]({s['link']})**\n\n{s['snippet']}\n")
     else:
-        st.warning("No reputable sources found.")
+        st.warning("No reputable sources found. Try refining your query.")
