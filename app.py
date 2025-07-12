@@ -16,9 +16,35 @@ st.markdown("""
             z-index: 1;
         }
 
-        /* === Logo + Line === */
+        /* Vertical line animation */
+        [data-testid="stSidebar"]::after {
+            content: "";
+            position: absolute;
+            top: 7.75rem;
+            right: 0;
+            width: 2px;
+            height: 0;
+            background-color: #b4c3d3;
+            z-index: 1;
+            animation: drawVertical 0.4s ease-out 0.4s forwards;
+        }
+
+        [data-testid="stSidebar"] .stButton>button {
+            background-color: #e8eef8;
+            color: #1a2a44;
+            border: 1px solid #c3cfe0;
+            border-radius: 0.5rem;
+            padding: 0.4rem 0.75rem;
+            font-weight: 600;
+        }
+
+        [data-testid="stSidebar"] .stButton>button:hover {
+            background-color: #cbd9f0;
+            color: #000000;
+        }
+
         .sidebar-logo-wrapper {
-            margin-top: none;
+            margin-top: .15rem;
             margin-bottom: 1.5rem;
         }
 
@@ -40,13 +66,13 @@ st.markdown("""
 
         .beta-badge {
             position: absolute;
-            top: 1.55rem;
-            left: 4.05rem;
+            top: 1.62rem;
+            left: 4.0rem;
             background-color: #2b6cb0;
             color: white;
-            font-size: 0.45rem;
+            font-size: 0.48rem;
             font-weight: 700;
-            padding: 0.05rem 0.22rem;
+            padding: 0.05rem 0.25rem;
             border-radius: 0.25rem;
             text-transform: uppercase;
             letter-spacing: 0.3px;
@@ -59,8 +85,9 @@ st.markdown("""
             display: flex;
             align-items: center;
             justify-content: flex-start;
-            margin-top: 0.7rem; /* space below beta badge */
+            margin-top: 1rem;
             margin-left: 0.3rem;
+            margin-right: 0;
             width: calc(100% - 0.3rem);
             height: 2px;
             overflow: visible;
@@ -70,47 +97,33 @@ st.markdown("""
             height: 2px;
             background-color: #b4c3d3;
             width: 0;
-            animation: drawLeft 0.5s ease-out forwards;
+            flex-shrink: 0;
+            animation: drawLeft 0.4s ease-out forwards;
         }
 
         .line-gap {
-            width: 3.2rem;  /* Matches beta badge width */
+            width: 2.4rem;
             flex-shrink: 0;
         }
 
-        .line-right {
+        .line-right-static {
+            height: 2px;
+            background-color: #b4c3d3;
+            flex-grow: 1;
+            min-width: 5;
+            margin-left: 0.9rem;
+            margin-right: 0;
+        }
+
+        .line-animate-overlay {
+            position: absolute;
+            left: calc(4.8rem + 2.4rem + 3.6rem);  /* left line + gap + badge */
+            top: 0;
             height: 2px;
             background-color: #b4c3d3;
             width: 0;
-            animation: drawRight 0.5s ease-out 0.5s forwards;
-        }
-
-        /* === Vertical Line === */
-        [data-testid="stSidebar"]::after {
-            content: "";
-            position: absolute;
-            top: 7.5rem;  /* starts just below the horizontal line */
-            right: 0;
-            width: 2px;
-            height: 0;
-            background-color: #b4c3d3;
-            z-index: 1;
-            animation: drawVertical 0.8s ease-in-out 1.1s forwards;
-        }
-
-        /* === Sidebar Buttons === */
-        [data-testid="stSidebar"] .stButton>button {
-            background-color: #e8eef8;
-            color: #1a2a44;
-            border: 1px solid #c3cfe0;
-            border-radius: 0.5rem;
-            padding: 0.4rem 0.75rem;
-            font-weight: 600;
-        }
-
-        [data-testid="stSidebar"] .stButton>button:hover {
-            background-color: #cbd9f0;
-            color: #000000;
+            z-index: 4;
+            animation: drawHorizontal 0.4s ease-out forwards;
         }
 
         .sidebar-section {
@@ -123,19 +136,20 @@ st.markdown("""
         }
 
         /* === Animations === */
+
         @keyframes drawLeft {
             from { width: 0; }
             to { width: 4.8rem; }
         }
 
-        @keyframes drawRight {
+        @keyframes drawHorizontal {
             from { width: 0; }
-            to { width: 100%; }
+            to { width: calc(100vw - 16rem - 0.3rem); }
         }
 
         @keyframes drawVertical {
             from { height: 0; }
-            to { height: calc(100% - 7.5rem); }
+            to { height: calc(100% - 7.75rem); }
         }
     </style>
 """, unsafe_allow_html=True)
@@ -151,7 +165,8 @@ st.sidebar.markdown(
         <div class="logo-underline-wrapper">
             <div class="line-left"></div>
             <div class="line-gap"></div>
-            <div class="line-right"></div>
+            <div class="line-right-static"></div>
+            <div class="line-animate-overlay"></div>
         </div>
     </div>
     ''',
@@ -186,6 +201,7 @@ query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
+# Redirect old names if needed
 legacy_redirects = {
     "company_scraper.py": "data_scanner.py"
 }
