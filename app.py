@@ -46,8 +46,9 @@ st.markdown("""
             margin-bottom: 1.5rem;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            align-items: flex-start;
+            justify-content: flex-start;
+            margin-left: 0.3 rem;
         }
 
         .sidebar-title-container {
@@ -55,6 +56,7 @@ st.markdown("""
             display: inline-block;
             transform: scale(1.35);
             transform-origin: top left;
+            text align: left;
         }
 
         .sidebar-title {
@@ -69,6 +71,7 @@ st.markdown("""
             position: absolute;
             top: 1.62rem;
             left: 4.8rem;
+            transform: none;
             background-color: #2b6cb0;
             color: white;
             font-size: 0.48rem;
