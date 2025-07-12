@@ -117,12 +117,12 @@ st.markdown("""
 
         .line-animate-overlay {
             position: absolute;
-            left: calc(4.8rem + 2.4rem);  /* left line + gap */
-            top: 0;
+            left: calc(4.8rem + 3rem);  /* left line + gap */
+                top: 0;
             height: 2px;
             background-color: #b4c3d3;
             width: 0;
-            z-index: 4;
+            z-index: 1;  /* was 4 — lowered so it's behind the BETA badge */
             transform-origin: left center;
             animation: growRight 0.8s ease-in-out 0.4s forwards;
         }
