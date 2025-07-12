@@ -28,7 +28,7 @@ st.markdown("""
 
         .full-horizontal-line {
             position: absolute;
-            top: 0;
+            top: 0.85;
             left: 0;
             height: 2px;
             width: 100%;
