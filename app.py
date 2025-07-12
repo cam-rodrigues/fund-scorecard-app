@@ -87,7 +87,7 @@ st.markdown("""
             top: 0;
             height: 2px;
             background-color: #b4c3d3;
-            width: calc(100% - 0.3rem - 4.8rem - 3rem - 8px);  /* subtract 8px for arc */
+            width: calc(100% - 0.3rem - 4.8rem - 3rem - 8px);  /* subtract arc */
             transform: scaleX(0);
             transform-origin: left center;
             animation: drawLineRight 0.6s ease-in-out 0.6s forwards;
@@ -96,17 +96,17 @@ st.markdown("""
 
         .corner-arc {
             position: absolute;
-            right: 0;
-            top: 0;
+            right: 8px;
+            top: -6px;
             width: 8px;
             height: 8px;
-            border-top-right-radius: 8px;
-            border-right: 2px solid #b4c3d3;
             border-top: 2px solid #b4c3d3;
+            border-right: 2px solid #b4c3d3;
+            border-top-right-radius: 8px;
             transform: scale(0);
             transform-origin: center;
             animation: drawArc 0.3s ease-in-out 1.2s forwards;
-            z-index: 2;
+            z-index: 1;
         }
 
         [data-testid="stSidebar"]::after {
