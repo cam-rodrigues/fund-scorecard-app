@@ -116,12 +116,12 @@ st.markdown("""
 
         .line-animate-overlay {
             position: absolute;
-            left: calc(4.8rem + 2.4rem);  /* Skip over line-left and gap */
+            left: calc(4.8rem + 2.4rem + 3.6rem);  /* left line + gap + badge */
             top: 0;
             height: 2px;
             background-color: #b4c3d3;
             width: 0;
-            z-index: 5;
+            z-index: 4;
             animation: drawHorizontal 0.4s ease-out forwards;
         }
 
