@@ -96,8 +96,9 @@ st.markdown("""
         .line-left {
             height: 2px;
             background-color: #b4c3d3;
-            width: 4.8rem;
+            width: 0;
             flex-shrink: 0;
+            animation: drawLeft 0.4s ease-out forwards;
         }
 
         .line-gap {
@@ -135,6 +136,12 @@ st.markdown("""
         }
 
         /* === Animations === */
+
+        @keyframes drawLeft {
+            from { width: 0; }
+            to { width: 4.8rem; }
+        }
+
         @keyframes drawHorizontal {
             from { width: 0; }
             to { width: calc(100vw - 16rem - 0.3rem); }
