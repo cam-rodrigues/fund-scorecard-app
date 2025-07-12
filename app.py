@@ -44,11 +44,12 @@ st.markdown("""
         .sidebar-logo-wrapper {
             margin-top: .15rem;
             margin-bottom: 1.5rem;
+            margin-left: 0.6 rem;
             display: flex;
             flex-direction: column;
             align-items: flex-start;
             justify-content: flex-start;
-            margin-left: 0.6 rem;
+
         }
 
         .sidebar-title-container {
