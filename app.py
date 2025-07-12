@@ -87,6 +87,19 @@ st.markdown("""
             margin-bottom: 0.3rem;
             letter-spacing: 0.5px;
         }
+
+
+        @keyframes fadeScaleUp {
+            0% {
+                opacity: 0;
+                transform: translateX(-50%) scale(0.8);
+            }
+            100% {
+                opacity: 1;
+                transform: translateX(-50%) scale(1);
+            }
+        }
+
     </style>
 """, unsafe_allow_html=True)
 
