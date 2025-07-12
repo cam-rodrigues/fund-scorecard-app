@@ -3,7 +3,7 @@ import streamlit as st
 def run():
     st.set_page_config(page_title="Trusted Financial Sources", layout="wide")
     st.title("Trusted Financial Sources")
-    st.write("Hover over each logo to see the source name. Click to open the site.")
+    st.write("Hover over each logo to see the full name. Click any logo to visit the source.")
 
     # === Source Data ===
     financial_news = {
@@ -18,8 +18,8 @@ def run():
     st.subheader("Financial News")
     render_logo_grid_with_tooltips(financial_news)
 
-# === Logo-Only Grid with Hover Tooltips ===
-def render_logo_grid_with_tooltips(link_dict, cols_per_row=6):
+# === Logo Grid: Larger Size, Centered, with Tooltip ===
+def render_logo_grid_with_tooltips(link_dict, cols_per_row=5):
     keys = list(link_dict.keys())
     for i in range(0, len(keys), cols_per_row):
         row = keys[i:i + cols_per_row]
@@ -29,9 +29,11 @@ def render_logo_grid_with_tooltips(link_dict, cols_per_row=6):
             with col.container(border=True):
                 col.markdown(
                     f"""
-                    <a href="{url}" target="_blank">
-                        <img src="{logo}" title="{name}" alt="{name}" style="width: 32px; height: 32px; margin: 0.5rem auto; display: block;" />
-                    </a>
+                    <div style="display: flex; justify-content: center; align-items: center; padding: 1rem;">
+                        <a href="{url}" target="_blank">
+                            <img src="{logo}" title="{name}" alt="{name}" style="width: 64px; height: 64px; object-fit: contain;" />
+                        </a>
+                    </div>
                     """,
                     unsafe_allow_html=True
                 )
