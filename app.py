@@ -99,7 +99,7 @@ st.markdown("""
             height: 2px;
             background-color: transparent;
             flex-grow: 1;
-            margin-left: 1rem;
+            margin-left: 2.4rem;
             margin-right: 0;
         }
 
