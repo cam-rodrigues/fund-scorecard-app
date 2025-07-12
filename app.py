@@ -26,7 +26,7 @@ st.markdown("""
             height: 0;
             background-color: #b4c3d3;
             z-index: 1;
-            animation: drawVertical 0.4s ease-out 0.4s forwards;
+            animation: drawVertical 0.6s ease-in-out 0.6s forwards;
         }
 
         [data-testid="stSidebar"] .stButton>button {
@@ -98,7 +98,7 @@ st.markdown("""
             background-color: #b4c3d3;
             width: 0;
             flex-shrink: 0;
-            animation: drawLeft 0.4s ease-out forwards;
+            animation: drawLeft 0.6s ease-in-out 0s forwards;
         }
 
         .line-gap {
@@ -117,13 +117,13 @@ st.markdown("""
 
         .line-animate-overlay {
             position: absolute;
-            left: calc(4.8rem + 2.4rem + 3.6rem);  /* left line + gap + badge */
+            left: calc(4.8rem + 2.4rem + 3.6rem);
             top: 0;
             height: 2px;
             background-color: #b4c3d3;
             width: 0;
             z-index: 4;
-            animation: drawHorizontal 0.4s ease-out forwards;
+            animation: drawHorizontal 0.6s ease-in-out 0.3s forwards;
         }
 
         .sidebar-section {
@@ -136,7 +136,6 @@ st.markdown("""
         }
 
         /* === Animations === */
-
         @keyframes drawLeft {
             from { width: 0; }
             to { width: 4.8rem; }
@@ -201,7 +200,6 @@ query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
-# Redirect old names if needed
 legacy_redirects = {
     "company_scraper.py": "data_scanner.py"
 }
