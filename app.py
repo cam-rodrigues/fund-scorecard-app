@@ -80,7 +80,7 @@ st.markdown("""
             top: 7.5rem;  /* starts just below the horizontal line */
             right: 0;
             width: 2px;
-            height: 0;
+            height: calc(100vh - 7.5rem);
             background-color: #b4c3d3;
             z-index: 1;
             animation: drawVertical 0.8s ease-in-out 1.1s forwards;
