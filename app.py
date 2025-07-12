@@ -98,7 +98,8 @@ st.markdown("""
             background-color: #b4c3d3;
             width: 0;
             flex-shrink: 0;
-            animation: drawLeft 0.4s ease-out forwards;
+            animation: drawLineLeft 0.4s ease-in-out forwards;
+            z-index: 1;
         }
 
         .line-gap {
@@ -137,14 +138,14 @@ st.markdown("""
 
         /* === Animations === */
 
-        @keyframes drawLeft {
-            from { width: 0; }
-            to { width: 4.8rem; }
+        @keyframes drawLineLeft {
+            from { transform: scaleX(0); }
+            to { transform: scaleX(1); }
         }
 
-        @keyframes drawHorizontal {
-            from { width: 0; }
-            to { width: calc(100vw - 16rem - 0.3rem); }
+        @keyframes drawLineRight {
+            from { transform: scaleX(0); }
+            to { transform: scaleX(1); }
         }
 
         @keyframes drawVertical {
