@@ -16,33 +16,7 @@ st.markdown("""
             z-index: 1;
         }
 
-        /* Vertical line animation */
-        [data-testid="stSidebar"]::after {
-            content: "";
-            position: absolute;
-            top: 7.75rem;
-            right: 0;
-            width: 2px;
-            height: 0;
-            background-color: #b4c3d3;
-            z-index: 1;
-            animation: drawVertical 0.6s ease-in-out 0.6s forwards;
-        }
-
-        [data-testid="stSidebar"] .stButton>button {
-            background-color: #e8eef8;
-            color: #1a2a44;
-            border: 1px solid #c3cfe0;
-            border-radius: 0.5rem;
-            padding: 0.4rem 0.75rem;
-            font-weight: 600;
-        }
-
-        [data-testid="stSidebar"] .stButton>button:hover {
-            background-color: #cbd9f0;
-            color: #000000;
-        }
-
+        /* === Logo + Line === */
         .sidebar-logo-wrapper {
             margin-top: .15rem;
             margin-bottom: 1.5rem;
@@ -87,7 +61,6 @@ st.markdown("""
             justify-content: flex-start;
             margin-top: 1rem;
             margin-left: 0.3rem;
-            margin-right: 0;
             width: calc(100% - 0.3rem);
             height: 2px;
             overflow: visible;
@@ -97,34 +70,35 @@ st.markdown("""
             height: 2px;
             background-color: #b4c3d3;
             width: 0;
-            flex-shrink: 0;
-            animation: drawLeft 0.6s ease-in-out 0s forwards;
+            animation: drawUnderline 1s ease-in-out forwards;
         }
 
-        .line-gap {
-            width: 2.4rem;
-            flex-shrink: 0;
-        }
-
-        .line-right-static {
-            height: 2px;
-            background-color: #b4c3d3;
-            flex-grow: 1;
-            min-width: 5;
-            margin-left: 0.9rem;
-            margin-right: 0;
-        }
-
-        .line-animate-overlay {
+        /* === Vertical Line === */
+        [data-testid="stSidebar"]::after {
+            content: "";
             position: absolute;
-            left: 4.8rem;
-            top: 0;
-            height: 2px;
-            width: 0;
+            top: 7.75rem;
+            right: 0;
+            width: 2px;
+            height: 0;
             background-color: #b4c3d3;
-            z-index: 4;
-            animation: drawHorizontal 0.6s ease-in-out 0.3s forwards;
-            transform-origin: left;
+            z-index: 1;
+            animation: drawVertical 0.8s ease-in-out 1s forwards;
+        }
+
+        /* === Sidebar Buttons === */
+        [data-testid="stSidebar"] .stButton>button {
+            background-color: #e8eef8;
+            color: #1a2a44;
+            border: 1px solid #c3cfe0;
+            border-radius: 0.5rem;
+            padding: 0.4rem 0.75rem;
+            font-weight: 600;
+        }
+
+        [data-testid="stSidebar"] .stButton>button:hover {
+            background-color: #cbd9f0;
+            color: #000000;
         }
 
         .sidebar-section {
@@ -137,14 +111,9 @@ st.markdown("""
         }
 
         /* === Animations === */
-        @keyframes drawLeft {
+        @keyframes drawUnderline {
             from { width: 0; }
-            to { width: 4.8rem; }
-        }
-
-        @keyframes drawHorizontal {
-            from { width: 0; }
-            to { width: calc(100% - 4.8rem); }
+            to { width: 100%; }
         }
 
         @keyframes drawVertical {
@@ -164,9 +133,6 @@ st.sidebar.markdown(
         </div>
         <div class="logo-underline-wrapper">
             <div class="line-left"></div>
-            <div class="line-gap"></div>
-            <div class="line-right-static"></div>
-            <div class="line-animate-overlay"></div>
         </div>
     </div>
     ''',
