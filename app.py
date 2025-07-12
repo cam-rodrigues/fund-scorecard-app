@@ -42,7 +42,7 @@ st.markdown("""
         }
 
         .sidebar-logo-wrapper {
-            margin-top: 1rem;
+            margin-top: .5rem;
             margin-bottom: 1.5rem;
         }
 
