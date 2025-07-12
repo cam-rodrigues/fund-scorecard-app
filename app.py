@@ -97,7 +97,7 @@ st.markdown("""
         .corner-arc {
             position: absolute;
             right: 8px;
-            top: 6px;
+            top: 3px;
             width: 8px;
             height: 8px;
             border-top: 2px solid #b4c3d3;
