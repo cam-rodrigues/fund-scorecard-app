@@ -75,7 +75,7 @@ st.markdown("""
             margin-top: 1rem;
             margin-left: 0.3rem;
             margin-right: 0;
-            width: calc(100% - 0.3rem);
+            width: 100%;
             height: 2px;
             overflow: visible;
         }
@@ -105,25 +105,24 @@ st.markdown("""
 
         .line-animate-overlay {
             position: absolute;
-            left: calc(4.8rem + 3rem);
+            left: 0.3rem;
             top: 0;
             height: 2px;
             background-color: #b4c3d3;
-            width: calc(100vw - 16rem - 0.3rem - 4.8rem - 3rem);
+            width: calc(100% - 0.3rem);
             transform: scaleX(0);
             transform-origin: left center;
             animation: drawLineRight 0.6s ease-in-out 0.4s forwards;
             z-index: 1;
         }
 
-        /* Connects with the right horizontal line perfectly */
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
-            top: 9.25rem;
+            top: 9.3rem;
             right: 0;
             width: 2px;
-            height: calc(100% - 9.25rem);
+            height: calc(100% - 9.3rem);
             background-color: #b4c3d3;
             transform: scaleY(0);
             transform-origin: top center;
