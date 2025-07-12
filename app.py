@@ -26,7 +26,7 @@ st.markdown("""
             height: 0;
             background-color: #b4c3d3;
             z-index: 1;
-            animation: drawVertical 0.4s ease-out 0.4s forwards;
+            animation: drawVertical 0.4s ease-out 0.8s forwards;
         }
 
         [data-testid="stSidebar"] .stButton>button {
@@ -117,13 +117,13 @@ st.markdown("""
 
         .line-animate-overlay {
             position: absolute;
-            left: calc(4.8rem + 2.4rem + 3.6rem);  /* left line + gap + badge */
+            left: calc(4.8rem + 2.4rem + 3.6rem);
             top: 0;
             height: 2px;
             background-color: #b4c3d3;
             width: 0;
             z-index: 4;
-            animation: drawHorizontal 0.4s ease-out forwards;
+            animation: drawHorizontal 0.4s ease-out 0.4s forwards;
         }
 
         .sidebar-section {
