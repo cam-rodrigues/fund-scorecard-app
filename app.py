@@ -76,8 +76,8 @@ st.markdown("""
         }
 
         .animated-L path {
-            stroke-dasharray: 1000;
-            stroke-dashoffset: 1000;
+            stroke-dasharray: 600;
+            stroke-dashoffset: 600;
             animation: drawL 2s ease-in-out forwards;
         }
 
@@ -107,8 +107,8 @@ st.sidebar.markdown(
             <div class="beta-badge">BETA</div>
         </div>
         <div class="logo-underline-wrapper">
-            <svg class="animated-L" width="100%" height="80" viewBox="0 0 240 1000" xmlns="http://www.w3.org/2000/svg">
-                <path d="M0 2 H234 Q236 2 236 4 V1000" fill="none" stroke="#b4c3d3" stroke-width="2.25" stroke-linecap="round"/>
+            <svg class="animated-L" width="100%" height="80" viewBox="0 0 200 1000" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0 2 H150 Q153 2 153 5 V1000" fill="none" stroke="#b4c3d3" stroke-width="2.25" stroke-linecap="round"/>
             </svg>
         </div>
     </div>
