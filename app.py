@@ -16,9 +16,11 @@ st.markdown("""
             z-index: 1;
         }
 
-        .sidebar-right-line-absolute {
+        /* Vertical line starts BELOW the logo using pseudo-element */
+        [data-testid="stSidebar"]::after {
+            content: "";
             position: absolute;
-            top: 5.2rem;  /* Starts below the logo */
+            top: 5.2rem;  /* adjust to match underline */
             right: 0;
             width: 2px;
             height: calc(100% - 5.2rem);
@@ -120,9 +122,6 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
-
-# === Draw right-edge vertical line inside the sidebar ===
-st.sidebar.markdown('<div class="sidebar-right-line-absolute"></div>', unsafe_allow_html=True)
 
 # === Sidebar logo block ===
 st.sidebar.markdown(
