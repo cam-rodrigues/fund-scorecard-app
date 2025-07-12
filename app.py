@@ -102,15 +102,6 @@ st.markdown("""
             flex-shrink: 0;
         }
 
-        .line-right {
-            height: 2px;
-            background-color: #b4c3d3;
-            flex-grow: 1;
-            min-width: 5;
-            margin-left: 0.9rem;
-            margin-right: 0;
-        }
-
         .sidebar-section {
             font-size: 0.85rem;
             font-weight: 600;
@@ -133,7 +124,6 @@ st.sidebar.markdown(
         <div class="logo-underline-wrapper">
             <div class="line-left"></div>
             <div class="line-gap"></div>
-            <div class="line-right"></div>
         </div>
     </div>
     ''',
