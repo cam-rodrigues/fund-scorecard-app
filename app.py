@@ -16,19 +16,22 @@ st.markdown("""
             z-index: 1;
         }
 
-        /* Vertical line animation */
+        /* === Animated Vertical Line === */
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
-            top: 7.75rem;
+            top: 9.25rem;
             right: 0;
             width: 2px;
-            height: 0;
+            height: calc(100% - 9.25rem);
             background-color: #b4c3d3;
+            transform: scaleY(0);
+            transform-origin: top center;
+            animation: drawVertical 0.6s ease-in-out 1s forwards;
             z-index: 1;
-            animation: drawVertical 0.4s ease-out 0.4s forwards;
         }
 
+        /* === Sidebar Button Styling === */
         [data-testid="stSidebar"] .stButton>button {
             background-color: #e8eef8;
             color: #1a2a44;
@@ -43,6 +46,7 @@ st.markdown("""
             color: #000000;
         }
 
+        /* === Logo + Underline === */
         .sidebar-logo-wrapper {
             margin-top: .15rem;
             margin-bottom: 1.5rem;
@@ -82,44 +86,27 @@ st.markdown("""
 
         .logo-underline-wrapper {
             position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            margin-top: 1rem;
-            margin-left: 0.3rem;
-            margin-right: 0;
             width: calc(100% - 0.3rem);
             height: 2px;
-            overflow: visible;
+            margin-top: 1rem;
+            margin-left: 0.3rem;
+            background-color: transparent;
         }
 
-        .line-left {
-            height: 2px;
-            background-color: #b4c3d3;
-            width: 4.8rem;
-            flex-shrink: 0;
-        }
-
-        .line-right-static {
-            height: 2px;
-            background-color: #b4c3d3;
-            flex-grow: 1;
-            min-width: 5;
-            margin-left: 0.9rem;
-            margin-right: 0;
-        }
-
-        .line-animate-overlay {
+        .full-horizontal-line {
             position: absolute;
-            left: calc(4.8rem);  /* left line + gap + badge */
             top: 0;
+            left: 0;
             height: 2px;
             background-color: #b4c3d3;
-            width: 0;
-            z-index: 4;
-            animation: drawHorizontal 0.4s ease-out forwards;
+            width: 100%;
+            transform: scaleX(0);
+            transform-origin: left center;
+            animation: drawHorizontal 1s ease-in-out forwards;
+            z-index: 1;
         }
 
+        /* === Sidebar Section Label === */
         .sidebar-section {
             font-size: 0.85rem;
             font-weight: 600;
@@ -129,15 +116,15 @@ st.markdown("""
             letter-spacing: 0.5px;
         }
 
-        /* === Animations === */
+        /* === Keyframe Animations === */
         @keyframes drawHorizontal {
-            from { width: 0; }
-            to { width: calc(100vw - 16rem - 0.3rem); }
+            from { transform: scaleX(0); }
+            to { transform: scaleX(1); }
         }
 
         @keyframes drawVertical {
-            from { height: 0; }
-            to { height: calc(100% - 7.75rem); }
+            from { transform: scaleY(0); }
+            to { transform: scaleY(1); }
         }
     </style>
 """, unsafe_allow_html=True)
@@ -151,10 +138,7 @@ st.sidebar.markdown(
             <div class="beta-badge">BETA</div>
         </div>
         <div class="logo-underline-wrapper">
-            <div class="line-left"></div>
-            <div class="line-gap"></div>
-            <div class="line-right-static"></div>
-            <div class="line-animate-overlay"></div>
+            <div class="full-horizontal-line"></div>
         </div>
     </div>
     ''',
