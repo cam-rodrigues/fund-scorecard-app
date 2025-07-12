@@ -16,33 +16,6 @@ st.markdown("""
             z-index: 1;
         }
 
-        /* Vertical line animation */
-        [data-testid="stSidebar"]::after {
-            content: "";
-            position: absolute;
-            top: 7.75rem;
-            right: 0;
-            width: 2px;
-            height: 0;
-            background-color: #b4c3d3;
-            z-index: 1;
-            animation: drawVertical 0.4s ease-out 0.4s forwards;
-        }
-
-        [data-testid="stSidebar"] .stButton>button {
-            background-color: #e8eef8;
-            color: #1a2a44;
-            border: 1px solid #c3cfe0;
-            border-radius: 0.5rem;
-            padding: 0.4rem 0.75rem;
-            font-weight: 600;
-        }
-
-        [data-testid="stSidebar"] .stButton>button:hover {
-            background-color: #cbd9f0;
-            color: #000000;
-        }
-
         .sidebar-logo-wrapper {
             margin-top: .15rem;
             margin-bottom: 1.5rem;
@@ -88,7 +61,7 @@ st.markdown("""
             margin-top: 1rem;
             margin-left: 0.3rem;
             margin-right: 0;
-            width: calc(100% - 0.3rem);
+            width: 100%;
             height: 2px;
             overflow: visible;
         }
@@ -96,34 +69,43 @@ st.markdown("""
         .line-left {
             height: 2px;
             background-color: #b4c3d3;
-            width: 0;
-            flex-shrink: 0;
-            animation: drawLeft 0.4s ease-out forwards;
+            width: 4.8rem;
+            transform: scaleX(0);
+            transform-origin: left center;
+            animation: drawLineLeft 0.6s ease-in-out forwards;
+            z-index: 1;
         }
 
         .line-gap {
-            width: 2.4rem;
+            width: 3rem;
             flex-shrink: 0;
-        }
-
-        .line-right-static {
-            height: 2px;
-            background-color: #b4c3d3;
-            flex-grow: 1;
-            min-width: 5;
-            margin-left: 0.9rem;
-            margin-right: 0;
         }
 
         .line-animate-overlay {
             position: absolute;
-            left: calc(4.8rem + 2.4rem + 3.6rem);  /* left line + gap + badge */
+            left: calc(4.8rem + 3rem);
             top: 0;
             height: 2px;
             background-color: #b4c3d3;
-            width: 0;
-            z-index: 4;
-            animation: drawHorizontal 0.4s ease-out forwards;
+            width: calc(100% - 0.3rem - 4.8rem - 3rem);
+            transform: scaleX(0);
+            transform-origin: left center;
+            animation: drawLineRight 0.6s ease-in-out 0.6s forwards;
+            z-index: 1;
+        }
+
+        [data-testid="stSidebar"]::after {
+            content: "";
+            position: absolute;
+            top: 9.3rem;
+            right: 0;
+            width: 2px;
+            height: calc(100% - 9.3rem);
+            background-color: #b4c3d3;
+            transform: scaleY(0);
+            transform-origin: top center;
+            animation: drawVerticalLine 0.6s ease-in-out 1.2s forwards;
+            z-index: 1;
         }
 
         .sidebar-section {
@@ -135,21 +117,34 @@ st.markdown("""
             letter-spacing: 0.5px;
         }
 
-        /* === Animations === */
-
-        @keyframes drawLeft {
-            from { width: 0; }
-            to { width: 4.8rem; }
+        [data-testid="stSidebar"] .stButton>button {
+            background-color: #e8eef8;
+            color: #1a2a44;
+            border: 1px solid #c3cfe0;
+            border-radius: 0.5rem;
+            padding: 0.4rem 0.75rem;
+            font-weight: 600;
         }
 
-        @keyframes drawHorizontal {
-            from { width: 0; }
-            to { width: calc(100vw - 16rem - 0.3rem); }
+        [data-testid="stSidebar"] .stButton>button:hover {
+            background-color: #cbd9f0;
+            color: #000000;
         }
 
-        @keyframes drawVertical {
-            from { height: 0; }
-            to { height: calc(100% - 7.75rem); }
+        /* === Smooth Animations === */
+        @keyframes drawLineLeft {
+            from { transform: scaleX(0); }
+            to { transform: scaleX(1); }
+        }
+
+        @keyframes drawLineRight {
+            from { transform: scaleX(0); }
+            to { transform: scaleX(1); }
+        }
+
+        @keyframes drawVerticalLine {
+            from { transform: scaleY(0); }
+            to { transform: scaleY(1); }
         }
     </style>
 """, unsafe_allow_html=True)
@@ -165,7 +160,6 @@ st.sidebar.markdown(
         <div class="logo-underline-wrapper">
             <div class="line-left"></div>
             <div class="line-gap"></div>
-            <div class="line-right-static"></div>
             <div class="line-animate-overlay"></div>
         </div>
     </div>
@@ -201,7 +195,6 @@ query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
-# Redirect old names if needed
 legacy_redirects = {
     "company_scraper.py": "data_scanner.py"
 }
@@ -210,7 +203,6 @@ if selected_page in legacy_redirects:
     st.query_params.update({"page": selected_page})
     st.rerun()
 
-# Load selected page
 if selected_page:
     page_path = os.path.join(PAGES_DIR, selected_page)
     if os.path.exists(page_path):
