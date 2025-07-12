@@ -40,13 +40,13 @@ st.markdown("""
 
         .beta-badge {
             position: absolute;
-            top: 1.62rem;
-            left: 4.0rem;
+            top: 1.55rem;
+            left: 4.05rem;
             background-color: #2b6cb0;
             color: white;
-            font-size: 0.48rem;
+            font-size: 0.45rem;
             font-weight: 700;
-            padding: 0.05rem 0.25rem;
+            padding: 0.05rem 0.22rem;
             border-radius: 0.25rem;
             text-transform: uppercase;
             letter-spacing: 0.3px;
@@ -59,7 +59,7 @@ st.markdown("""
             display: flex;
             align-items: center;
             justify-content: flex-start;
-            margin-top: 1rem;
+            margin-top: 1.65rem; /* space below beta badge */
             margin-left: 0.3rem;
             width: calc(100% - 0.3rem);
             height: 2px;
@@ -77,7 +77,7 @@ st.markdown("""
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
-            top: 9.2rem; /* starts below beta + underline */
+            top: 10.9rem;  /* starts just below the horizontal line */
             right: 0;
             width: 2px;
             height: 0;
@@ -118,7 +118,7 @@ st.markdown("""
 
         @keyframes drawVertical {
             from { height: 0; }
-            to { height: calc(100% - 9.2rem); }
+            to { height: calc(100% - 10.9rem); }
         }
     </style>
 """, unsafe_allow_html=True)
