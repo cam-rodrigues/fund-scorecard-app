@@ -16,13 +16,14 @@ st.markdown("""
             z-index: 1;
         }
 
+        /* Vertical line down the right side, starting below the logo */
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
-            top: 8.0rem;
+            top: 8rem;
             right: 0;
             width: 2px;
-            height: calc(100% - 8.0rem);
+            height: calc(100% - 8rem);
             background-color: #b4c3d3;
             z-index: 1;
         }
@@ -64,7 +65,7 @@ st.markdown("""
 
         .beta-badge {
             position: absolute;
-            top: 1.62rem;
+            top: 1.55rem;
             left: 4.0rem;
             background-color: #2b6cb0;
             color: white;
@@ -78,37 +79,13 @@ st.markdown("""
             z-index: 10;
         }
 
-        .logo-underline-wrapper {
+        .logo-underline-bar {
             position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            margin-top: 1rem;
-            margin-left: 0.3rem;
-            margin-right: 0;
+            margin-top: 0.9rem;
             width: 100%;
             height: 2px;
-        }
-
-        .line-left {
-            height: 2px;
             background-color: #b4c3d3;
-            width: 4.8rem;
-            flex-shrink: 0;
-        }
-
-        .line-gap {
-            width: 2.4rem;
-            flex-shrink: 0;
-        }
-
-        .line-right {
-            height: 2px;
-            background-color: #b4c3d3;
-            flex-grow: 1;
-            min-width: 0;
-            margin-left: 0.9rem;
-            margin-right: 0;
+            z-index: 0;
         }
 
         .sidebar-section {
@@ -130,11 +107,7 @@ st.sidebar.markdown(
             <div class="sidebar-title">FidSync</div>
             <div class="beta-badge">BETA</div>
         </div>
-        <div class="logo-underline-wrapper">
-            <div class="line-left"></div>
-            <div class="line-gap"></div>
-            <div class="line-right"></div>
-        </div>
+        <div class="logo-underline-bar"></div>
     </div>
     ''',
     unsafe_allow_html=True
