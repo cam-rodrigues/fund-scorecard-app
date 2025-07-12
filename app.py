@@ -20,10 +20,10 @@ st.markdown("""
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
-            top: 5.2rem;  /* adjust to match underline */
+            top: 4.85rem;  /* adjust to match underline */
             right: 0;
             width: 2px;
-            height: calc(100% - 5.2rem);
+            height: calc(100% - 4.85rem);
             background-color: #b4c3d3;
             z-index: 1;
         }
