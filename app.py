@@ -16,14 +16,14 @@ st.markdown("""
             z-index: 1;
         }
 
-        /* Vertical line down the right side, starting below the logo */
+        /* Vertical line down the right edge */
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
-            top: 8rem;
+            top: 6.5rem;  /* aligns exactly with the horizontal line */
             right: 0;
             width: 2px;
-            height: calc(100% - 8rem);
+            height: calc(100% - 6.5rem);
             background-color: #b4c3d3;
             z-index: 1;
         }
@@ -45,6 +45,7 @@ st.markdown("""
         .sidebar-logo-wrapper {
             margin-top: 0.5rem;
             margin-bottom: 1.5rem;
+            position: relative;  /* so absolute underline is contained */
         }
 
         .sidebar-title-container {
@@ -80,8 +81,9 @@ st.markdown("""
         }
 
         .logo-underline-bar {
-            position: relative;
-            margin-top: 0.9rem;
+            position: absolute;
+            top: 3.05rem;  /* aligns exactly under 'FidSync' and badge */
+            left: 0;
             width: 100%;
             height: 2px;
             background-color: #b4c3d3;
