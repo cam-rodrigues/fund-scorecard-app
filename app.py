@@ -16,13 +16,14 @@ st.markdown("""
             z-index: 1;
         }
 
+        /* Optional vertical line on far right */
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
-            top: none;
+            top: 9.35rem;
             right: 0;
             width: 2px;
-            height: 100%;
+            height: calc(100% - 9.35rem);
             background-color: #b4c3d3;
             z-index: 1;
         }
@@ -44,14 +45,16 @@ st.markdown("""
         .sidebar-logo-wrapper {
             margin-top: .15rem;
             margin-bottom: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
         .sidebar-title-container {
             position: relative;
             display: inline-block;
             transform: scale(1.35);
-            transform-origin: top left;
-            margin-left: 0.3rem;
+            transform-origin: top center;
         }
 
         .sidebar-title {
@@ -64,8 +67,9 @@ st.markdown("""
 
         .beta-badge {
             position: absolute;
-            top: 1.62rem;
-            left: 4.0rem;
+            top: 1.7rem;
+            left: 50%;
+            transform: translateX(-50%);
             background-color: #2b6cb0;
             color: white;
             font-size: 0.48rem;
@@ -75,31 +79,27 @@ st.markdown("""
             text-transform: uppercase;
             letter-spacing: 0.3px;
             white-space: nowrap;
-            z-index: 10;
+            z-index: 2;
         }
 
         .logo-underline-wrapper {
             position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            margin-top: 0.8rem;
-            margin-left: 0.3rem;
-            margin-right: 0;
-            width: calc(100% - 0.3rem);
+            margin-top: 2.2rem;
+            width: 6.5rem;
             height: 2px;
         }
 
         .line-left {
+            position: absolute;
+            top: 0;
+            left: 0;
             height: 2px;
+            width: 100%;
             background-color: #2b6cb0;
-            width: 4.8rem;
-            flex-shrink: 0;
-        }
-
-        .line-gap {
-            width: 1rem;
-            flex-shrink: 0;
+            transform: scaleX(0);
+            transform-origin: left center;
+            animation: drawLineLeft 0.7s ease-out forwards;
+            z-index: 1;
         }
 
         .sidebar-section {
@@ -109,6 +109,11 @@ st.markdown("""
             margin-top: 2rem;
             margin-bottom: 0.3rem;
             letter-spacing: 0.5px;
+        }
+
+        @keyframes drawLineLeft {
+            from { transform: scaleX(0); }
+            to { transform: scaleX(1); }
         }
     </style>
 """, unsafe_allow_html=True)
@@ -123,7 +128,6 @@ st.sidebar.markdown(
         </div>
         <div class="logo-underline-wrapper">
             <div class="line-left"></div>
-            <div class="line-gap"></div>
         </div>
     </div>
     ''',
