@@ -21,7 +21,7 @@ st.markdown("""
             position: relative;
             width: 100%;
             height: 2px;
-            margin-top: 1rem;
+            margin-top: 2rem;
             margin-left: 0;
             background-color: transparent;
         }
@@ -104,7 +104,7 @@ st.markdown("""
             text-transform: uppercase;
             letter-spacing: 0.3px;
             white-space: nowrap;
-            z-index: 10;
+            z-index: 2;
         }
 
         .sidebar-section {
