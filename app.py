@@ -22,7 +22,7 @@ st.markdown("""
     border: 1px solid #c3cfe0;
     border-radius: 0.5rem;
     padding: 0.4rem 0.75rem;
-    font-weight: 600;
+    font-weight: 100;
 }
 [data-testid="stSidebar"] .stButton>button:hover {
     background-color: #cbd9f0;
