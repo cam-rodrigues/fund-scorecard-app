@@ -19,10 +19,10 @@ st.markdown("""
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
-            top: 8.5rem;
+            top: 9.5rem;
             right: 0;
             width: 2px;
-            height: calc(100% - 8.5rem);
+            height: calc(100% - 9.5rem);
             background-color: #b4c3d3;
             z-index: 1;
         }
