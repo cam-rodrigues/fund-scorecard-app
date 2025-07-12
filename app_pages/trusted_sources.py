@@ -3,10 +3,9 @@ import streamlit as st
 def run():
     st.set_page_config(page_title="Trusted Financial Sources", layout="wide")
     st.title("Trusted Financial Sources")
+    st.write("Hover over each logo to see the source name. Click to open the site.")
 
-    st.write("These are reputable sites across financial news, investment firms, research, and policy.")
-
-    # === Trusted Sources with Logos ===
+    # === Source Data ===
     financial_news = {
         "Bloomberg": ("https://www.bloomberg.com", "https://logo.clearbit.com/bloomberg.com"),
         "WSJ": ("https://www.wsj.com", "https://logo.clearbit.com/wsj.com"),
@@ -17,17 +16,22 @@ def run():
     }
 
     st.subheader("Financial News")
-    render_cards(financial_news)
+    render_logo_grid_with_tooltips(financial_news)
 
-# === Function to render in columns ===
-def render_cards(link_dict, cols_per_row=3):
+# === Logo-Only Grid with Hover Tooltips ===
+def render_logo_grid_with_tooltips(link_dict, cols_per_row=6):
     keys = list(link_dict.keys())
     for i in range(0, len(keys), cols_per_row):
         row = keys[i:i + cols_per_row]
         cols = st.columns(len(row))
         for col, name in zip(cols, row):
             url, logo = link_dict[name]
-            with col:
-                st.image(logo, width=32)
-                st.markdown(f"[**{name}**]({url})")
-
+            with col.container(border=True):
+                col.markdown(
+                    f"""
+                    <a href="{url}" target="_blank">
+                        <img src="{logo}" title="{name}" alt="{name}" style="width: 32px; height: 32px; margin: 0.5rem auto; display: block;" />
+                    </a>
+                    """,
+                    unsafe_allow_html=True
+                )
