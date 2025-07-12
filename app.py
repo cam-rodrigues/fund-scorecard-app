@@ -10,10 +10,23 @@ st.markdown("""
         [data-testid="stSidebar"] {
             background-color: #f4f6fa;
             border-right: none;
-            padding-left: 0.1rem;
+            padding-left: 0.15rem;
             padding-right: 0;
             position: relative;
             z-index: 1;
+        }
+
+        /* Vertical line animation */
+        [data-testid="stSidebar"]::after {
+            content: "";
+            position: absolute;
+            top: 7.75rem;
+            right: 0;
+            width: 2px;
+            height: 0;
+            background-color: #b4c3d3;
+            z-index: 1;
+            animation: drawVertical 0.4s ease-out 0.4s forwards;
         }
 
         [data-testid="stSidebar"] .stButton>button {
@@ -75,7 +88,7 @@ st.markdown("""
             margin-top: 1rem;
             margin-left: 0.3rem;
             margin-right: 0;
-            width: 100%;
+            width: calc(100% - 0.3rem);
             height: 2px;
             overflow: visible;
         }
@@ -83,51 +96,34 @@ st.markdown("""
         .line-left {
             height: 2px;
             background-color: #b4c3d3;
-            width: 4.8rem;
-            transform: scaleX(0);
-            transform-origin: left center;
-            animation: drawLineLeft 0.4s ease-in-out forwards;
-            z-index: 1;
+            width: 0;
+            flex-shrink: 0;
+            animation: drawLeft 0.4s ease-out forwards;
         }
 
         .line-gap {
-            width: 3rem;
+            width: 2.4rem;
             flex-shrink: 0;
         }
 
         .line-right-static {
             height: 2px;
-            background-color: transparent;
+            background-color: #b4c3d3;
             flex-grow: 1;
-            margin-left: 2.4rem;
+            min-width: 5;
+            margin-left: 0.9rem;
             margin-right: 0;
         }
 
         .line-animate-overlay {
             position: absolute;
-            left: calc(4.8rem + 3rem);
+            left: calc(4.8rem + 2.4rem + 3.6rem);  /* left line + gap + badge */
             top: 0;
             height: 2px;
             background-color: #b4c3d3;
-            width: calc(100% - 0.3rem - 4.8rem - 3rem);  /* full width minus left edge and gap */
-            transform: scaleX(0);
-            transform-origin: left center;
-            animation: drawLineRight 0.6s ease-in-out 0.4s forwards;
-            z-index: 1;
-        }
-
-        [data-testid="stSidebar"]::after {
-            content: "";
-            position: absolute;
-            top: 7.9rem;  /* aligns with bottom of the underline */
-            right: 0;
-            width: 2px;
-            height: calc(100% - 7.9rem);
-            background-color: #b4c3d3;
-            transform: scaleY(0);
-            transform-origin: top center;
-            animation: drawVerticalLine 0.5s ease-in-out 1s forwards;
-            z-index: 1;
+            width: 0;
+            z-index: 4;
+            animation: drawHorizontal 0.4s ease-out forwards;
         }
 
         .sidebar-section {
@@ -140,19 +136,20 @@ st.markdown("""
         }
 
         /* === Animations === */
-        @keyframes drawLineLeft {
-            from { transform: scaleX(0); }
-            to { transform: scaleX(1); }
+
+        @keyframes drawLeft {
+            from { width: 0; }
+            to { width: 4.8rem; }
         }
 
-        @keyframes drawLineRight {
-            from { transform: scaleX(0); }
-            to { transform: scaleX(1); }
+        @keyframes drawHorizontal {
+            from { width: 0; }
+            to { width: calc(100vw - 16rem - 0.3rem); }
         }
 
-        @keyframes drawVerticalLine {
-            from { transform: scaleY(0); }
-            to { transform: scaleY(1); }
+        @keyframes drawVertical {
+            from { height: 0; }
+            to { height: calc(100% - 7.75rem); }
         }
     </style>
 """, unsafe_allow_html=True)
@@ -204,6 +201,7 @@ query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
+# Redirect old names if needed
 legacy_redirects = {
     "company_scraper.py": "data_scanner.py"
 }
@@ -212,6 +210,7 @@ if selected_page in legacy_redirects:
     st.query_params.update({"page": selected_page})
     st.rerun()
 
+# Load selected page
 if selected_page:
     page_path = os.path.join(PAGES_DIR, selected_page)
     if os.path.exists(page_path):
