@@ -119,10 +119,10 @@ st.markdown("""
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
-            top: 9.3rem;  /* aligns with bottom of the underline */
+            top: 7.5rem;  /* aligns with bottom of the underline */
             right: 0;
             width: 2px;
-            height: calc(100% - 9.3rem);
+            height: calc(100% - 7.5rem);
             background-color: #b4c3d3;
             transform: scaleY(0);
             transform-origin: top center;
