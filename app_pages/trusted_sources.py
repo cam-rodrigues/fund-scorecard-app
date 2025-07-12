@@ -1,67 +1,65 @@
 import streamlit as st
-import requests
 
-# === CONFIG: Curated List of Trusted Domains ===
-TRUSTED_DOMAINS = [
-    # Tier 1 Financial News & Data
-    "bloomberg.com", "wsj.com", "reuters.com", "ft.com", "cnbc.com", "marketwatch.com",
-    "morningstar.com", "fool.com", "investopedia.com", "seekingalpha.com", "yahoo.com",
+st.set_page_config(page_title="Trusted Financial Sources", layout="wide")
+st.title("📚 Trusted Financial Sources")
 
-    # Investment Firms & Institutional Insights
-    "blackrock.com", "vanguard.com", "fidelity.com", "schwab.com", "jpmorgan.com",
-    "goldmansachs.com", "morganstanley.com", "alliancebernstein.com", "bain.com", "mckinsey.com",
+st.markdown("""
+This page contains grouped links to **reputable financial websites** across news, research, investment, and policy categories.
+""")
 
-    # Academic & Research Institutions
-    "cfainstitute.org", "harvard.edu", "mit.edu", "wharton.upenn.edu", "yale.edu",
-    "chicagobooth.edu", "mba.tuck.dartmouth.edu", "nber.org",
+# === Helper Function
+def link_block(title, links):
+    st.markdown(f"### {title}")
+    for name, url in links.items():
+        st.markdown(f"- [{name}]({url})")
 
-    # Government & Policy Sources
-    "sec.gov", "federalreserve.gov", "treasury.gov", "imf.org", "worldbank.org", "oecd.org",
+# === Link Groups
+financial_news = {
+    "Bloomberg": "https://www.bloomberg.com",
+    "Wall Street Journal": "https://www.wsj.com",
+    "Reuters": "https://www.reuters.com",
+    "Financial Times": "https://www.ft.com",
+    "CNBC": "https://www.cnbc.com",
+    "MarketWatch": "https://www.marketwatch.com",
+    "Yahoo Finance": "https://finance.yahoo.com",
+    "The Economist": "https://www.economist.com",
+    "Forbes": "https://www.forbes.com",
+    "CNN Business": "https://www.cnn.com/business"
+}
 
-    # General Reputable News
-    "nytimes.com", "npr.org", "forbes.com", "cnn.com", "economist.com"
-]
+investment_firms = {
+    "BlackRock": "https://www.blackrock.com",
+    "Vanguard": "https://www.vanguard.com",
+    "Fidelity": "https://www.fidelity.com",
+    "Charles Schwab": "https://www.schwab.com",
+    "J.P. Morgan": "https://www.jpmorgan.com",
+    "Goldman Sachs": "https://www.goldmansachs.com",
+    "Morgan Stanley": "https://www.morganstanley.com",
+    "AllianceBernstein": "https://www.alliancebernstein.com"
+}
 
-def fetch_reputable_sources(query, api_key):
-    url = "https://serpapi.com/search"
-    params = {
-        "q": query,
-        "api_key": api_key,
-        "engine": "google",
-        "num": "20"
-    }
-    res = requests.get(url, params=params)
-    results = res.json().get("organic_results", [])
+research_and_education = {
+    "Morningstar": "https://www.morningstar.com",
+    "Investopedia": "https://www.investopedia.com",
+    "The Motley Fool": "https://www.fool.com",
+    "CFA Institute": "https://www.cfainstitute.org",
+    "Wharton School": "https://www.wharton.upenn.edu",
+    "Harvard Business School": "https://www.hbs.edu",
+    "MIT Sloan": "https://mitsloan.mit.edu",
+    "NBER": "https://www.nber.org"
+}
 
-    reputable = []
-    for result in results:
-        link = result.get("link", "")
-        source = link.split("/")[2] if "://" in link else ""
-        if any(domain in source for domain in TRUSTED_DOMAINS):
-            reputable.append({
-                "title": result.get("title", ""),
-                "link": link,
-                "snippet": result.get("snippet", "")
-            })
+government_and_policy = {
+    "SEC (U.S. Securities & Exchange Commission)": "https://www.sec.gov",
+    "Federal Reserve": "https://www.federalreserve.gov",
+    "U.S. Treasury": "https://home.treasury.gov",
+    "IMF (International Monetary Fund)": "https://www.imf.org",
+    "World Bank": "https://www.worldbank.org",
+    "OECD": "https://www.oecd.org"
+}
 
-    return reputable
-
-# === Streamlit UI ===
-st.set_page_config(page_title="Reputable Source Finder", layout="wide")
-st.title("Reputable Financial Source Finder")
-
-st.markdown("Use this tool to discover **high-quality financial or economic sources** for any topic. It filters Google search results by trusted domains.")
-
-query = st.text_input("Enter a topic (e.g. '401k rollover fees', 'impact of interest rates on bonds'):")
-api_key = st.text_input("Enter your SerpAPI key:", type="password")
-
-if st.button("Search") and query and api_key:
-    with st.spinner("Searching reputable sources..."):
-        sources = fetch_reputable_sources(query, api_key)
-
-    if sources:
-        st.success(f"Found {len(sources)} reputable sources:")
-        for s in sources:
-            st.markdown(f"**[{s['title']}]({s['link']})**\n\n{s['snippet']}\n")
-    else:
-        st.warning("No reputable sources found. Try refining your query.")
+# === Render All Sections
+link_block("📈 Financial News & Media", financial_news)
+link_block("🏢 Major Investment Firms", investment_firms)
+link_block("📚 Education & Research", research_and_education)
+link_block("🏛️ Government & Policy", government_and_policy)
