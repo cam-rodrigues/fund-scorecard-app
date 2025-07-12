@@ -16,19 +16,6 @@ st.markdown("""
             z-index: 1;
         }
 
-        /* Vertical line animation */
-        [data-testid="stSidebar"]::after {
-            content: "";
-            position: absolute;
-            top: 7.75rem;
-            right: 0;
-            width: 2px;
-            height: 0;
-            background-color: #b4c3d3;
-            z-index: 1;
-            animation: drawVertical 0.4s ease-out 0.4s forwards;
-        }
-
         [data-testid="stSidebar"] .stButton>button {
             background-color: #e8eef8;
             color: #1a2a44;
@@ -81,49 +68,23 @@ st.markdown("""
         }
 
         .logo-underline-wrapper {
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            margin-top: 1rem;
             margin-left: 0.3rem;
-            margin-right: 0;
-            width: calc(100% - 0.3rem);
-            height: 2px;
+            margin-top: 1rem;
+            height: 80px;
+            position: relative;
             overflow: visible;
         }
 
-        .line-left {
-            height: 2px;
-            background-color: #b4c3d3;
-            width: 0;
-            flex-shrink: 0;
-            animation: drawLeft 0.4s ease-out forwards;
+        .animated-L path {
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: drawL 2s ease-in-out forwards;
         }
 
-        .line-gap {
-            width: 2.4rem;
-            flex-shrink: 0;
-        }
-
-        .line-right-static {
-            height: 2px;
-            background-color: #b4c3d3;
-            flex-grow: 1;
-            min-width: 5;
-            margin-left: 0.9rem;
-            margin-right: 0;
-        }
-
-        .line-animate-overlay {
-            position: absolute;
-            left: calc(4.8rem + 2.4rem + 3.6rem);  /* left line + gap + badge */
-            top: 0;
-            height: 2px;
-            background-color: #b4c3d3;
-            width: 0;
-            z-index: 4;
-            animation: drawHorizontal 0.4s ease-out forwards;
+        @keyframes drawL {
+            to {
+                stroke-dashoffset: 0;
+            }
         }
 
         .sidebar-section {
@@ -133,23 +94,6 @@ st.markdown("""
             margin-top: 2rem;
             margin-bottom: 0.3rem;
             letter-spacing: 0.5px;
-        }
-
-        /* === Animations === */
-
-        @keyframes drawLeft {
-            from { width: 0; }
-            to { width: 4.8rem; }
-        }
-
-        @keyframes drawHorizontal {
-            from { width: 0; }
-            to { width: calc(100vw - 16rem - 0.3rem); }
-        }
-
-        @keyframes drawVertical {
-            from { height: 0; }
-            to { height: calc(100% - 7.75rem); }
         }
     </style>
 """, unsafe_allow_html=True)
@@ -163,10 +107,9 @@ st.sidebar.markdown(
             <div class="beta-badge">BETA</div>
         </div>
         <div class="logo-underline-wrapper">
-            <div class="line-left"></div>
-            <div class="line-gap"></div>
-            <div class="line-right-static"></div>
-            <div class="line-animate-overlay"></div>
+            <svg class="animated-L" width="100%" height="80" viewBox="0 0 240 1000" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0 2 H234 Q236 2 236 4 V1000" fill="none" stroke="#b4c3d3" stroke-width="2.25" stroke-linecap="round"/>
+            </svg>
         </div>
     </div>
     ''',
