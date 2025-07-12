@@ -43,10 +43,10 @@ st.markdown("""
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
-            top: 10.35rem;
+            top: 7.5rem;
             right: 0;
             width: 2px;
-            height: calc(100% - 10.35rem);
+            height: calc(100% - 7.5rem);
             background-color: #b4c3d3;
             transform: scaleY(0);
             transform-origin: top center;
