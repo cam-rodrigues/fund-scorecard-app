@@ -108,7 +108,7 @@ st.sidebar.markdown(
         </div>
         <div class="logo-underline-wrapper">
             <svg class="animated-L" width="200" height="80" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-                <path d="M0 2 H160 Q165 2 165 7 V120" fill="none" stroke="#b4c3d3" stroke-width="3" stroke-linecap="round"/>
+                <path d="M0 2 H120 Q125 2 125 7 V120" fill="none" stroke="#b4c3d3" stroke-width="3" stroke-linecap="round"/>
             </svg>
         </div>
     </div>
