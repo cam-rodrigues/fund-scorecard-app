@@ -66,7 +66,7 @@ st.markdown("""
     z-index: 10;
 }
 
-/* New single-path underline + vertical L */
+/* === L-line container === */
 .logo-underline-wrapper {
     position: relative;
     margin-top: 1rem;
@@ -74,6 +74,7 @@ st.markdown("""
     height: 100px;
 }
 
+/* === SVG line === */
 .logo-L {
     width: 100%;
     height: 100%;
@@ -106,7 +107,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar logo block ===
+# === Sidebar logo block with corrected L-path ===
 st.sidebar.markdown('''
 <div class="sidebar-logo-wrapper">
     <div class="sidebar-title-container">
@@ -114,8 +115,8 @@ st.sidebar.markdown('''
         <div class="beta-badge">BETA</div>
     </div>
     <div class="logo-underline-wrapper">
-        <svg class="logo-L" viewBox="0 0 300 600" xmlns="http://www.w3.org/2000/svg">
-            <path d="M0 2 H173 Q178 2 178 8 V600" />
+        <svg class="logo-L" viewBox="0 0 400 600" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0 2 H285 Q295 2 295 12 V600" />
         </svg>
     </div>
 </div>
