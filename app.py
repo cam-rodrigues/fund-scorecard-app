@@ -45,7 +45,7 @@ st.markdown("""
             margin-top: .15rem;
             margin-bottom: 1.5rem;
             margin-left: 0.3rem;
-            padding-left: 1.3rem;
+            padding-left: 2rem;
             display: flex;
             flex-direction: column;
             align-items: flex-start;
