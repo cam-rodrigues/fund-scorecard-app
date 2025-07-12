@@ -98,7 +98,7 @@ def run():
         unsafe_allow_html=True
     )
 
-# === Renders grid using st.markdown (not st.write)
+# === Renders a uniform grid of logos ===
 def render_logo_grid(link_dict, max_per_row=5):
     html = '<div class="grid-wrapper">'
     for name, (url, logo) in link_dict.items():
@@ -114,3 +114,7 @@ def render_logo_grid(link_dict, max_per_row=5):
         html += '<div class="logo-card" style="visibility: hidden;"></div>' * (max_per_row - remainder)
     html += '</div>'
     st.markdown(html, unsafe_allow_html=True)
+
+# === Run as standalone
+if __name__ == "__main__":
+    run()
