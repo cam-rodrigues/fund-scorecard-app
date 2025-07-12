@@ -90,7 +90,7 @@ st.markdown("""
             margin-right: 0;
             width: calc(100% - 0.3rem);
             height: 2px;
-            overflow: hidden;
+            overflow: visible;
         }
 
         .line-left {
@@ -137,7 +137,7 @@ st.markdown("""
         /* === Animations === */
         @keyframes drawHorizontal {
             from { width: 0; }
-            to { width: 100%; }
+            to { width: calc(100vw - 16rem - 0.3rem); }
         }
 
         @keyframes drawVertical {
