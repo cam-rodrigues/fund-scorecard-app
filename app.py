@@ -42,19 +42,20 @@ st.markdown("""
         }
 
         .sidebar-logo-wrapper {
-            margin-top: .15rem;
+            margin-top: 0.5rem;
             margin-bottom: 1.5rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            width: fit-content;
+            margin-left: auto;
+            margin-right: auto;
+            position: relative;
         }
 
         .sidebar-title-container {
             position: relative;
-            display: inline-block;
+            display:block;
             transform: scale(1.35);
             transform-origin: top left;
+            text-align:center;
         }
 
         .sidebar-title {
@@ -67,8 +68,9 @@ st.markdown("""
 
         .beta-badge {
             position: absolute;
-            top: 1.62rem;
-            left: 4.8rem;
+            top: 1.7rem;
+            left: 50%;
+            transform: translateX(-50%);
             background-color: #2b6cb0;
             color: white;
             font-size: 0.48rem;
