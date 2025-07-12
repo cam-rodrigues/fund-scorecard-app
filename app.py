@@ -82,47 +82,23 @@ st.markdown("""
 
         .logo-underline-wrapper {
             position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
             margin-top: 1rem;
             margin-left: 0.3rem;
             margin-right: 0;
             width: calc(100% - 0.3rem);
             height: 2px;
-            overflow: visible;
+            overflow: hidden;
         }
 
-        .line-left {
-            height: 2px;
-            background-color: #b4c3d3;
-            width: 4.8rem;
-            flex-shrink: 0;
-        }
-
-        .line-gap {
-            width: 2.4rem;
-            flex-shrink: 0;
-        }
-
-        .line-right-static {
-            height: 2px;
-            background-color: #b4c3d3;
-            flex-grow: 1;
-            min-width: 5;
-            margin-left: 0.9rem;
-            margin-right: 0;
-        }
-
-        .line-animate-overlay {
+        .line-animate-full {
             position: absolute;
-            left: calc(4.8rem + 2.4rem + 3.6rem);  /* left line + gap + badge */
             top: 0;
+            left: 0;
             height: 2px;
             background-color: #b4c3d3;
             width: 0;
             z-index: 4;
-            animation: drawHorizontal 0.4s ease-out forwards;
+            animation: drawHorizontal 0.6s ease-out forwards;
         }
 
         .sidebar-section {
@@ -137,7 +113,7 @@ st.markdown("""
         /* === Animations === */
         @keyframes drawHorizontal {
             from { width: 0; }
-            to { width: calc(100vw - 16rem - 0.3rem); }
+            to { width: 100%; }
         }
 
         @keyframes drawVertical {
@@ -156,10 +132,7 @@ st.sidebar.markdown(
             <div class="beta-badge">BETA</div>
         </div>
         <div class="logo-underline-wrapper">
-            <div class="line-left"></div>
-            <div class="line-gap"></div>
-            <div class="line-right-static"></div>
-            <div class="line-animate-overlay"></div>
+            <div class="line-animate-full"></div>
         </div>
     </div>
     ''',
