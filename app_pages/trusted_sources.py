@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 
 def run():
     st.set_page_config(page_title="Trusted Financial Sources", layout="wide")
@@ -65,7 +66,7 @@ def run():
         ("https://www.wsj.com", "Wall Street Journal", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/The_Wall_Street_Journal_Logo.svg/1280px-The_Wall_Street_Journal_Logo.svg.png"),
         ("https://www.cnbc.com", "CNBC", "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/CNBC_logo.svg/2560px-CNBC_logo.svg.png"),
         ("https://www.reuters.com", "Reuters", "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e6/Reuters-Logo.svg/2560px-Reuters-Logo.svg.png"),
-    ])
+    ], height=500)
 
     st.markdown("#### Investment Research & Tools")
     render_sources([
@@ -75,7 +76,7 @@ def run():
         ("https://www.fidelity.com", "Fidelity", "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Fidelity_Investments_logo.svg/2560px-Fidelity_Investments_logo.svg.png"),
         ("https://www.schwab.com", "Charles Schwab", "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Charles_Schwab_Corporation_logo.svg/2560px-Charles_Schwab_Corporation_logo.svg.png"),
         ("https://www.emoneyadvisor.com", "eMoney Advisor", "https://www.emoneyadvisor.com/wp-content/themes/emoney-2020/assets/images/emoney_logo.svg"),
-    ])
+    ], height=600)
 
     st.markdown("#### Government & Policy")
     render_sources([
@@ -83,16 +84,18 @@ def run():
         ("https://fred.stlouisfed.org", "FRED (St. Louis Fed)", "https://fred.stlouisfed.org/~/media/Images/fred/fred-logo-blue.svg"),
         ("https://www.finra.org", "FINRA", "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/FINRA_logo.svg/2560px-FINRA_logo.svg.png"),
         ("https://www.treasury.gov", "U.S. Treasury", "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Seal_of_the_United_States_Department_of_the_Treasury.svg/2048px-Seal_of_the_United_States_Department_of_the_Treasury.svg.png"),
-    ])
+    ], height=550)
 
 
-def render_sources(sources):
-    st.markdown('<div class="source-grid">', unsafe_allow_html=True)
+def render_sources(sources, height=500):
+    html = '<div class="source-grid">'
     for url, name, logo_url in sources:
-        st.markdown(f"""
+        html += f"""
         <a href="{url}" target="_blank" class="source-box">
             <img src="{logo_url}" alt="{name}" />
             <div class="tooltip">{name}</div>
         </a>
-        """, unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+        """
+    html += '</div>'
+
+    components.html(html, height=height, scrolling=False)
