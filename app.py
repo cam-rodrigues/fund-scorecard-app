@@ -103,10 +103,9 @@ st.sidebar.markdown("""
         <div class="beta-badge">BETA</div>
     </div>
     <div class="logo-underline-wrapper">
-        <svg class="animated-L" width="100%" height="80" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
-            <path d="M0 2 H140 Q145 2 145 7 V140" fill="none" stroke="#b4c3d3" stroke-width="2.5" stroke-linecap="round"/>
-        </svg>
-    </div>
+    <svg class="animated-L" width="100%" height="80" viewBox="0 0 170 200" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0 2 H158 Q160 2 160 4 V200" fill="none" stroke="#b4c3d3" stroke-width="2.25" stroke-linecap="round"/>
+    </svg>
 </div>
 """, unsafe_allow_html=True)
 
