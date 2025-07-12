@@ -32,11 +32,11 @@ st.markdown("""
             left: 0;
             height: 2px;
             width: 100%;
-            background-color: #b4c3d3;
+            background-color: #2b6cb0;
             transform: scaleX(0);
             transform-origin: left center;
             animation: drawHorizontal 1s ease-in-out forwards;
-            z-index: 2;
+            z-index: 1;
         }
 
         /* === Vertical line connecting from end === */
@@ -47,7 +47,7 @@ st.markdown("""
             right: 0;
             width: 2px;
             height: calc(100% - 7.75rem);
-            background-color: #b4c3d3;
+            background-color: #2b6cb0;
             transform: scaleY(0);
             transform-origin: top center;
             animation: drawVertical 0.6s ease-in-out 1s forwards;
