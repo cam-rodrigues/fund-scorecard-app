@@ -7,28 +7,28 @@ def run():
 
     st.markdown("#### Financial News")
     render_sources([
-        ("https://www.bloomberg.com", "Bloomberg", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Bloomberg_logo.svg/2560px-Bloomberg_logo.svg.png"),
-        ("https://www.wsj.com", "Wall Street Journal", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/The_Wall_Street_Journal_Logo.svg/1280px-The_Wall_Street_Journal_Logo.svg.png"),
-        ("https://www.cnbc.com", "CNBC", "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/CNBC_logo.svg/2560px-CNBC_logo.svg.png"),
-        ("https://www.reuters.com", "Reuters", "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e6/Reuters-Logo.svg/2560px-Reuters-Logo.svg.png"),
+        ("https://www.bloomberg.com", "Bloomberg", "https://1000logos.net/wp-content/uploads/2021/05/Bloomberg-logo.png"),
+        ("https://www.wsj.com", "Wall Street Journal", "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/WSJ_Logo_2019.png/800px-WSJ_Logo_2019.png"),
+        ("https://www.cnbc.com", "CNBC", "https://logodownload.org/wp-content/uploads/2019/06/cnbc-logo-1.png"),
+        ("https://www.reuters.com", "Reuters", "https://upload.wikimedia.org/wikipedia/en/thumb/2/29/Reuters_Logo.svg/1024px-Reuters_Logo.svg.png"),
     ], height=500)
 
     st.markdown("#### Investment Research & Tools")
     render_sources([
-        ("https://www.morningstar.com", "Morningstar", "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Morningstar_Logo.svg/2560px-Morningstar_Logo.svg.png"),
+        ("https://www.morningstar.com", "Morningstar", "https://1000logos.net/wp-content/uploads/2021/05/Morningstar-logo.png"),
         ("https://www.ycharts.com", "YCharts", "https://assets-global.website-files.com/615c6125781dd69aafe19db1/618ac0d2f87c9637e3c3aa3e_ycharts-logo.png"),
-        ("https://www.finviz.com", "Finviz", "https://finviz.com/favicon.ico"),
-        ("https://www.fidelity.com", "Fidelity", "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Fidelity_Investments_logo.svg/2560px-Fidelity_Investments_logo.svg.png"),
-        ("https://www.schwab.com", "Charles Schwab", "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Charles_Schwab_Corporation_logo.svg/2560px-Charles_Schwab_Corporation_logo.svg.png"),
-        ("https://www.emoneyadvisor.com", "eMoney Advisor", "https://www.emoneyadvisor.com/wp-content/themes/emoney-2020/assets/images/emoney_logo.svg"),
+        ("https://www.finviz.com", "Finviz", "https://finviz.com/images/logo01.png"),
+        ("https://www.fidelity.com", "Fidelity", "https://1000logos.net/wp-content/uploads/2021/05/Fidelity-logo.png"),
+        ("https://www.schwab.com", "Charles Schwab", "https://1000logos.net/wp-content/uploads/2021/05/Charles-Schwab-logo.png"),
+        ("https://www.emoneyadvisor.com", "eMoney Advisor", "https://www.emoneyadvisor.com/wp-content/uploads/2021/03/emoney-logo-dark.png"),
     ], height=600)
 
     st.markdown("#### Government & Policy")
     render_sources([
-        ("https://www.sec.gov", "SEC", "https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Seal_of_the_United_States_Securities_and_Exchange_Commission.svg/2048px-Seal_of_the_United_States_Securities_and_Exchange_Commission.svg.png"),
+        ("https://www.sec.gov", "SEC", "https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Seal_of_the_United_States_Securities_and_Exchange_Commission.svg/1024px-Seal_of_the_United_States_Securities_and_Exchange_Commission.svg.png"),
         ("https://fred.stlouisfed.org", "FRED (St. Louis Fed)", "https://fred.stlouisfed.org/~/media/Images/fred/fred-logo-blue.svg"),
-        ("https://www.finra.org", "FINRA", "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/FINRA_logo.svg/2560px-FINRA_logo.svg.png"),
-        ("https://www.treasury.gov", "U.S. Treasury", "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Seal_of_the_United_States_Department_of_the_Treasury.svg/2048px-Seal_of_the_United_States_Department_of_the_Treasury.svg.png"),
+        ("https://www.finra.org", "FINRA", "https://www.finra.org/themes/custom/finra/images/logo.svg"),
+        ("https://www.treasury.gov", "U.S. Treasury", "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Seal_of_the_United_States_Department_of_the_Treasury.svg/1024px-Seal_of_the_United_States_Department_of_the_Treasury.svg.png"),
     ], height=550)
 
 
