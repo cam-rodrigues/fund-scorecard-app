@@ -83,7 +83,7 @@ st.markdown("""
             display: flex;
             align-items: center;
             justify-content: flex-start;
-            margin-top: 1rem;
+            margin-top: 0.8rem;
             margin-left: 0.3rem;
             margin-right: 0;
             width: calc(100% - 0.3rem);
