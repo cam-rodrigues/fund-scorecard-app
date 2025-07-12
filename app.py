@@ -10,13 +10,12 @@ st.markdown("""
         [data-testid="stSidebar"] {
             background-color: #f4f6fa;
             border-right: none;
-            padding-left: 0.5rem;
+            padding-left: 0.0rem;
             padding-right: none;
             position: relative;
             z-index: 1;
         }
 
-        /* Vertical line starts BELOW the logo using pseudo-element */
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
