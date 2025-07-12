@@ -5,7 +5,7 @@ def run():
     st.title("Trusted Financial Sources")
     st.write("Hover over any logo to see the full name. Click a logo to visit the site.")
 
-    # === Inject Global CSS for Lift Effect & Grid
+    # === Global CSS ===
     st.markdown("""
     <style>
     .grid-wrapper {
@@ -38,7 +38,7 @@ def run():
     </style>
     """, unsafe_allow_html=True)
 
-    # === Categories
+    # === Content ===
     st.subheader("Financial News")
     render_logo_grid({
         "Bloomberg": ("https://www.bloomberg.com", "https://logo.clearbit.com/bloomberg.com"),
@@ -89,7 +89,7 @@ def run():
         "OECD": ("https://www.oecd.org", "https://logo.clearbit.com/oecd.org"),
     })
 
-    # === CTA Footer
+    # === Footer
     st.markdown("---")
     st.markdown(
         '<div style="text-align: center; font-size: 0.95rem;">'
@@ -98,7 +98,7 @@ def run():
         unsafe_allow_html=True
     )
 
-# === Logo Grid Renderer
+# === Grid Renderer with padding and hover effect
 def render_logo_grid(link_dict, max_per_row=5):
     html = '<div class="grid-wrapper">'
     for name, (url, logo) in link_dict.items():
@@ -109,10 +109,11 @@ def render_logo_grid(link_dict, max_per_row=5):
             </a>
         </div>
         """
-    # Pad row if needed
+    # Pad last row
     remainder = len(link_dict) % max_per_row
     if remainder > 0:
-        for _ in range(max_per_row - remainder):
-            html += '<div class="logo-card" style="visibility: hidden;"></div>'
+        html += '<div class="logo-card" style="visibility: hidden;"></div>' * (max_per_row - remainder)
     html += '</div>'
+
+    # ✅ Correct way to render it
     st.markdown(html, unsafe_allow_html=True)
