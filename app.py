@@ -10,7 +10,7 @@ st.markdown("""
         [data-testid="stSidebar"] {
             background-color: #f4f6fa;
             border-right: none;
-            padding-left: 0.15rem;
+            padding-left: 0.1rem;
             padding-right: 0;
             position: relative;
             z-index: 1;
@@ -100,7 +100,7 @@ st.markdown("""
             background-color: transparent;
             flex-grow: 1;
             margin-left: 0.9rem;
-            margin-right: 0;
+            margin-right: -2.0rem;
         }
 
         .line-animate-overlay {
