@@ -77,13 +77,13 @@ st.markdown("""
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
-            top: 7.75rem;
+            top: 9.2rem; /* starts below beta + underline */
             right: 0;
             width: 2px;
             height: 0;
             background-color: #b4c3d3;
             z-index: 1;
-            animation: drawVertical 0.8s ease-in-out 1s forwards;
+            animation: drawVertical 0.8s ease-in-out 1.1s forwards;
         }
 
         /* === Sidebar Buttons === */
@@ -118,7 +118,7 @@ st.markdown("""
 
         @keyframes drawVertical {
             from { height: 0; }
-            to { height: calc(100% - 7.75rem); }
+            to { height: calc(100% - 9.2rem); }
         }
     </style>
 """, unsafe_allow_html=True)
