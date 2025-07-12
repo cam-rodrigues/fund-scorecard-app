@@ -87,24 +87,39 @@ st.markdown("""
             top: 0;
             height: 2px;
             background-color: #b4c3d3;
-            width: calc(100% - 0.3rem - 4.8rem - 3rem + 1px);
+            width: calc(100% - 0.3rem - 4.8rem - 3rem - 8px);  /* subtract 8px for arc */
             transform: scaleX(0);
             transform-origin: left center;
             animation: drawLineRight 0.6s ease-in-out 0.6s forwards;
             z-index: 1;
         }
 
+        .corner-arc {
+            position: absolute;
+            right: 0;
+            top: 0;
+            width: 8px;
+            height: 8px;
+            border-top-right-radius: 8px;
+            border-right: 2px solid #b4c3d3;
+            border-top: 2px solid #b4c3d3;
+            transform: scale(0);
+            transform-origin: center;
+            animation: drawArc 0.3s ease-in-out 1.2s forwards;
+            z-index: 2;
+        }
+
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
-            top: 7.75rem;
+            top: 9.3rem;
             right: 0;
             width: 2px;
-            height: calc(100% - 7.75rem);
+            height: calc(100% - 9.3rem);
             background-color: #b4c3d3;
             transform: scaleY(0);
             transform-origin: top center;
-            animation: drawVerticalLine 0.6s ease-in-out 1.2s forwards;
+            animation: drawVerticalLine 0.6s ease-in-out 1.5s forwards;
             z-index: 1;
         }
 
@@ -146,6 +161,11 @@ st.markdown("""
             from { transform: scaleY(0); }
             to { transform: scaleY(1); }
         }
+
+        @keyframes drawArc {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -161,6 +181,7 @@ st.sidebar.markdown(
             <div class="line-left"></div>
             <div class="line-gap"></div>
             <div class="line-animate-overlay"></div>
+            <div class="corner-arc"></div>
         </div>
     </div>
     ''',
