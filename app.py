@@ -8,7 +8,7 @@ def run():
     Browse grouped links to reputable financial websites. Each source is displayed as a clickable square block with its logo.
     """, unsafe_allow_html=True)
 
-    # === Define CSS for square logo blocks ===
+    # === CSS for Grid Layout ===
     st.markdown("""
     <style>
     .source-grid {
@@ -49,71 +49,75 @@ def run():
     .source-box a {
         text-decoration: none;
         color: inherit;
+        display: block;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    # === Reusable Grid Block Function
+    # === Render Function ===
     def render_link_grid(title, links):
         st.subheader(title)
         html = '<div class="source-grid">'
         for name, (url, logo_url) in links.items():
             html += f'''
-            <div class="source-box">
-                <a href="{url}" target="_blank">
-                    <img src="{logo_url}" alt="{name} logo"/>
-                    {name}
-                </a>
-            </div>
+                <div class="source-box">
+                    <a href="{url}" target="_blank">
+                        <img src="{logo_url}" alt="{name} logo"/>
+                        <div>{name}</div>
+                    </a>
+                </div>
             '''
         html += '</div>'
         st.markdown(html, unsafe_allow_html=True)
 
-    # === Example Link Groups with Logos
+    # === Placeholder for Logo Testing ===
+    placeholder = "https://via.placeholder.com/28"
+
+    # === Trusted Sources ===
     financial_news = {
-        "Bloomberg": ("https://www.bloomberg.com", "https://logo.clearbit.com/bloomberg.com"),
-        "WSJ": ("https://www.wsj.com", "https://logo.clearbit.com/wsj.com"),
-        "Reuters": ("https://www.reuters.com", "https://logo.clearbit.com/reuters.com"),
-        "Financial Times": ("https://www.ft.com", "https://logo.clearbit.com/ft.com"),
-        "CNBC": ("https://www.cnbc.com", "https://logo.clearbit.com/cnbc.com"),
-        "MarketWatch": ("https://www.marketwatch.com", "https://logo.clearbit.com/marketwatch.com"),
-        "Yahoo Finance": ("https://finance.yahoo.com", "https://logo.clearbit.com/yahoo.com"),
-        "The Economist": ("https://www.economist.com", "https://logo.clearbit.com/economist.com"),
-        "Forbes": ("https://www.forbes.com", "https://logo.clearbit.com/forbes.com"),
-        "CNN Business": ("https://www.cnn.com/business", "https://logo.clearbit.com/cnn.com"),
+        "Bloomberg": ("https://www.bloomberg.com", placeholder),
+        "WSJ": ("https://www.wsj.com", placeholder),
+        "Reuters": ("https://www.reuters.com", placeholder),
+        "Financial Times": ("https://www.ft.com", placeholder),
+        "CNBC": ("https://www.cnbc.com", placeholder),
+        "MarketWatch": ("https://www.marketwatch.com", placeholder),
+        "Yahoo Finance": ("https://finance.yahoo.com", placeholder),
+        "The Economist": ("https://www.economist.com", placeholder),
+        "Forbes": ("https://www.forbes.com", placeholder),
+        "CNN Business": ("https://www.cnn.com/business", placeholder),
     }
 
     investment_firms = {
-        "BlackRock": ("https://www.blackrock.com", "https://logo.clearbit.com/blackrock.com"),
-        "Vanguard": ("https://www.vanguard.com", "https://logo.clearbit.com/vanguard.com"),
-        "Fidelity": ("https://www.fidelity.com", "https://logo.clearbit.com/fidelity.com"),
-        "Charles Schwab": ("https://www.schwab.com", "https://logo.clearbit.com/schwab.com"),
-        "J.P. Morgan": ("https://www.jpmorgan.com", "https://logo.clearbit.com/jpmorgan.com"),
-        "Goldman Sachs": ("https://www.goldmansachs.com", "https://logo.clearbit.com/goldmansachs.com"),
-        "Morgan Stanley": ("https://www.morganstanley.com", "https://logo.clearbit.com/morganstanley.com"),
+        "BlackRock": ("https://www.blackrock.com", placeholder),
+        "Vanguard": ("https://www.vanguard.com", placeholder),
+        "Fidelity": ("https://www.fidelity.com", placeholder),
+        "Charles Schwab": ("https://www.schwab.com", placeholder),
+        "J.P. Morgan": ("https://www.jpmorgan.com", placeholder),
+        "Goldman Sachs": ("https://www.goldmansachs.com", placeholder),
+        "Morgan Stanley": ("https://www.morganstanley.com", placeholder),
     }
 
     education_research = {
-        "Morningstar": ("https://www.morningstar.com", "https://logo.clearbit.com/morningstar.com"),
-        "Investopedia": ("https://www.investopedia.com", "https://logo.clearbit.com/investopedia.com"),
-        "Motley Fool": ("https://www.fool.com", "https://logo.clearbit.com/fool.com"),
-        "CFA Institute": ("https://www.cfainstitute.org", "https://logo.clearbit.com/cfainstitute.org"),
-        "Wharton": ("https://www.wharton.upenn.edu", "https://logo.clearbit.com/wharton.upenn.edu"),
-        "Harvard Business": ("https://www.hbs.edu", "https://logo.clearbit.com/hbs.edu"),
-        "MIT Sloan": ("https://mitsloan.mit.edu", "https://logo.clearbit.com/mit.edu"),
-        "NBER": ("https://www.nber.org", "https://logo.clearbit.com/nber.org"),
+        "Morningstar": ("https://www.morningstar.com", placeholder),
+        "Investopedia": ("https://www.investopedia.com", placeholder),
+        "Motley Fool": ("https://www.fool.com", placeholder),
+        "CFA Institute": ("https://www.cfainstitute.org", placeholder),
+        "Wharton": ("https://www.wharton.upenn.edu", placeholder),
+        "Harvard Business": ("https://www.hbs.edu", placeholder),
+        "MIT Sloan": ("https://mitsloan.mit.edu", placeholder),
+        "NBER": ("https://www.nber.org", placeholder),
     }
 
     government_policy = {
-        "SEC": ("https://www.sec.gov", "https://logo.clearbit.com/sec.gov"),
-        "Federal Reserve": ("https://www.federalreserve.gov", "https://logo.clearbit.com/federalreserve.gov"),
-        "U.S. Treasury": ("https://home.treasury.gov", "https://logo.clearbit.com/treasury.gov"),
-        "IMF": ("https://www.imf.org", "https://logo.clearbit.com/imf.org"),
-        "World Bank": ("https://www.worldbank.org", "https://logo.clearbit.com/worldbank.org"),
-        "OECD": ("https://www.oecd.org", "https://logo.clearbit.com/oecd.org"),
+        "SEC": ("https://www.sec.gov", placeholder),
+        "Federal Reserve": ("https://www.federalreserve.gov", placeholder),
+        "U.S. Treasury": ("https://home.treasury.gov", placeholder),
+        "IMF": ("https://www.imf.org", placeholder),
+        "World Bank": ("https://www.worldbank.org", placeholder),
+        "OECD": ("https://www.oecd.org", placeholder),
     }
 
-    # === Render All Grids
+    # === Render Sections ===
     render_link_grid("Financial News", financial_news)
     render_link_grid("Major Investment Firms", investment_firms)
     render_link_grid("Education & Research", education_research)
