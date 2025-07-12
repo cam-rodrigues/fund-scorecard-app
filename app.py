@@ -69,17 +69,16 @@ st.markdown("""
 
         .logo-underline-wrapper {
             margin-left: 0.3rem;
-            margin-right: 0;
             margin-top: 1rem;
-            height: 2px;
-            overflow: visible;
+            height: 80px;
             position: relative;
+            overflow: visible;
         }
 
         .animated-L path {
-            stroke-dasharray: 2000;
-            stroke-dashoffset: 2000;
-            animation: drawL 1.4s ease-in-out forwards;
+            stroke-dasharray: 500;
+            stroke-dashoffset: 500;
+            animation: drawL 2s ease-in-out forwards;
         }
 
         @keyframes drawL {
@@ -108,8 +107,8 @@ st.sidebar.markdown(
             <div class="beta-badge">BETA</div>
         </div>
         <div class="logo-underline-wrapper">
-            <svg class="animated-L" width="100%" height="100%" viewBox="0 0 220 1000" preserveAspectRatio="xMinYMin meet">
-                <path d="M0 2 L160 2 L160 1000" fill="transparent" stroke="#b4c3d3" stroke-width="2" />
+            <svg class="animated-L" width="200" height="80" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0 2 H160 Q165 2 165 7 V120" fill="none" stroke="#b4c3d3" stroke-width="3" stroke-linecap="round"/>
             </svg>
         </div>
     </div>
