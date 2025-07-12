@@ -74,7 +74,7 @@ st.markdown("""
 }
 
 .animated-L path {
-    stroke-dasharray: 400;
+    stroke-dasharray: 600;
     stroke-dashoffset: 400;
     animation: drawL 2s ease-in-out forwards;
 }
