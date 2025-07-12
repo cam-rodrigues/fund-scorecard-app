@@ -48,7 +48,7 @@ st.markdown("""
             flex-direction: column;
             align-items: flex-start;
             justify-content: flex-start;
-            margin-left: 0.3 rem;
+            margin-left: 0.6 rem;
         }
 
         .sidebar-title-container {
