@@ -11,12 +11,12 @@ st.markdown("""
             background-color: #f4f6fa;
             border-right: none;
             padding-left: 0.15rem;
-            padding-right: none;
+            padding-right: 0;
             position: relative;
             z-index: 1;
         }
 
-        /* Vertical line with animation */
+        /* Animate the vertical line */
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
@@ -105,12 +105,10 @@ st.markdown("""
         }
 
         .line-right {
+            display: inline-block;
             height: 2px;
             background-color: #b4c3d3;
-            flex-grow: 1;
-            min-width: 5;
-            margin-left: 0.9rem;
-            margin-right: 0;
+            width: 0;
             animation: drawHorizontal 0.4s ease-out forwards;
         }
 
@@ -123,7 +121,7 @@ st.markdown("""
             letter-spacing: 0.5px;
         }
 
-        /* === Line Animations === */
+        /* === Animations === */
         @keyframes drawHorizontal {
             from { width: 0; }
             to { width: 100%; }
@@ -147,7 +145,7 @@ st.sidebar.markdown(
         <div class="logo-underline-wrapper">
             <div class="line-left"></div>
             <div class="line-gap"></div>
-            <div class="line-right"></div>
+            <span class="line-right"></span>
         </div>
     </div>
     ''',
