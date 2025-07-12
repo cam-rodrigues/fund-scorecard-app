@@ -90,6 +90,7 @@ st.markdown("""
             margin-right: 0;
             width: calc(100% - 0.3rem);
             height: 2px;
+            overflow: hidden;
         }
 
         .line-left {
@@ -115,11 +116,12 @@ st.markdown("""
 
         .line-animate-overlay {
             position: absolute;
-            right: 0;
-            bottom: 0;
+            left: 0;
+            top: 0;
             height: 2px;
             background-color: #b4c3d3;
             width: 0;
+            z-index: 5;
             animation: drawHorizontal 0.4s ease-out forwards;
         }
 
