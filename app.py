@@ -117,13 +117,14 @@ st.markdown("""
 
         .line-animate-overlay {
             position: absolute;
-            left: calc(4.8rem + 2.4rem + 3.6rem);
+            left: 4.8rem;
             top: 0;
             height: 2px;
-            background-color: #b4c3d3;
             width: 0;
+            background-color: #b4c3d3;
             z-index: 4;
             animation: drawHorizontal 0.6s ease-in-out 0.3s forwards;
+            transform-origin: left;
         }
 
         .sidebar-section {
@@ -143,7 +144,7 @@ st.markdown("""
 
         @keyframes drawHorizontal {
             from { width: 0; }
-            to { width: calc(100vw - 16rem - 0.3rem); }
+            to { width: calc(100% - 4.8rem); }
         }
 
         @keyframes drawVertical {
