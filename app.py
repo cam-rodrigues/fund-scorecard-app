@@ -98,7 +98,8 @@ st.markdown("""
             background-color: #b4c3d3;
             width: 0;
             flex-shrink: 0;
-            animation: drawLeft 0.4s ease-out forwards;
+            animation: drawLineLeft 0.4s ease-in-out forwards;
+            z-index: 1;
         }
 
         .line-gap {
@@ -117,13 +118,15 @@ st.markdown("""
 
         .line-animate-overlay {
             position: absolute;
-            left: calc(4.8rem + 2.4rem + 3.6rem);  /* left line + gap + badge */
+            left: calc(4.8rem + 3rem);
             top: 0;
             height: 2px;
             background-color: #b4c3d3;
-            width: 0;
-            z-index: 4;
-            animation: drawHorizontal 0.4s ease-out forwards;
+            width: calc(100% - 0.3rem - 4.8rem - 3rem);  /* full width minus left edge and gap */
+            transform: scaleX(0);
+            transform-origin: left center;
+            animation: drawLineRight 0.6s ease-in-out 0.4s forwards;
+            z-index: 1;
         }
 
         .sidebar-section {
@@ -137,14 +140,14 @@ st.markdown("""
 
         /* === Animations === */
 
-        @keyframes drawLeft {
-            from { width: 0; }
-            to { width: 4.8rem; }
+        @keyframes drawLineLeft {
+            from { transform: scaleX(0); }
+            to { transform: scaleX(1); }
         }
 
-        @keyframes drawHorizontal {
-            from { width: 0; }
-            to { width: calc(100vw - 16rem - 0.3rem); }
+        @keyframes drawLineRight {
+            from { transform: scaleX(0); }
+            to { transform: scaleX(1); }
         }
 
         @keyframes drawVertical {
