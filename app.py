@@ -68,26 +68,28 @@ st.markdown("""
     z-index: 10;
 }
 
-/* Full sidebar L line */
+/* Final L-shape path along the edge */
 .sidebar-L-line {
     position: absolute;
-    top: 7.9rem;
+    top: 7.85rem;
     left: 0;
     width: 100%;
     height: 100%;
-    pointer-events: none;
     z-index: 0;
+    pointer-events: none;
 }
+
 .sidebar-L-line svg {
     width: 100%;
     height: 100%;
 }
+
 .sidebar-L-line path {
     stroke-dasharray: 1000;
     stroke-dashoffset: 1000;
-    animation: drawL 2s ease-in-out forwards;
+    animation: drawL 1.8s ease-out forwards;
     stroke: #b4c3d3;
-    stroke-width: 2;
+    stroke-width: 2.25;
     fill: none;
     stroke-linecap: round;
 }
@@ -109,7 +111,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# === Sidebar content ===
+# === Sidebar content with SVG line ===
 st.sidebar.markdown('''
 <div class="sidebar-logo-wrapper">
     <div class="sidebar-title-container">
@@ -118,10 +120,10 @@ st.sidebar.markdown('''
     </div>
 </div>
 
-<!-- Curved animated L line along the edge -->
+<!-- Animated L line that hugs sidebar edge -->
 <div class="sidebar-L-line">
-    <svg viewBox="0 0 300 800" xmlns="http://www.w3.org/2000/svg">
-        <path d="M0 2 H285 Q295 2 295 7 V800" />
+    <svg viewBox="0 0 320 1000" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+        <path d="M0 2 H298 Q310 2 310 14 V1000" />
     </svg>
 </div>
 ''', unsafe_allow_html=True)
