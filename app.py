@@ -100,11 +100,6 @@ st.markdown("""
             flex-shrink: 0;
         }
 
-        .line-gap {
-            width: 2.4rem;
-            flex-shrink: 0;
-        }
-
         .line-right-static {
             height: 2px;
             background-color: #b4c3d3;
