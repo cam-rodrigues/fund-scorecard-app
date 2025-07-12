@@ -71,7 +71,7 @@ st.markdown("""
     position: relative;
     margin-top: 1rem;
     margin-left: 0.3rem;
-    height: 100px;
+    height: 500px;
 }
 
 /* === SVG line === */
