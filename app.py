@@ -16,19 +16,6 @@ st.markdown("""
             z-index: 1;
         }
 
-        /* Vertical line animation */
-        [data-testid="stSidebar"]::after {
-            content: "";
-            position: absolute;
-            top: 7.75rem;
-            right: 0;
-            width: 2px;
-            height: 0;
-            background-color: #b4c3d3;
-            z-index: 1;
-            animation: drawVertical 0.4s ease-out 0.4s forwards;
-        }
-
         [data-testid="stSidebar"] .stButton>button {
             background-color: #e8eef8;
             color: #1a2a44;
@@ -98,8 +85,8 @@ st.markdown("""
             background-color: #b4c3d3;
             width: 4.8rem;
             transform: scaleX(0);
-            transform-origin: right center;
-            animation: drawLineLeft 0.6s ease-in-out forwards;
+            transform-origin: left center;
+            animation: drawLineLeft 0.4s ease-in-out forwards;
             z-index: 1;
         }
 
@@ -112,7 +99,6 @@ st.markdown("""
             height: 2px;
             background-color: transparent;
             flex-grow: 1;
-            min-width: 5;
             margin-left: 0.9rem;
             margin-right: 0;
         }
@@ -126,7 +112,21 @@ st.markdown("""
             width: calc(100vw - 16rem - 0.3rem - 4.8rem - 3rem);
             transform: scaleX(0);
             transform-origin: left center;
-            animation: drawLineRight 0.8s ease-in-out 0.6s forwards;
+            animation: drawLineRight 0.6s ease-in-out 0.4s forwards;
+            z-index: 1;
+        }
+
+        [data-testid="stSidebar"]::after {
+            content: "";
+            position: absolute;
+            top: 7.75rem;
+            right: 0;
+            width: 2px;
+            height: calc(100% - 7.75rem);
+            background-color: #b4c3d3;
+            transform: scaleY(0);
+            transform-origin: top center;
+            animation: drawVerticalLine 0.5s ease-in-out 1s forwards;
             z-index: 1;
         }
 
@@ -140,11 +140,6 @@ st.markdown("""
         }
 
         /* === Animations === */
-        @keyframes drawVertical {
-            from { height: 0; }
-            to { height: calc(100% - 7.75rem); }
-        }
-
         @keyframes drawLineLeft {
             from { transform: scaleX(0); }
             to { transform: scaleX(1); }
@@ -153,6 +148,11 @@ st.markdown("""
         @keyframes drawLineRight {
             from { transform: scaleX(0); }
             to { transform: scaleX(1); }
+        }
+
+        @keyframes drawVerticalLine {
+            from { transform: scaleY(0); }
+            to { transform: scaleY(1); }
         }
     </style>
 """, unsafe_allow_html=True)
@@ -204,7 +204,6 @@ query_params = st.query_params
 selected_page = query_params.get("page")
 PAGES_DIR = "app_pages"
 
-# Redirect old names if needed
 legacy_redirects = {
     "company_scraper.py": "data_scanner.py"
 }
@@ -213,7 +212,6 @@ if selected_page in legacy_redirects:
     st.query_params.update({"page": selected_page})
     st.rerun()
 
-# Load selected page
 if selected_page:
     page_path = os.path.join(PAGES_DIR, selected_page)
     if os.path.exists(page_path):
