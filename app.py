@@ -68,7 +68,7 @@ st.markdown("""
 .logo-underline-wrapper {
     margin-left: 0.3rem;
     margin-top: 1rem;
-    height: 80px;
+    height: 100px;
     position: relative;
     overflow: visible;
 }
@@ -103,8 +103,8 @@ st.sidebar.markdown("""
         <div class="beta-badge">BETA</div>
     </div>
     <div class="logo-underline-wrapper">
-    <svg class="animated-L" width="100%" height="80" viewBox="0 0 170 200" xmlns="http://www.w3.org/2000/svg">
-        <path d="M0 2 H158 Q160 2 160 4 V200" fill="none" stroke="#b4c3d3" stroke-width="2.25" stroke-linecap="round"/>
+    <svg class="animated-L" width="100%" height="100" viewBox="0 0 300 600" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0 2 H285 Q290 2 290 7 V600" fill="none" stroke="#b4c3d3" stroke-width="2.5" stroke-linecap="round"/>
     </svg>
 </div>
 """, unsafe_allow_html=True)
