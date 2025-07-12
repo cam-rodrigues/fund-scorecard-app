@@ -36,7 +36,7 @@ st.markdown("""
             transform: scaleX(0);
             transform-origin: left center;
             animation: drawHorizontal 1s ease-in-out forwards;
-            z-index: 1;
+            z-index: 2;
         }
 
         /* === Vertical line connecting from end === */
