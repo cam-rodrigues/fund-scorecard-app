@@ -5,61 +5,6 @@ def run():
     st.set_page_config(page_title="Trusted Financial Sources", layout="wide")
     st.title("Trusted Financial Sources")
 
-    st.markdown("""
-    <style>
-    .source-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        gap: 1.2rem;
-        margin-top: 1.5rem;
-        margin-bottom: 2rem;
-    }
-
-    .source-box {
-        background-color: #f0f4fa;
-        border: 1px solid #d4ddec;
-        border-radius: 0.75rem;
-        padding: 1rem;
-        text-align: center;
-        transition: transform 0.2s ease-in-out;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        cursor: pointer;
-        position: relative;
-    }
-
-    .source-box:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    }
-
-    .source-box img {
-        max-width: 100%;
-        height: auto;
-        display: block;
-        margin: 0 auto;
-    }
-
-    .tooltip {
-        position: absolute;
-        bottom: -2.2rem;
-        left: 50%;
-        transform: translateX(-50%);
-        background-color: #1a2a44;
-        color: white;
-        padding: 0.25rem 0.6rem;
-        border-radius: 0.4rem;
-        font-size: 0.75rem;
-        white-space: nowrap;
-        display: none;
-        z-index: 5;
-    }
-
-    .source-box:hover .tooltip {
-        display: block;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
     st.markdown("#### Financial News")
     render_sources([
         ("https://www.bloomberg.com", "Bloomberg", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Bloomberg_logo.svg/2560px-Bloomberg_logo.svg.png"),
@@ -91,11 +36,47 @@ def render_sources(sources, height=500):
     html = '<div class="source-grid">'
     for url, name, logo_url in sources:
         html += f"""
-        <a href="{url}" target="_blank" class="source-box">
+        <a href="{url}" target="_blank" class="source-box" title="{name}">
             <img src="{logo_url}" alt="{name}" />
-            <div class="tooltip">{name}</div>
         </a>
         """
     html += '</div>'
 
-    components.html(html, height=height, scrolling=False)
+    components.html(f"""
+    <html>
+    <head>
+    <style>
+    .source-grid {{
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 1.2rem;
+        margin-top: 1rem;
+        margin-bottom: 2rem;
+    }}
+    .source-box {{
+        background-color: #f0f4fa;
+        border: 1px solid #d4ddec;
+        border-radius: 0.75rem;
+        padding: 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100px;
+        transition: transform 0.2s ease-in-out;
+    }}
+    .source-box:hover {{
+        transform: translateY(-4px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }}
+    .source-box img {{
+        max-width: 100%;
+        max-height: 60px;
+        object-fit: contain;
+    }}
+    </style>
+    </head>
+    <body>
+        {html}
+    </body>
+    </html>
+    """, height=height, scrolling=False)
