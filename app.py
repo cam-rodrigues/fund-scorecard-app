@@ -78,29 +78,6 @@ st.markdown("""
             z-index: 10;
         }
 
-        .logo-underline-wrapper {
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            margin-top: 0.8rem;
-            margin-left: 0.3rem;
-            margin-right: 0;
-            width: calc(100% - 0.3rem);
-            height: 2px;
-        }
-
-        .line-left {
-            height: 2px;
-            background-color: #2b6cb0;
-            width: 4.8rem;
-            flex-shrink: 0;
-        }
-
-        .line-gap {
-            width: none;
-            flex-shrink: 0;
-        }
 
         .sidebar-section {
             font-size: 0.85rem;
