@@ -117,14 +117,16 @@ st.markdown("""
 
         .line-animate-overlay {
             position: absolute;
-            left: calc(4.8rem + 2.4rem + 3.6rem);  /* left line + gap + badge */
+            left: calc(4.8rem + 2.4rem);  /* left line + gap */
             top: 0;
             height: 2px;
             background-color: #b4c3d3;
             width: 0;
             z-index: 4;
-            animation: drawHorizontal 0.8s ease-in-out 0.4s forwards;
+            transform-origin: left center;
+            animation: growRight 0.8s ease-in-out 0.4s forwards;
         }
+
 
         .sidebar-section {
             font-size: 0.85rem;
@@ -142,15 +144,16 @@ st.markdown("""
             to { width: 4.8rem; }
         }
 
-        @keyframes drawHorizontal {
+        @keyframes growRight {
             from { width: 0; }
-            to { width: calc(100vw - 16rem - 0.3rem); }
+            to { width: calc(100vw - 16rem - 0.3rem - 4.8rem - 2.4rem); }
         }
 
         @keyframes drawVertical {
             from { height: 0; }
             to { height: calc(100% - 7.75rem); }
         }
+
     </style>
 """, unsafe_allow_html=True)
 
