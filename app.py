@@ -26,7 +26,7 @@ st.markdown("""
             height: 0;
             background-color: #b4c3d3;
             z-index: 1;
-            animation: drawVertical 0.4s ease-out 0.4s forwards;
+            animation: drawVertical 0.3s ease-out 0.6s forwards;
         }
 
         [data-testid="stSidebar"] .stButton>button {
@@ -98,6 +98,7 @@ st.markdown("""
             background-color: #b4c3d3;
             width: 4.8rem;
             flex-shrink: 0;
+            animation: drawLeft 0.3s ease-out forwards;
         }
 
         .line-gap {
@@ -122,7 +123,7 @@ st.markdown("""
             background-color: #b4c3d3;
             width: 0;
             z-index: 4;
-            animation: drawHorizontal 0.4s ease-out forwards;
+            animation: drawRight 0.3s ease-out 0.3s forwards;
         }
 
         .sidebar-section {
@@ -135,15 +136,21 @@ st.markdown("""
         }
 
         /* === Animations === */
-        @keyframes drawHorizontal {
+        @keyframes drawLeft {
             from { width: 0; }
-            to { width: calc(100vw - 16rem - 0.3rem); }
+            to { width: 4.8rem; }
+        }
+
+        @keyframes drawRight {
+            from { width: 0; }
+            to { width: calc(100vw - 16rem - 0.3rem - 4.8rem - 2.4rem - 3.6rem); }
         }
 
         @keyframes drawVertical {
             from { height: 0; }
             to { height: calc(100% - 7.75rem); }
         }
+        
     </style>
 """, unsafe_allow_html=True)
 
