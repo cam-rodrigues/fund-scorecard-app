@@ -10,20 +10,22 @@ st.markdown("""
         [data-testid="stSidebar"] {
             background-color: #f4f6fa;
             border-right: none;
-            padding-left: 1.2rem;
-            padding-right: 1.2rem;
+            padding-left: 0.5rem;
+            padding-right: 0;
             position: relative;
             z-index: 1;
         }
 
-        .sidebar-right-line-absolute {
-            position: fixed;
-            top: 0;
-            left: calc(var(--sidebar-width, 16rem));
+        /* Vertical line starts BELOW the logo using pseudo-element */
+        [data-testid="stSidebar"]::after {
+            content: "";
+            position: absolute;
+            top: 5.2rem;  /* adjust to match underline */
+            right: 0;
             width: 2px;
-            height: 100vh;
+            height: calc(100% - 5.2rem);
             background-color: #b4c3d3;
-            z-index: 9999;
+            z-index: 1;
         }
 
         [data-testid="stSidebar"] .stButton>button {
@@ -64,7 +66,7 @@ st.markdown("""
         .beta-badge {
             position: absolute;
             top: 1.62rem;
-            left: 4.55rem;
+            left: 4.0rem;
             background-color: #2b6cb0;
             color: white;
             font-size: 0.48rem;
@@ -92,7 +94,7 @@ st.markdown("""
         .line-left {
             height: 2px;
             background-color: #b4c3d3;
-            width: 5.6rem;
+            width: 4.8rem;
             flex-shrink: 0;
         }
 
@@ -105,8 +107,9 @@ st.markdown("""
             height: 2px;
             background-color: #b4c3d3;
             flex-grow: 1;
-            min-width: 0;
-            margin-left: 0.8rem;
+            min-width: 5;
+            margin-left: 0.9rem;
+            margin-right: 0;
         }
 
         .sidebar-section {
@@ -119,9 +122,6 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
-
-# === Draw TRUE right-edge line ===
-st.markdown('<div class="sidebar-right-line-absolute"></div>', unsafe_allow_html=True)
 
 # === Sidebar logo block ===
 st.sidebar.markdown(
