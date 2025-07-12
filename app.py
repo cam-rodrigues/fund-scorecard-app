@@ -11,20 +11,22 @@ st.markdown("""
             background-color: #f4f6fa;
             border-right: none;
             padding-left: 0.15rem;
-            padding-right: none;
+            padding-right: 0;
             position: relative;
             z-index: 1;
         }
 
+        /* Vertical line animation */
         [data-testid="stSidebar"]::after {
             content: "";
             position: absolute;
             top: 7.75rem;
             right: 0;
             width: 2px;
-            height: calc(100% - 7.75rem);
+            height: 0;
             background-color: #b4c3d3;
             z-index: 1;
+            animation: drawVertical 0.4s ease-out 0.4s forwards;
         }
 
         [data-testid="stSidebar"] .stButton>button {
@@ -88,6 +90,7 @@ st.markdown("""
             margin-right: 0;
             width: calc(100% - 0.3rem);
             height: 2px;
+            overflow: visible;
         }
 
         .line-left {
@@ -102,13 +105,24 @@ st.markdown("""
             flex-shrink: 0;
         }
 
-        .line-right {
+        .line-right-static {
             height: 2px;
             background-color: #b4c3d3;
             flex-grow: 1;
             min-width: 5;
             margin-left: 0.9rem;
             margin-right: 0;
+        }
+
+        .line-animate-overlay {
+            position: absolute;
+            left: calc(4.8rem + 2.4rem + 3.6rem);  /* left line + gap + badge */
+            top: 0;
+            height: 2px;
+            background-color: #b4c3d3;
+            width: 0;
+            z-index: 4;
+            animation: drawHorizontal 0.4s ease-out forwards;
         }
 
         .sidebar-section {
@@ -118,6 +132,17 @@ st.markdown("""
             margin-top: 2rem;
             margin-bottom: 0.3rem;
             letter-spacing: 0.5px;
+        }
+
+        /* === Animations === */
+        @keyframes drawHorizontal {
+            from { width: 0; }
+            to { width: calc(100vw - 16rem - 0.3rem); }
+        }
+
+        @keyframes drawVertical {
+            from { height: 0; }
+            to { height: calc(100% - 7.75rem); }
         }
     </style>
 """, unsafe_allow_html=True)
@@ -133,7 +158,8 @@ st.sidebar.markdown(
         <div class="logo-underline-wrapper">
             <div class="line-left"></div>
             <div class="line-gap"></div>
-            <div class="line-right"></div>
+            <div class="line-right-static"></div>
+            <div class="line-animate-overlay"></div>
         </div>
     </div>
     ''',
