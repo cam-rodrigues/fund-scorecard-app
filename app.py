@@ -201,7 +201,7 @@ Your streamlined financial data toolkit for **comparing**, **analyzing**, and **
 
 ---
 
-### Start by selecting a tool from the sidebar.
+## Start by selecting a tool from the sidebar.
 
 ---
 
