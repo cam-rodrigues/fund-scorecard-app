@@ -6,10 +6,9 @@ def run():
     st.title("Trusted Financial Sources")
 
     st.markdown("""
-    Click any logo to open the site in a new tab.
+    Browse trustworthy financial websites below. Click any logo to open the site in a new tab.
     """, unsafe_allow_html=True)
 
-    # === Categories with Logos ===
     categories = {
         "Financial News": [
             {"name": "Bloomberg", "url": "https://www.bloomberg.com", "logo": "https://logo.clearbit.com/bloomberg.com"},
@@ -49,22 +48,21 @@ def run():
         ],
     }
 
-    # === Inline CSS (included with every grid block)
     css = """
     <style>
         .category-header {
             font-size: 1.3rem;
             font-weight: 700;
             color: #102542;
-            margin-top: 2.5rem;
-            margin-bottom: 1rem;
+            margin-top: 2rem;
+            margin-bottom: 0.75rem;
         }
 
         .logo-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2.5rem;
+            gap: 1.25rem;
+            margin-bottom: 1.5rem;
         }
 
         .logo-box {
@@ -76,8 +74,8 @@ def run():
             align-items: center;
             justify-content: center;
             transition: transform 0.2s ease, border-color 0.2s;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-            height: 90px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+            height: 85px;
         }
 
         .logo-box:hover {
@@ -91,14 +89,19 @@ def run():
             max-height: 60px;
             height: auto;
         }
+
+        .divider {
+            border: none;
+            border-top: 1px solid #d6e2ee;
+            margin: 1.5rem 0 2rem 0;
+        }
     </style>
     """
 
-    # === Render Each Category
-    for category, sites in categories.items():
+    # Render each category with tight height + divider
+    for i, (category, sites) in enumerate(categories.items()):
         st.markdown(f'<div class="category-header">{category}</div>', unsafe_allow_html=True)
 
-        # Inline CSS + HTML for each block
         html_block = css + '<div class="logo-grid">'
         for site in sites:
             html_block += f'''
@@ -108,6 +111,10 @@ def run():
             '''
         html_block += '</div>'
 
-        rows = (len(sites) + 3) // 4  # 4 logos per row, rounded up
-        components.html(html_block, height=140 + rows * 110, scrolling=False)
+        rows = (len(sites) + 3) // 4
+        height = 110 + rows * 95  # tighter than before
+        components.html(html_block, height=height, scrolling=False)
 
+        # Divider between categories (not after last)
+        if i < len(categories) - 1:
+            st.markdown('<hr class="divider">', unsafe_allow_html=True)
