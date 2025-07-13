@@ -197,8 +197,15 @@ Your streamlined financial data toolkit for **comparing**, **analyzing**, and **
 - **Compare Quarters** — Track changes in fund criteria over time  
 - **Scan Articles** — Turn financial news into structured summaries  
 - **Search Companies** — Quickly look up firm-level data across sectors
+- **User Request** - Suggest changes, report bugs request tools.
 
 ---
 
-#### 👉 Start by selecting a tool from the sidebar.
+### Start by selecting a tool from the sidebar.
 """)
+
+st.markdown("---")
+    st.caption("This content was generated using automation and may not be perfectly accurate. Please verify against official sources.")
+# === Required for Multipage Setup ===
+def run():
+    main()
