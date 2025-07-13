@@ -9,9 +9,9 @@ from datetime import datetime
 import os
 
 # External exports
-from utils.export_client_docx import export_client_docx
-from utils.export_internal_docx import export_internal_docx
-from utils.export_pdf import export_pdf
+from utils.export.export_client_docx import export_client_docx
+from utils.export.export_internal_docx import export_internal_docx
+from utils.export.export_pdf import export_pdf
 
 # === Extract Fund Performance ===
 def extract_fund_performance(pdf_file):
