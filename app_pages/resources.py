@@ -2,11 +2,11 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 def run():
-    st.set_page_config(page_title="Trusted Financial Resources", layout="wide")
-    st.title("Trusted Financial Resources")
+    st.set_page_config(page_title="Resources", layout="wide")
+    st.title("Resources")
 
     st.markdown("""
-    Browse trustworthy financial websites below. Click any logo to open the site in a new tab.
+    Click any logo to open the site in a new tab.
     """)
 
     categories = {
@@ -118,7 +118,7 @@ def run():
 
         # Dynamically size the block height based on rows
         rows = (len(sites) + 3) // 4
-        height = 110 + rows * 95
+        height = 200 + rows * 110
         components.html(html_block, height=height, scrolling=False)
 
         # Add divider after each category except last
@@ -128,7 +128,7 @@ def run():
     # Final note
     st.markdown("""
     <div style="margin-top: 2rem; padding: 1.2rem; background-color: #f9fbfe; border: 1px solid #d6e2ee; border-radius: 0.5rem; font-size: 0.93rem;">
-        💡 Looking for a site that’s not listed here? <br>
+        Looking for a site that’s not listed here? <br>
         Please submit a <strong>user request</strong> and we’ll add it to the trusted resources.
     </div>
     """, unsafe_allow_html=True)
