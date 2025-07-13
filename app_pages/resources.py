@@ -2,25 +2,27 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 def run():
+    # ── Page setup ────────────────────────────────────────────────────────────
     st.set_page_config(page_title="Resources", layout="wide")
+
+    # Reduce the large default gap above st.title()
     st.markdown(
         """
         <style>
-            /* Reduce default Streamlit top padding for the main block */
-            .main .block-container {
-                padding-top: 1.5rem;   /* default is ~3–4 rem */
+            /* Trim top padding under the navbar / header */
+            section.main > div {
+                padding-top: 1rem !important;   /* tighter: adjust as you like */
             }
         </style>
         """,
         unsafe_allow_html=True
     )
 
+    # ── Heading & intro ───────────────────────────────────────────────────────
     st.title("Resources")
+    st.markdown("Click any logo to open the site in a new tab.")
 
-    st.markdown("""
-    Click any logo to open the site in a new tab.
-    """)
-
+    # ── Trusted-site categories ───────────────────────────────────────────────
     categories = {
         "Financial News": [
             {"name": "Bloomberg", "url": "https://www.bloomberg.com", "logo": "https://logo.clearbit.com/bloomberg.com"},
@@ -72,6 +74,7 @@ def run():
         ],
     }
 
+    # ── Shared CSS for grids and cards ───────────────────────────────────────
     css = """
     <style>
         .logo-grid {
@@ -80,7 +83,6 @@ def run():
             gap: 1.25rem;
             margin-bottom: 1.5rem;
         }
-
         .logo-box {
             background: #f0f4fa;
             border: 1px solid #cbd5e1;
@@ -93,19 +95,16 @@ def run():
             box-shadow: 0 1px 2px rgba(0,0,0,0.03);
             height: 85px;
         }
-
         .logo-box:hover {
             transform: scale(1.06);
             border-color: #1c2e4a;
             cursor: pointer;
         }
-
         .logo-box img {
             max-width: 80%;
             max-height: 60px;
             height: auto;
         }
-
         .divider {
             border: none;
             border-top: 1px solid #d6e2ee;
@@ -114,33 +113,36 @@ def run():
     </style>
     """
 
+    # ── Render each category ────────────────────────────────────────────────
     for i, (category, sites) in enumerate(categories.items()):
-        # Bold header using markdown
         st.markdown(f"### {category}")
 
-        # Generate logo grid HTML
+        # build the grid HTML
         html_block = css + '<div class="logo-grid">'
         for site in sites:
-            html_block += f'''
-                <a href="{site["url"]}" target="_blank" class="logo-box">
-                    <img src="{site["logo"]}" alt="{site["name"]} logo" title="{site["name"]}">
-                </a>
-            '''
+            html_block += (
+                f'<a href="{site["url"]}" target="_blank" class="logo-box">'
+                f'  <img src="{site["logo"]}" alt="{site["name"]} logo" title="{site["name"]}">'
+                f'</a>'
+            )
         html_block += '</div>'
 
-        # Dynamically size the block height based on rows
+        # dynamic height calculation (tweak row/offset as needed)
         rows = (len(sites) + 3) // 4
         height = 200 + rows * 110
         components.html(html_block, height=height, scrolling=False)
 
-        # Add divider after each category except last
         if i < len(categories) - 1:
             st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
-    # Final note
-    st.markdown("""
-    <div style="margin-top: 2rem; padding: 1.2rem; background-color: #f9fbfe; border: 1px solid #d6e2ee; border-radius: 0.5rem; font-size: 0.93rem;">
-        Looking for a site that’s not listed here? <br>
-        Please submit a <strong>user request</strong> and we’ll add it to the trusted resources.
-    </div>
-    """, unsafe_allow_html=True)
+    # ── Bottom callout ──────────────────────────────────────────────────────
+    st.markdown(
+        """
+        <div style="margin-top: 2rem; padding: 1.2rem; background-color: #f9fbfe;
+                    border: 1px solid #d6e2ee; border-radius: 0.5rem; font-size: 0.93rem;">
+            Looking for a site that’s not listed here?
+            <br>Please submit a <strong>user request</strong> and we’ll add it to the trusted resources.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
