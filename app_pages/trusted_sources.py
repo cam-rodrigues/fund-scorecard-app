@@ -11,7 +11,7 @@ def run():
 
     # === Category Groups ===
     categories = {
-        "Financial News": [
+        "**Financial News**": [
             {"name": "Bloomberg", "url": "https://www.bloomberg.com", "logo": "https://logo.clearbit.com/bloomberg.com"},
             {"name": "Yahoo Finance", "url": "https://finance.yahoo.com", "logo": "https://logo.clearbit.com/yahoo.com"},
             {"name": "CNBC", "url": "https://www.cnbc.com", "logo": "https://logo.clearbit.com/cnbc.com"},
@@ -123,7 +123,7 @@ def run():
     # === Bottom Note (non-link)
     st.markdown("""
     <div style="margin-top: 2rem; padding: 1.2rem; background-color: #f9fbfe; border: 1px solid #d6e2ee; border-radius: 0.5rem; font-size: 0.93rem;">
-        💡 Looking for a site that's not listed here? <br>
+        Looking for a site that's not listed here? <br>
         Please submit a <strong>user request</strong> and we’ll add it to the trusted resources.
     </div>
     """, unsafe_allow_html=True)
