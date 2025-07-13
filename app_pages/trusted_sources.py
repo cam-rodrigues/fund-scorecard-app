@@ -8,34 +8,38 @@ def run():
     Browse trustworthy financial websites below. Click any logo to open the site in a new tab.
     """, unsafe_allow_html=True)
 
-    # Grid layout with logos only
+    # Style for the logo grid layout
     st.markdown("""
     <style>
-        .logo-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 1.5rem;
-            margin-top: 2rem;
-        }
+    .logo-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 1.5rem;
+        padding-top: 1.5rem;
+    }
 
-        .logo-box {
-            background: #f0f4fa;
-            border-radius: 0.75rem;
-            padding: 1rem;
-            text-align: center;
-            transition: transform 0.2s ease;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-        }
+    .logo-box {
+        background: #f0f4fa;
+        border-radius: 0.75rem;
+        padding: 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s ease;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        height: 90px;
+    }
 
-        .logo-box:hover {
-            transform: scale(1.06);
-            cursor: pointer;
-        }
+    .logo-box:hover {
+        transform: scale(1.06);
+        cursor: pointer;
+    }
 
-        .logo-box img {
-            max-width: 80px;
-            height: auto;
-        }
+    .logo-box img {
+        max-width: 80%;
+        max-height: 60px;
+        height: auto;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -54,12 +58,14 @@ def run():
         {"name": "Envestnet", "url": "https://www.envestnet.com", "logo": "https://logo.clearbit.com/envestnet.com"},
     ]
 
-    # Render grid of logos
-    st.markdown('<div class="logo-grid">', unsafe_allow_html=True)
+    # Render the full HTML grid as one block
+    grid_html = '<div class="logo-grid">'
     for source in sources:
-        st.markdown(f'''
-            <a href="{source["url"]}" target="_blank" class="logo-box">
-                <img src="{source["logo"]}" alt="{source["name"]} logo" />
-            </a>
-        ''', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+        grid_html += f'''
+        <a href="{source["url"]}" target="_blank" class="logo-box">
+            <img src="{source["logo"]}" alt="{source["name"]} logo" title="{source["name"]}">
+        </a>
+        '''
+    grid_html += '</div>'
+
+    st.markdown(grid_html, unsafe_allow_html=True)
