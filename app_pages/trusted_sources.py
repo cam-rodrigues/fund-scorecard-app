@@ -102,7 +102,7 @@ def run():
 
     # === Render Categories
     for i, (category, sites) in enumerate(categories.items()):
-        st.markdown(f'<div class="category-header">**{category}**</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="category-header">{category}</div>', unsafe_allow_html=True)
 
         html_block = css + '<div class="logo-grid">'
         for site in sites:
@@ -120,7 +120,7 @@ def run():
         if i < len(categories) - 1:
             st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
-    # === Bottom Note (NOT a link)
+    # === Bottom Note (non-link)
     st.markdown("""
     <div style="margin-top: 2rem; padding: 1.2rem; background-color: #f9fbfe; border: 1px solid #d6e2ee; border-radius: 0.5rem; font-size: 0.93rem;">
         💡 Looking for a site that's not listed here? <br>
