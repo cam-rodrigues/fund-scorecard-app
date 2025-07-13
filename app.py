@@ -202,10 +202,12 @@ Your streamlined financial data toolkit for **comparing**, **analyzing**, and **
 ---
 
 ### Start by selecting a tool from the sidebar.
-""")
 
-    st.markdown("---")
-    st.caption("This content was generated using automation and may not be perfectly accurate. Please verify against official sources.")
+---
+
+This content was generated using automation and may not be perfectly accurate. Please verify against official sources.
+""")
+    
 # === Required for Multipage Setup ===
 def run():
     main()
