@@ -1,55 +1,47 @@
 import streamlit as st
-import math
+from datetime import datetime
 
-st.set_page_config(page_title="Quick Financial Calculator", layout="centered")
-st.title("Quick Financial Calculator")
+st.set_page_config(page_title="Flash Idea Board", layout="centered")
+st.title("🧠 Flash Idea Board")
 
-calc_type = st.selectbox("Choose a Calculator:", [
-    "Compound Interest",
-    "Retirement Savings",
-    "Loan Repayment"
-])
-
+st.markdown("Write fast. Organize later.")
 st.markdown("---")
 
-if calc_type == "Compound Interest":
-    st.header("Compound Interest Calculator")
-    principal = st.number_input("Initial Investment ($)", value=1000.0)
-    rate = st.number_input("Annual Interest Rate (%)", value=5.0)
-    years = st.number_input("Years", value=10)
-    frequency = st.selectbox("Compounding Frequency", ["Annually", "Semiannually", "Quarterly", "Monthly"])
+if 'ideas' not in st.session_state:
+    st.session_state.ideas = []
 
-    freq_map = {"Annually": 1, "Semiannually": 2, "Quarterly": 4, "Monthly": 12}
-    n = freq_map[frequency]
-    future_value = principal * (1 + rate / 100 / n) ** (n * years)
+with st.form("idea_form"):
+    new_idea = st.text_area("Add a new idea:", height=100)
+    tag = st.selectbox("Tag (optional):", ["💡 Idea", "🔥 Urgent", "📊 Research", "🎨 Design", "🧪 Experiment", "None"])
+    submitted = st.form_submit_button("Add")
+    if submitted and new_idea.strip():
+        timestamp = datetime.now().strftime("%b %d, %Y %I:%M %p")
+        st.session_state.ideas.append({
+            "text": new_idea.strip(),
+            "tag": tag if tag != "None" else "",
+            "time": timestamp
+        })
 
-    st.success(f"Future Value: ${future_value:,.2f}")
+st.markdown("### Your Ideas")
 
-elif calc_type == "Retirement Savings":
-    st.header("Retirement Savings Estimator")
-    current_age = st.number_input("Current Age", value=30)
-    retirement_age = st.number_input("Retirement Age", value=65)
-    monthly_contrib = st.number_input("Monthly Contribution ($)", value=500.0)
-    annual_return = st.number_input("Expected Annual Return (%)", value=6.0)
+if not st.session_state.ideas:
+    st.info("No ideas yet. Start typing above.")
+else:
+    for i, idea in enumerate(reversed(st.session_state.ideas)):
+        idx = len(st.session_state.ideas) - 1 - i
+        st.markdown(f"**{idea['tag']}** {idea['text']}")
+        st.caption(f"Added {idea['time']}")
+        cols = st.columns([1, 1])
+        if cols[0].button("⬆️ Move Up", key=f"up_{idx}") and idx > 0:
+            st.session_state.ideas[idx - 1], st.session_state.ideas[idx] = st.session_state.ideas[idx], st.session_state.ideas[idx - 1]
+            st.experimental_rerun()
+        if cols[1].button("❌ Delete", key=f"del_{idx}"):
+            st.session_state.ideas.pop(idx)
+            st.experimental_rerun()
+        st.markdown("---")
 
-    months = (retirement_age - current_age) * 12
-    monthly_rate = annual_return / 100 / 12
-    future_value = monthly_contrib * (((1 + monthly_rate) ** months - 1) / monthly_rate)
-
-    st.success(f"Estimated Savings at Retirement: ${future_value:,.2f}")
-
-elif calc_type == "Loan Repayment":
-    st.header("Loan Repayment Calculator")
-    loan_amount = st.number_input("Loan Amount ($)", value=25000.0)
-    annual_rate = st.number_input("Annual Interest Rate (%)", value=4.5)
-    years = st.number_input("Loan Term (Years)", value=5)
-
-    monthly_rate = annual_rate / 100 / 12
-    payments = years * 12
-    if monthly_rate > 0:
-        monthly_payment = loan_amount * monthly_rate / (1 - (1 + monthly_rate) ** -payments)
-    else:
-        monthly_payment = loan_amount / payments
-
-    st.success(f"Monthly Payment: ${monthly_payment:,.2f}")
-    st.info(f"Total Payment: ${monthly_payment * payments:,.2f}")
+if st.session_state.ideas:
+    if st.download_button("Download All Ideas as .txt", 
+                          data="\n\n".join(f"{i['tag']} {i['text']}".strip() for i in st.session_state.ideas),
+                          file_name="ideas.txt"):
+        st.success("File ready!")
