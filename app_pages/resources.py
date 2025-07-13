@@ -2,14 +2,13 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 def run():
-    st.set_page_config(page_title="Resources", layout="wide")
-    st.title("Resources")
+    st.set_page_config(page_title="Trusted Financial Resources", layout="wide")
+    st.title("Trusted Financial Resources")
 
     st.markdown("""
     Browse trustworthy financial websites below. Click any logo to open the site in a new tab.
-    """, unsafe_allow_html=True)
+    """)
 
-    # === Category Groups ===
     categories = {
         "Financial News": [
             {"name": "Bloomberg", "url": "https://www.bloomberg.com", "logo": "https://logo.clearbit.com/bloomberg.com"},
@@ -49,17 +48,8 @@ def run():
         ],
     }
 
-    # === Shared CSS
     css = """
     <style>
-        .category-header {
-            font-size: 1.3rem;
-            font-weight: 800;
-            color: #102542;
-            margin-top: 2rem;
-            margin-bottom: 0.75rem;
-        }
-
         .logo-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -100,10 +90,11 @@ def run():
     </style>
     """
 
-    # === Render Categories
     for i, (category, sites) in enumerate(categories.items()):
-        st.markdown(f'<div class="category-header">{category}</div>', unsafe_allow_html=True)
+        # Bold header using markdown
+        st.markdown(f"### {category}")
 
+        # Generate logo grid HTML
         html_block = css + '<div class="logo-grid">'
         for site in sites:
             html_block += f'''
@@ -113,17 +104,19 @@ def run():
             '''
         html_block += '</div>'
 
+        # Dynamically size the block height based on rows
         rows = (len(sites) + 3) // 4
         height = 110 + rows * 95
         components.html(html_block, height=height, scrolling=False)
 
+        # Add divider after each category except last
         if i < len(categories) - 1:
             st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
-    # === Bottom Note (non-link)
+    # Final note
     st.markdown("""
     <div style="margin-top: 2rem; padding: 1.2rem; background-color: #f9fbfe; border: 1px solid #d6e2ee; border-radius: 0.5rem; font-size: 0.93rem;">
-        Looking for a site that's not listed here? <br>
+        💡 Looking for a site that’s not listed here? <br>
         Please submit a <strong>user request</strong> and we’ll add it to the trusted resources.
     </div>
     """, unsafe_allow_html=True)
