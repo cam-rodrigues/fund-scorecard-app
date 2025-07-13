@@ -1,82 +1,65 @@
 import streamlit as st
-import streamlit.components.v1 as components
 
 def run():
     st.set_page_config(page_title="Trusted Financial Sources", layout="wide")
     st.title("Trusted Financial Sources")
 
-    st.markdown("#### Financial News")
-    render_sources([
-        ("https://www.bloomberg.com", "Bloomberg", "https://upload.wikimedia.org/wikipedia/commons/3/3d/Bloomberg_Market_Data_logo.png"),
-        ("https://www.wsj.com", "Wall Street Journal", "https://static.wsj.net/wsj-logo.png"),
-        ("https://www.cnbc.com", "CNBC", "https://upload.wikimedia.org/wikipedia/en/2/20/CNBC_logo.png"),
-        ("https://www.reuters.com", "Reuters", "https://s3-symbol-logo.tradingview.com/reuters--600.png"),
-    ], height=500)
+    st.markdown("""
+    Browse trustworthy financial websites below. Click any logo to open the site in a new tab.
+    """, unsafe_allow_html=True)
 
-    st.markdown("#### Investment Research & Tools")
-    render_sources([
-        ("https://www.morningstar.com", "Morningstar", "https://upload.wikimedia.org/wikipedia/en/thumb/e/e3/Morningstar_Logo.png/320px-Morningstar_Logo.png"),
-        ("https://www.ycharts.com", "YCharts", "https://assets-global.website-files.com/615c6125781dd69aafe19db1/618ac0d2f87c9637e3c3aa3e_ycharts-logo.png"),
-        ("https://www.finviz.com", "Finviz", "https://finviz.com/images/logo01.png"),
-        ("https://www.fidelity.com", "Fidelity", "https://upload.wikimedia.org/wikipedia/en/6/65/Fidelity_Investments_logo.png"),
-        ("https://www.schwab.com", "Charles Schwab", "https://www.schwab.com/etc.clientlibs/settings/wcm/designs/schwab/clientlibs/clientlib-site/resources/img/logo.png"),
-        ("https://www.emoneyadvisor.com", "eMoney Advisor", "https://media.licdn.com/dms/image/C560BAQHKdJObRzN4Ew/company-logo_200_200/0/1630571410247/emoney_advisor_logo.png"),
-    ], height=600)
-
-    st.markdown("#### Government & Policy")
-    render_sources([
-        ("https://www.sec.gov", "SEC", "https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Seal_of_the_United_States_Securities_and_Exchange_Commission.svg/600px-Seal_of_the_United_States_Securities_and_Exchange_Commission.svg.png"),
-        ("https://fred.stlouisfed.org", "FRED (St. Louis Fed)", "https://fred.stlouisfed.org/~/media/Images/fred/fred-logo-blue.svg"),
-        ("https://www.finra.org", "FINRA", "https://s3-symbol-logo.tradingview.com/finra--600.png"),
-        ("https://www.treasury.gov", "U.S. Treasury", "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Seal_of_the_United_States_Department_of_the_Treasury.svg/600px-Seal_of_the_United_States_Department_of_the_Treasury.svg.png"),
-    ], height=550)
-
-
-def render_sources(sources, height=500):
-    html = '<div class="source-grid">'
-    for url, name, logo_url in sources:
-        html += f"""
-        <a href="{url}" target="_blank" class="source-box" title="{name}">
-            <img src="{logo_url}" alt="{name}" />
-        </a>
-        """
-    html += '</div>'
-
-    components.html(f"""
-    <html>
-    <head>
+    # Grid layout with logos only
+    st.markdown("""
     <style>
-    .source-grid {{
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-        gap: 1.2rem;
-        margin-top: 1rem;
-        margin-bottom: 2rem;
-    }}
-    .source-box {{
-        background-color: #f0f4fa;
-        border: 1px solid #d4ddec;
-        border-radius: 0.75rem;
-        padding: 0.75rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 100px;
-        transition: transform 0.2s ease-in-out;
-    }}
-    .source-box:hover {{
-        transform: translateY(-4px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    }}
-    .source-box img {{
-        max-width: 100%;
-        max-height: 60px;
-        object-fit: contain;
-    }}
+        .logo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .logo-box {
+            background: #f0f4fa;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            text-align: center;
+            transition: transform 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+
+        .logo-box:hover {
+            transform: scale(1.06);
+            cursor: pointer;
+        }
+
+        .logo-box img {
+            max-width: 80px;
+            height: auto;
+        }
     </style>
-    </head>
-    <body>
-        {html}
-    </body>
-    </html>
-    """, height=height, scrolling=False)
+    """, unsafe_allow_html=True)
+
+    sources = [
+        {"name": "Bloomberg", "url": "https://www.bloomberg.com", "logo": "https://logo.clearbit.com/bloomberg.com"},
+        {"name": "Morningstar", "url": "https://www.morningstar.com", "logo": "https://logo.clearbit.com/morningstar.com"},
+        {"name": "Yahoo Finance", "url": "https://finance.yahoo.com", "logo": "https://logo.clearbit.com/yahoo.com"},
+        {"name": "CNBC", "url": "https://www.cnbc.com", "logo": "https://logo.clearbit.com/cnbc.com"},
+        {"name": "Fidelity", "url": "https://www.fidelity.com", "logo": "https://logo.clearbit.com/fidelity.com"},
+        {"name": "Investopedia", "url": "https://www.investopedia.com", "logo": "https://logo.clearbit.com/investopedia.com"},
+        {"name": "SEC", "url": "https://www.sec.gov", "logo": "https://logo.clearbit.com/sec.gov"},
+        {"name": "FINRA", "url": "https://www.finra.org", "logo": "https://logo.clearbit.com/finra.org"},
+        {"name": "MarketWatch", "url": "https://www.marketwatch.com", "logo": "https://logo.clearbit.com/marketwatch.com"},
+        {"name": "Barron's", "url": "https://www.barrons.com", "logo": "https://logo.clearbit.com/barrons.com"},
+        {"name": "eMoney", "url": "https://emoneyadvisor.com", "logo": "https://logo.clearbit.com/emoneyadvisor.com"},
+        {"name": "Envestnet", "url": "https://www.envestnet.com", "logo": "https://logo.clearbit.com/envestnet.com"},
+    ]
+
+    # Render grid of logos
+    st.markdown('<div class="logo-grid">', unsafe_allow_html=True)
+    for source in sources:
+        st.markdown(f'''
+            <a href="{source["url"]}" target="_blank" class="logo-box">
+                <img src="{source["logo"]}" alt="{source["name"]} logo" />
+            </a>
+        ''', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
