@@ -18,6 +18,8 @@ def run():
             {"name": "Barron's", "url": "https://www.barrons.com", "logo": "https://logo.clearbit.com/barrons.com"},
             {"name": "Reuters", "url": "https://www.reuters.com/finance", "logo": "https://logo.clearbit.com/reuters.com"},
             {"name": "The Wall Street Journal", "url": "https://www.wsj.com", "logo": "https://logo.clearbit.com/wsj.com"},
+            {"name": "Forbes", "url": "https://www.forbes.com", "logo": "https://logo.clearbit.com/forbes.com"},
+            {"name": "Financial Times", "url": "https://www.ft.com", "logo": "https://logo.clearbit.com/ft.com"},
         ],
         "Market Data & Research": [
             {"name": "Morningstar", "url": "https://www.morningstar.com", "logo": "https://logo.clearbit.com/morningstar.com"},
@@ -25,6 +27,9 @@ def run():
             {"name": "Seeking Alpha", "url": "https://seekingalpha.com", "logo": "https://logo.clearbit.com/seekingalpha.com"},
             {"name": "Zacks", "url": "https://www.zacks.com", "logo": "https://logo.clearbit.com/zacks.com"},
             {"name": "Finviz", "url": "https://finviz.com", "logo": "https://logo.clearbit.com/finviz.com"},
+            {"name": "Barchart", "url": "https://www.barchart.com", "logo": "https://logo.clearbit.com/barchart.com"},
+            {"name": "YCharts", "url": "https://ycharts.com", "logo": "https://logo.clearbit.com/ycharts.com"},
+            {"name": "MacroTrends", "url": "https://www.macrotrends.net", "logo": "https://logo.clearbit.com/macrotrends.net"},
         ],
         "Investment Firms": [
             {"name": "Fidelity", "url": "https://www.fidelity.com", "logo": "https://logo.clearbit.com/fidelity.com"},
@@ -33,18 +38,25 @@ def run():
             {"name": "TD Ameritrade", "url": "https://www.tdameritrade.com", "logo": "https://logo.clearbit.com/tdameritrade.com"},
             {"name": "J.P. Morgan", "url": "https://www.jpmorgan.com", "logo": "https://logo.clearbit.com/jpmorgan.com"},
             {"name": "Envestnet", "url": "https://www.envestnet.com", "logo": "https://logo.clearbit.com/envestnet.com"},
+            {"name": "T. Rowe Price", "url": "https://www.troweprice.com", "logo": "https://logo.clearbit.com/troweprice.com"},
+            {"name": "Edward Jones", "url": "https://www.edwardjones.com", "logo": "https://logo.clearbit.com/edwardjones.com"},
         ],
         "Government & Regulatory": [
             {"name": "SEC", "url": "https://www.sec.gov", "logo": "https://logo.clearbit.com/sec.gov"},
             {"name": "FINRA", "url": "https://www.finra.org", "logo": "https://logo.clearbit.com/finra.org"},
             {"name": "FDIC", "url": "https://www.fdic.gov", "logo": "https://logo.clearbit.com/fdic.gov"},
             {"name": "Federal Reserve", "url": "https://www.federalreserve.gov", "logo": "https://logo.clearbit.com/federalreserve.gov"},
+            {"name": "CFPB", "url": "https://www.consumerfinance.gov", "logo": "https://logo.clearbit.com/consumerfinance.gov"},
+            {"name": "IRS", "url": "https://www.irs.gov", "logo": "https://logo.clearbit.com/irs.gov"},
         ],
         "Education & Tools": [
             {"name": "Investopedia", "url": "https://www.investopedia.com", "logo": "https://logo.clearbit.com/investopedia.com"},
             {"name": "NerdWallet", "url": "https://www.nerdwallet.com", "logo": "https://logo.clearbit.com/nerdwallet.com"},
             {"name": "eMoney", "url": "https://emoneyadvisor.com", "logo": "https://logo.clearbit.com/emoneyadvisor.com"},
             {"name": "Khan Academy", "url": "https://www.khanacademy.org/economics-finance-domain", "logo": "https://logo.clearbit.com/khanacademy.org"},
+            {"name": "SmartAsset", "url": "https://smartasset.com", "logo": "https://logo.clearbit.com/smartasset.com"},
+            {"name": "Bankrate", "url": "https://www.bankrate.com", "logo": "https://logo.clearbit.com/bankrate.com"},
+            {"name": "Mint", "url": "https://mint.intuit.com", "logo": "https://logo.clearbit.com/mint.intuit.com"},
         ],
     }
 
