@@ -9,6 +9,51 @@ def run():
     Browse trustworthy financial websites below. Click any logo to open the site in a new tab.
     """, unsafe_allow_html=True)
 
+    # === Shared Styles ===
+    styles = """
+    <style>
+        .category-header {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #102542;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .logo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .logo-box {
+            background: #f0f4fa;
+            border-radius: 0.75rem;
+            padding: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            height: 90px;
+        }
+
+        .logo-box:hover {
+            transform: scale(1.06);
+            cursor: pointer;
+        }
+
+        .logo-box img {
+            max-width: 80%;
+            max-height: 60px;
+            height: auto;
+        }
+    </style>
+    """
+
+    components.html(styles, height=0)
+
     # === Category Data ===
     categories = {
         "Financial News": [
@@ -49,49 +94,18 @@ def run():
         ],
     }
 
-    html_grid = """
-    <style>
-        .logo-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 1.5rem;
-            margin-top: 2rem;
-        }
+    # === Render Category Sections ===
+    for category, links in categories.items():
+        # Category header
+        st.markdown(f'<div class="category-header">{category}</div>', unsafe_allow_html=True)
 
-        .logo-box {
-            background: #f0f4fa;
-            border-radius: 0.75rem;
-            padding: 0.75rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.2s ease;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-            height: 90px;
-        }
-
-        .logo-box:hover {
-            transform: scale(1.06);
-            cursor: pointer;
-        }
-
-        .logo-box img {
-            max-width: 80%;
-            max-height: 60px;
-            height: auto;
-        }
-    </style>
-    <div class="logo-grid">
-    """
-
-    for source in sources:
-        html_grid += f"""
-            <a href="{source["url"]}" target="_blank" class="logo-box">
-                <img src="{source["logo"]}" alt="{source["name"]} logo" title="{source["name"]}">
-            </a>
-        """
-
-    html_grid += "</div>"
-
-    # Render raw HTML using Streamlit's HTML component
-    components.html(html_grid, height=600, scrolling=True)
+        # Logo grid block
+        grid_html = '<div class="logo-grid">'
+        for site in links:
+            grid_html += f'''
+                <a href="{site["url"]}" target="_blank" class="logo-box">
+                    <img src="{site["logo"]}" alt="{site["name"]} logo" title="{site["name"]}">
+                </a>
+            '''
+        grid_html += '</div>'
+        components.html(grid_html, height=160 + (len(links) // 4) * 120, scrolling=False)
