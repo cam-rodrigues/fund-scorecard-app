@@ -49,12 +49,12 @@ def run():
         ],
     }
 
-    # === Shared CSS Block (included per category)
+    # === Shared CSS
     css = """
     <style>
         .category-header {
             font-size: 1.3rem;
-            font-weight: 700;
+            font-weight: 800;
             color: #102542;
             margin-top: 2rem;
             margin-bottom: 0.75rem;
@@ -64,7 +64,7 @@ def run():
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
             gap: 1.25rem;
-            margin-bottom: 0rem;
+            margin-bottom: 1.5rem;
         }
 
         .logo-box {
@@ -100,9 +100,9 @@ def run():
     </style>
     """
 
-    # === Render Each Category Block
+    # === Render Categories
     for i, (category, sites) in enumerate(categories.items()):
-        st.markdown(f'<div class="category-header">{category}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="category-header">**{category}**</div>', unsafe_allow_html=True)
 
         html_block = css + '<div class="logo-grid">'
         for site in sites:
@@ -120,10 +120,10 @@ def run():
         if i < len(categories) - 1:
             st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
-    # === Bottom Request Note ===
+    # === Bottom Note (NOT a link)
     st.markdown("""
     <div style="margin-top: 2rem; padding: 1.2rem; background-color: #f9fbfe; border: 1px solid #d6e2ee; border-radius: 0.5rem; font-size: 0.93rem;">
-        Looking for a site that's not listed here? <br>
-        Send a **User Request** and we’ll add it to the trusted resources.
+        💡 Looking for a site that's not listed here? <br>
+        Please submit a <strong>user request</strong> and we’ll add it to the trusted resources.
     </div>
     """, unsafe_allow_html=True)
