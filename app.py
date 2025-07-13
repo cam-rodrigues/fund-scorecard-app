@@ -193,6 +193,7 @@ else:
             border: 1px solid #d3e0ee;
             border-radius: 1rem;
             box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+            margin-top: 1.5rem;
         }
 
         .welcome-title {
@@ -217,8 +218,18 @@ else:
             display: inline-block;
             margin-top: 1rem;
         }
-        </style>
 
+        .welcome-container ul {
+            margin-left: 1.25rem;
+        }
+
+        .welcome-container li {
+            margin-bottom: 0.6rem;
+            font-size: 0.95rem;
+            color: #1f2937;
+        }
+        </style>
+        
         <div class="welcome-container">
             <div class="welcome-title">Welcome to FidSync Beta</div>
             <div class="welcome-sub">
