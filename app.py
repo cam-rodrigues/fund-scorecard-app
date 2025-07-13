@@ -185,7 +185,53 @@ if selected_page:
         st.query_params.clear()
         st.rerun()
 else:
-    st.markdown("# Welcome")
     st.markdown("""
-    **FidSync Beta** is a data processing toolkit designed to streamline and modernize workflows by turning raw data into clear, actionable results.
-    """)
+        <style>
+        .welcome-container {
+            padding: 1.5rem 2rem;
+            background-color: #f9fbfe;
+            border: 1px solid #d3e0ee;
+            border-radius: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+        }
+
+        .welcome-title {
+            font-size: 2.3rem;
+            font-weight: 800;
+            color: #102542;
+            margin-bottom: 0.5rem;
+        }
+
+        .welcome-sub {
+            font-size: 1.1rem;
+            color: #3a4a5c;
+            margin-bottom: 1.5rem;
+        }
+
+        .welcome-highlight {
+            background-color: #dbeafe;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            color: #1e3a8a;
+            display: inline-block;
+            margin-top: 1rem;
+        }
+        </style>
+
+        <div class="welcome-container">
+            <div class="welcome-title">Welcome to FidSync Beta</div>
+            <div class="welcome-sub">
+                Your streamlined financial data toolkit for comparing, analyzing, and presenting fund performance.
+            </div>
+
+            <ul>
+                <li><strong>Explore Fund Scorecards</strong> — Evaluate fund performance and watchlist status.</li>
+                <li><strong>Compare Quarters</strong> — Track changes in fund criteria and positioning over time.</li>
+                <li><strong>Scan Articles</strong> — Turn financial news into structured, actionable summaries.</li>
+                <li><strong>Search Companies</strong> — Quickly look up firm-level data across sectors.</li>
+            </ul>
+
+            <div class="welcome-highlight">Start by selecting a tool from the sidebar.</div>
+        </div>
+    """, unsafe_allow_html=True)
