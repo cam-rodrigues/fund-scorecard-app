@@ -1,47 +1,30 @@
 import streamlit as st
-from datetime import datetime
 
-st.set_page_config(page_title="Flash Idea Board", layout="centered")
-st.title("🧠 Flash Idea Board")
+st.set_page_config(page_title="SEC EDGAR Lookup", layout="centered")
+st.title("🏦 SEC EDGAR Lookup")
 
-st.markdown("Write fast. Organize later.")
-st.markdown("---")
+st.markdown("""
+Use this tool to quickly access SEC filings for any public company.
 
-if 'ideas' not in st.session_state:
-    st.session_state.ideas = []
+Enter a **ticker** or **CIK** to generate direct EDGAR links:
+- Full Filings Page
+- Latest 10-K / 10-Q / 8-K (manual links, not API-powered)
+""")
 
-with st.form("idea_form"):
-    new_idea = st.text_area("Add a new idea:", height=100)
-    tag = st.selectbox("Tag (optional):", ["💡 Idea", "🔥 Urgent", "📊 Research", "🎨 Design", "🧪 Experiment", "None"])
-    submitted = st.form_submit_button("Add")
-    if submitted and new_idea.strip():
-        timestamp = datetime.now().strftime("%b %d, %Y %I:%M %p")
-        st.session_state.ideas.append({
-            "text": new_idea.strip(),
-            "tag": tag if tag != "None" else "",
-            "time": timestamp
-        })
+query = st.text_input("Enter Ticker or CIK:", max_chars=10)
 
-st.markdown("### Your Ideas")
+if query:
+    query = query.strip().upper()
+    cik_or_ticker = query.replace(" ", "")
+    base_url = f"https://www.sec.gov/edgar/browse/?CIK={cik_or_ticker}&owner=exclude"
+    filings_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik_or_ticker}&type=&dateb=&owner=exclude&count=40"
 
-if not st.session_state.ideas:
-    st.info("No ideas yet. Start typing above.")
-else:
-    for i, idea in enumerate(reversed(st.session_state.ideas)):
-        idx = len(st.session_state.ideas) - 1 - i
-        st.markdown(f"**{idea['tag']}** {idea['text']}")
-        st.caption(f"Added {idea['time']}")
-        cols = st.columns([1, 1])
-        if cols[0].button("⬆️ Move Up", key=f"up_{idx}") and idx > 0:
-            st.session_state.ideas[idx - 1], st.session_state.ideas[idx] = st.session_state.ideas[idx], st.session_state.ideas[idx - 1]
-            st.experimental_rerun()
-        if cols[1].button("❌ Delete", key=f"del_{idx}"):
-            st.session_state.ideas.pop(idx)
-            st.experimental_rerun()
-        st.markdown("---")
+    st.markdown("---")
+    st.subheader(f"🔗 Quick EDGAR Links for {cik_or_ticker}")
+    st.markdown(f"- [Company Filings Page]({filings_url})")
+    st.markdown(f"- [Latest 10-K]({filings_url}&type=10-K)")
+    st.markdown(f"- [Latest 10-Q]({filings_url}&type=10-Q)")
+    st.markdown(f"- [Latest 8-K]({filings_url}&type=8-K)")
+    st.markdown(f"- [SEC Summary Page]({base_url})")
 
-if st.session_state.ideas:
-    if st.download_button("Download All Ideas as .txt", 
-                          data="\n\n".join(f"{i['tag']} {i['text']}".strip() for i in st.session_state.ideas),
-                          file_name="ideas.txt"):
-        st.success("File ready!")
+    st.info("Filings open in a new tab. EDGAR search supports both tickers and full CIK numbers.")
