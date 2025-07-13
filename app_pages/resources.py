@@ -2,8 +2,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 def run():
-    st.set_page_config(page_title="Trusted Financial Sources", layout="wide")
-    st.title("Trusted Financial Sources")
+    st.set_page_config(page_title="Resources", layout="wide")
+    st.title("Resources")
 
     st.markdown("""
     Browse trustworthy financial websites below. Click any logo to open the site in a new tab.
@@ -54,7 +54,7 @@ def run():
     <style>
         .category-header {
             font-size: 1.3rem;
-            font-weight: 1200;
+            font-weight: 800;
             color: #102542;
             margin-top: 2rem;
             margin-bottom: 0.75rem;
