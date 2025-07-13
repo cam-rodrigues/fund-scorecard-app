@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 
 def run():
     st.set_page_config(page_title="Trusted Financial Sources", layout="wide")
@@ -6,43 +7,9 @@ def run():
 
     st.markdown("""
     Browse trustworthy financial websites below. Click any logo to open the site in a new tab.
-    """, unsafe_allow_html=False)
-
-    # Style for the logo grid layout
-    st.markdown("""
-    <style>
-    .logo-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-        gap: 1.5rem;
-        padding-top: 1.5rem;
-    }
-
-    .logo-box {
-        background: #f0f4fa;
-        border-radius: 0.75rem;
-        padding: 0.75rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: transform 0.2s ease;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-        height: 90px;
-    }
-
-    .logo-box:hover {
-        transform: scale(1.06);
-        cursor: pointer;
-    }
-
-    .logo-box img {
-        max-width: 80%;
-        max-height: 60px;
-        height: auto;
-    }
-    </style>
     """, unsafe_allow_html=True)
 
+    # === Generate full HTML grid ===
     sources = [
         {"name": "Bloomberg", "url": "https://www.bloomberg.com", "logo": "https://logo.clearbit.com/bloomberg.com"},
         {"name": "Morningstar", "url": "https://www.morningstar.com", "logo": "https://logo.clearbit.com/morningstar.com"},
@@ -58,14 +25,49 @@ def run():
         {"name": "Envestnet", "url": "https://www.envestnet.com", "logo": "https://logo.clearbit.com/envestnet.com"},
     ]
 
-    # Render the full HTML grid as one block
-    grid_html = '<div class="logo-grid">'
-    for source in sources:
-        grid_html += f'''
-        <a href="{source["url"]}" target="_blank" class="logo-box">
-            <img src="{source["logo"]}" alt="{source["name"]} logo" title="{source["name"]}">
-        </a>
-        '''
-    grid_html += '</div>'
+    html_grid = """
+    <style>
+        .logo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
 
-    st.markdown(grid_html, unsafe_allow_html=True)
+        .logo-box {
+            background: #f0f4fa;
+            border-radius: 0.75rem;
+            padding: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            height: 90px;
+        }
+
+        .logo-box:hover {
+            transform: scale(1.06);
+            cursor: pointer;
+        }
+
+        .logo-box img {
+            max-width: 80%;
+            max-height: 60px;
+            height: auto;
+        }
+    </style>
+    <div class="logo-grid">
+    """
+
+    for source in sources:
+        html_grid += f"""
+            <a href="{source["url"]}" target="_blank" class="logo-box">
+                <img src="{source["logo"]}" alt="{source["name"]} logo" title="{source["name"]}">
+            </a>
+        """
+
+    html_grid += "</div>"
+
+    # Render raw HTML using Streamlit's HTML component
+    components.html(html_grid, height=600, scrolling=True)
