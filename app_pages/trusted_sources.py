@@ -124,6 +124,6 @@ def run():
     st.markdown("""
     <div style="margin-top: 2rem; padding: 1.2rem; background-color: #f9fbfe; border: 1px solid #d6e2ee; border-radius: 0.5rem; font-size: 0.93rem;">
         Looking for a site that's not listed here? <br>
-        Send a <a href="/?page=request_form.py" style="color: #1c2e4a; text-decoration: underline;">User Request</a> and we’ll add it to the trusted resources.
+        Send a **User Request** and we’ll add it to the trusted resources.
     </div>
     """, unsafe_allow_html=True)
