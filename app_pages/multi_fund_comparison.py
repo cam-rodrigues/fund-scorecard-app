@@ -5,6 +5,8 @@ import pdfplumber
 import pandas as pd
 import numpy as np
 import re
+from utils.export.pptx_exporter import export_client_dashboard
+from utils.export.pdf_exporter import export_client_dashboard_pdf
 
 # === Extract Fund Performance from a single PDF ===
 def extract_fund_performance(pdf_file):
@@ -63,6 +65,38 @@ def run():
 
     csv = combined_df.to_csv(index=False).encode("utf-8")
     st.download_button("Download as CSV", data=csv, file_name="funds_combined.csv", mime="text/csv")
+
+    # === Export Client Dashboard ===
+    st.markdown("---")
+    st.subheader("📤 Export Client Dashboard")
+
+    client_name = st.text_input("Client Name (for export)", value="Sample Client")
+
+    # Convert DataFrame to fund_data format
+    fund_data = []
+    for _, row in combined_df.iterrows():
+        fund_data.append({
+            "fund_name": row["Fund"],
+            "key_metrics": [
+                f"QTD: {row['QTD']}%",
+                f"YTD: {row['YTD']}%",
+                f"1 Yr: {row['1 Yr']}%",
+                f"3 Yr: {row['3 Yr']}%",
+                f"5 Yr: {row['5 Yr']}%",
+                f"10 Yr: {row['10 Yr']}%",
+            ],
+            "rationale": "Rationale not yet provided."  # You could let users input this later
+        })
+
+    if st.button("Export to PPTX"):
+        export_client_dashboard(fund_data, client_name=client_name, output_path="Client_Dashboard.pptx")
+        with open("Client_Dashboard.pptx", "rb") as f:
+            st.download_button("Download PPTX", f, file_name="Client_Dashboard.pptx")
+
+    if st.button("Export to PDF"):
+        export_client_dashboard_pdf(fund_data, client_name=client_name, output_path="Client_Dashboard.pdf")
+        with open("Client_Dashboard.pdf", "rb") as f:
+            st.download_button("Download PDF", f, file_name="Client_Dashboard.pdf")
 
 # === Run the app ===
 if __name__ == "__main__":
