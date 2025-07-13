@@ -24,6 +24,7 @@ python-pptx
 together
 PyPDF2
 
+reportlab
 
 # === Optional/Future Tools ===
 
