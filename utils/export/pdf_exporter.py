@@ -1,12 +1,12 @@
-from pptx import Presentation
-from pptx.util import Inches, Pt
-from pptx.dml.color import RGBColor
+from reportlab.lib.pagesizes import LETTER
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import inch
 from datetime import datetime
 
 
-def export_client_dashboard(fund_data, client_name=None, output_path="client_dashboard.pptx"):
+def export_client_dashboard_pdf(fund_data, client_name=None, output_path="client_dashboard.pdf"):
     """
-    Creates a branded FidSync client dashboard PPTX with selected fund data and rationale.
+    Creates a branded FidSync client dashboard PDF with selected fund data and rationale.
 
     Parameters:
         fund_data (list of dict): Each dict should have:
@@ -14,104 +14,95 @@ def export_client_dashboard(fund_data, client_name=None, output_path="client_das
             - 'key_metrics': str or list of str
             - 'rationale': str
         client_name (str): Optional name to include on the cover
-        output_path (str): File path to save the PPTX
+        output_path (str): File path to save the PDF
     """
-    prs = Presentation()
-    
-    # === Cover Slide ===
-    cover_layout = prs.slide_layouts[5]
-    slide = prs.slides.add_slide(cover_layout)
+    c = canvas.Canvas(output_path, pagesize=LETTER)
+    width, height = LETTER
+    margin = 1 * inch
 
-    # Logo Banner
-    title_box = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(8), Inches(1))
-    title_tf = title_box.text_frame
-    p = title_tf.paragraphs[0]
-    run = p.add_run()
-    run.text = "FidSync Beta – Client Dashboard"
-    run.font.name = 'Times New Roman'
-    run.font.size = Pt(32)
-    run.font.bold = True
-    run.font.color.rgb = RGBColor(0, 32, 96)
-    p.alignment = 1
+    def write_title(text, y):
+        c.setFont("Times-Bold", 20)
+        c.setFillColorRGB(0.1, 0.2, 0.5)
+        c.drawCentredString(width / 2, y, text)
 
-    # Client Name
+    def write_subtext(text, y, font="Times-Roman", size=12):
+        c.setFont(font, size)
+        c.setFillColorRGB(0.2, 0.2, 0.2)
+        c.drawCentredString(width / 2, y, text)
+
+    # === Cover Page ===
+    y = height - inch
+    write_title("FidSync Beta – Client Dashboard", y)
+    y -= 0.75 * inch
+
     if client_name:
-        name_box = slide.shapes.add_textbox(Inches(1), Inches(2), Inches(8), Inches(1))
-        name_tf = name_box.text_frame
-        p = name_tf.paragraphs[0]
-        run = p.add_run()
-        run.text = f"For: {client_name}"
-        run.font.name = 'Times New Roman'
-        run.font.size = Pt(20)
-        run.font.italic = True
-        run.font.color.rgb = RGBColor(80, 80, 80)
-        p.alignment = 1
+        write_subtext(f"For: {client_name}", y, font="Times-Italic", size=14)
+        y -= 0.5 * inch
 
-    # Date
-    date_box = slide.shapes.add_textbox(Inches(1), Inches(3), Inches(8), Inches(0.6))
-    date_tf = date_box.text_frame
-    p = date_tf.paragraphs[0]
-    run = p.add_run()
-    run.text = f"Prepared on {datetime.now().strftime('%B %d, %Y')}"
-    run.font.name = 'Times New Roman'
-    run.font.size = Pt(14)
-    p.alignment = 1
+    write_subtext(f"Prepared on {datetime.now().strftime('%B %d, %Y')}", y)
 
-    # === Fund Slides ===
+    c.showPage()
+
+    # === Fund Pages ===
     for fund in fund_data:
-        fund_name = fund.get("fund_name", "Unnamed Fund")
+        y = height - margin
+        c.setFont("Times-Bold", 16)
+        c.setFillColorRGB(0.1, 0.2, 0.5)
+        c.drawString(margin, y, fund.get("fund_name", "Unnamed Fund"))
+        y -= 0.4 * inch
+
+        # Key Metrics
+        c.setFont("Times-Roman", 12)
+        c.setFillColorRGB(0, 0, 0)
+        c.drawString(margin, y, "Key Metrics:")
+        y -= 0.25 * inch
+
         key_metrics = fund.get("key_metrics", "")
-        rationale = fund.get("rationale", "")
-
-        slide = prs.slides.add_slide(prs.slide_layouts[5])
-        
-        # Fund Title
-        title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.5), Inches(9), Inches(1))
-        title_tf = title_box.text_frame
-        p = title_tf.paragraphs[0]
-        run = p.add_run()
-        run.text = fund_name
-        run.font.name = 'Times New Roman'
-        run.font.size = Pt(26)
-        run.font.bold = True
-        run.font.color.rgb = RGBColor(0, 32, 96)
-
-        # Metrics
-        metrics_box = slide.shapes.add_textbox(Inches(0.75), Inches(1.5), Inches(4), Inches(4))
-        metrics_tf = metrics_box.text_frame
-        metrics_tf.word_wrap = True
-        p = metrics_tf.paragraphs[0]
-        run = p.add_run()
         if isinstance(key_metrics, list):
-            run.text = "\n".join(key_metrics)
+            metrics = key_metrics
         else:
-            run.text = key_metrics
-        run.font.name = 'Times New Roman'
-        run.font.size = Pt(16)
+            metrics = key_metrics.split("\n")
 
-        # Rationale
-        rationale_box = slide.shapes.add_textbox(Inches(5), Inches(1.5), Inches(4), Inches(4))
-        rationale_tf = rationale_box.text_frame
-        rationale_tf.word_wrap = True
-        p = rationale_tf.paragraphs[0]
-        run = p.add_run()
-        run.text = rationale
-        run.font.name = 'Times New Roman'
-        run.font.size = Pt(16)
-        run.font.italic = True
+        for line in metrics:
+            c.drawString(margin + 0.3 * inch, y, f"• {line.strip()}")
+            y -= 0.2 * inch
 
-    # === Closing Slide ===
-    slide = prs.slides.add_slide(prs.slide_layouts[5])
-    box = slide.shapes.add_textbox(Inches(1), Inches(2.5), Inches(8), Inches(1))
-    tf = box.text_frame
-    p = tf.paragraphs[0]
-    run = p.add_run()
-    run.text = "Thank you for using FidSync Beta"
-    run.font.name = 'Times New Roman'
-    run.font.size = Pt(24)
-    run.font.bold = True
-    run.font.color.rgb = RGBColor(0, 32, 96)
-    p.alignment = 1
+        y -= 0.3 * inch
+        c.drawString(margin, y, "Rationale:")
+        y -= 0.25 * inch
 
-    # Save
-    prs.save(output_path)
+        rationale = fund.get("rationale", "")
+        rationale_lines = split_text(rationale, 90)
+        for line in rationale_lines:
+            c.drawString(margin + 0.3 * inch, y, line)
+            y -= 0.2 * inch
+            if y < 1.2 * inch:
+                c.showPage()
+                y = height - margin
+
+        c.showPage()
+
+    # === Closing Page ===
+    c.setFont("Times-Bold", 18)
+    c.setFillColorRGB(0.1, 0.2, 0.5)
+    c.drawCentredString(width / 2, height / 2, "Thank you for using FidSync Beta")
+
+    c.save()
+
+
+def split_text(text, max_chars):
+    """
+    Splits long text into lines of max character length.
+    """
+    words = text.split()
+    lines = []
+    line = ""
+    for word in words:
+        if len(line + word) < max_chars:
+            line += word + " "
+        else:
+            lines.append(line.strip())
+            line = word + " "
+    if line:
+        lines.append(line.strip())
+    return lines
