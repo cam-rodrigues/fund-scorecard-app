@@ -3,6 +3,18 @@ import streamlit.components.v1 as components
 
 def run():
     st.set_page_config(page_title="Resources", layout="wide")
+    st.markdown(
+        """
+        <style>
+            /* Reduce default Streamlit top padding for the main block */
+            .main .block-container {
+                padding-top: 1.5rem;   /* default is ~3–4 rem */
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
     st.title("Resources")
 
     st.markdown("""
