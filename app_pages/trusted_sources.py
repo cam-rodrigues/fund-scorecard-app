@@ -6,7 +6,7 @@ def run():
 
     st.markdown("""
     Browse trustworthy financial websites below. Click any logo to open the site in a new tab.
-    """, unsafe_allow_html=True)
+    """, unsafe_allow_html=False)
 
     # Style for the logo grid layout
     st.markdown("""
