@@ -25,6 +25,7 @@ together
 PyPDF2
 
 reportlab
+pyperclip
 
 # === Optional/Future Tools ===
 
