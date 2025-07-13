@@ -64,7 +64,7 @@ def run():
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
             gap: 1.25rem;
-            margin-bottom: 1.5rem;
+            margin-bottom: 0rem;
         }
 
         .logo-box {
