@@ -11,7 +11,7 @@ def run():
 
     # === Category Groups ===
     categories = {
-        "### Financial News": [
+        "Financial News": [
             {"name": "Bloomberg", "url": "https://www.bloomberg.com", "logo": "https://logo.clearbit.com/bloomberg.com"},
             {"name": "Yahoo Finance", "url": "https://finance.yahoo.com", "logo": "https://logo.clearbit.com/yahoo.com"},
             {"name": "CNBC", "url": "https://www.cnbc.com", "logo": "https://logo.clearbit.com/cnbc.com"},
@@ -54,7 +54,7 @@ def run():
     <style>
         .category-header {
             font-size: 1.3rem;
-            font-weight: 800;
+            font-weight: 1200;
             color: #102542;
             margin-top: 2rem;
             margin-bottom: 0.75rem;
