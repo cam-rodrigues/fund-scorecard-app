@@ -9,6 +9,7 @@ def run():
     Browse trustworthy financial websites below. Click any logo to open the site in a new tab.
     """, unsafe_allow_html=True)
 
+    # === Category Groups ===
     categories = {
         "Financial News": [
             {"name": "Bloomberg", "url": "https://www.bloomberg.com", "logo": "https://logo.clearbit.com/bloomberg.com"},
@@ -48,6 +49,7 @@ def run():
         ],
     }
 
+    # === Shared CSS Block (included per category)
     css = """
     <style>
         .category-header {
@@ -98,7 +100,7 @@ def run():
     </style>
     """
 
-    # Render each category with tight height + divider
+    # === Render Each Category Block
     for i, (category, sites) in enumerate(categories.items()):
         st.markdown(f'<div class="category-header">{category}</div>', unsafe_allow_html=True)
 
@@ -112,9 +114,16 @@ def run():
         html_block += '</div>'
 
         rows = (len(sites) + 3) // 4
-        height = 110 + rows * 95  # tighter than before
+        height = 110 + rows * 95
         components.html(html_block, height=height, scrolling=False)
 
-        # Divider between categories (not after last)
         if i < len(categories) - 1:
             st.markdown('<hr class="divider">', unsafe_allow_html=True)
+
+    # === Bottom Request Note ===
+    st.markdown("""
+    <div style="margin-top: 2rem; padding: 1.2rem; background-color: #f9fbfe; border: 1px solid #d6e2ee; border-radius: 0.5rem; font-size: 0.93rem;">
+        Looking for a site that's not listed here? <br>
+        Send a <a href="/?page=request_form.py" style="color: #1c2e4a; text-decoration: underline;">User Request</a> and we’ll add it to the trusted resources.
+    </div>
+    """, unsafe_allow_html=True)
