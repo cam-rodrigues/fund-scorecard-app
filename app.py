@@ -133,6 +133,7 @@ st.sidebar.markdown(
 
 # === Navigation helper ===
 def nav_button(label, filename):
+    key = f"{label}-{filename}"
     if st.sidebar.button(label, key=label):
         st.query_params.update({"page": filename})
 
