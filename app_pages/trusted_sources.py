@@ -6,7 +6,7 @@ def run():
     st.title("Trusted Financial Sources")
 
     st.markdown("""
-    Browse trustworthy financial websites below. Click any logo to open the site in a new tab.
+    Click any logo to open the site in a new tab.
     """, unsafe_allow_html=True)
 
     # === Categories with Logos ===
@@ -108,4 +108,6 @@ def run():
             '''
         html_block += '</div>'
 
-        components.html(html_block, height=160 + (len(sites) // 4 + 1) * 120, scrolling=False)
+        rows = (len(sites) + 3) // 4  # 4 logos per row, rounded up
+        components.html(html_block, height=140 + rows * 110, scrolling=False)
+
