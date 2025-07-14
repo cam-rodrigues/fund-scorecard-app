@@ -140,7 +140,9 @@ def run():
     if not uploaded_pdf:
         st.stop()
 
-    df = extract_fund_performance(uploaded_pdf)
+    with st.spinner("Reading uploaded PDF..."):
+        df = extract_fund_performance(uploaded_pdf)
+
     if df.empty:
         st.error("No fund performance data found.")
         st.stop()
@@ -192,29 +194,3 @@ def run():
                 export_pdf(summary, proposal, "fydsync/assets/proposal_summary.pdf")
                 with open("fydsync/assets/proposal_summary.pdf", "rb") as file:
                     st.download_button("Download PDF", file, "Proposal_Summary.pdf")
-
-
-    st.markdown("### Summary")
-    st.markdown(summary)
-
-    st.markdown("### Scorecard")
-    st.dataframe(style_scorecard(enhanced_df.set_index("Fund")), use_container_width=True)
-
-    st.markdown("### Proposal")
-    st.markdown(proposal, unsafe_allow_html=True)
-
-    if st.button("Export Selected Proposal"):
-        if template == "Client-facing DOCX":
-            export_client_docx(enhanced_df, proposal, "fydsync/assets/client_proposal.docx")
-            with open("fydsync/assets/client_proposal.docx", "rb") as file:
-                st.download_button("Download Client DOCX", file, "Client_Proposal.docx")
-
-        elif template == "Internal DOCX":
-            export_internal_docx(enhanced_df, proposal, "fydsync/assets/internal_proposal.docx")
-            with open("fydsync/assets/internal_proposal.docx", "rb") as file:
-                st.download_button("Download Internal DOCX", file, "Internal_Proposal.docx")
-
-        elif template == "PDF Summary":
-            export_pdf(summary, proposal, "fydsync/assets/proposal_summary.pdf")
-            with open("fydsync/assets/proposal_summary.pdf", "rb") as file:
-                st.download_button("Download PDF", file, "Proposal_Summary.pdf")
