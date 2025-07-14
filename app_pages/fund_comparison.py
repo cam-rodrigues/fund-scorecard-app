@@ -193,13 +193,13 @@ def run():
 
     st.header("Step 4: Review Output")
     
-    st.subheader("### Fund Summary")
+    st.subheader("Fund Summary")
     st.markdown(summary)
 
-    st.subheader("### Scorecard")
+    st.subheader("Scorecard")
     st.dataframe(style_scorecard(enhanced_df.set_index("Fund")), use_container_width=True)
 
-    st.subheader("### Recomendation")
+    st.subheader("Recomendation")
     st.markdown(proposal, unsafe_allow_html=True)
     st.session_state.step = 5
 
