@@ -27,21 +27,6 @@ def run():
             metadata_index = []
             criteria_data = []
 
-            fund_type_phrases = [
-                "Large Cap Growth", "Large Cap Value", "Large Blend",
-                "Mid Cap Growth", "Mid Cap Value", "Mid Cap Blend",
-                "Small Cap Growth", "Small Cap Value", "Small Blend",
-                "Target-Date Retirement", "Target-Date 2025", "Target-Date 2030",
-                "Target-Date 2040", "Target-Date 2045", "Target-Date 2050",
-                "Target-Date 2055", "Target-Date 2060", "Target-Date 2065",
-                "Intermediate Core Bond", "Intermediate Core-Plus Bond",
-                "Inflation-Protected Bond", "Multisector Bond", "Global Bond",
-                "Commodities Broad Basket", "Real Estate", "International",
-                "Emerging Markets", "Equity", "Fixed Income", "Stock", "Bond"
-            ]
-
-            share_class_keywords = ["Admiral", "Instl", "Institutional", "R6", "Z", "I", "K", "N"]
-
             with pdfplumber.open(uploaded_file) as pdf:
                 total_pages = len(pdf.pages)
 
@@ -54,16 +39,12 @@ def run():
                             fund_name = ticker_match.group(1).strip()
                             ticker = ticker_match.group(2).strip()
                             style_box_line = lines[j + 1].strip()
-                            fund_type = next((ftype for ftype in fund_type_phrases if ftype.lower() in style_box_line.lower()), "N/A")
-                            share_class = next((w for w in fund_name.split() if w in share_class_keywords), "N/A")
 
                             norm_name = normalize_name(fund_name)
                             fund_meta[norm_name] = {
                                 "Fund Name": fund_name,
                                 "Ticker": ticker,
-                                "Style Box": style_box_line if style_box_line else "N/A",
-                                "Fund Type": fund_type,
-                                "Share Class": share_class
+                                "Style Box": style_box_line if style_box_line else "N/A"
                             }
 
                 # === Phase 2: Collect manager/inception/benchmark metadata ===
@@ -82,7 +63,6 @@ def run():
                                         entry["Inception Date"] = match.group(1)
                                 if "Benchmark:" in near_line:
                                     entry["Benchmark"] = near_line.split("Benchmark:")[1].strip()
-                            # Try to extract fund name from prior lines
                             for k in range(max(0, j - 5), j):
                                 candidate = lines[k].strip()
                                 if len(candidate.split()) > 2 and not any(x in candidate for x in ["Manager", "Benchmark", "Date"]):
@@ -143,7 +123,6 @@ def run():
                                     percentile = percent_match.group(1) + "%"
                                 criteria.append((metric, result))
 
-                        # Match extended metadata
                         best_meta = {"Manager": "N/A", "Inception Date": "N/A", "Benchmark": "N/A"}
                         scores = [(normalize_name(m["Fund Name"]), simple_similarity(norm_name, normalize_name(m["Fund Name"]))) for m in metadata_index]
                         scores = sorted(scores, key=lambda x: x[1], reverse=True)
@@ -157,7 +136,6 @@ def run():
                                 "Fund Name": fund_name,
                                 "Ticker": ticker,
                                 "Style Box": style_box,
-                                **meta,
                                 **best_meta,
                                 "Peer Percentile": percentile or "N/A",
                                 "Meets Criteria": "Yes" if meets_criteria else "No",
