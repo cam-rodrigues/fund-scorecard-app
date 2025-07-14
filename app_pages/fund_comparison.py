@@ -7,6 +7,7 @@ import numpy as np
 import re
 from datetime import datetime
 import os
+from io import BytesIO  # For in-memory export
 
 # External exports
 from utils.export.export_client_docx import export_client_docx
@@ -189,20 +190,30 @@ def run():
         st.markdown("### Proposal")
         st.markdown(proposal, unsafe_allow_html=True)
 
-        # Step 7: Export
+        # Step 6: Export with BytesIO
         st.header("Step 6: Export")
         if st.button("📥 Export Selected Proposal"):
+            buffer = BytesIO()
+
             if template == "Client-facing DOCX":
-                export_client_docx(enhanced_df, proposal, "fydsync/assets/client_proposal.docx")
-                with open("fydsync/assets/client_proposal.docx", "rb") as file:
-                    st.download_button("Download Client DOCX", file, "Client_Proposal.docx")
+                export_client_docx(enhanced_df, proposal, buffer)
+                file_name = "Client_Proposal.docx"
+                mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
             elif template == "Internal DOCX":
-                export_internal_docx(enhanced_df, proposal, "fydsync/assets/internal_proposal.docx")
-                with open("fydsync/assets/internal_proposal.docx", "rb") as file:
-                    st.download_button("Download Internal DOCX", file, "Internal_Proposal.docx")
+                export_internal_docx(enhanced_df, proposal, buffer)
+                file_name = "Internal_Proposal.docx"
+                mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
             elif template == "PDF Summary":
-                export_pdf(summary, proposal, "fydsync/assets/proposal_summary.pdf")
-                with open("fydsync/assets/proposal_summary.pdf", "rb") as file:
-                    st.download_button("Download PDF", file, "Proposal_Summary.pdf")
+                export_pdf(summary, proposal, buffer)
+                file_name = "Proposal_Summary.pdf"
+                mime_type = "application/pdf"
+
+            buffer.seek(0)
+            st.download_button(
+                label=f"Download {file_name}",
+                data=buffer,
+                file_name=file_name,
+                mime=mime_type
+            )
