@@ -153,19 +153,46 @@ def run():
     selected = st.multiselect("Select funds to compare", fund_choices, default=default_selection)
 
     if not selected:
-        st.warning("Please select at least one fund.")
-        st.stop()
+    st.warning("Please select at least one fund.")
+    st.stop()
 
-    # Template picker
-    template = st.selectbox("Choose export format:", [
-        "Client-facing DOCX",
-        "Internal DOCX",
-        "PDF Summary"
-    ])
+    if st.button("Continue with Selected Funds"):
+        # Template picker
+        template = st.selectbox("Choose export format:", [
+            "Client-facing DOCX",
+            "Internal DOCX",
+            "PDF Summary"
+        ])
 
-    enhanced_df = enhance_with_benchmark(df[df["Fund"].isin(selected)])
-    summary = generate_summary(enhanced_df)
-    proposal = generate_proposal_text(enhanced_df)
+        enhanced_df = enhance_with_benchmark(df[df["Fund"].isin(selected)])
+        summary = generate_summary(enhanced_df)
+        proposal = generate_proposal_text(enhanced_df)
+
+        st.markdown("### Summary")
+        st.markdown(summary)
+
+        st.markdown("### Scorecard")
+        st.dataframe(style_scorecard(enhanced_df.set_index("Fund")), use_container_width=True)
+
+        st.markdown("### Proposal")
+        st.markdown(proposal, unsafe_allow_html=True)
+
+        if st.button("Export Selected Proposal"):
+            if template == "Client-facing DOCX":
+                export_client_docx(enhanced_df, proposal, "fydsync/assets/client_proposal.docx")
+                with open("fydsync/assets/client_proposal.docx", "rb") as file:
+                    st.download_button("Download Client DOCX", file, "Client_Proposal.docx")
+
+            elif template == "Internal DOCX":
+                export_internal_docx(enhanced_df, proposal, "fydsync/assets/internal_proposal.docx")
+                with open("fydsync/assets/internal_proposal.docx", "rb") as file:
+                    st.download_button("Download Internal DOCX", file, "Internal_Proposal.docx")
+
+            elif template == "PDF Summary":
+                export_pdf(summary, proposal, "fydsync/assets/proposal_summary.pdf")
+                with open("fydsync/assets/proposal_summary.pdf", "rb") as file:
+                    st.download_button("Download PDF", file, "Proposal_Summary.pdf")
+
 
     st.markdown("### Summary")
     st.markdown(summary)
