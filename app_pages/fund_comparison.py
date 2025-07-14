@@ -8,10 +8,6 @@ from docx import Document
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
-st.set_page_config(page_title="Simple Fund Summary Export", layout="wide")
-st.title("📄 Fund Summary Extractor + Exporter")
-
-# === Extract Funds from PDF ===
 def extract_fund_performance(pdf_file):
     data = []
     with pdfplumber.open(pdf_file) as pdf:
@@ -40,7 +36,6 @@ def extract_fund_performance(pdf_file):
                         fund_name = None
     return pd.DataFrame(data)
 
-# === Generate Summary Text ===
 def generate_summary(df):
     if df.empty:
         return "No valid funds found."
@@ -65,7 +60,6 @@ Fund Summary:
 - Fund that outperformed S&P 500 the most: {best['Fund']} ({beat_counts[top_idx]} of 6 periods)
 """
 
-# === Export Word ===
 def export_to_docx(summary_text):
     buffer = BytesIO()
     doc = Document()
@@ -75,7 +69,6 @@ def export_to_docx(summary_text):
     buffer.seek(0)
     return buffer
 
-# === Export PDF ===
 def export_to_pdf(summary_text):
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
@@ -92,29 +85,33 @@ def export_to_pdf(summary_text):
     buffer.seek(0)
     return buffer
 
-# === Upload PDF ===
-uploaded_pdf = st.file_uploader("Step 1: Upload MPI-style PDF", type=["pdf"])
-if uploaded_pdf:
-    with st.spinner("Reading and extracting fund performance..."):
-        df = extract_fund_performance(uploaded_pdf)
+# ✅ MAIN FUNCTION for use in multipage apps
+def run():
+    st.set_page_config(page_title="Simple Fund Summary Export", layout="wide")
+    st.title("📄 Fund Summary Extractor + Exporter")
 
-    if df.empty:
-        st.error("No fund data found.")
-    else:
-        st.success(f"{len(df)} funds found.")
-        st.dataframe(df)
+    uploaded_pdf = st.file_uploader("Step 1: Upload MPI-style PDF", type=["pdf"])
+    if uploaded_pdf:
+        with st.spinner("Reading and extracting fund performance..."):
+            df = extract_fund_performance(uploaded_pdf)
 
-        summary = generate_summary(df)
-        st.markdown("### Step 2: Generated Summary")
-        st.text_area("Summary Preview", value=summary, height=150)
+        if df.empty:
+            st.error("No fund data found.")
+        else:
+            st.success(f"{len(df)} funds found.")
+            st.dataframe(df)
 
-        st.markdown("### Step 3: Export")
-        file_type = st.radio("Choose format:", ["Word (.docx)", "PDF (.pdf)"])
-        if st.button("📥 Export Summary"):
-            if file_type == "Word (.docx)":
-                doc = export_to_docx(summary)
-                st.download_button("Download Word Doc", doc, "Fund_Summary.docx",
-                                   mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-            else:
-                pdf = export_to_pdf(summary)
-                st.download_button("Download PDF", pdf, "Fund_Summary.pdf", mime="application/pdf")
+            summary = generate_summary(df)
+            st.markdown("### Step 2: Generated Summary")
+            st.text_area("Summary Preview", value=summary, height=150)
+
+            st.markdown("### Step 3: Export")
+            file_type = st.radio("Choose format:", ["Word (.docx)", "PDF (.pdf)"])
+            if st.button("📥 Export Summary"):
+                if file_type == "Word (.docx)":
+                    doc = export_to_docx(summary)
+                    st.download_button("Download Word Doc", doc, "Fund_Summary.docx",
+                                       mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                else:
+                    pdf = export_to_pdf(summary)
+                    st.download_button("Download PDF", pdf, "Fund_Summary.pdf", mime="application/pdf")
