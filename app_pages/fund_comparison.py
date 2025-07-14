@@ -194,7 +194,7 @@ def run():
     st.header("Step 4: Review Output")
     
     st.subheader("Fund Summary")
-    st.markdown(summary)
+    
 
     st.subheader("Scorecard")
     st.dataframe(style_scorecard(enhanced_df.set_index("Fund")), use_container_width=True)
