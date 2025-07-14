@@ -27,8 +27,14 @@ def run():
                     blocks = re.split(r"\n(?=[^\n]*?Fund (?:Meets Watchlist Criteria|has been placed on watchlist))", text)
 
                     for block in blocks:
-                        lines = block.split("\n")
-                        fund_name = lines[0].strip() if lines else "UNKNOWN FUND"
+                        lines = block.strip().split("\n")
+                        if not lines:
+                            continue
+
+                        fund_line = lines[0].strip()
+                        fund_name = fund_line
+                        ticker_match = re.search(r"\b([A-Z]{4,6})\b", fund_line)
+                        ticker = ticker_match.group(1) if ticker_match else "N/A"
                         meets_criteria = "placed on watchlist" not in block
                         criteria = []
 
@@ -45,6 +51,7 @@ def run():
                         if criteria:
                             criteria_data.append({
                                 "Fund Name": fund_name,
+                                "Ticker": ticker,
                                 "Meets Criteria": "Yes" if meets_criteria else "No",
                                 **{metric: result for metric, result in criteria}
                             })
@@ -56,7 +63,7 @@ def run():
 
             with st.expander("Download Results"):
                 csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button("📥 Download as CSV", data=csv, file_name="fund_criteria_results.csv", mime="text/csv")
+                st.download_button("Download as CSV", data=csv, file_name="fund_criteria_results.csv", mime="text/csv")
         else:
             st.warning("No fund entries found in the uploaded PDF.")
     else:
