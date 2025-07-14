@@ -153,8 +153,8 @@ def run():
     selected = st.multiselect("Select funds to compare", fund_choices, default=default_selection)
 
     if not selected:
-    st.warning("Please select at least one fund.")
-    st.stop()
+        st.warning("Please select at least one fund.")
+        st.stop()
 
     if st.button("Continue with Selected Funds"):
         # Template picker
