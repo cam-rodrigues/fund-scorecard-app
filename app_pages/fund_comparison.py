@@ -1,15 +1,11 @@
-# === fund_comparison.py ===
-
 import streamlit as st
 import pdfplumber
 import pandas as pd
 import numpy as np
 import re
 from datetime import datetime
-import os
 from io import BytesIO
 
-# External exports
 from utils.export.export_client_docx import export_client_docx
 from utils.export.export_internal_docx import export_internal_docx
 from utils.export.export_pdf import export_pdf
@@ -43,7 +39,7 @@ def extract_fund_performance(pdf_file):
                         fund_name = None
     return pd.DataFrame(performance_data)
 
-# === Enhancements & Helpers ===
+# === Helpers ===
 def enhance_with_benchmark(df):
     benchmark = {
         "Fund": "S&P 500 (Benchmark)",
@@ -137,17 +133,31 @@ def run():
     st.set_page_config(page_title="FidSync Beta - Fund Comparison", layout="wide")
     st.title("📊 Fund Performance Comparison")
 
-    # Init session state for progress tracking
-    if "continued" not in st.session_state:
-        st.session_state.continued = False
+    # Step tracker state
+    if "step" not in st.session_state:
+        st.session_state.step = 1
 
-    # Step 1: Upload
+    # Sidebar progress indicator
+    st.sidebar.markdown("### 🧭 Progress")
+    steps = [
+        "Step 1: Upload PDF",
+        "Step 2: Select Funds",
+        "Step 3: Choose Format",
+        "Step 4: Review Output",
+        "Step 5: Export"
+    ]
+    for i, label in enumerate(steps, start=1):
+        prefix = "✅ " if i < st.session_state.step else "➡️ " if i == st.session_state.step else "🔒 "
+        st.sidebar.markdown(f"{prefix} {label}")
+
+    # === Step 1: Upload PDF ===
     st.header("Step 1: Upload MPI PDF")
     uploaded_pdf = st.file_uploader("Upload your MPI-style PDF", type=["pdf"])
     if not uploaded_pdf:
         st.stop()
+    st.session_state.step = 2
 
-    # Step 2: Extract
+    # === Step 2: Extract and Select ===
     with st.spinner("Reading uploaded PDF..."):
         df = extract_fund_performance(uploaded_pdf)
 
@@ -155,7 +165,6 @@ def run():
         st.error("No fund performance data found.")
         st.stop()
 
-    # Step 3: Select funds
     st.header("Step 2: Select Funds")
     fund_choices = df["Fund"].unique()
     select_all = st.checkbox("Select All Funds", value=False)
@@ -166,61 +175,55 @@ def run():
     if not selected:
         st.warning("Please select at least one fund.")
         st.stop()
+    st.session_state.step = 3
 
-    # Step 4: Continue
-    st.header("Step 3: Confirm Selection")
-    if st.button("✅ Continue with Selected Funds"):
-        st.session_state.continued = True
+    # === Step 3: Choose Export Format ===
+    st.header("Step 3: Choose Export Format")
+    template = st.selectbox("Choose export format:", [
+        "Client-facing DOCX",
+        "Internal DOCX",
+        "PDF Summary"
+    ])
+    st.session_state.step = 4
 
-    # Only show the rest if the user clicked Continue
-    if st.session_state.continued:
-        # Step 5: Export format
-        st.header("Step 4: Choose Export Format")
-        template = st.selectbox("Choose export format:", [
-            "Client-facing DOCX",
-            "Internal DOCX",
-            "PDF Summary"
-        ])
+    # === Step 4: Show Results ===
+    enhanced_df = enhance_with_benchmark(df[df["Fund"].isin(selected)])
+    summary = generate_summary(enhanced_df)
+    proposal = generate_proposal_text(enhanced_df)
 
-        # Step 6: Results
-        enhanced_df = enhance_with_benchmark(df[df["Fund"].isin(selected)])
-        summary = generate_summary(enhanced_df)
-        proposal = generate_proposal_text(enhanced_df)
+    st.header("Step 4: Review Output")
+    st.markdown("### Summary")
+    st.markdown(summary)
 
-        st.header("Step 5: Review Output")
-        st.markdown("### Summary")
-        st.markdown(summary)
+    st.markdown("### Scorecard")
+    st.dataframe(style_scorecard(enhanced_df.set_index("Fund")), use_container_width=True)
 
-        st.markdown("### Scorecard")
-        st.dataframe(style_scorecard(enhanced_df.set_index("Fund")), use_container_width=True)
+    st.markdown("### Proposal")
+    st.markdown(proposal, unsafe_allow_html=True)
+    st.session_state.step = 5
 
-        st.markdown("### Proposal")
-        st.markdown(proposal, unsafe_allow_html=True)
+    # === Step 5: Export ===
+    st.header("Step 5: Export")
+    buffer = BytesIO()
+    if template == "Client-facing DOCX":
+        export_client_docx(enhanced_df, proposal, buffer)
+        file_name = "Client_Proposal.docx"
+        mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
-        # Step 7: Export
-        st.header("Step 6: Export")
-        if st.button("📥 Export Selected Proposal"):
-            buffer = BytesIO()
+    elif template == "Internal DOCX":
+        export_internal_docx(enhanced_df, proposal, buffer)
+        file_name = "Internal_Proposal.docx"
+        mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
-            if template == "Client-facing DOCX":
-                export_client_docx(enhanced_df, proposal, buffer)
-                file_name = "Client_Proposal.docx"
-                mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    elif template == "PDF Summary":
+        export_pdf(summary, proposal, buffer)
+        file_name = "Proposal_Summary.pdf"
+        mime_type = "application/pdf"
 
-            elif template == "Internal DOCX":
-                export_internal_docx(enhanced_df, proposal, buffer)
-                file_name = "Internal_Proposal.docx"
-                mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-
-            elif template == "PDF Summary":
-                export_pdf(summary, proposal, buffer)
-                file_name = "Proposal_Summary.pdf"
-                mime_type = "application/pdf"
-
-            buffer.seek(0)
-            st.download_button(
-                label=f"Download {file_name}",
-                data=buffer,
-                file_name=file_name,
-                mime=mime_type
-            )
+    buffer.seek(0)
+    st.download_button(
+        label=f"📥 Download {file_name}",
+        data=buffer,
+        file_name=file_name,
+        mime=mime_type
+    )
