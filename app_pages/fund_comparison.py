@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import re
 from datetime import datetime
+import os
 from io import BytesIO
 
 # External exports
@@ -136,13 +137,17 @@ def run():
     st.set_page_config(page_title="FidSync Beta - Fund Comparison", layout="wide")
     st.title("📊 Fund Performance Comparison")
 
-    # Upload MPI PDF
+    # Init session state for progress tracking
+    if "continued" not in st.session_state:
+        st.session_state.continued = False
+
+    # Step 1: Upload
     st.header("Step 1: Upload MPI PDF")
     uploaded_pdf = st.file_uploader("Upload your MPI-style PDF", type=["pdf"])
     if not uploaded_pdf:
         st.stop()
 
-    # Read + extract funds
+    # Step 2: Extract
     with st.spinner("Reading uploaded PDF..."):
         df = extract_fund_performance(uploaded_pdf)
 
@@ -150,30 +155,39 @@ def run():
         st.error("No fund performance data found.")
         st.stop()
 
-    # Fund selection
+    # Step 3: Select funds
     st.header("Step 2: Select Funds")
     fund_choices = df["Fund"].unique()
-    select_all = st.checkbox("Select All Funds")
-    deselect_all = st.checkbox("Deselect All")
+    select_all = st.checkbox("Select All Funds", value=False)
+    deselect_all = st.checkbox("Deselect All", value=False)
     default_selection = list(fund_choices) if select_all and not deselect_all else []
-    selected = st.multiselect("Choose which funds to include:", fund_choices, default=default_selection)
+    selected = st.multiselect("Pick the funds to analyze", fund_choices, default=default_selection)
 
     if not selected:
         st.warning("Please select at least one fund.")
         st.stop()
 
-    # Continue
-    st.header("Step 3: Continue")
+    # Step 4: Continue
+    st.header("Step 3: Confirm Selection")
     if st.button("✅ Continue with Selected Funds"):
-        template = st.selectbox("Step 4: Choose Export Format", [
-            "Client-facing DOCX", "Internal DOCX", "PDF Summary"
+        st.session_state.continued = True
+
+    # Only show the rest if the user clicked Continue
+    if st.session_state.continued:
+        # Step 5: Export format
+        st.header("Step 4: Choose Export Format")
+        template = st.selectbox("Choose export format:", [
+            "Client-facing DOCX",
+            "Internal DOCX",
+            "PDF Summary"
         ])
 
-        # Generate outputs
+        # Step 6: Results
         enhanced_df = enhance_with_benchmark(df[df["Fund"].isin(selected)])
         summary = generate_summary(enhanced_df)
         proposal = generate_proposal_text(enhanced_df)
 
+        st.header("Step 5: Review Output")
         st.markdown("### Summary")
         st.markdown(summary)
 
@@ -183,22 +197,30 @@ def run():
         st.markdown("### Proposal")
         st.markdown(proposal, unsafe_allow_html=True)
 
-        # Export
-        st.header("Step 5: Export")
+        # Step 7: Export
+        st.header("Step 6: Export")
         if st.button("📥 Export Selected Proposal"):
             buffer = BytesIO()
+
             if template == "Client-facing DOCX":
                 export_client_docx(enhanced_df, proposal, buffer)
                 file_name = "Client_Proposal.docx"
                 mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
             elif template == "Internal DOCX":
                 export_internal_docx(enhanced_df, proposal, buffer)
                 file_name = "Internal_Proposal.docx"
                 mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
             elif template == "PDF Summary":
                 export_pdf(summary, proposal, buffer)
                 file_name = "Proposal_Summary.pdf"
                 mime_type = "application/pdf"
 
             buffer.seek(0)
-            st.download_button(f"Download {file_name}", data=buffer, file_name=file_name, mime=mime_type)
+            st.download_button(
+                label=f"Download {file_name}",
+                data=buffer,
+                file_name=file_name,
+                mime=mime_type
+            )
