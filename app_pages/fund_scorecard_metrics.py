@@ -3,7 +3,7 @@ import pdfplumber
 import pandas as pd
 import re
 
-# Build fund-to-ticker lookup table from the entire document
+# Build fund-to-ticker lookup table from full document (performance pages)
 def build_ticker_lookup(pdf):
     fund_to_ticker = {}
     pattern = re.compile(r"(.+?)\s+([A-Z]{4,6}X?)$")
@@ -20,12 +20,12 @@ def build_ticker_lookup(pdf):
                 fund_to_ticker[name] = ticker
     return fund_to_ticker
 
-# Try fuzzy or partial match if direct match fails
-def resolve_ticker(fund_name, lookup):
-    for known_name, ticker in lookup.items():
-        if known_name.lower() in fund_name.lower() or fund_name.lower() in known_name.lower():
-            return ticker
-    return "N/A"
+# Fuzzy match a fund name inside the criteria block based on known names
+def extract_fund_name_from_block(block, ticker_lookup):
+    for known_name in ticker_lookup:
+        if known_name.lower() in block.lower():
+            return known_name
+    return "UNKNOWN FUND"
 
 def run():
     st.set_page_config(page_title="Fund Scorecard Metrics", layout="wide")
@@ -42,15 +42,16 @@ def run():
             criteria_data = []
 
             with pdfplumber.open(uploaded_file) as pdf:
-                # Step 1: Build a ticker lookup table from the whole document
+                # Step 1: Build a lookup of fund names → tickers
                 ticker_lookup = build_ticker_lookup(pdf)
 
-                # Step 2: Go back through and extract fund criteria blocks
+                # Step 2: Loop through pages to find scorecard sections
                 for page in pdf.pages:
                     text = page.extract_text()
                     if not text or "Fund Scorecard" not in text:
                         continue
 
+                    # Split blocks at each new fund section
                     blocks = re.split(r"\n(?=[^\n]*?Fund (?:Meets Watchlist Criteria|has been placed on watchlist))", text)
 
                     for block in blocks:
@@ -58,12 +59,13 @@ def run():
                         if not lines:
                             continue
 
-                        fund_name = lines[0].strip()
-                        ticker = resolve_ticker(fund_name, ticker_lookup)
+                        # Extract accurate fund name from block using lookup
+                        fund_name = extract_fund_name_from_block(block, ticker_lookup)
+                        ticker = ticker_lookup.get(fund_name, "N/A")
                         meets_criteria = "placed on watchlist" not in block
                         criteria = []
 
-                        for line in lines[1:]:
+                        for line in lines:
                             if line.startswith(("Manager Tenure", "Excess Performance", "Peer Return Rank",
                                                 "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
                                                 "Sortino Ratio Rank", "Tracking Error Rank")):
