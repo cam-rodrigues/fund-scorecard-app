@@ -134,12 +134,15 @@ def generate_proposal_text(df):
 # === Streamlit App ===
 def run():
     st.set_page_config(page_title="FidSync Beta - Fund Comparison", layout="wide")
-    st.title("Fund Performance Comparison")
+    st.title("📊 Fund Performance Comparison")
 
-    uploaded_pdf = st.file_uploader("Upload MPI-style PDF", type=["pdf"])
+    # Step 1: Upload
+    st.header("Step 1: Upload MPI PDF")
+    uploaded_pdf = st.file_uploader("Upload your MPI-style PDF", type=["pdf"])
     if not uploaded_pdf:
         st.stop()
 
+    # Step 2: Read PDF
     with st.spinner("Reading uploaded PDF..."):
         df = extract_fund_performance(uploaded_pdf)
 
@@ -147,29 +150,36 @@ def run():
         st.error("No fund performance data found.")
         st.stop()
 
+    # Step 3: Select funds
+    st.header("Step 2: Select Funds")
     fund_choices = df["Fund"].unique()
     select_all = st.checkbox("Select All Funds", value=False)
     deselect_all = st.checkbox("Deselect All", value=False)
 
     default_selection = list(fund_choices) if select_all and not deselect_all else []
-    selected = st.multiselect("Select funds to compare", fund_choices, default=default_selection)
+    selected = st.multiselect("Pick the funds to analyze", fund_choices, default=default_selection)
 
     if not selected:
         st.warning("Please select at least one fund.")
         st.stop()
 
-    if st.button("Continue with Selected Funds"):
-        # Template picker
+    # Step 4: Confirm to continue
+    st.header("Step 3: Confirm Selection")
+    if st.button("✅ Continue with Selected Funds"):
+        # Step 5: Choose output format
+        st.header("Step 4: Choose Export Format")
         template = st.selectbox("Choose export format:", [
             "Client-facing DOCX",
             "Internal DOCX",
             "PDF Summary"
         ])
 
+        # Step 6: Show results
         enhanced_df = enhance_with_benchmark(df[df["Fund"].isin(selected)])
         summary = generate_summary(enhanced_df)
         proposal = generate_proposal_text(enhanced_df)
 
+        st.header("Step 5: Review Output")
         st.markdown("### Summary")
         st.markdown(summary)
 
@@ -179,7 +189,9 @@ def run():
         st.markdown("### Proposal")
         st.markdown(proposal, unsafe_allow_html=True)
 
-        if st.button("Export Selected Proposal"):
+        # Step 7: Export
+        st.header("Step 6: Export")
+        if st.button("📥 Export Selected Proposal"):
             if template == "Client-facing DOCX":
                 export_client_docx(enhanced_df, proposal, "fydsync/assets/client_proposal.docx")
                 with open("fydsync/assets/client_proposal.docx", "rb") as file:
