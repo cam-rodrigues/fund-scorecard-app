@@ -3,45 +3,25 @@ import pdfplumber
 import pandas as pd
 import re
 
-# Build fund-to-ticker lookup
+# --- Helper: build Fund‑Name ➜ Ticker lookup from the performance tables ---
 def build_ticker_lookup(pdf):
-    fund_to_ticker = {}
-    pattern = re.compile(r"(.+?)\s+([A-Z]{4,6}X?)$")
-
+    lookup = {}
+    pattern = re.compile(r"(.+?)\s+([A-Z]{4,6}X?)$")   # e.g. “Vanguard Mid Cap Index Admiral  VIMAX”
     for page in pdf.pages:
-        text = page.extract_text()
-        if not text:
+        txt = page.extract_text()
+        if not txt:
             continue
-        for line in text.split("\n"):
-            match = pattern.match(line.strip())
-            if match:
-                name = match.group(1).strip()
-                ticker = match.group(2).strip()
-                fund_to_ticker[name] = ticker
-    return fund_to_ticker
+        for line in txt.split("\n"):
+            m = pattern.match(line.strip())
+            if m:
+                lookup[m.group(1).strip()] = m.group(2).strip()
+    return lookup
 
-# Improved inception date extraction: scans 5 lines above each match for a known fund name
-def build_inception_lookup(pdf, ticker_lookup):
-    fund_to_inception = {}
-    pattern = re.compile(r"Inception Date:\s*(\d{2}/\d{2}/\d{4})")
-
-    for page in pdf.pages:
-        lines = page.extract_text().split("\n") if page.extract_text() else []
-        for i, line in enumerate(lines):
-            match = pattern.search(line)
-            if match:
-                for j in range(max(0, i - 5), i):
-                    for known_name in ticker_lookup:
-                        if known_name.lower() in lines[j].lower():
-                            fund_to_inception[known_name] = match.group(1)
-                            break
-    return fund_to_inception
-
-# Match fund name from block to known names
-def extract_fund_name_from_block(block, ticker_lookup):
-    for known_name in ticker_lookup:
-        if known_name.lower() in block.lower():
-            return known_name
+# --- Helper: find the correct Fund Name within a criteria block ---
+def get_fund_name(block, lookup):
+    for name in lookup:
+        if name.lower() in block.lower():
+            return name
     return "UNKNOWN FUND"
 
 def run():
@@ -52,61 +32,61 @@ def run():
     Upload an MPI-style PDF fund scorecard below. The app will extract each fund, determine if it meets the watchlist criteria, and display a detailed breakdown of metric statuses.
     """)
 
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"])
+    pdf_file = st.file_uploader("Upload MPI PDF", type=["pdf"])
 
-    if uploaded_file:
-        with st.spinner("Extracting fund criteria, tickers, and inception dates..."):
-            criteria_data = []
+    if pdf_file:
+        with st.spinner("Extracting fund criteria and matching tickers…"):
+            rows = []
 
-            with pdfplumber.open(uploaded_file) as pdf:
+            with pdfplumber.open(pdf_file) as pdf:
                 ticker_lookup = build_ticker_lookup(pdf)
-                inception_lookup = build_inception_lookup(pdf, ticker_lookup)
 
                 for page in pdf.pages:
-                    text = page.extract_text()
-                    if not text or "Fund Scorecard" not in text:
+                    txt = page.extract_text()
+                    if not txt or "Fund Scorecard" not in txt:
                         continue
 
-                    blocks = re.split(r"\n(?=[^\n]*?Fund (?:Meets Watchlist Criteria|has been placed on watchlist))", text)
+                    blocks = re.split(
+                        r"\n(?=[^\n]*?Fund (?:Meets Watchlist Criteria|has been placed on watchlist))",
+                        txt)
 
                     for block in blocks:
-                        lines = block.split("\n")
-                        if not lines:
+                        if not block.strip():
                             continue
 
-                        fund_name = extract_fund_name_from_block(block, ticker_lookup)
+                        fund_name = get_fund_name(block, ticker_lookup)
                         ticker = ticker_lookup.get(fund_name, "N/A")
-                        inception = inception_lookup.get(fund_name, "N/A")
-                        meets_criteria = "placed on watchlist" not in block
-                        criteria = []
+                        meets = "Yes" if "placed on watchlist" not in block else "No"
 
-                        for line in lines:
-                            if line.startswith(("Manager Tenure", "Excess Performance", "Peer Return Rank",
-                                                "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
-                                                "Sortino Ratio Rank", "Tracking Error Rank")):
-                                match = re.match(r"^(.*?)\s+(Pass|Review)(.*?)?$", line.strip())
-                                if match:
-                                    metric = match.group(1).strip()
-                                    result = match.group(2).strip()
-                                    criteria.append((metric, result))
+                        metrics = {}
+                        for line in block.split("\n"):
+                            if line.startswith((
+                                "Manager Tenure", "Excess Performance", "Peer Return Rank",
+                                "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
+                                "Sortino Ratio Rank", "Tracking Error Rank")):
+                                m = re.match(r"^(.*?)\s+(Pass|Review)", line.strip())
+                                if m:
+                                    metrics[m.group(1).strip()] = m.group(2).strip()
 
-                        if criteria:
-                            criteria_data.append({
+                        if metrics:
+                            rows.append({
                                 "Fund Name": fund_name,
                                 "Ticker": ticker,
-                                "Inception Date": inception,
-                                "Meets Criteria": "Yes" if meets_criteria else "No",
-                                **{metric: result for metric, result in criteria}
+                                "Meets Criteria": meets,
+                                **metrics
                             })
 
-        if criteria_data:
-            df = pd.DataFrame(criteria_data)
+        if rows:
+            df = pd.DataFrame(rows)
             st.success(f"✅ Found {len(df)} fund entries.")
             st.dataframe(df, use_container_width=True)
 
             with st.expander("Download Results"):
                 csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button("📥 Download as CSV", data=csv, file_name="fund_criteria_results.csv", mime="text/csv")
+                st.download_button("📥 Download as CSV",
+                                   data=csv,
+                                   file_name="fund_criteria_results.csv",
+                                   mime="text/csv")
         else:
             st.warning("No fund entries found in the uploaded PDF.")
     else:
