@@ -38,25 +38,20 @@ def run():
                         if ticker_match and j + 1 < len(lines):
                             fund_name = ticker_match.group(1).strip()
                             ticker = ticker_match.group(2).strip()
-                            style_box_line = lines[j + 1].strip()
-
                             norm_name = normalize_name(fund_name)
                             fund_meta[norm_name] = {
                                 "Fund Name": fund_name,
-                                "Ticker": ticker,
-                                "Style Box": style_box_line if style_box_line else "N/A"
+                                "Ticker": ticker
                             }
 
-                # === Phase 2: Collect manager/inception/benchmark metadata ===
+                # === Phase 2: Collect inception/benchmark metadata ===
                 for i in range(total_pages):
                     lines = pdf.pages[i].extract_text().split("\n")
                     for j, line in enumerate(lines):
-                        if "Manager:" in line or "Inception Date:" in line or "Benchmark:" in line:
-                            entry = {"Manager": "N/A", "Inception Date": "N/A", "Benchmark": "N/A", "Fund Name": "UNKNOWN"}
+                        if "Inception Date:" in line or "Benchmark:" in line:
+                            entry = {"Inception Date": "N/A", "Benchmark": "N/A", "Fund Name": "UNKNOWN"}
                             nearby = lines[max(0, j - 6): j + 6]
                             for near_line in nearby:
-                                if "Manager:" in near_line:
-                                    entry["Manager"] = near_line.split("Manager:")[1].strip()
                                 if "Inception Date:" in near_line:
                                     match = re.search(r"(\d{2}/\d{2}/\d{4})", near_line)
                                     if match:
@@ -65,12 +60,12 @@ def run():
                                     entry["Benchmark"] = near_line.split("Benchmark:")[1].strip()
                             for k in range(max(0, j - 5), j):
                                 candidate = lines[k].strip()
-                                if len(candidate.split()) > 2 and not any(x in candidate for x in ["Manager", "Benchmark", "Date"]):
+                                if len(candidate.split()) > 2 and not any(x in candidate for x in ["Benchmark", "Date"]):
                                     entry["Fund Name"] = candidate
                                     break
                             metadata_index.append(entry)
 
-                # === Phase 3: Scorecard Extraction with Clean Parsing ===
+                # === Phase 3: Scorecard Extraction ===
                 for i in range(total_pages):
                     text = pdf.pages[i].extract_text()
                     if not text or "Fund Scorecard" not in text:
@@ -89,10 +84,6 @@ def run():
                         ticker_match = re.search(r"\b([A-Z]{4,6})\b", raw_line)
                         ticker = ticker_match.group(1) if ticker_match else "N/A"
                         fund_name = raw_line.split(ticker)[0].strip() if ticker != "N/A" else raw_line
-                        post_ticker = raw_line.split(ticker)[1].strip() if ticker in raw_line else ""
-                        style_box = post_ticker.split(" Fund")[0].strip() if "Fund" in post_ticker else post_ticker.strip()
-                        if len(style_box.split()) < 2:
-                            style_box = "N/A"
 
                         norm_name = normalize_name(fund_name)
 
@@ -123,7 +114,7 @@ def run():
                                     percentile = percent_match.group(1) + "%"
                                 criteria.append((metric, result))
 
-                        best_meta = {"Manager": "N/A", "Inception Date": "N/A", "Benchmark": "N/A"}
+                        best_meta = {"Inception Date": "N/A", "Benchmark": "N/A"}
                         scores = [(normalize_name(m["Fund Name"]), simple_similarity(norm_name, normalize_name(m["Fund Name"]))) for m in metadata_index]
                         scores = sorted(scores, key=lambda x: x[1], reverse=True)
                         if scores and scores[0][1] > 0.6:
@@ -135,8 +126,8 @@ def run():
                             criteria_data.append({
                                 "Fund Name": fund_name,
                                 "Ticker": ticker,
-                                "Style Box": style_box,
-                                **best_meta,
+                                "Inception Date": best_meta["Inception Date"],
+                                "Benchmark": best_meta["Benchmark"],
                                 "Peer Percentile": percentile or "N/A",
                                 "Meets Criteria": "Yes" if meets_criteria else "No",
                                 **{metric: result for metric, result in criteria}
