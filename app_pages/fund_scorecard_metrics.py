@@ -3,6 +3,11 @@ import pdfplumber
 import pandas as pd
 import re
 
+def extract_ticker_from_name(fund_line):
+    # Extract the last uppercase word (assumed to be the ticker)
+    match = re.search(r"\b([A-Z]{4,6}[X]?)\b", fund_line.strip())
+    return match.group(1) if match else "N/A"
+
 def run():
     st.set_page_config(page_title="Fund Scorecard Metrics", layout="wide")
     st.title("Fund Scorecard Metrics")
@@ -29,6 +34,7 @@ def run():
                     for block in blocks:
                         lines = block.split("\n")
                         fund_name = lines[0].strip() if lines else "UNKNOWN FUND"
+                        ticker = extract_ticker_from_name(fund_name)
                         meets_criteria = "placed on watchlist" not in block
                         criteria = []
 
@@ -45,6 +51,7 @@ def run():
                         if criteria:
                             criteria_data.append({
                                 "Fund Name": fund_name,
+                                "Ticker": ticker,
                                 "Meets Criteria": "Yes" if meets_criteria else "No",
                                 **{metric: result for metric, result in criteria}
                             })
