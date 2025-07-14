@@ -44,23 +44,21 @@ def run():
                                 "Ticker": ticker
                             }
 
-                # === Phase 2: Collect inception/benchmark metadata ===
+                # === Phase 2: Collect Inception Date metadata ===
                 for i in range(total_pages):
                     lines = pdf.pages[i].extract_text().split("\n")
                     for j, line in enumerate(lines):
-                        if "Inception Date:" in line or "Benchmark:" in line:
-                            entry = {"Inception Date": "N/A", "Benchmark": "N/A", "Fund Name": "UNKNOWN"}
+                        if "Inception Date:" in line:
+                            entry = {"Inception Date": "N/A", "Fund Name": "UNKNOWN"}
                             nearby = lines[max(0, j - 6): j + 6]
                             for near_line in nearby:
                                 if "Inception Date:" in near_line:
                                     match = re.search(r"(\d{2}/\d{2}/\d{4})", near_line)
                                     if match:
                                         entry["Inception Date"] = match.group(1)
-                                if "Benchmark:" in near_line:
-                                    entry["Benchmark"] = near_line.split("Benchmark:")[1].strip()
                             for k in range(max(0, j - 5), j):
                                 candidate = lines[k].strip()
-                                if len(candidate.split()) > 2 and not any(x in candidate for x in ["Benchmark", "Date"]):
+                                if len(candidate.split()) > 2 and "Date" not in candidate:
                                     entry["Fund Name"] = candidate
                                     break
                             metadata_index.append(entry)
@@ -102,33 +100,28 @@ def run():
                         meta = fund_meta[match_key]
                         meets_criteria = "placed on watchlist" not in block
                         criteria = []
-                        percentile = None
 
                         for line in lines[1:]:
                             match = re.match(r"^(.*?)\s+(Pass|Review)(.*?)?$", line.strip())
                             if match:
                                 metric = match.group(1).strip()
                                 result = match.group(2).strip()
-                                percent_match = re.search(r"\((\d{1,3})(st|nd|rd|th)? percentile\)", line)
-                                if percent_match:
-                                    percentile = percent_match.group(1) + "%"
                                 criteria.append((metric, result))
 
-                        best_meta = {"Inception Date": "N/A", "Benchmark": "N/A"}
+                        # Find matching inception date
+                        inception_date = "N/A"
                         scores = [(normalize_name(m["Fund Name"]), simple_similarity(norm_name, normalize_name(m["Fund Name"]))) for m in metadata_index]
                         scores = sorted(scores, key=lambda x: x[1], reverse=True)
                         if scores and scores[0][1] > 0.6:
                             best_index = [m for m in metadata_index if normalize_name(m["Fund Name"]) == scores[0][0]]
                             if best_index:
-                                best_meta = best_index[0]
+                                inception_date = best_index[0]["Inception Date"]
 
                         if criteria:
                             criteria_data.append({
                                 "Fund Name": fund_name,
                                 "Ticker": ticker,
-                                "Inception Date": best_meta["Inception Date"],
-                                "Benchmark": best_meta["Benchmark"],
-                                "Peer Percentile": percentile or "N/A",
+                                "Inception Date": inception_date,
                                 "Meets Criteria": "Yes" if meets_criteria else "No",
                                 **{metric: result for metric, result in criteria}
                             })
