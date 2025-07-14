@@ -20,32 +20,24 @@ def build_ticker_lookup(pdf):
                 fund_to_ticker[name] = ticker
     return fund_to_ticker
 
-# Build fund-to-inception-date lookup
-def build_inception_lookup(pdf):
+# Improved inception date extraction: scans 5 lines above each match for a known fund name
+def build_inception_lookup(pdf, ticker_lookup):
     fund_to_inception = {}
-    current_fund = None
     pattern = re.compile(r"Inception Date:\s*(\d{2}/\d{2}/\d{4})")
 
     for page in pdf.pages:
-        text = page.extract_text()
-        if not text:
-            continue
-
-        lines = text.split("\n")
+        lines = page.extract_text().split("\n") if page.extract_text() else []
         for i, line in enumerate(lines):
-            if re.match(r".+?\s+[A-Z]{4,6}X?$", line.strip()):
-                # Likely a fund name + ticker line
-                parts = line.rsplit(" ", 1)
-                if len(parts) == 2:
-                    current_fund = parts[0].strip()
-            else:
-                match = pattern.search(line)
-                if match and current_fund:
-                    fund_to_inception[current_fund] = match.group(1)
-                    current_fund = None  # reset after assigning
+            match = pattern.search(line)
+            if match:
+                for j in range(max(0, i - 5), i):
+                    for known_name in ticker_lookup:
+                        if known_name.lower() in lines[j].lower():
+                            fund_to_inception[known_name] = match.group(1)
+                            break
     return fund_to_inception
 
-# Match fund name from criteria block to known name
+# Match fund name from block to known names
 def extract_fund_name_from_block(block, ticker_lookup):
     for known_name in ticker_lookup:
         if known_name.lower() in block.lower():
@@ -68,7 +60,7 @@ def run():
 
             with pdfplumber.open(uploaded_file) as pdf:
                 ticker_lookup = build_ticker_lookup(pdf)
-                inception_lookup = build_inception_lookup(pdf)
+                inception_lookup = build_inception_lookup(pdf, ticker_lookup)
 
                 for page in pdf.pages:
                     text = page.extract_text()
