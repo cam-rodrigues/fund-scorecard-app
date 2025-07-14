@@ -131,14 +131,14 @@ def generate_proposal_text(df):
 # === Streamlit App ===
 def run():
     st.set_page_config(page_title="FidSync Beta - Fund Comparison", layout="wide")
-    st.title("📊 Fund Performance Comparison")
+    st.title("Proposal Generator")
 
     # Step tracker state
     if "step" not in st.session_state:
         st.session_state.step = 1
 
     # Sidebar progress indicator
-    st.sidebar.markdown("### 🧭 Progress")
+    st.sidebar.markdown("### Progress")
     steps = [
         "Step 1: Upload PDF",
         "Step 2: Select Funds",
@@ -222,7 +222,7 @@ def run():
 
     buffer.seek(0)
     st.download_button(
-        label=f"📥 Download {file_name}",
+        label=f"Download {file_name}",
         data=buffer,
         file_name=file_name,
         mime=mime_type
