@@ -3,6 +3,9 @@ import pdfplumber
 import pandas as pd
 import re
 
+CONFIDENCE_THRESHOLD = 0.75  # below this is considered "low confidence"
+DEBUG = True  # change to False if you don’t want logs at the bottom
+
 def normalize_name(name):
     return re.sub(r"[^a-z0-9]", "", name.lower())
 
@@ -24,118 +27,15 @@ def run():
     if uploaded_file:
         with st.spinner("Processing PDF..."):
             fund_meta = {}
-            metadata_index = []
+            inception_data = {}
             criteria_data = []
+            low_confidence_logs = []
 
             with pdfplumber.open(uploaded_file) as pdf:
                 total_pages = len(pdf.pages)
 
-                # === Phase 1: Build fund meta data ===
+                # === Phase 1: Fund meta (name/ticker) ===
                 for i in range(min(15, total_pages)):
                     lines = pdf.pages[i].extract_text().split("\n")
-                    for j, line in enumerate(lines):
-                        ticker_match = re.match(r"^(.*?)([A-Z]{4,6})$", line.strip())
-                        if ticker_match and j + 1 < len(lines):
-                            fund_name = ticker_match.group(1).strip()
-                            ticker = ticker_match.group(2).strip()
-                            norm_name = normalize_name(fund_name)
-                            fund_meta[norm_name] = {
-                                "Fund Name": fund_name,
-                                "Ticker": ticker
-                            }
-
-                # === Phase 2: Collect Inception Date metadata ===
-                for i in range(total_pages):
-                    lines = pdf.pages[i].extract_text().split("\n")
-                    for j, line in enumerate(lines):
-                        if "Inception Date:" in line:
-                            entry = {"Inception Date": "N/A", "Fund Name": "UNKNOWN"}
-                            nearby = lines[max(0, j - 6): j + 6]
-                            for near_line in nearby:
-                                if "Inception Date:" in near_line:
-                                    match = re.search(r"(\d{2}/\d{2}/\d{4})", near_line)
-                                    if match:
-                                        entry["Inception Date"] = match.group(1)
-                            for k in range(max(0, j - 5), j):
-                                candidate = lines[k].strip()
-                                if len(candidate.split()) > 2 and "Date" not in candidate:
-                                    entry["Fund Name"] = candidate
-                                    break
-                            metadata_index.append(entry)
-
-                # === Phase 3: Scorecard Extraction ===
-                for i in range(total_pages):
-                    text = pdf.pages[i].extract_text()
-                    if not text or "Fund Scorecard" not in text:
-                        continue
-
-                    blocks = re.split(r"\n(?=[^\n]*?Fund (?:Meets Watchlist Criteria|has been placed on watchlist))", text)
-
-                    for block in blocks:
-                        lines = block.strip().split("\n")
-                        if not lines:
-                            continue
-
-                        raw_line = lines[0].strip()
-                        raw_line = re.sub(r"Fund (Meets Watchlist Criteria|has been placed on watchlist.*)\.*", "", raw_line)
-
-                        ticker_match = re.search(r"\b([A-Z]{4,6})\b", raw_line)
-                        ticker = ticker_match.group(1) if ticker_match else "N/A"
-                        fund_name = raw_line.split(ticker)[0].strip() if ticker != "N/A" else raw_line
-
-                        norm_name = normalize_name(fund_name)
-
-                        match_key = None
-                        if norm_name in fund_meta:
-                            match_key = norm_name
-                        else:
-                            scores = [(k, simple_similarity(norm_name, k)) for k in fund_meta]
-                            best_match = max(scores, key=lambda x: x[1], default=(None, 0))
-                            if best_match[1] > 0.6:
-                                match_key = best_match[0]
-
-                        if not match_key:
-                            continue
-
-                        meta = fund_meta[match_key]
-                        meets_criteria = "placed on watchlist" not in block
-                        criteria = []
-
-                        for line in lines[1:]:
-                            match = re.match(r"^(.*?)\s+(Pass|Review)(.*?)?$", line.strip())
-                            if match:
-                                metric = match.group(1).strip()
-                                result = match.group(2).strip()
-                                criteria.append((metric, result))
-
-                        # Find matching inception date
-                        inception_date = "N/A"
-                        scores = [(normalize_name(m["Fund Name"]), simple_similarity(norm_name, normalize_name(m["Fund Name"]))) for m in metadata_index]
-                        scores = sorted(scores, key=lambda x: x[1], reverse=True)
-                        if scores and scores[0][1] > 0.6:
-                            best_index = [m for m in metadata_index if normalize_name(m["Fund Name"]) == scores[0][0]]
-                            if best_index:
-                                inception_date = best_index[0]["Inception Date"]
-
-                        if criteria:
-                            criteria_data.append({
-                                "Fund Name": fund_name,
-                                "Ticker": ticker,
-                                "Inception Date": inception_date,
-                                "Meets Criteria": "Yes" if meets_criteria else "No",
-                                **{metric: result for metric, result in criteria}
-                            })
-
-        # === Output ===
-        if criteria_data:
-            df = pd.DataFrame(criteria_data)
-            st.success(f"✅ Extracted {len(df)} fund entries.")
-            st.dataframe(df, use_container_width=True)
-
-            with st.expander("Download Results"):
-                csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button("📥 Download as CSV", data=csv, file_name="fund_criteria_results.csv", mime="text/csv")
-        else:
-            st.warning("No fund entries found in the uploaded PDF.")
-    else:
-        st.info("Please upload an MPI fund scorecard PDF to begin.")
+                    for line in lines:
+                        ticker_match = re.match(r"^(
