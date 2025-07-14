@@ -25,6 +25,7 @@ def run():
         with st.spinner("Processing PDF..."):
             fund_meta = {}
             criteria_data = []
+            metadata_index = []
 
             fund_type_phrases = [
                 "Large Cap Growth", "Large Cap Value", "Large Blend",
@@ -44,7 +45,7 @@ def run():
             with pdfplumber.open(uploaded_file) as pdf:
                 total_pages = len(pdf.pages)
 
-                # === Phase 1: Build fund metadata from first 15 pages ===
+                # === Phase 1: Build fund metadata from performance pages (first 15) ===
                 for i in range(min(15, total_pages)):
                     lines = pdf.pages[i].extract_text().split("\n")
                     for j, line in enumerate(lines):
@@ -62,13 +63,34 @@ def run():
                                 "Ticker": ticker,
                                 "Style Box": style_box_line if style_box_line else "N/A",
                                 "Fund Type": fund_type,
-                                "Share Class": share_class,
-                                "Manager": "N/A",
-                                "Inception Date": "N/A",
-                                "Benchmark": "N/A"
+                                "Share Class": share_class
                             }
 
-                # === Phase 2: Scorecard Criteria Pages ===
+                # === Phase 2: Build metadata index from full document ===
+                for i in range(total_pages):
+                    lines = pdf.pages[i].extract_text().split("\n")
+                    for j, line in enumerate(lines):
+                        if "Manager:" in line or "Inception Date:" in line or "Benchmark:" in line:
+                            entry = {"Manager": "N/A", "Inception Date": "N/A", "Benchmark": "N/A", "Fund Name": "UNKNOWN"}
+                            nearby = lines[max(0, j - 6): j + 6]
+                            for near_line in nearby:
+                                if "Manager:" in near_line:
+                                    entry["Manager"] = near_line.split("Manager:")[1].strip()
+                                if "Inception Date:" in near_line:
+                                    match = re.search(r"(\d{2}/\d{2}/\d{4})", near_line)
+                                    if match:
+                                        entry["Inception Date"] = match.group(1)
+                                if "Benchmark:" in near_line:
+                                    entry["Benchmark"] = near_line.split("Benchmark:")[1].strip()
+                            # Try to extract fund name from the first few lines
+                            for k in range(max(0, j - 5), j):
+                                candidate = lines[k].strip()
+                                if len(candidate.split()) > 2 and not any(x in candidate for x in ["Manager", "Benchmark", "Date"]):
+                                    entry["Fund Name"] = candidate
+                                    break
+                            metadata_index.append(entry)
+
+                # === Phase 3: Scorecard block parsing ===
                 for i in range(total_pages):
                     text = pdf.pages[i].extract_text()
                     if not text or "Fund Scorecard" not in text:
@@ -85,7 +107,7 @@ def run():
                         clean_name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed on watchlist.*)", "", raw_line).strip()
                         norm_clean = normalize_name(clean_name)
 
-                        # Fuzzy match if no exact
+                        # Fuzzy match fund_meta
                         match_key = None
                         if norm_clean in fund_meta:
                             match_key = norm_clean
@@ -96,7 +118,7 @@ def run():
                                 match_key = best_match[0]
 
                         if not match_key:
-                            continue  # skip unmatchable funds
+                            continue
 
                         meta = fund_meta[match_key]
                         meets_criteria = "placed on watchlist" not in block
@@ -113,47 +135,25 @@ def run():
                                     percentile = percent_match.group(1) + "%"
                                 criteria.append((metric, result))
 
+                        # Fuzzy match metadata from global index
+                        best_meta = {"Manager": "N/A", "Inception Date": "N/A", "Benchmark": "N/A"}
+                        scores = [(normalize_name(m["Fund Name"]), simple_similarity(norm_clean, normalize_name(m["Fund Name"]))) for m in metadata_index]
+                        scores = sorted(scores, key=lambda x: x[1], reverse=True)
+                        if scores and scores[0][1] > 0.6:
+                            best_index = [m for m in metadata_index if normalize_name(m["Fund Name"]) == scores[0][0]]
+                            if best_index:
+                                best_meta = best_index[0]
+
                         if criteria:
                             criteria_data.append({
                                 **meta,
+                                **best_meta,
                                 "Peer Percentile": percentile or "N/A",
                                 "Meets Criteria": "Yes" if meets_criteria else "No",
                                 **{metric: result for metric, result in criteria}
                             })
 
-                # === Phase 3: Fund Fact Sheet Metadata (last 20 pages) ===
-                for i in range(total_pages - 20, total_pages):
-                    lines = pdf.pages[i].extract_text().split("\n")
-                    for j, line in enumerate(lines):
-                        if "Manager:" in line:
-                            manager = line.split("Manager:")[1].strip()
-                            nearby = " ".join(lines[max(0, j-5):j])
-                        elif "Inception Date:" in line:
-                            date_match = re.search(r"Inception Date:\s*(\d{2}/\d{2}/\d{4})", line)
-                            inception = date_match.group(1) if date_match else "N/A"
-                            nearby = " ".join(lines[max(0, j-5):j])
-                        elif "Benchmark:" in line:
-                            benchmark = line.split("Benchmark:")[1].strip()
-                            nearby = " ".join(lines[max(0, j-5):j])
-                        else:
-                            continue
-
-                        # Attempt fuzzy match on nearby lines
-                        best_key = None
-                        best_score = 0
-                        for key in fund_meta:
-                            score = simple_similarity(normalize_name(nearby), key)
-                            if score > best_score:
-                                best_score = score
-                                best_key = key
-                        if best_score > 0.6:
-                            if "Manager:" in line:
-                                fund_meta[best_key]["Manager"] = manager
-                            if "Inception Date:" in line:
-                                fund_meta[best_key]["Inception Date"] = inception
-                            if "Benchmark:" in line:
-                                fund_meta[best_key]["Benchmark"] = benchmark
-
+        # === Final Display ===
         if criteria_data:
             df = pd.DataFrame(criteria_data)
             st.success(f"✅ Extracted {len(df)} fund entries.")
