@@ -3,18 +3,28 @@ import pdfplumber
 import pandas as pd
 import re
 
-# Improved ticker extraction — scans the first few lines of each block
-def extract_ticker_from_block(lines):
-    # First, check first 3 lines for something that looks like a ticker (4–6 uppercase letters, maybe ending in X)
-    for i in range(min(3, len(lines))):
-        match = re.search(r"\b([A-Z]{4,6}X?)\b", lines[i].strip())
-        if match:
-            return match.group(1)
-    # Fallback: search whole block
-    for line in lines:
-        match = re.search(r"\b([A-Z]{4,6}X?)\b", line.strip())
-        if match:
-            return match.group(1)
+# Build fund-to-ticker lookup table from the entire document
+def build_ticker_lookup(pdf):
+    fund_to_ticker = {}
+    pattern = re.compile(r"(.+?)\s+([A-Z]{4,6}X?)$")
+
+    for page in pdf.pages:
+        text = page.extract_text()
+        if not text:
+            continue
+        for line in text.split("\n"):
+            match = pattern.match(line.strip())
+            if match:
+                name = match.group(1).strip()
+                ticker = match.group(2).strip()
+                fund_to_ticker[name] = ticker
+    return fund_to_ticker
+
+# Try fuzzy or partial match if direct match fails
+def resolve_ticker(fund_name, lookup):
+    for known_name, ticker in lookup.items():
+        if known_name.lower() in fund_name.lower() or fund_name.lower() in known_name.lower():
+            return ticker
     return "N/A"
 
 def run():
@@ -28,16 +38,19 @@ def run():
     uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"])
 
     if uploaded_file:
-        with st.spinner("Extracting fund criteria..."):
+        with st.spinner("Extracting fund criteria and matching tickers..."):
             criteria_data = []
 
             with pdfplumber.open(uploaded_file) as pdf:
+                # Step 1: Build a ticker lookup table from the whole document
+                ticker_lookup = build_ticker_lookup(pdf)
+
+                # Step 2: Go back through and extract fund criteria blocks
                 for page in pdf.pages:
                     text = page.extract_text()
                     if not text or "Fund Scorecard" not in text:
                         continue
 
-                    # Split into fund blocks based on the watchlist label
                     blocks = re.split(r"\n(?=[^\n]*?Fund (?:Meets Watchlist Criteria|has been placed on watchlist))", text)
 
                     for block in blocks:
@@ -46,7 +59,7 @@ def run():
                             continue
 
                         fund_name = lines[0].strip()
-                        ticker = extract_ticker_from_block(lines)
+                        ticker = resolve_ticker(fund_name, ticker_lookup)
                         meets_criteria = "placed on watchlist" not in block
                         criteria = []
 
