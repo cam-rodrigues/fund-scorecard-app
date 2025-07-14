@@ -3,10 +3,19 @@ import pdfplumber
 import pandas as pd
 import re
 
-def extract_ticker_from_name(fund_line):
-    # Extract the last uppercase word (assumed to be the ticker)
-    match = re.search(r"\b([A-Z]{4,6}[X]?)\b", fund_line.strip())
-    return match.group(1) if match else "N/A"
+# Improved ticker extraction — scans the first few lines of each block
+def extract_ticker_from_block(lines):
+    # First, check first 3 lines for something that looks like a ticker (4–6 uppercase letters, maybe ending in X)
+    for i in range(min(3, len(lines))):
+        match = re.search(r"\b([A-Z]{4,6}X?)\b", lines[i].strip())
+        if match:
+            return match.group(1)
+    # Fallback: search whole block
+    for line in lines:
+        match = re.search(r"\b([A-Z]{4,6}X?)\b", line.strip())
+        if match:
+            return match.group(1)
+    return "N/A"
 
 def run():
     st.set_page_config(page_title="Fund Scorecard Metrics", layout="wide")
@@ -28,13 +37,16 @@ def run():
                     if not text or "Fund Scorecard" not in text:
                         continue
 
-                    # Split by each fund entry
+                    # Split into fund blocks based on the watchlist label
                     blocks = re.split(r"\n(?=[^\n]*?Fund (?:Meets Watchlist Criteria|has been placed on watchlist))", text)
 
                     for block in blocks:
                         lines = block.split("\n")
-                        fund_name = lines[0].strip() if lines else "UNKNOWN FUND"
-                        ticker = extract_ticker_from_name(fund_name)
+                        if not lines:
+                            continue
+
+                        fund_name = lines[0].strip()
+                        ticker = extract_ticker_from_block(lines)
                         meets_criteria = "placed on watchlist" not in block
                         criteria = []
 
