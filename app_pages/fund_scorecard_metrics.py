@@ -24,8 +24,8 @@ def run():
     if uploaded_file:
         with st.spinner("Processing PDF..."):
             fund_meta = {}
-            criteria_data = []
             metadata_index = []
+            criteria_data = []
 
             fund_type_phrases = [
                 "Large Cap Growth", "Large Cap Value", "Large Blend",
@@ -45,7 +45,7 @@ def run():
             with pdfplumber.open(uploaded_file) as pdf:
                 total_pages = len(pdf.pages)
 
-                # === Phase 1: Build fund metadata from performance pages (first 15) ===
+                # === Phase 1: Build fund meta data ===
                 for i in range(min(15, total_pages)):
                     lines = pdf.pages[i].extract_text().split("\n")
                     for j, line in enumerate(lines):
@@ -66,7 +66,7 @@ def run():
                                 "Share Class": share_class
                             }
 
-                # === Phase 2: Build metadata index from full document ===
+                # === Phase 2: Collect manager/inception/benchmark metadata ===
                 for i in range(total_pages):
                     lines = pdf.pages[i].extract_text().split("\n")
                     for j, line in enumerate(lines):
@@ -82,7 +82,7 @@ def run():
                                         entry["Inception Date"] = match.group(1)
                                 if "Benchmark:" in near_line:
                                     entry["Benchmark"] = near_line.split("Benchmark:")[1].strip()
-                            # Try to extract fund name from the first few lines
+                            # Try to extract fund name from prior lines
                             for k in range(max(0, j - 5), j):
                                 candidate = lines[k].strip()
                                 if len(candidate.split()) > 2 and not any(x in candidate for x in ["Manager", "Benchmark", "Date"]):
@@ -90,7 +90,7 @@ def run():
                                     break
                             metadata_index.append(entry)
 
-                # === Phase 3: Scorecard block parsing ===
+                # === Phase 3: Scorecard Extraction with Clean Parsing ===
                 for i in range(total_pages):
                     text = pdf.pages[i].extract_text()
                     if not text or "Fund Scorecard" not in text:
@@ -103,16 +103,24 @@ def run():
                         if not lines:
                             continue
 
-                        raw_line = lines[0]
-                        clean_name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed on watchlist.*)", "", raw_line).strip()
-                        norm_clean = normalize_name(clean_name)
+                        raw_line = lines[0].strip()
+                        raw_line = re.sub(r"Fund (Meets Watchlist Criteria|has been placed on watchlist.*)\.*", "", raw_line)
 
-                        # Fuzzy match fund_meta
+                        ticker_match = re.search(r"\b([A-Z]{4,6})\b", raw_line)
+                        ticker = ticker_match.group(1) if ticker_match else "N/A"
+                        fund_name = raw_line.split(ticker)[0].strip() if ticker != "N/A" else raw_line
+                        post_ticker = raw_line.split(ticker)[1].strip() if ticker in raw_line else ""
+                        style_box = post_ticker.split(" Fund")[0].strip() if "Fund" in post_ticker else post_ticker.strip()
+                        if len(style_box.split()) < 2:
+                            style_box = "N/A"
+
+                        norm_name = normalize_name(fund_name)
+
                         match_key = None
-                        if norm_clean in fund_meta:
-                            match_key = norm_clean
+                        if norm_name in fund_meta:
+                            match_key = norm_name
                         else:
-                            scores = [(k, simple_similarity(norm_clean, k)) for k in fund_meta]
+                            scores = [(k, simple_similarity(norm_name, k)) for k in fund_meta]
                             best_match = max(scores, key=lambda x: x[1], default=(None, 0))
                             if best_match[1] > 0.6:
                                 match_key = best_match[0]
@@ -135,9 +143,9 @@ def run():
                                     percentile = percent_match.group(1) + "%"
                                 criteria.append((metric, result))
 
-                        # Fuzzy match metadata from global index
+                        # Match extended metadata
                         best_meta = {"Manager": "N/A", "Inception Date": "N/A", "Benchmark": "N/A"}
-                        scores = [(normalize_name(m["Fund Name"]), simple_similarity(norm_clean, normalize_name(m["Fund Name"]))) for m in metadata_index]
+                        scores = [(normalize_name(m["Fund Name"]), simple_similarity(norm_name, normalize_name(m["Fund Name"]))) for m in metadata_index]
                         scores = sorted(scores, key=lambda x: x[1], reverse=True)
                         if scores and scores[0][1] > 0.6:
                             best_index = [m for m in metadata_index if normalize_name(m["Fund Name"]) == scores[0][0]]
@@ -146,6 +154,9 @@ def run():
 
                         if criteria:
                             criteria_data.append({
+                                "Fund Name": fund_name,
+                                "Ticker": ticker,
+                                "Style Box": style_box,
                                 **meta,
                                 **best_meta,
                                 "Peer Percentile": percentile or "N/A",
@@ -153,7 +164,7 @@ def run():
                                 **{metric: result for metric, result in criteria}
                             })
 
-        # === Final Display ===
+        # === Output ===
         if criteria_data:
             df = pd.DataFrame(criteria_data)
             st.success(f"✅ Extracted {len(df)} fund entries.")
