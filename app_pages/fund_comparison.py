@@ -137,18 +137,6 @@ def run():
     if "step" not in st.session_state:
         st.session_state.step = 1
 
-    # Sidebar progress indicator
-    st.sidebar.markdown("### Progress")
-    steps = [
-        "Step 1: Upload PDF",
-        "Step 2: Select Funds",
-        "Step 3: Choose Format",
-        "Step 4: Review Output",
-        "Step 5: Export"
-    ]
-    for i, label in enumerate(steps, start=1):
-        prefix = "✅ " if i < st.session_state.step else "➡️ " if i == st.session_state.step else "🔒 "
-        st.sidebar.markdown(f"{prefix} {label}")
 
     # === Step 1: Upload PDF ===
     st.header("Step 1: Upload MPI PDF")
