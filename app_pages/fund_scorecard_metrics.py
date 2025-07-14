@@ -22,7 +22,7 @@ def run():
             fund_to_manager = {}
             fund_to_inception = {}
 
-            # Step 1: Scan all pages to build mappings
+            # Step 1: Build mappings from PDF
             with pdfplumber.open(uploaded_file) as pdf:
                 for page in pdf.pages:
                     text = page.extract_text()
@@ -31,7 +31,7 @@ def run():
                     lines = text.split("\n")
 
                     for i, line in enumerate(lines):
-                        # Ticker and style box (back-to-back lines)
+                        # Ticker and style box (appear back-to-back)
                         ticker_match = re.match(r"^(.*?)([A-Z]{4,6})\s*$", line.strip())
                         if ticker_match and i + 1 < len(lines):
                             fund_name = ticker_match.group(1).strip()
@@ -42,7 +42,7 @@ def run():
                             if any(x in style_box_line for x in ["Large", "Mid", "Small", "Value", "Growth", "Blend", "Target-Date"]):
                                 fund_to_category[fund_name] = style_box_line
 
-                        # Benchmark line
+                        # Benchmark
                         if "Benchmark:" in line:
                             parts = line.split("Benchmark:")
                             if len(parts) > 1:
@@ -60,7 +60,7 @@ def run():
                                 if last_fund:
                                     fund_to_inception[last_fund] = inception
 
-                        # Manager
+                        # Manager Name
                         if "Manager:" in line:
                             manager_match = re.search(r"Manager:\s*(.*)", line)
                             if manager_match:
@@ -86,14 +86,14 @@ def run():
                         clean_name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed on watchlist.*)", "", raw_fund_line).strip()
                         fund_name = clean_name if len(clean_name.split()) > 2 else raw_fund_line
 
-                        # Match to known fund
+                        # Match fund metadata from earlier pages
                         ticker = "N/A"
                         style_box = "N/A"
                         benchmark = "N/A"
                         manager = "N/A"
                         inception = "N/A"
-
                         match_key = None
+
                         for key in fund_to_ticker:
                             if key.lower() in fund_name.lower():
                                 match_key = key
@@ -104,13 +104,23 @@ def run():
                                 inception = fund_to_inception.get(key, "N/A")
                                 break
 
-                        # Fund Type and Share Class
-                        share_class_keywords = ["Admiral", "Instl", "Institutional", "R6", "Z", "I", "K", "N"]
-                        fund_type_keywords = ["Index", "Growth", "Value", "Bond", "Income", "Stock", "Blend", "Equity", "Real Estate"]
+                        # Improved Fund Type extraction
+                        fund_type_phrases = [
+                            "Large Cap Growth", "Large Cap Value", "Large Blend",
+                            "Mid Cap Growth", "Mid Cap Value", "Mid Cap Blend",
+                            "Small Cap Growth", "Small Cap Value", "Small Blend",
+                            "Target-Date Retirement", "Target-Date 2025", "Target-Date 2030", "Target-Date 2040",
+                            "Target-Date 2045", "Target-Date 2050", "Target-Date 2055", "Target-Date 2060", "Target-Date 2065",
+                            "Intermediate Core Bond", "Intermediate Core-Plus Bond",
+                            "Inflation-Protected Bond", "Multisector Bond", "Global Bond", "Commodities Broad Basket",
+                            "Real Estate", "International", "Emerging Markets", "Equity", "Fixed Income"
+                        ]
+                        fund_type = next((phrase for phrase in fund_type_phrases if phrase.lower() in block.lower()), "N/A")
 
+                        # Share class keywords
+                        share_class_keywords = ["Admiral", "Instl", "Institutional", "R6", "Z", "I", "K", "N"]
                         words = fund_name.split()
                         share_class = next((w for w in words if w in share_class_keywords), "N/A")
-                        fund_type = next((w for w in words if w in fund_type_keywords), "N/A")
 
                         meets_criteria = "placed on watchlist" not in block
                         criteria = []
@@ -121,7 +131,6 @@ def run():
                             if match:
                                 metric = match.group(1).strip()
                                 result = match.group(2).strip()
-                                # Extract percentile if present in parenthesis
                                 percent_match = re.search(r"\((\d{1,3})(st|nd|rd|th)? percentile\)", line)
                                 if percent_match:
                                     percentile = percent_match.group(1) + "%"
