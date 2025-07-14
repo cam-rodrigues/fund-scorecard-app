@@ -3,6 +3,14 @@ import pdfplumber
 import pandas as pd
 import re
 
+def normalize_name(name):
+    return re.sub(r"[^a-z0-9]", "", name.lower())
+
+def simple_similarity(a, b):
+    a, b = normalize_name(a), normalize_name(b)
+    matches = sum((char in b) for char in a)
+    return matches / max(len(a), len(b))
+
 def run():
     st.set_page_config(page_title="Fund Scorecard Metrics", layout="wide")
     st.title("Fund Scorecard Metrics")
@@ -22,11 +30,13 @@ def run():
                 "Large Cap Growth", "Large Cap Value", "Large Blend",
                 "Mid Cap Growth", "Mid Cap Value", "Mid Cap Blend",
                 "Small Cap Growth", "Small Cap Value", "Small Blend",
-                "Target-Date Retirement", "Target-Date 2025", "Target-Date 2030", "Target-Date 2040",
-                "Target-Date 2045", "Target-Date 2050", "Target-Date 2055", "Target-Date 2060",
+                "Target-Date Retirement", "Target-Date 2025", "Target-Date 2030",
+                "Target-Date 2040", "Target-Date 2045", "Target-Date 2050",
+                "Target-Date 2055", "Target-Date 2060", "Target-Date 2065",
                 "Intermediate Core Bond", "Intermediate Core-Plus Bond",
-                "Inflation-Protected Bond", "Multisector Bond", "Global Bond", "Commodities Broad Basket",
-                "Real Estate", "International", "Emerging Markets", "Equity", "Fixed Income", "Stock", "Bond"
+                "Inflation-Protected Bond", "Multisector Bond", "Global Bond",
+                "Commodities Broad Basket", "Real Estate", "International",
+                "Emerging Markets", "Equity", "Fixed Income", "Stock", "Bond"
             ]
 
             share_class_keywords = ["Admiral", "Instl", "Institutional", "R6", "Z", "I", "K", "N"]
@@ -34,34 +44,31 @@ def run():
             with pdfplumber.open(uploaded_file) as pdf:
                 total_pages = len(pdf.pages)
 
-                # === Zone 1: First 15 pages – Fund Name + Ticker + Style Box + Fund Type ===
+                # === Phase 1: Build fund metadata from first 15 pages ===
                 for i in range(min(15, total_pages)):
-                    text = pdf.pages[i].extract_text()
-                    if not text:
-                        continue
-                    lines = text.split("\n")
-
+                    lines = pdf.pages[i].extract_text().split("\n")
                     for j, line in enumerate(lines):
                         ticker_match = re.match(r"^(.*?)([A-Z]{4,6})$", line.strip())
                         if ticker_match and j + 1 < len(lines):
                             fund_name = ticker_match.group(1).strip()
                             ticker = ticker_match.group(2).strip()
                             style_box_line = lines[j + 1].strip()
-
                             fund_type = next((ftype for ftype in fund_type_phrases if ftype.lower() in style_box_line.lower()), "N/A")
                             share_class = next((w for w in fund_name.split() if w in share_class_keywords), "N/A")
 
-                            fund_meta[fund_name] = {
+                            norm_name = normalize_name(fund_name)
+                            fund_meta[norm_name] = {
+                                "Fund Name": fund_name,
                                 "Ticker": ticker,
                                 "Style Box": style_box_line if style_box_line else "N/A",
                                 "Fund Type": fund_type,
                                 "Share Class": share_class,
-                                "Benchmark": "N/A",
                                 "Manager": "N/A",
-                                "Inception Date": "N/A"
+                                "Inception Date": "N/A",
+                                "Benchmark": "N/A"
                             }
 
-                # === Zone 2: Scorecard Pages – Criteria Results ===
+                # === Phase 2: Scorecard Criteria Pages ===
                 for i in range(total_pages):
                     text = pdf.pages[i].extract_text()
                     if not text or "Fund Scorecard" not in text:
@@ -74,13 +81,24 @@ def run():
                         if not lines:
                             continue
 
-                        raw_fund_line = lines[0]
-                        clean_name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed on watchlist.*)", "", raw_fund_line).strip()
-                        fund_name = clean_name
+                        raw_line = lines[0]
+                        clean_name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed on watchlist.*)", "", raw_line).strip()
+                        norm_clean = normalize_name(clean_name)
 
-                        match_key = next((k for k in fund_meta if k.lower() in fund_name.lower()), fund_name)
-                        meta = fund_meta.get(match_key, {})
+                        # Fuzzy match if no exact
+                        match_key = None
+                        if norm_clean in fund_meta:
+                            match_key = norm_clean
+                        else:
+                            scores = [(k, simple_similarity(norm_clean, k)) for k in fund_meta]
+                            best_match = max(scores, key=lambda x: x[1], default=(None, 0))
+                            if best_match[1] > 0.6:
+                                match_key = best_match[0]
 
+                        if not match_key:
+                            continue  # skip unmatchable funds
+
+                        meta = fund_meta[match_key]
                         meets_criteria = "placed on watchlist" not in block
                         criteria = []
                         percentile = None
@@ -97,49 +115,44 @@ def run():
 
                         if criteria:
                             criteria_data.append({
-                                "Fund Name": fund_name,
-                                "Ticker": meta.get("Ticker", "N/A"),
-                                "Style Box": meta.get("Style Box", "N/A"),
-                                "Fund Type": meta.get("Fund Type", "N/A"),
-                                "Share Class": meta.get("Share Class", "N/A"),
-                                "Manager": meta.get("Manager", "N/A"),
-                                "Inception Date": meta.get("Inception Date", "N/A"),
-                                "Benchmark": meta.get("Benchmark", "N/A"),
+                                **meta,
                                 "Peer Percentile": percentile or "N/A",
                                 "Meets Criteria": "Yes" if meets_criteria else "No",
                                 **{metric: result for metric, result in criteria}
                             })
 
-                # === Zone 3: Last 20 pages – Benchmark, Manager, Inception Date ===
+                # === Phase 3: Fund Fact Sheet Metadata (last 20 pages) ===
                 for i in range(total_pages - 20, total_pages):
-                    text = pdf.pages[i].extract_text()
-                    if not text:
-                        continue
-                    lines = text.split("\n")
-
+                    lines = pdf.pages[i].extract_text().split("\n")
                     for j, line in enumerate(lines):
                         if "Manager:" in line:
                             manager = line.split("Manager:")[1].strip()
-                            name_line = lines[j - 1].strip() if j > 0 else ""
-                            match_key = next((k for k in fund_meta if k.lower() in name_line.lower()), None)
-                            if match_key:
-                                fund_meta[match_key]["Manager"] = manager
-
-                        if "Inception Date:" in line:
+                            nearby = " ".join(lines[max(0, j-5):j])
+                        elif "Inception Date:" in line:
                             date_match = re.search(r"Inception Date:\s*(\d{2}/\d{2}/\d{4})", line)
-                            if date_match:
-                                inception = date_match.group(1)
-                                name_line = lines[j - 1].strip() if j > 0 else ""
-                                match_key = next((k for k in fund_meta if k.lower() in name_line.lower()), None)
-                                if match_key:
-                                    fund_meta[match_key]["Inception Date"] = inception
-
-                        if "Benchmark:" in line:
+                            inception = date_match.group(1) if date_match else "N/A"
+                            nearby = " ".join(lines[max(0, j-5):j])
+                        elif "Benchmark:" in line:
                             benchmark = line.split("Benchmark:")[1].strip()
-                            name_line = lines[j - 1].strip() if j > 0 else ""
-                            match_key = next((k for k in fund_meta if k.lower() in name_line.lower()), None)
-                            if match_key:
-                                fund_meta[match_key]["Benchmark"] = benchmark
+                            nearby = " ".join(lines[max(0, j-5):j])
+                        else:
+                            continue
+
+                        # Attempt fuzzy match on nearby lines
+                        best_key = None
+                        best_score = 0
+                        for key in fund_meta:
+                            score = simple_similarity(normalize_name(nearby), key)
+                            if score > best_score:
+                                best_score = score
+                                best_key = key
+                        if best_score > 0.6:
+                            if "Manager:" in line:
+                                fund_meta[best_key]["Manager"] = manager
+                            if "Inception Date:" in line:
+                                fund_meta[best_key]["Inception Date"] = inception
+                            if "Benchmark:" in line:
+                                fund_meta[best_key]["Benchmark"] = benchmark
 
         if criteria_data:
             df = pd.DataFrame(criteria_data)
