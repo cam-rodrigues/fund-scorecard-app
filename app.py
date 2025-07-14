@@ -203,10 +203,6 @@ Your streamlined financial data toolkit for **comparing**, **analyzing**, and **
 
 ---
 
-Start by selecting a tool from the sidebar.
-
----
-
 This content was generated using automation and may not be perfectly accurate. Please verify against official sources.
 """)
     
