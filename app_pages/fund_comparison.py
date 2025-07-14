@@ -199,8 +199,7 @@ def run():
     st.subheader("Scorecard")
     st.dataframe(style_scorecard(enhanced_df.set_index("Fund")), use_container_width=True)
 
-    st.subheader("Recomendation")
-    st.markdown(proposal, unsafe_allow_html=True)
+    st.subheader(proposal, unsafe_allow_html=True)
     st.session_state.step = 5
 
     # === Step 5: Export ===
