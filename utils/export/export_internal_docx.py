@@ -1,15 +1,20 @@
 from docx import Document
 
 def export_internal_docx(df, proposal_html, file_obj):
+    """
+    Creates a DOCX for internal use and saves it to the file_obj (a BytesIO buffer).
+    """
     doc = Document()
     doc.add_heading("Internal Proposal", level=1)
 
-    doc.add_paragraph("Detailed Summary")
+    doc.add_paragraph("Detailed Analysis")
     doc.add_paragraph(proposal_html)
 
     table = doc.add_table(rows=1, cols=len(df.columns))
+    hdr_cells = table.rows[0].cells
     for i, col in enumerate(df.columns):
-        table.rows[0].cells[i].text = col
+        hdr_cells[i].text = col
+
     for _, row in df.iterrows():
         row_cells = table.add_row().cells
         for i, val in enumerate(row):
