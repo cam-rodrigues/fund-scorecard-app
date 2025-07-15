@@ -162,11 +162,18 @@ def run():
                     df.at[i, "Fund Name"] = llm_name
                     df.at[i, "Ticker"] = ticker_lookup.get(llm_name, "N/A")
                 else:
-                    # Try one more time from the fallback cleaned line
                     fallback_name = get_fund_name(block, ticker_lookup)
                     if fallback_name != "UNKNOWN FUND":
                         df.at[i, "Fund Name"] = fallback_name
                         df.at[i, "Ticker"] = ticker_lookup.get(fallback_name, "N/A")
+
+        # ✅ Final fuzzy fix for missing tickers
+        for i, row in df.iterrows():
+            if row["Ticker"] == "N/A" and row["Fund Name"] != "UNKNOWN FUND":
+                fund_name = row["Fund Name"]
+                match = get_close_matches(fund_name, ticker_lookup.keys(), n=1, cutoff=0.6)
+                if match:
+                    df.at[i, "Ticker"] = ticker_lookup[match[0]]
 
         if not df.empty:
             st.success(f"Found {len(df)} fund entries.")
