@@ -82,15 +82,11 @@ def run():
     pdf_file = st.file_uploader("Upload MPI PDF", type=["pdf"])
 
     if pdf_file:
-        rows = []
+                rows = []
         original_blocks = []
 
         with pdfplumber.open(pdf_file) as pdf:
-            progress_html = st.empty()
-            status_text = st.empty()
             total_blocks = 0
-
-            # Count total fund blocks
             for page in pdf.pages:
                 txt = page.extract_text()
                 if txt:
@@ -99,38 +95,37 @@ def run():
                         txt)
                     total_blocks += len([b for b in blocks if b.strip()])
 
-            def render_progress_bar(percentage):
-                # Define color based on percentage
-                if percentage < 0.33:
-                    color = "#d9534f"  # red
-                elif percentage < 0.66:
-                    color = "#f0ad4e"  # orange
-                else:
-                    color = "#5cb85c"  # green
+            progress_slot = st.empty()
+            status_text = st.empty()
 
-                progress_bar = f"""
-                <div style="width: 100%; background-color: #f5f5f5; border-radius: 6px; margin-bottom: 10px;">
+            def show_progress_bar(percent):
+                percent_clamped = max(0, min(100, percent))
+                # Hue from red (0 deg) to green (120 deg)
+                hue = int((percent_clamped / 100) * 120)
+                color = f"hsl({hue}, 70%, 50%)"
+
+                bar_html = f"""
+                <div style="width: 100%; background-color: #eee; border-radius: 6px;">
                     <div style="
-                        width: {percentage * 100:.1f}%;
+                        width: {percent_clamped}%;
                         background-color: {color};
-                        padding: 0.3rem 0;
+                        padding: 0.4rem 0;
                         border-radius: 6px;
                         text-align: center;
                         color: white;
                         font-weight: bold;
-                        font-size: 0.85rem;
-                        transition: width 0.2s ease-in-out;
+                        font-size: 0.9rem;
+                        transition: width 0.2s ease;
                     ">
-                        {percentage * 100:.1f}%
+                        {percent_clamped:.1f}%
                     </div>
                 </div>
                 """
-                progress_html.markdown(progress_bar, unsafe_allow_html=True)
+                progress_slot.markdown(bar_html, unsafe_allow_html=True)
 
             processed_blocks = 0
             ticker_lookup = build_ticker_lookup(pdf)
 
-            # ✅ Patch
             if not any("Enhanced Commodity" in name for name in ticker_lookup):
                 ticker_lookup["WisdomTree Enhanced Commodity Stgy Fd"] = "WTES"
 
@@ -172,14 +167,13 @@ def run():
                         original_blocks.append(block)
 
                     processed_blocks += 1
-                    pct = processed_blocks / total_blocks if total_blocks > 0 else 1
-                    render_progress_bar(pct)
+                    pct = (processed_blocks / total_blocks) * 100 if total_blocks > 0 else 100
+                    show_progress_bar(pct)
                     status_text.text(f"Processing fund {processed_blocks} of {total_blocks}")
 
-            progress_html.empty()
+            progress_slot.empty()
             status_text.empty()
 
-  
         df = pd.DataFrame(rows)
 
         # Final ticker correction (fuzzy + substring)
