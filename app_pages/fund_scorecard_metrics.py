@@ -25,7 +25,7 @@ def build_ticker_lookup(pdf):
                 lookup[parts[0].strip()] = parts[1].strip()
     return lookup
 
-# --- Find the correct Fund Name from block ---
+# --- Get fund name from block (including fallback logic) ---
 def get_fund_name(block, lookup):
     block_lower = block.lower()
     for name in lookup:
@@ -41,7 +41,7 @@ def get_fund_name(block, lookup):
         if matches:
             return matches[0]
 
-    # 🔁 Fallback: grab line above first metric, but don't grab "Fund Meets..." or watchlist lines
+    # 🧠 True fallback: use line above first metric, apply exact + fuzzy match
     metric_start = None
     for i, line in enumerate(lines):
         if any(metric in line for metric in [
@@ -57,8 +57,13 @@ def get_fund_name(block, lookup):
         if (
             fallback_line and
             not fallback_line.lower().startswith("fund meets") and
-            not fallback_line.lower().startswith("has been placed on watchlist")
+            "watchlist" not in fallback_line.lower()
         ):
+            if fallback_line in lookup:
+                return fallback_line
+            match = get_close_matches(fallback_line, lookup.keys(), n=1, cutoff=0.5)
+            if match:
+                return match[0]
             return fallback_line
 
     return "UNKNOWN FUND"
