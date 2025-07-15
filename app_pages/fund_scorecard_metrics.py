@@ -41,7 +41,7 @@ def get_fund_name(block, lookup):
         if matches:
             return matches[0]
 
-    # 🧠 Fallback: grab line above first metric
+    # 🧠 Fallback: grab line above first metric, filter out summary lines
     metric_start = None
     for i, line in enumerate(lines):
         if any(metric in line for metric in [
@@ -53,9 +53,13 @@ def get_fund_name(block, lookup):
             break
 
     if metric_start and metric_start > 0:
-        fallback_name = lines[metric_start - 1].strip()
-        if fallback_name:
-            return fallback_name
+        fallback_line = lines[metric_start - 1].strip()
+        if (
+            fallback_line and
+            "Fund Meets" not in fallback_line and
+            "watchlist" not in fallback_line.lower()
+        ):
+            return fallback_line
 
     return "UNKNOWN FUND"
 
