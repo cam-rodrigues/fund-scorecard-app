@@ -23,25 +23,28 @@ def build_ticker_lookup(pdf):
 # --- Helper: find the correct Fund Name within a criteria block ---
 def get_fund_name(block, lookup):
     block_lower = block.lower()
+
+    # Try exact text match
     for name in lookup:
         if name.lower() in block_lower:
             return name
 
-    # Try detecting name + ticker lines in block
-    pattern = re.compile(r"(.+?)\s+([A-Z]{4,6})\b")
-    for line in block.split("\n"):
-        m = pattern.match(line.strip())
-        if m:
-            possible_name = m.group(1).strip()
-            for name in lookup:
-                if name.lower() in possible_name.lower():
-                    return name
-            matches = get_close_matches(possible_name, lookup.keys(), n=1, cutoff=0.6)
-            if matches:
-                return matches[0]
+    # New: Look for first few uppercase-heavy lines
+    candidate_lines = []
+    for line in block.split("\n")[:6]:  # Just the first few lines of the block
+        if len(line.strip()) > 6 and sum(c.isupper() for c in line) > 5:
+            candidate_lines.append(line.strip())
 
+    # Try fuzzy match on candidate lines
+    for candidate in candidate_lines:
+        matches = get_close_matches(candidate, lookup.keys(), n=1, cutoff=0.6)
+        if matches:
+            return matches[0]
+
+    # Fallback: fuzzy match full block
     matches = get_close_matches(block, lookup.keys(), n=1, cutoff=0.6)
     return matches[0] if matches else "UNKNOWN FUND"
+
 
 # --- Streamlit App ---
 def run():
