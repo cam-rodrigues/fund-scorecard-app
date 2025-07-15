@@ -5,10 +5,8 @@ import re
 from difflib import get_close_matches
 import together
 
-# ✅ Use your existing secrets structure
 together.api_key = st.secrets["together"]["api_key"]
 
-# --- Build Fund‑Name ➜ Ticker lookup ---
 def build_ticker_lookup(pdf):
     lookup = {}
     for page in pdf.pages:
@@ -23,7 +21,6 @@ def build_ticker_lookup(pdf):
                     lookup[fund.strip()] = ticker.strip()
     return lookup
 
-# --- Together fallback to identify fund name ---
 def identify_fund_with_llm(block, lookup_keys):
     prompt = f"""
 You are analyzing a fund performance summary. Given this block:
@@ -50,7 +47,6 @@ Which fund is this block referring to? Respond with the exact name from the list
         st.warning(f"LLM fallback failed: {e}")
         return "UNKNOWN FUND"
 
-# --- Get fund name from block using multiple methods ---
 def get_fund_name(block, lookup):
     block_lower = block.lower()
     for name in lookup:
@@ -67,7 +63,6 @@ def get_fund_name(block, lookup):
 
     return "UNKNOWN FUND"
 
-# --- Streamlit App ---
 def run():
     st.set_page_config(page_title="Fund Scorecard Metrics", layout="wide")
     st.title("Fund Scorecard Metrics")
@@ -80,6 +75,7 @@ def run():
 
     if pdf_file:
         rows = []
+        original_blocks = []
         with pdfplumber.open(pdf_file) as pdf:
             total_pages = len(pdf.pages)
             status_text = st.empty()
@@ -104,14 +100,6 @@ def run():
 
                     fund_name = get_fund_name(block, ticker_lookup)
                     ticker = ticker_lookup.get(fund_name, "N/A")
-
-                    # 🧠 Only use LLM if fund name or ticker is missing
-                    if fund_name == "UNKNOWN FUND" or ticker == "N/A":
-                        fund_name_llm = identify_fund_with_llm(block, list(ticker_lookup.keys()))
-                        if fund_name_llm != "UNKNOWN FUND":
-                            fund_name = fund_name_llm
-                            ticker = ticker_lookup.get(fund_name_llm, "N/A")
-
                     meets = "Yes" if "placed on watchlist" not in block else "No"
 
                     metrics = {}
@@ -131,6 +119,7 @@ def run():
                             "Meets Criteria": meets,
                             **metrics
                         })
+                        original_blocks.append(block)
 
                 progress.progress((i + 1) / total_pages)
                 status_text.text(f"Processed page {i + 1} of {total_pages}")
@@ -138,9 +127,18 @@ def run():
             progress.empty()
             status_text.empty()
 
-        if rows:
-            df = pd.DataFrame(rows)
-            st.success(f"✅ Found {len(df)} fund entries.")
+        # ✅ Post-processing: LLM tries to fix unknown rows
+        df = pd.DataFrame(rows)
+        for i, row in df.iterrows():
+            if row["Fund Name"] == "UNKNOWN FUND" or row["Ticker"] == "N/A":
+                block = original_blocks[i]
+                llm_name = identify_fund_with_llm(block, list(ticker_lookup.keys()))
+                if llm_name != "UNKNOWN FUND":
+                    df.at[i, "Fund Name"] = llm_name
+                    df.at[i, "Ticker"] = ticker_lookup.get(llm_name, "N/A")
+
+        if not df.empty:
+            st.success(f"Found {len(df)} fund entries.")
             st.dataframe(df, use_container_width=True)
 
             with st.expander("Download Results"):
