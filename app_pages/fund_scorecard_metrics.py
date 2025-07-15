@@ -44,7 +44,7 @@ Which fund is this block referring to? Respond with the exact name from the list
             temperature=0.3,
             stop=["\n"]
         )
-        result = response["output"]["choices"][0]["text"].strip()
+        result = response["choices"][0]["text"].strip()
         return result if result in lookup_keys else "UNKNOWN FUND"
     except Exception as e:
         st.warning(f"LLM fallback failed: {e}")
