@@ -3,10 +3,8 @@ import pdfplumber
 import pandas as pd
 import re
 from difflib import get_close_matches
-import together
 
-
-# --- Build Fund Name ➜ Ticker lookup ---
+# --- Robust lookup from stacked + inline formats ---
 def build_ticker_lookup(pdf):
     lookup = {}
     for page in pdf.pages:
@@ -24,7 +22,7 @@ def build_ticker_lookup(pdf):
                 lookup[parts[0].strip()] = parts[1].strip()
     return lookup
 
-# --- Find the correct Fund Name from block ---
+# --- Try to match from block text ---
 def get_fund_name(block, lookup):
     block_lower = block.lower()
     for name in lookup:
@@ -40,7 +38,7 @@ def get_fund_name(block, lookup):
         if matches:
             return matches[0]
 
-    # 🔁 Fallback: grab line above first metric, but don't grab "Fund Meets..." or watchlist lines
+    # 🧠 Fallback: grab line above first metric
     metric_start = None
     for i, line in enumerate(lines):
         if any(metric in line for metric in [
@@ -52,18 +50,14 @@ def get_fund_name(block, lookup):
             break
 
     if metric_start and metric_start > 0:
-        fallback_line = lines[metric_start - 1].strip()
-        if (
-            fallback_line and
-            not fallback_line.lower().startswith("fund meets") and
-            not fallback_line.lower().startswith("has been placed on watchlist")
-        ):
-            return fallback_line
+        fallback_name = lines[metric_start - 1].strip()
+        fallback_name = re.sub(r"(This|The)?\s?fund\s(has|meets).*", "", fallback_name, flags=re.IGNORECASE).strip()
+        if fallback_name:
+            return fallback_name
 
     return "UNKNOWN FUND"
 
-
-# --- Streamlit App ---
+# --- Main App ---
 def run():
     st.set_page_config(page_title="Fund Scorecard Metrics", layout="wide")
     st.title("Fund Scorecard Metrics")
@@ -100,14 +94,7 @@ def run():
                         continue
 
                     fund_name = get_fund_name(block, ticker_lookup)
-
-                    # ✅ Match or fuzzy-match ticker
-                    if fund_name in ticker_lookup:
-                        ticker = ticker_lookup[fund_name]
-                    else:
-                        match = get_close_matches(fund_name, ticker_lookup.keys(), n=1, cutoff=0.5)
-                        ticker = ticker_lookup[match[0]] if match else "N/A"
-
+                    ticker = ticker_lookup.get(fund_name, "N/A")
                     meets = "Yes" if "placed on watchlist" not in block else "No"
 
                     metrics = {}
@@ -135,15 +122,19 @@ def run():
             progress.empty()
             status_text.empty()
 
-        # 🔁 Final LLM fallback for UNKNOWN rows
+        # ✅ Final, aggressive fix for missing tickers
         df = pd.DataFrame(rows)
         for i, row in df.iterrows():
-            if row["Fund Name"] == "UNKNOWN FUND" or row["Ticker"] == "N/A":
-                block = original_blocks[i]
-                llm_name = identify_fund_with_llm(block, list(ticker_lookup.keys()))
-                if llm_name != "UNKNOWN FUND":
-                    df.at[i, "Fund Name"] = llm_name
-                    df.at[i, "Ticker"] = ticker_lookup.get(llm_name, "N/A")
+            if row["Ticker"] == "N/A" and row["Fund Name"] != "UNKNOWN FUND":
+                fund_name = row["Fund Name"]
+                match = get_close_matches(fund_name, ticker_lookup.keys(), n=1, cutoff=0.5)
+                if match:
+                    df.at[i, "Ticker"] = ticker_lookup[match[0]]
+                else:
+                    for known_name in ticker_lookup:
+                        if fund_name.lower() in known_name.lower() or known_name.lower() in fund_name.lower():
+                            df.at[i, "Ticker"] = ticker_lookup[known_name]
+                            break
 
         if not df.empty:
             st.success(f"Found {len(df)} fund entries.")
@@ -151,7 +142,7 @@ def run():
 
             with st.expander("Download Results"):
                 csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button("Download as CSV",
+                st.download_button("📥 Download as CSV",
                                    data=csv,
                                    file_name="fund_criteria_results.csv",
                                    mime="text/csv")
