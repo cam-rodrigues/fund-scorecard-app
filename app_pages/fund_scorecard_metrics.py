@@ -2,6 +2,7 @@ import streamlit as st
 import pdfplumber
 import pandas as pd
 import re
+from difflib import get_close_matches
 
 # --- Helper: build Fund‑Name ➜ Ticker lookup from the performance tables ---
 def build_ticker_lookup(pdf):
@@ -18,11 +19,22 @@ def build_ticker_lookup(pdf):
     return lookup
 
 # --- Helper: find the correct Fund Name within a criteria block ---
+
 def get_fund_name(block, lookup):
+    block_lower = block.lower()
     for name in lookup:
-        if name.lower() in block.lower():
+        if name.lower() in block_lower:
             return name
+
+    # Fallback: fuzzy match against each line
+    lines = block.split("\n")
+    for line in lines:
+        matches = get_close_matches(line.strip(), lookup.keys(), n=1, cutoff=0.7)
+        if matches:
+            return matches[0]
+
     return "UNKNOWN FUND"
+
 
 def run():
     st.set_page_config(page_title="Fund Scorecard Metrics", layout="wide")
