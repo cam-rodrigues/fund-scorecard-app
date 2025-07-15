@@ -123,7 +123,14 @@ def run():
                         continue
 
                     fund_name = get_fund_name(block, ticker_lookup)
-                    ticker = ticker_lookup.get(fund_name, "N/A")
+
+                    # ✅ Match or fuzzy-match ticker
+                    if fund_name in ticker_lookup:
+                        ticker = ticker_lookup[fund_name]
+                    else:
+                        match = get_close_matches(fund_name, ticker_lookup.keys(), n=1, cutoff=0.5)
+                        ticker = ticker_lookup[match[0]] if match else "N/A"
+
                     meets = "Yes" if "placed on watchlist" not in block else "No"
 
                     metrics = {}
@@ -151,7 +158,7 @@ def run():
             progress.empty()
             status_text.empty()
 
-        # 🔁 LLM post-fix for remaining UNKNOWNs
+        # 🔁 Final LLM fallback for unknowns
         df = pd.DataFrame(rows)
         for i, row in df.iterrows():
             if row["Fund Name"] == "UNKNOWN FUND" or row["Ticker"] == "N/A":
@@ -167,7 +174,7 @@ def run():
 
             with st.expander("Download Results"):
                 csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button("📥 Download as CSV",
+                st.download_button("Download as CSV",
                                    data=csv,
                                    file_name="fund_criteria_results.csv",
                                    mime="text/csv")
