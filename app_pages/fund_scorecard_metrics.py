@@ -15,14 +15,23 @@ def build_ticker_lookup(pdf):
         for line in txt.split("\n"):
             m = pattern.match(line.strip())
             if m:
-                lookup[m.group(1).strip()] = m.group(2).strip()
+                fund = m.group(1).strip()
+                ticker = m.group(2).strip()
+                lookup[fund] = ticker
     return lookup
 
-# --- Helper: find the best matched fund name in a block using fuzzy match ---
+# --- Improved Helper: find the best matched fund name line in block ---
 def get_fund_name(block, lookup_keys):
-    best_match = get_close_matches(block, lookup_keys, n=1, cutoff=0.5)
-    return best_match[0] if best_match else "UNKNOWN FUND"
+    for line in block.split("\n"):
+        line = line.strip()
+        if len(line) < 6:  # too short to be a fund name
+            continue
+        matches = get_close_matches(line, lookup_keys, n=1, cutoff=0.7)
+        if matches:
+            return matches[0]
+    return "UNKNOWN FUND"
 
+# --- Streamlit App ---
 def run():
     st.set_page_config(page_title="Fund Scorecard Metrics", layout="wide")
     st.title("Fund Scorecard Metrics")
