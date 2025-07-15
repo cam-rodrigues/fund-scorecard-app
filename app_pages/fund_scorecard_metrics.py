@@ -4,18 +4,22 @@ import pandas as pd
 import re
 import io
 
-# --- Helper: build Fund‑Name ➜ Ticker lookup from the performance tables ---
+# --- Robust Ticker Lookup ---
 def build_ticker_lookup(pdf):
     lookup = {}
-    pattern = re.compile(r"(.+?)\s+([A-Z]{4,6}X?)$")   # e.g. “Vanguard Mid Cap Index Admiral  VIMAX”
     for page in pdf.pages:
         txt = page.extract_text()
         if not txt:
             continue
         for line in txt.split("\n"):
-            m = pattern.match(line.strip())
+            line = line.strip()
+            # Accepts 2+ spaces between fund name and ticker, with optional trailing symbols
+            m = re.match(r"(.+?)\s{2,}([A-Z0-9]{4,6}[A-Z]?)\s?[†*]?$", line)
             if m:
-                lookup[m.group(1).strip()] = m.group(2).strip()
+                name = m.group(1).strip()
+                ticker = m.group(2).strip()
+                if name not in lookup:
+                    lookup[name] = ticker
     return lookup
 
 # --- Helper: find the correct Fund Name within a criteria block ---
@@ -36,46 +40,56 @@ def run():
     pdf_file = st.file_uploader("Upload MPI PDF", type=["pdf"])
 
     if pdf_file:
-        with st.spinner("Extracting fund criteria and matching tickers…"):
-            rows = []
+        rows = []
 
-            with pdfplumber.open(pdf_file) as pdf:
-                ticker_lookup = build_ticker_lookup(pdf)
+        with pdfplumber.open(pdf_file) as pdf:
+            ticker_lookup = build_ticker_lookup(pdf)
 
-                for page in pdf.pages:
-                    txt = page.extract_text()
-                    if not txt or "Fund Scorecard" not in txt:
+            # Optional: show what was found
+            with st.expander("Show Fund Name ➜ Ticker Lookup Table"):
+                st.dataframe(pd.DataFrame(list(ticker_lookup.items()), columns=["Fund Name", "Ticker"]))
+
+            progress = st.progress(0.0, "Scanning PDF for fund criteria...")
+
+            for i, page in enumerate(pdf.pages, start=1):
+                txt = page.extract_text()
+                if not txt or "Fund Scorecard" not in txt:
+                    progress.progress(i / len(pdf.pages))
+                    continue
+
+                blocks = re.split(
+                    r"\n(?=[^\n]*?Fund (?:Meets Watchlist Criteria|has been placed on watchlist))",
+                    txt)
+
+                for block in blocks:
+                    if not block.strip():
                         continue
 
-                    blocks = re.split(
-                        r"\n(?=[^\n]*?Fund (?:Meets Watchlist Criteria|has been placed on watchlist))",
-                        txt)
+                    fund_name = get_fund_name(block, ticker_lookup)
+                    ticker = ticker_lookup.get(fund_name, "N/A")
+                    meets = "Yes" if "placed on watchlist" not in block else "No"
 
-                    for block in blocks:
-                        if not block.strip():
-                            continue
+                    metrics = {}
+                    for line in block.split("\n"):
+                        if line.startswith((
+                            "Manager Tenure", "Excess Performance", "Peer Return Rank",
+                            "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
+                            "Sortino Ratio Rank", "Tracking Error Rank")):
+                            m = re.match(r"^(.*?)\s+(Pass|Review)", line.strip())
+                            if m:
+                                metrics[m.group(1).strip()] = m.group(2).strip()
 
-                        fund_name = get_fund_name(block, ticker_lookup)
-                        ticker = ticker_lookup.get(fund_name, "N/A")
-                        meets = "Yes" if "placed on watchlist" not in block else "No"
+                    if metrics:
+                        rows.append({
+                            "Fund Name": fund_name,
+                            "Ticker": ticker,
+                            "Meets Criteria": meets,
+                            **metrics
+                        })
 
-                        metrics = {}
-                        for line in block.split("\n"):
-                            if line.startswith((
-                                "Manager Tenure", "Excess Performance", "Peer Return Rank",
-                                "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
-                                "Sortino Ratio Rank", "Tracking Error Rank")):
-                                m = re.match(r"^(.*?)\s+(Pass|Review)", line.strip())
-                                if m:
-                                    metrics[m.group(1).strip()] = m.group(2).strip()
+                progress.progress(i / len(pdf.pages))
 
-                        if metrics:
-                            rows.append({
-                                "Fund Name": fund_name,
-                                "Ticker": ticker,
-                                "Meets Criteria": meets,
-                                **metrics
-                            })
+            progress.empty()
 
         if rows:
             df = pd.DataFrame(rows)
