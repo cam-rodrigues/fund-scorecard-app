@@ -7,7 +7,7 @@ import together
 
 together.api_key = st.secrets["together"]["api_key"]
 
-# --- Build Fund Name ➜ Ticker lookup ---
+# --- Robust lookup from stacked + inline formats ---
 def build_ticker_lookup(pdf):
     lookup = {}
     for page in pdf.pages:
@@ -25,41 +25,41 @@ def build_ticker_lookup(pdf):
                 lookup[parts[0].strip()] = parts[1].strip()
     return lookup
 
-# --- Get fund name from block (smart fallback) ---
+# --- Try to match from block text ---
 def get_fund_name(block, lookup):
     block_lower = block.lower()
-
-    # ✅ Try exact match first
     for name in lookup:
         if name.lower() in block_lower:
             return name
 
-    lines = [line.strip() for line in block.split("\n") if line.strip()]
-    name_candidates = []
+    lines = block.split("\n")
+    top_lines = lines[:6]
+    candidates = [line.strip() for line in top_lines if sum(c.isupper() for c in line) > 5]
 
-    # 🚫 Ignore lines that are clearly not fund names
-    skip_patterns = [
-        re.compile(r"fund meets", re.IGNORECASE),
-        re.compile(r"watchlist", re.IGNORECASE),
-        re.compile(r"\b(as of|[0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4})\b", re.IGNORECASE)
-    ]
+    for line in candidates:
+        matches = get_close_matches(line, lookup.keys(), n=1, cutoff=0.5)
+        if matches:
+            return matches[0]
 
-    for line in lines:
-        if any(p.search(line) for p in skip_patterns):
-            continue
-        if sum(c.isupper() for c in line) > 5 and 3 <= len(line.split()) <= 12:
-            name_candidates.append(line)
+    # 🧠 Fallback: grab line above first metric
+    metric_start = None
+    for i, line in enumerate(lines):
+        if any(metric in line for metric in [
+            "Manager Tenure", "Excess Performance", "Peer Return Rank",
+            "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
+            "Sortino Ratio Rank", "Tracking Error Rank"
+        ]):
+            metric_start = i
+            break
 
-    for candidate in name_candidates:
-        if candidate in lookup:
-            return candidate
-        match = get_close_matches(candidate, lookup.keys(), n=1, cutoff=0.5)
-        if match:
-            return match[0]
+    if metric_start and metric_start > 0:
+        fallback_name = lines[metric_start - 1].strip()
+        if fallback_name:
+            return fallback_name
 
     return "UNKNOWN FUND"
 
-# --- Optional LLM fallback ---
+# --- LLM fallback ---
 def identify_fund_with_llm(block, lookup_keys):
     prompt = f"""
 You are analyzing a fund performance summary. Given this block:
@@ -86,7 +86,7 @@ Which fund is this block referring to? Respond with the exact name from the list
         st.warning(f"LLM fallback failed: {e}")
         return "UNKNOWN FUND"
 
-# --- Streamlit App ---
+# --- Main App ---
 def run():
     st.set_page_config(page_title="Fund Scorecard Metrics", layout="wide")
     st.title("Fund Scorecard Metrics")
@@ -123,14 +123,7 @@ def run():
                         continue
 
                     fund_name = get_fund_name(block, ticker_lookup)
-
-                    # ✅ Match or fuzzy-match ticker
-                    if fund_name in ticker_lookup:
-                        ticker = ticker_lookup[fund_name]
-                    else:
-                        match = get_close_matches(fund_name, ticker_lookup.keys(), n=1, cutoff=0.5)
-                        ticker = ticker_lookup[match[0]] if match else "N/A"
-
+                    ticker = ticker_lookup.get(fund_name, "N/A")
                     meets = "Yes" if "placed on watchlist" not in block else "No"
 
                     metrics = {}
@@ -158,7 +151,7 @@ def run():
             progress.empty()
             status_text.empty()
 
-        # 🔁 Final LLM fallback for UNKNOWN rows
+        # 🔁 LLM post-fix for remaining UNKNOWNs
         df = pd.DataFrame(rows)
         for i, row in df.iterrows():
             if row["Fund Name"] == "UNKNOWN FUND" or row["Ticker"] == "N/A":
@@ -169,7 +162,7 @@ def run():
                     df.at[i, "Ticker"] = ticker_lookup.get(llm_name, "N/A")
 
         if not df.empty:
-            st.success(f"✅ Found {len(df)} fund entries.")
+            st.success(f"Found {len(df)} fund entries.")
             st.dataframe(df, use_container_width=True)
 
             with st.expander("Download Results"):
