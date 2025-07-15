@@ -4,25 +4,38 @@ import pandas as pd
 import re
 from difflib import get_close_matches
 
-# --- Robust lookup from stacked + inline formats ---
+# --- Improved ticker lookup (patched to catch stacked/inlined tickers better) ---
 def build_ticker_lookup(pdf):
     lookup = {}
+    pattern = re.compile(r"^[A-Z][A-Za-z0-9&\-\s]{5,}\s+[A-Z]{4,6}X?$")
+
     for page in pdf.pages:
         lines = page.extract_text().split("\n") if page.extract_text() else []
 
         for i in range(len(lines) - 1):
-            name = lines[i].strip()
-            maybe_ticker = lines[i + 1].strip()
-            if re.match(r"^[A-Z]{4,6}X?$", maybe_ticker) and len(name.split()) > 1:
-                lookup[name] = maybe_ticker
+            name_line = lines[i].strip()
+            ticker_line = lines[i + 1].strip()
+
+            if (
+                re.match(r"^[A-Z]{4,6}X?$", ticker_line)
+                and len(name_line.split()) >= 3
+                and not re.match(r"^[A-Z]{4,6}X?$", name_line)
+            ):
+                lookup[name_line] = ticker_line
 
         for line in lines:
-            parts = line.strip().rsplit(" ", 1)
-            if len(parts) == 2 and re.match(r"^[A-Z]{4,6}X?$", parts[1]):
+            line = line.strip()
+            parts = line.rsplit(" ", 1)
+            if (
+                len(parts) == 2
+                and re.match(r"^[A-Z]{4,6}X?$", parts[1])
+                and len(parts[0].split()) >= 3
+            ):
                 lookup[parts[0].strip()] = parts[1].strip()
+
     return lookup
 
-# --- Try to match from block text ---
+# --- Try to match fund name from block ---
 def get_fund_name(block, lookup):
     block_lower = block.lower()
     for name in lookup:
@@ -38,7 +51,6 @@ def get_fund_name(block, lookup):
         if matches:
             return matches[0]
 
-    # 🧠 Fallback: grab line above first metric
     metric_start = None
     for i, line in enumerate(lines):
         if any(metric in line for metric in [
@@ -122,8 +134,9 @@ def run():
             progress.empty()
             status_text.empty()
 
-        # ✅ Final, aggressive fix for missing tickers
         df = pd.DataFrame(rows)
+
+        # Final ticker fix pass
         for i, row in df.iterrows():
             if row["Ticker"] == "N/A" and row["Fund Name"] != "UNKNOWN FUND":
                 fund_name = row["Fund Name"]
