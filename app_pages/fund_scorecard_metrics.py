@@ -7,20 +7,59 @@ import together
 
 together.api_key = st.secrets["together"]["api_key"]
 
+# --- Robust lookup from stacked + inline formats ---
 def build_ticker_lookup(pdf):
     lookup = {}
     for page in pdf.pages:
-        text = page.extract_text()
-        if not text:
-            continue
-        for line in text.split("\n"):
+        lines = page.extract_text().split("\n") if page.extract_text() else []
+
+        for i in range(len(lines) - 1):
+            name = lines[i].strip()
+            maybe_ticker = lines[i + 1].strip()
+            if re.match(r"^[A-Z]{4,6}X?$", maybe_ticker) and len(name.split()) > 1:
+                lookup[name] = maybe_ticker
+
+        for line in lines:
             parts = line.strip().rsplit(" ", 1)
-            if len(parts) == 2:
-                fund, ticker = parts
-                if re.match(r"^[A-Z]{4,6}$", ticker.strip()):
-                    lookup[fund.strip()] = ticker.strip()
+            if len(parts) == 2 and re.match(r"^[A-Z]{4,6}X?$", parts[1]):
+                lookup[parts[0].strip()] = parts[1].strip()
     return lookup
 
+# --- Try to match from block text ---
+def get_fund_name(block, lookup):
+    block_lower = block.lower()
+    for name in lookup:
+        if name.lower() in block_lower:
+            return name
+
+    lines = block.split("\n")
+    top_lines = lines[:6]
+    candidates = [line.strip() for line in top_lines if sum(c.isupper() for c in line) > 5]
+
+    for line in candidates:
+        matches = get_close_matches(line, lookup.keys(), n=1, cutoff=0.5)
+        if matches:
+            return matches[0]
+
+    # 🧠 Fallback: grab line above first metric
+    metric_start = None
+    for i, line in enumerate(lines):
+        if any(metric in line for metric in [
+            "Manager Tenure", "Excess Performance", "Peer Return Rank",
+            "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
+            "Sortino Ratio Rank", "Tracking Error Rank"
+        ]):
+            metric_start = i
+            break
+
+    if metric_start and metric_start > 0:
+        fallback_name = lines[metric_start - 1].strip()
+        if fallback_name:
+            return fallback_name
+
+    return "UNKNOWN FUND"
+
+# --- LLM fallback ---
 def identify_fund_with_llm(block, lookup_keys):
     prompt = f"""
 You are analyzing a fund performance summary. Given this block:
@@ -47,22 +86,7 @@ Which fund is this block referring to? Respond with the exact name from the list
         st.warning(f"LLM fallback failed: {e}")
         return "UNKNOWN FUND"
 
-def get_fund_name(block, lookup):
-    block_lower = block.lower()
-    for name in lookup:
-        if name.lower() in block_lower:
-            return name
-
-    lines = block.split("\n")[:6]
-    candidates = [line.strip() for line in lines if sum(c.isupper() for c in line) > 5]
-
-    for line in candidates:
-        matches = get_close_matches(line, lookup.keys(), n=1, cutoff=0.6)
-        if matches:
-            return matches[0]
-
-    return "UNKNOWN FUND"
-
+# --- Main App ---
 def run():
     st.set_page_config(page_title="Fund Scorecard Metrics", layout="wide")
     st.title("Fund Scorecard Metrics")
@@ -91,7 +115,7 @@ def run():
                     continue
 
                 blocks = re.split(
-                    r"\n(?=[^\n]*?Fund (?:Meets Watchlist Criteria|has been placed on watchlist))",
+                    r"\n(?=[^\n]*?(Fund )?(Meets Watchlist Criteria|has been placed on watchlist))",
                     txt)
 
                 for block in blocks:
@@ -127,7 +151,7 @@ def run():
             progress.empty()
             status_text.empty()
 
-        # ✅ Post-processing: LLM tries to fix unknown rows
+        # 🔁 LLM post-fix for remaining UNKNOWNs
         df = pd.DataFrame(rows)
         for i, row in df.iterrows():
             if row["Fund Name"] == "UNKNOWN FUND" or row["Ticker"] == "N/A":
