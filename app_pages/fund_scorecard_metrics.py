@@ -3,9 +3,6 @@ import pdfplumber
 import pandas as pd
 import re
 from difflib import get_close_matches
-import together
-
-together.api_key = st.secrets["together"]["api_key"]
 
 # --- Robust lookup from stacked + inline formats ---
 def build_ticker_lookup(pdf):
@@ -59,33 +56,6 @@ def get_fund_name(block, lookup):
             return fallback_name
 
     return "UNKNOWN FUND"
-
-# --- LLM fallback ---
-def identify_fund_with_llm(block, lookup_keys):
-    prompt = f"""
-You are analyzing a fund performance summary. Given this block:
-
-\"\"\"{block}\"\"\"
-
-And this list of known fund names:
-
-{lookup_keys}
-
-Which fund is this block referring to? Respond with the exact name from the list, or say "UNKNOWN".
-"""
-    try:
-        response = together.Complete.create(
-            prompt=prompt,
-            model="mistralai/Mixtral-8x7B-Instruct-v0.1",
-            max_tokens=50,
-            temperature=0.3,
-            stop=["\n"]
-        )
-        result = response["choices"][0]["text"].strip()
-        return result if result in lookup_keys else "UNKNOWN FUND"
-    except Exception as e:
-        st.warning(f"LLM fallback failed: {e}")
-        return "UNKNOWN FUND"
 
 # --- Main App ---
 def run():
@@ -152,22 +122,8 @@ def run():
             progress.empty()
             status_text.empty()
 
-        # 🔁 Fix UNKNOWN FUND or missing ticker
-        df = pd.DataFrame(rows)
-        for i, row in df.iterrows():
-            if row["Fund Name"] == "UNKNOWN FUND" or row["Ticker"] == "N/A":
-                block = original_blocks[i]
-                llm_name = identify_fund_with_llm(block, list(ticker_lookup.keys()))
-                if llm_name != "UNKNOWN FUND":
-                    df.at[i, "Fund Name"] = llm_name
-                    df.at[i, "Ticker"] = ticker_lookup.get(llm_name, "N/A")
-                else:
-                    fallback_name = get_fund_name(block, ticker_lookup)
-                    if fallback_name != "UNKNOWN FUND":
-                        df.at[i, "Fund Name"] = fallback_name
-                        df.at[i, "Ticker"] = ticker_lookup.get(fallback_name, "N/A")
-
         # ✅ Final, aggressive fix for missing tickers
+        df = pd.DataFrame(rows)
         for i, row in df.iterrows():
             if row["Ticker"] == "N/A" and row["Fund Name"] != "UNKNOWN FUND":
                 fund_name = row["Fund Name"]
@@ -186,7 +142,7 @@ def run():
 
             with st.expander("Download Results"):
                 csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button("📥 Download as CSV",
+                st.download_button("Download as CSV",
                                    data=csv,
                                    file_name="fund_criteria_results.csv",
                                    mime="text/csv")
