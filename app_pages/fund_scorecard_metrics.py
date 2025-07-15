@@ -16,12 +16,24 @@ def build_ticker_lookup(pdf):
             name_line = lines[i].strip()
             ticker_line = lines[i + 1].strip()
 
+            # Original detection logic
             if (
                 re.match(r"^[A-Z]{4,6}X?$", ticker_line)
                 and len(name_line.split()) >= 3
                 and not re.match(r"^[A-Z]{4,6}X?$", name_line)
             ):
                 lookup[name_line] = ticker_line
+
+            # ✅ NEW: Also catch stacked formats like:
+            # WisdomTree Enhanced Commodity Stgy Fd
+            # WTES
+            if (
+                re.fullmatch(r"[A-Z]{4,6}X?", ticker_line)
+                and not re.fullmatch(r"[A-Z]{4,6}X?", name_line)
+                and len(name_line.split()) >= 3
+            ):
+                clean_name = " ".join(name_line.split())
+                lookup[clean_name] = ticker_line.strip()
 
         for line in lines:
             line = line.strip()
