@@ -119,7 +119,7 @@ def run():
                         if line.startswith((
                             "Manager Tenure", "Excess Performance", "Peer Return Rank",
                             "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
-                            "Sortino Ratio Rank", "Tracking Error Rank")):
+                            "Sortino Ratio Rank", "Tracking Error Rank", "Tracking Error (3Yr)", "Tracking Error (5Yr)".)):
                             m = re.match(r"^(.*?)\s+(Pass|Review)", line.strip())
                             if m:
                                 metrics[m.group(1).strip()] = m.group(2).strip()
