@@ -2,28 +2,71 @@ import streamlit as st
 import pdfplumber
 import pandas as pd
 import re
+from difflib import get_close_matches
+import together
 
-# --- Helper: build Fund‑Name ➜ Ticker lookup from the performance tables ---
+# === Set up Together API ===
+together.api_key = st.secrets["TOGETHER_API_KEY"]  # make sure this is set in your .streamlit/secrets.toml
+
+# --- Build Fund‑Name ➜ Ticker lookup ---
 def build_ticker_lookup(pdf):
     lookup = {}
-    pattern = re.compile(r"(.+?)\s+([A-Z]{4,6}X?)$")   # e.g. “Vanguard Mid Cap Index Admiral  VIMAX”
     for page in pdf.pages:
-        txt = page.extract_text()
-        if not txt:
+        text = page.extract_text()
+        if not text:
             continue
-        for line in txt.split("\n"):
-            m = pattern.match(line.strip())
-            if m:
-                lookup[m.group(1).strip()] = m.group(2).strip()
+        for line in text.split("\n"):
+            parts = line.strip().rsplit(" ", 1)
+            if len(parts) == 2:
+                fund, ticker = parts
+                if re.match(r"^[A-Z]{4,6}$", ticker.strip()):
+                    lookup[fund.strip()] = ticker.strip()
     return lookup
 
-# --- Helper: find the correct Fund Name within a criteria block ---
-def get_fund_name(block, lookup):
-    for name in lookup:
-        if name.lower() in block.lower():
-            return name
-    return "UNKNOWN FUND"
+# --- Together fallback to identify fund name ---
+def identify_fund_with_llm(block, lookup_keys):
+    prompt = f"""
+You are analyzing a fund performance summary. Given this block:
 
+\"\"\"{block}\"\"\"
+
+And this list of known fund names:
+
+{lookup_keys}
+
+Which fund is this block referring to? Respond with the exact name from the list, or say "UNKNOWN".
+"""
+    try:
+        response = together.chat.completions.create(
+            model="mistral-7b-instruct",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3
+        )
+        result = response.choices[0].message.content.strip()
+        return result if result in lookup_keys else "UNKNOWN FUND"
+    except Exception as e:
+        st.warning(f"LLM fallback failed: {e}")
+        return "UNKNOWN FUND"
+
+# --- Get fund name from block using multiple methods ---
+def get_fund_name(block, lookup):
+    block_lower = block.lower()
+    for name in lookup:
+        if name.lower() in block_lower:
+            return name
+
+    lines = block.split("\n")[:6]
+    candidates = [line.strip() for line in lines if sum(c.isupper() for c in line) > 5]
+
+    for line in candidates:
+        matches = get_close_matches(line, lookup.keys(), n=1, cutoff=0.6)
+        if matches:
+            return matches[0]
+
+    # Final fallback: Together AI
+    return identify_fund_with_llm(block, list(lookup.keys()))
+
+# --- Streamlit App ---
 def run():
     st.set_page_config(page_title="Fund Scorecard Metrics", layout="wide")
     st.title("Fund Scorecard Metrics")
@@ -35,46 +78,52 @@ def run():
     pdf_file = st.file_uploader("Upload MPI PDF", type=["pdf"])
 
     if pdf_file:
-        with st.spinner("Extracting fund criteria and matching tickers…"):
-            rows = []
+        rows = []
+        with pdfplumber.open(pdf_file) as pdf:
+            total_pages = len(pdf.pages)
+            progress = st.progress(0, text="Building ticker lookup...")
 
-            with pdfplumber.open(pdf_file) as pdf:
-                ticker_lookup = build_ticker_lookup(pdf)
+            ticker_lookup = build_ticker_lookup(pdf)
 
-                for page in pdf.pages:
-                    txt = page.extract_text()
-                    if not txt or "Fund Scorecard" not in txt:
+            for i, page in enumerate(pdf.pages):
+                txt = page.extract_text()
+                if not txt:
+                    progress.progress((i + 1) / total_pages, text=f"Skipping page {i + 1} (no text)...")
+                    continue
+
+                blocks = re.split(
+                    r"\n(?=[^\n]*?Fund (?:Meets Watchlist Criteria|has been placed on watchlist))",
+                    txt)
+
+                for block in blocks:
+                    if not block.strip():
                         continue
 
-                    blocks = re.split(
-                        r"\n(?=[^\n]*?Fund (?:Meets Watchlist Criteria|has been placed on watchlist))",
-                        txt)
+                    fund_name = get_fund_name(block, ticker_lookup)
+                    ticker = ticker_lookup.get(fund_name, "N/A")
+                    meets = "Yes" if "placed on watchlist" not in block else "No"
 
-                    for block in blocks:
-                        if not block.strip():
-                            continue
+                    metrics = {}
+                    for line in block.split("\n"):
+                        if line.startswith((
+                            "Manager Tenure", "Excess Performance", "Peer Return Rank",
+                            "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
+                            "Sortino Ratio Rank", "Tracking Error Rank")):
+                            m = re.match(r"^(.*?)\s+(Pass|Review)", line.strip())
+                            if m:
+                                metrics[m.group(1).strip()] = m.group(2).strip()
 
-                        fund_name = get_fund_name(block, ticker_lookup)
-                        ticker = ticker_lookup.get(fund_name, "N/A")
-                        meets = "Yes" if "placed on watchlist" not in block else "No"
+                    if metrics:
+                        rows.append({
+                            "Fund Name": fund_name,
+                            "Ticker": ticker,
+                            "Meets Criteria": meets,
+                            **metrics
+                        })
 
-                        metrics = {}
-                        for line in block.split("\n"):
-                            if line.startswith((
-                                "Manager Tenure", "Excess Performance", "Peer Return Rank",
-                                "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
-                                "Sortino Ratio Rank", "Tracking Error Rank")):
-                                m = re.match(r"^(.*?)\s+(Pass|Review)", line.strip())
-                                if m:
-                                    metrics[m.group(1).strip()] = m.group(2).strip()
+                progress.progress((i + 1) / total_pages, text=f"Processed page {i + 1} of {total_pages}")
 
-                        if metrics:
-                            rows.append({
-                                "Fund Name": fund_name,
-                                "Ticker": ticker,
-                                "Meets Criteria": meets,
-                                **metrics
-                            })
+            progress.empty()
 
         if rows:
             df = pd.DataFrame(rows)
