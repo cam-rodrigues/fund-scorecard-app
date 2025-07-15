@@ -2,24 +2,19 @@ import streamlit as st
 import pdfplumber
 import pandas as pd
 import re
-import io
 
-# --- Robust Ticker Lookup ---
+# --- Helper: build Fund‑Name ➜ Ticker lookup from the performance tables ---
 def build_ticker_lookup(pdf):
     lookup = {}
+    pattern = re.compile(r"(.+?)\s+([A-Z]{4,6}X?)$")   # e.g. “Vanguard Mid Cap Index Admiral  VIMAX”
     for page in pdf.pages:
         txt = page.extract_text()
         if not txt:
             continue
         for line in txt.split("\n"):
-            line = line.strip()
-            # Accepts 2+ spaces between fund name and ticker, with optional trailing symbols
-            m = re.match(r"(.+?)\s{2,}([A-Z0-9]{4,6}[A-Z]?)\s?[†*]?$", line)
+            m = pattern.match(line.strip())
             if m:
-                name = m.group(1).strip()
-                ticker = m.group(2).strip()
-                if name not in lookup:
-                    lookup[name] = ticker
+                lookup[m.group(1).strip()] = m.group(2).strip()
     return lookup
 
 # --- Helper: find the correct Fund Name within a criteria block ---
@@ -40,78 +35,58 @@ def run():
     pdf_file = st.file_uploader("Upload MPI PDF", type=["pdf"])
 
     if pdf_file:
-        rows = []
+        with st.spinner("Extracting fund criteria and matching tickers…"):
+            rows = []
 
-        with pdfplumber.open(pdf_file) as pdf:
-            ticker_lookup = build_ticker_lookup(pdf)
+            with pdfplumber.open(pdf_file) as pdf:
+                ticker_lookup = build_ticker_lookup(pdf)
 
-            # Optional: show what was found
-            with st.expander("Show Fund Name ➜ Ticker Lookup Table"):
-                st.dataframe(pd.DataFrame(list(ticker_lookup.items()), columns=["Fund Name", "Ticker"]))
-
-            progress = st.progress(0.0, "Scanning PDF for fund criteria...")
-
-            for i, page in enumerate(pdf.pages, start=1):
-                txt = page.extract_text()
-                if not txt or "Fund Scorecard" not in txt:
-                    progress.progress(i / len(pdf.pages))
-                    continue
-
-                blocks = re.split(
-                    r"\n(?=[^\n]*?Fund (?:Meets Watchlist Criteria|has been placed on watchlist))",
-                    txt)
-
-                for block in blocks:
-                    if not block.strip():
+                for page in pdf.pages:
+                    txt = page.extract_text()
+                    if not txt or "Fund Scorecard" not in txt:
                         continue
 
-                    fund_name = get_fund_name(block, ticker_lookup)
-                    ticker = ticker_lookup.get(fund_name, "N/A")
-                    meets = "Yes" if "placed on watchlist" not in block else "No"
+                    blocks = re.split(
+                        r"\n(?=[^\n]*?Fund (?:Meets Watchlist Criteria|has been placed on watchlist))",
+                        txt)
 
-                    metrics = {}
-                    for line in block.split("\n"):
-                        if line.startswith((
-                            "Manager Tenure", "Excess Performance", "Peer Return Rank",
-                            "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
-                            "Sortino Ratio Rank", "Tracking Error Rank")):
-                            m = re.match(r"^(.*?)\s+(Pass|Review)", line.strip())
-                            if m:
-                                metrics[m.group(1).strip()] = m.group(2).strip()
+                    for block in blocks:
+                        if not block.strip():
+                            continue
 
-                    if metrics:
-                        rows.append({
-                            "Fund Name": fund_name,
-                            "Ticker": ticker,
-                            "Meets Criteria": meets,
-                            **metrics
-                        })
+                        fund_name = get_fund_name(block, ticker_lookup)
+                        ticker = ticker_lookup.get(fund_name, "N/A")
+                        meets = "Yes" if "placed on watchlist" not in block else "No"
 
-                progress.progress(i / len(pdf.pages))
+                        metrics = {}
+                        for line in block.split("\n"):
+                            if line.startswith((
+                                "Manager Tenure", "Excess Performance", "Peer Return Rank",
+                                "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
+                                "Sortino Ratio Rank", "Tracking Error Rank")):
+                                m = re.match(r"^(.*?)\s+(Pass|Review)", line.strip())
+                                if m:
+                                    metrics[m.group(1).strip()] = m.group(2).strip()
 
-            progress.empty()
+                        if metrics:
+                            rows.append({
+                                "Fund Name": fund_name,
+                                "Ticker": ticker,
+                                "Meets Criteria": meets,
+                                **metrics
+                            })
 
         if rows:
             df = pd.DataFrame(rows)
-            st.success(f"Found {len(df)} fund entries.")
+            st.success(f"✅ Found {len(df)} fund entries.")
             st.dataframe(df, use_container_width=True)
 
             with st.expander("Download Results"):
-                # CSV export
                 csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button("Download as CSV",
+                st.download_button("📥 Download as CSV",
                                    data=csv,
                                    file_name="fund_criteria_results.csv",
                                    mime="text/csv")
-
-                # Excel export
-                excel_buffer = io.BytesIO()
-                with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
-                    df.to_excel(writer, index=False, sheet_name="Fund Criteria")
-                st.download_button("Download as Excel",
-                                   data=excel_buffer.getvalue(),
-                                   file_name="fund_criteria_results.xlsx",
-                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         else:
             st.warning("No fund entries found in the uploaded PDF.")
     else:
