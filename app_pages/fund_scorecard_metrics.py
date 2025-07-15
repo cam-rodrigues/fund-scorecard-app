@@ -3,6 +3,7 @@ import pdfplumber
 import pandas as pd
 import re
 from difflib import get_close_matches
+from io import BytesIO
 
 # --- Ticker Lookup (stacked + inline formats) ---
 def build_ticker_lookup(pdf):
@@ -158,11 +159,25 @@ def run():
             st.dataframe(df, use_container_width=True)
 
             with st.expander("Download Results"):
+                # CSV export
                 csv = df.to_csv(index=False).encode("utf-8")
                 st.download_button("📥 Download as CSV",
                                    data=csv,
                                    file_name="fund_criteria_results.csv",
                                    mime="text/csv")
+
+                # Excel export
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    df.to_excel(writer, index=False, sheet_name="Fund Criteria")
+                    writer.save()
+                excel_data = output.getvalue()
+
+                st.download_button("Download as Excel",
+                                   data=excel_data,
+                                   file_name="fund_criteria_results.xlsx",
+                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
         else:
             st.warning("No fund entries found in the uploaded PDF.")
     else:
