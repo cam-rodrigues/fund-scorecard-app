@@ -4,10 +4,9 @@ import pandas as pd
 import re
 from difflib import get_close_matches
 
-# --- Improved ticker lookup (patched to catch stacked/inlined tickers better) ---
+# --- Ticker Lookup (includes stacked + inline formats) ---
 def build_ticker_lookup(pdf):
     lookup = {}
-    pattern = re.compile(r"^[A-Z][A-Za-z0-9&\-\s]{5,}\s+[A-Z]{4,6}X?$")
 
     for page in pdf.pages:
         lines = page.extract_text().split("\n") if page.extract_text() else []
@@ -16,21 +15,10 @@ def build_ticker_lookup(pdf):
             name_line = lines[i].strip()
             ticker_line = lines[i + 1].strip()
 
-            # Original detection logic
             if (
                 re.match(r"^[A-Z]{4,6}X?$", ticker_line)
                 and len(name_line.split()) >= 3
                 and not re.match(r"^[A-Z]{4,6}X?$", name_line)
-            ):
-                lookup[name_line] = ticker_line
-
-            # ✅ NEW: Also catch stacked formats like:
-            # WisdomTree Enhanced Commodity Stgy Fd
-            # WTES
-            if (
-                re.fullmatch(r"[A-Z]{4,6}X?", ticker_line)
-                and not re.fullmatch(r"[A-Z]{4,6}X?", name_line)
-                and len(name_line.split()) >= 3
             ):
                 clean_name = " ".join(name_line.split())
                 lookup[clean_name] = ticker_line.strip()
@@ -47,7 +35,7 @@ def build_ticker_lookup(pdf):
 
     return lookup
 
-# --- Try to match fund name from block ---
+# --- Extract fund name from block ---
 def get_fund_name(block, lookup):
     block_lower = block.lower()
     for name in lookup:
@@ -102,6 +90,11 @@ def run():
 
             ticker_lookup = build_ticker_lookup(pdf)
 
+            # ✅ Debug: See if WisdomTree fund was loaded
+            for name, tick in ticker_lookup.items():
+                if "WisdomTree" in name:
+                    st.write("✅ Found in lookup:", name, "➡", tick)
+
             for i, page in enumerate(pdf.pages):
                 txt = page.extract_text()
                 if not txt:
@@ -148,7 +141,7 @@ def run():
 
         df = pd.DataFrame(rows)
 
-        # Final ticker fix pass
+        # ✅ Final ticker correction pass (fuzzy + partial fallback)
         for i, row in df.iterrows():
             if row["Ticker"] == "N/A" and row["Fund Name"] != "UNKNOWN FUND":
                 fund_name = row["Fund Name"]
