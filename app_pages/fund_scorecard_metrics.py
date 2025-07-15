@@ -21,19 +21,32 @@ def build_ticker_lookup(pdf):
 # --- Helper: find the correct Fund Name within a criteria block ---
 
 def get_fund_name(block, lookup):
+    # First, try exact match like before
     block_lower = block.lower()
     for name in lookup:
         if name.lower() in block_lower:
             return name
 
-    # Fallback: fuzzy match against each line
-    lines = block.split("\n")
-    for line in lines:
-        matches = get_close_matches(line.strip(), lookup.keys(), n=1, cutoff=0.7)
-        if matches:
-            return matches[0]
+    # Then, try detecting fund name + ticker pattern directly inside the block
+    pattern = re.compile(r"(.+?)\s+([A-Z]{4,6}X?)\b")  # Match potential fund lines like "Fund Name   TICKR"
+    for line in block.split("\n"):
+        m = pattern.match(line.strip())
+        if m:
+            possible_name = m.group(1).strip()
+            for name in lookup:
+                if name.lower() in possible_name.lower():
+                    return name
+            # fallback: fuzzy match against this potential name
+            from difflib import get_close_matches
+            matches = get_close_matches(possible_name, lookup.keys(), n=1, cutoff=0.6)
+            if matches:
+                return matches[0]
 
-    return "UNKNOWN FUND"
+    # Final fallback: fuzzy match entire block
+    from difflib import get_close_matches
+    matches = get_close_matches(block, lookup.keys(), n=1, cutoff=0.6)
+    return matches[0] if matches else "UNKNOWN FUND"
+
 
 
 def run():
