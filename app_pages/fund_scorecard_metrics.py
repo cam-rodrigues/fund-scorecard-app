@@ -167,13 +167,18 @@ def run():
                         df.at[i, "Fund Name"] = fallback_name
                         df.at[i, "Ticker"] = ticker_lookup.get(fallback_name, "N/A")
 
-        # ✅ Final fuzzy fix for missing tickers
+        # ✅ Final, aggressive fix for missing tickers
         for i, row in df.iterrows():
             if row["Ticker"] == "N/A" and row["Fund Name"] != "UNKNOWN FUND":
                 fund_name = row["Fund Name"]
-                match = get_close_matches(fund_name, ticker_lookup.keys(), n=1, cutoff=0.6)
+                match = get_close_matches(fund_name, ticker_lookup.keys(), n=1, cutoff=0.5)
                 if match:
                     df.at[i, "Ticker"] = ticker_lookup[match[0]]
+                else:
+                    for known_name in ticker_lookup:
+                        if fund_name.lower() in known_name.lower() or known_name.lower() in fund_name.lower():
+                            df.at[i, "Ticker"] = ticker_lookup[known_name]
+                            break
 
         if not df.empty:
             st.success(f"Found {len(df)} fund entries.")
@@ -181,7 +186,7 @@ def run():
 
             with st.expander("Download Results"):
                 csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button("Download as CSV",
+                st.download_button("📥 Download as CSV",
                                    data=csv,
                                    file_name="fund_criteria_results.csv",
                                    mime="text/csv")
