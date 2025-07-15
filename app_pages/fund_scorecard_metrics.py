@@ -2,12 +2,11 @@ import streamlit as st
 import pdfplumber
 import pandas as pd
 import re
-from difflib import get_close_matches
 
 # --- Helper: build Fund‑Name ➜ Ticker lookup from the performance tables ---
 def build_ticker_lookup(pdf):
     lookup = {}
-    pattern = re.compile(r"(.+?)\s+([A-Z]{4,6}X?)$")  # e.g. “Vanguard Mid Cap Index Admiral  VIMAX”
+    pattern = re.compile(r"(.+?)\s+([A-Z]{4,6}X?)$")   # e.g. “Vanguard Mid Cap Index Admiral  VIMAX”
     for page in pdf.pages:
         txt = page.extract_text()
         if not txt:
@@ -15,23 +14,16 @@ def build_ticker_lookup(pdf):
         for line in txt.split("\n"):
             m = pattern.match(line.strip())
             if m:
-                fund = m.group(1).strip()
-                ticker = m.group(2).strip()
-                lookup[fund] = ticker
+                lookup[m.group(1).strip()] = m.group(2).strip()
     return lookup
 
-# --- Improved Helper: find the best matched fund name line in block ---
-def get_fund_name(block, lookup_keys):
-    for line in block.split("\n"):
-        line = line.strip()
-        if len(line) < 6:  # too short to be a fund name
-            continue
-        matches = get_close_matches(line, lookup_keys, n=1, cutoff=0.7)
-        if matches:
-            return matches[0]
+# --- Helper: find the correct Fund Name within a criteria block ---
+def get_fund_name(block, lookup):
+    for name in lookup:
+        if name.lower() in block.lower():
+            return name
     return "UNKNOWN FUND"
 
-# --- Streamlit App ---
 def run():
     st.set_page_config(page_title="Fund Scorecard Metrics", layout="wide")
     st.title("Fund Scorecard Metrics")
@@ -48,7 +40,6 @@ def run():
 
             with pdfplumber.open(pdf_file) as pdf:
                 ticker_lookup = build_ticker_lookup(pdf)
-                fund_names = list(ticker_lookup.keys())
 
                 for page in pdf.pages:
                     txt = page.extract_text()
@@ -63,7 +54,7 @@ def run():
                         if not block.strip():
                             continue
 
-                        fund_name = get_fund_name(block, fund_names)
+                        fund_name = get_fund_name(block, ticker_lookup)
                         ticker = ticker_lookup.get(fund_name, "N/A")
                         meets = "Yes" if "placed on watchlist" not in block else "No"
 
