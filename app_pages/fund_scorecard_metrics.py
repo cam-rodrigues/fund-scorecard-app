@@ -2,6 +2,7 @@ import streamlit as st
 import pdfplumber
 import pandas as pd
 import re
+import io
 
 # --- Helper: build Fund‑Name ➜ Ticker lookup from the performance tables ---
 def build_ticker_lookup(pdf):
@@ -78,15 +79,25 @@ def run():
 
         if rows:
             df = pd.DataFrame(rows)
-            st.success(f"✅ Found {len(df)} fund entries.")
+            st.success(f"Found {len(df)} fund entries.")
             st.dataframe(df, use_container_width=True)
 
             with st.expander("Download Results"):
+                # CSV export
                 csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button("📥 Download as CSV",
+                st.download_button("Download as CSV",
                                    data=csv,
                                    file_name="fund_criteria_results.csv",
                                    mime="text/csv")
+
+                # Excel export
+                excel_buffer = io.BytesIO()
+                with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
+                    df.to_excel(writer, index=False, sheet_name="Fund Criteria")
+                st.download_button("Download as Excel",
+                                   data=excel_buffer.getvalue(),
+                                   file_name="fund_criteria_results.xlsx",
+                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         else:
             st.warning("No fund entries found in the uploaded PDF.")
     else:
