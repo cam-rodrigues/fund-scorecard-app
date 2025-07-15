@@ -7,7 +7,7 @@ from difflib import get_close_matches
 # --- Helper: build Fund‑Name ➜ Ticker lookup from the performance tables ---
 def build_ticker_lookup(pdf):
     lookup = {}
-    pattern = re.compile(r"(.+?)\s+([A-Z]{4,6}X?)$")   # e.g. “Vanguard Mid Cap Index Admiral  VIMAX”
+    pattern = re.compile(r"(.+?)\s+([A-Z]{4,6})$")  # FIXED: allow any 4–6 letter ticker, not just ending in X
     for page in pdf.pages:
         txt = page.extract_text()
         if not txt:
@@ -15,20 +15,20 @@ def build_ticker_lookup(pdf):
         for line in txt.split("\n"):
             m = pattern.match(line.strip())
             if m:
-                lookup[m.group(1).strip()] = m.group(2).strip()
+                fund = m.group(1).strip()
+                ticker = m.group(2).strip()
+                lookup[fund] = ticker
     return lookup
 
 # --- Helper: find the correct Fund Name within a criteria block ---
-
 def get_fund_name(block, lookup):
-    # First, try exact match like before
     block_lower = block.lower()
     for name in lookup:
         if name.lower() in block_lower:
             return name
 
-    # Then, try detecting fund name + ticker pattern directly inside the block
-    pattern = re.compile(r"(.+?)\s+([A-Z]{4,6}X?)\b")  # Match potential fund lines like "Fund Name   TICKR"
+    # Try detecting name + ticker lines in block
+    pattern = re.compile(r"(.+?)\s+([A-Z]{4,6})\b")
     for line in block.split("\n"):
         m = pattern.match(line.strip())
         if m:
@@ -36,19 +36,14 @@ def get_fund_name(block, lookup):
             for name in lookup:
                 if name.lower() in possible_name.lower():
                     return name
-            # fallback: fuzzy match against this potential name
-            from difflib import get_close_matches
             matches = get_close_matches(possible_name, lookup.keys(), n=1, cutoff=0.6)
             if matches:
                 return matches[0]
 
-    # Final fallback: fuzzy match entire block
-    from difflib import get_close_matches
     matches = get_close_matches(block, lookup.keys(), n=1, cutoff=0.6)
     return matches[0] if matches else "UNKNOWN FUND"
 
-
-
+# --- Streamlit App ---
 def run():
     st.set_page_config(page_title="Fund Scorecard Metrics", layout="wide")
     st.title("Fund Scorecard Metrics")
