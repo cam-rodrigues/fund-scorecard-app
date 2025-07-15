@@ -161,7 +161,7 @@ def run():
             with st.expander("Download Results"):
                 # CSV export
                 csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button("📥 Download as CSV",
+                st.download_button("Download as CSV",
                                    data=csv,
                                    file_name="fund_criteria_results.csv",
                                    mime="text/csv")
@@ -170,7 +170,6 @@ def run():
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                     df.to_excel(writer, index=False, sheet_name="Fund Criteria")
-                    writer.save()
                 excel_data = output.getvalue()
 
                 st.download_button("Download as Excel",
