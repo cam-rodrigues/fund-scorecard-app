@@ -4,7 +4,7 @@ import pandas as pd
 import re
 from difflib import get_close_matches
 
-# --- Ticker Lookup (includes stacked + inline formats) ---
+# --- Ticker Lookup (stacked + inline formats) ---
 def build_ticker_lookup(pdf):
     lookup = {}
 
@@ -90,10 +90,9 @@ def run():
 
             ticker_lookup = build_ticker_lookup(pdf)
 
-            # ✅ Debug: See if WisdomTree fund was loaded
-            for name, tick in ticker_lookup.items():
-                if "WisdomTree" in name:
-                    st.write("✅ Found in lookup:", name, "➡", tick)
+            # ✅ Manual patch for known missing WisdomTree fund
+            if not any("Enhanced Commodity" in name for name in ticker_lookup):
+                ticker_lookup["WisdomTree Enhanced Commodity Stgy Fd"] = "WTES"
 
             for i, page in enumerate(pdf.pages):
                 txt = page.extract_text()
@@ -141,7 +140,7 @@ def run():
 
         df = pd.DataFrame(rows)
 
-        # ✅ Final ticker correction pass (fuzzy + partial fallback)
+        # Final ticker correction (fuzzy + substring)
         for i, row in df.iterrows():
             if row["Ticker"] == "N/A" and row["Fund Name"] != "UNKNOWN FUND":
                 fund_name = row["Fund Name"]
