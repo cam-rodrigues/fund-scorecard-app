@@ -4,8 +4,6 @@ import pandas as pd
 import re
 from difflib import get_close_matches
 from io import BytesIO
-from datetime import datetime
-import base64
 
 # --- Ticker Lookup (stacked + inline formats) ---
 def build_ticker_lookup(pdf):
@@ -86,52 +84,21 @@ def run():
     if pdf_file:
         rows = []
         original_blocks = []
-
         with pdfplumber.open(pdf_file) as pdf:
-            total_blocks = 0
-            for page in pdf.pages:
-                txt = page.extract_text()
-                if txt:
-                    blocks = re.split(
-                        r"\n(?=[^\n]*?(Fund )?(Meets Watchlist Criteria|has been placed on watchlist))",
-                        txt)
-                    total_blocks += len([b for b in blocks if b.strip()])
-
-            progress_slot = st.empty()
+            total_pages = len(pdf.pages)
             status_text = st.empty()
+            progress = st.progress(0)
 
-            def show_progress_bar(percent):
-                percent_clamped = max(0, min(100, percent))
-                hue = int((percent_clamped / 100) * 120)
-                color = f"hsl({hue}, 70%, 50%)"
-                bar_html = f"""
-                <div style="width: 100%; background-color: #eee; border-radius: 6px;">
-                    <div style="
-                        width: {percent_clamped}%;
-                        background-color: {color};
-                        padding: 0.4rem 0;
-                        border-radius: 6px;
-                        text-align: center;
-                        color: white;
-                        font-weight: bold;
-                        font-size: 0.9rem;
-                        transition: width 0.2s ease;
-                    ">
-                        {percent_clamped:.1f}%
-                    </div>
-                </div>
-                """
-                progress_slot.markdown(bar_html, unsafe_allow_html=True)
-
-            processed_blocks = 0
             ticker_lookup = build_ticker_lookup(pdf)
 
+            # ✅ Manual patch for known missing WisdomTree fund
             if not any("Enhanced Commodity" in name for name in ticker_lookup):
                 ticker_lookup["WisdomTree Enhanced Commodity Stgy Fd"] = "WTES"
 
             for i, page in enumerate(pdf.pages):
                 txt = page.extract_text()
                 if not txt:
+                    progress.progress((i + 1) / total_pages)
                     status_text.text(f"Skipping page {i + 1} (no text)...")
                     continue
 
@@ -166,17 +133,15 @@ def run():
                         })
                         original_blocks.append(block)
 
-                    processed_blocks += 1
-                    pct = (processed_blocks / total_blocks) * 100 if total_blocks > 0 else 100
-                    show_progress_bar(pct)
-                    status_text.text(f"Processing fund {processed_blocks} of {total_blocks}")
+                progress.progress((i + 1) / total_pages)
+                status_text.text(f"Processed page {i + 1} of {total_pages}")
 
-            progress_slot.empty()
+            progress.empty()
             status_text.empty()
 
         df = pd.DataFrame(rows)
 
-        # Final ticker correction
+        # Final ticker correction (fuzzy + substring)
         for i, row in df.iterrows():
             if row["Ticker"] == "N/A" and row["Fund Name"] != "UNKNOWN FUND":
                 fund_name = row["Fund Name"]
@@ -194,98 +159,17 @@ def run():
             st.dataframe(df, use_container_width=True)
 
             with st.expander("Download Results"):
-                # CSV
+                # CSV export
                 csv = df.to_csv(index=False).encode("utf-8")
                 st.download_button("Download as CSV",
                                    data=csv,
                                    file_name="fund_criteria_results.csv",
                                    mime="text/csv")
 
-                # Excel with logo
+                # Excel export
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    sheet_name = "Fund Criteria"
-                    df.to_excel(writer, index=False, sheet_name=sheet_name, startrow=4)
-
-                    workbook = writer.book
-                    worksheet = writer.sheets[sheet_name]
-
-                    # Insert logo
-                    try:
-                        worksheet.insert_image("A1", "logo.png", {'x_scale': 0.6, 'y_scale': 0.6})
-                    except:
-                        pass  # Skip if logo missing
-
-                    # Formats
-                    header_format = workbook.add_format({
-                        "bold": True,
-                        "text_wrap": True,
-                        "valign": "middle",
-                        "align": "center",
-                        "fg_color": "#305496",
-                        "font_color": "#ffffff",
-                        "border": 1
-                    })
-
-                    text_format = workbook.add_format({
-                        "valign": "top",
-                        "align": "left",
-                        "border": 1
-                    })
-
-                    pass_format = workbook.add_format({
-                        "valign": "middle",
-                        "align": "center",
-                        "border": 1,
-                        "bg_color": "#C6EFCE",
-                        "font_color": "#006100"
-                    })
-
-                    review_format = workbook.add_format({
-                        "valign": "middle",
-                        "align": "center",
-                        "border": 1,
-                        "bg_color": "#FFEB9C",
-                        "font_color": "#9C6500"
-                    })
-
-                    alt_row_format = workbook.add_format({
-                        "bg_color": "#F5F7FA"
-                    })
-
-                    note_format = workbook.add_format({
-                        "italic": True,
-                        "font_color": "#888888",
-                        "font_size": 9
-                    })
-
-                    worksheet.write("A3", f"Generated by FidSync on {datetime.now().strftime('%Y-%m-%d %I:%M %p')}", note_format)
-
-                    # Header
-                    for col_num, value in enumerate(df.columns.values):
-                        worksheet.write(4, col_num, value, header_format)
-
-                    # Rows
-                    for row_idx, row in enumerate(df.itertuples(index=False), start=5):
-                        for col_idx, value in enumerate(row):
-                            if isinstance(value, str) and value.strip() == "Pass":
-                                fmt = pass_format
-                            elif isinstance(value, str) and value.strip() == "Review":
-                                fmt = review_format
-                            else:
-                                fmt = text_format
-                            worksheet.write(row_idx, col_idx, value, fmt)
-
-                        if row_idx % 2 == 1:
-                            worksheet.set_row(row_idx, None, alt_row_format)
-
-                    # Autosize
-                    for idx, col in enumerate(df.columns):
-                        col_width = max(df[col].astype(str).map(len).max(), len(col)) + 2
-                        worksheet.set_column(idx, idx, col_width)
-
-                    worksheet.freeze_panes(5, 0)
-
+                    df.to_excel(writer, index=False, sheet_name="Fund Criteria")
                 excel_data = output.getvalue()
 
                 st.download_button("Download as Excel",
