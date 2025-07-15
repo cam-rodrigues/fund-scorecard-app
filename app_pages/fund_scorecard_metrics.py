@@ -98,7 +98,7 @@ def run():
 
         if rows:
             df = pd.DataFrame(rows)
-            st.success(f"✅ Found {len(df)} fund entries.")
+            st.success(f"Found {len(df)} fund entries.")
             st.dataframe(df, use_container_width=True)
 
             with st.expander("Download Results"):
