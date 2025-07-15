@@ -84,21 +84,59 @@ def run():
     if pdf_file:
         rows = []
         original_blocks = []
-        with pdfplumber.open(pdf_file) as pdf:
-            total_pages = len(pdf.pages)
-            status_text = st.empty()
-            progress = st.progress(0)
 
+        with pdfplumber.open(pdf_file) as pdf:
+            progress_html = st.empty()
+            status_text = st.empty()
+            total_blocks = 0
+
+            # Count total fund blocks
+            for page in pdf.pages:
+                txt = page.extract_text()
+                if txt:
+                    blocks = re.split(
+                        r"\n(?=[^\n]*?(Fund )?(Meets Watchlist Criteria|has been placed on watchlist))",
+                        txt)
+                    total_blocks += len([b for b in blocks if b.strip()])
+
+            def render_progress_bar(percentage):
+                # Define color based on percentage
+                if percentage < 0.33:
+                    color = "#d9534f"  # red
+                elif percentage < 0.66:
+                    color = "#f0ad4e"  # orange
+                else:
+                    color = "#5cb85c"  # green
+
+                progress_bar = f"""
+                <div style="width: 100%; background-color: #f5f5f5; border-radius: 6px; margin-bottom: 10px;">
+                    <div style="
+                        width: {percentage * 100:.1f}%;
+                        background-color: {color};
+                        padding: 0.3rem 0;
+                        border-radius: 6px;
+                        text-align: center;
+                        color: white;
+                        font-weight: bold;
+                        font-size: 0.85rem;
+                        transition: width 0.2s ease-in-out;
+                    ">
+                        {percentage * 100:.1f}%
+                    </div>
+                </div>
+                """
+                progress_html.markdown(progress_bar, unsafe_allow_html=True)
+
+            processed_blocks = 0
             ticker_lookup = build_ticker_lookup(pdf)
 
-            # ✅ Manual patch for known missing WisdomTree fund
+            # ✅ Patch
             if not any("Enhanced Commodity" in name for name in ticker_lookup):
                 ticker_lookup["WisdomTree Enhanced Commodity Stgy Fd"] = "WTES"
 
             for i, page in enumerate(pdf.pages):
                 txt = page.extract_text()
                 if not txt:
-                    progress.progress((i + 1) / total_pages)
                     status_text.text(f"Skipping page {i + 1} (no text)...")
                     continue
 
@@ -133,12 +171,15 @@ def run():
                         })
                         original_blocks.append(block)
 
-                progress.progress((i + 1) / total_pages)
-                status_text.text(f"Processed page {i + 1} of {total_pages}")
+                    processed_blocks += 1
+                    pct = processed_blocks / total_blocks if total_blocks > 0 else 1
+                    render_progress_bar(pct)
+                    status_text.text(f"Processing fund {processed_blocks} of {total_blocks}")
 
-            progress.empty()
+            progress_html.empty()
             status_text.empty()
 
+  
         df = pd.DataFrame(rows)
 
         # Final ticker correction (fuzzy + substring)
