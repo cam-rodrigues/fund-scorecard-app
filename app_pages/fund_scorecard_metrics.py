@@ -37,26 +37,28 @@ def build_ticker_lookup(pages_text: list[str]) -> dict[str, str]:
 # ────────────────────────────────
 # 3. Find best-matching fund name in a block
 # ────────────────────────────────
-def pick_fund_name(block: str, lookup: dict[str, str]) -> tuple[str, bool]:
-    """Return (fund_name, confident?)."""
+def pick_fund_name(block: str, lookup: dict[str, str]) -> tuple[str, int]:
+    """Return (best_name, fuzzy_score)."""
     block_lower = block.lower()
 
-    # 3-A. Exact substring first
+    # 3-A. Exact match shortcut
     for name in lookup:
         if name.lower() in block_lower:
-            return name, True
+            return name, 100
 
-    # 3-B. Fuzzy match (RapidFuzz ≥85)
+    # 3-B. Fuzzy match
     try:
         from rapidfuzz import fuzz, process  # type: ignore
-        choice, score, _ = process.extractOne(
+        result = process.extractOne(
             block, lookup.keys(), scorer=fuzz.token_set_ratio  # type: ignore
         )
-        return (choice, score >= 85)
+        if result:
+            name, score, _ = result
+            return name, score
     except Exception:
         pass
 
-    return "UNKNOWN FUND", False
+    return "UNKNOWN FUND", 0
 
 
 # ────────────────────────────────
@@ -112,7 +114,7 @@ def run():
                 if not WATCHLIST_POS.search(block) and not WATCHLIST_NEG.search(block):
                     continue
 
-                name, confident = pick_fund_name(block, ticker_lookup)
+                name, score = pick_fund_name(block, ticker_lookup)
                 ticker = ticker_lookup.get(name, "N/A")
                 meets = "Yes" if WATCHLIST_NEG.search(block) is None else "No"
 
@@ -129,7 +131,7 @@ def run():
                     **metrics,
                 }
 
-                if confident:
+                if score >= 20:
                     rows.append(record)
                 else:
                     low_confidence.append(record)
@@ -139,30 +141,30 @@ def run():
         st.stop()
 
     df = pd.DataFrame(rows)
-    st.success(f"Captured {len(df)} fund entries.")
+    st.success(f"Captured {len(df)} fund entries (fuzzy score ≥ 20).")
     st.dataframe(df, use_container_width=True)
 
     if low_confidence:
-        st.warning(f"{len(low_confidence)} additional entries had low-confidence name matches.")
+        st.warning(f"{len(low_confidence)} entries had low-confidence name matches (score < 20).")
         with st.expander("Show low-confidence matches"):
             st.dataframe(pd.DataFrame(low_confidence), use_container_width=True)
 
     # Downloads
     with st.expander("Download Results"):
-        # CSV: High-confidence only
+        # CSV: High-confidence + medium-confidence
         st.download_button(
-            "CSV (high-confidence only)",
+            "CSV (score ≥ 20)",
             df.to_csv(index=False).encode(),
             file_name="fund_criteria_results.csv",
             mime="text/csv",
         )
 
-        # Excel: High-confidence only
+        # Excel: High-confidence + medium-confidence
         excel_buffer = io.BytesIO()
         with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
             df.to_excel(writer, index=False, sheet_name="Fund Criteria")
         st.download_button(
-            "Excel (high-confidence only)",
+            "Excel (score ≥ 20)",
             data=excel_buffer.getvalue(),
             file_name="fund_criteria_results.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
