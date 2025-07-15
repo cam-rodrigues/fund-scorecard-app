@@ -5,7 +5,6 @@ import re
 from difflib import get_close_matches
 import together
 
-together.api_key = st.secrets["together"]["api_key"]
 
 # --- Build Fund Name ➜ Ticker lookup ---
 def build_ticker_lookup(pdf):
@@ -63,32 +62,6 @@ def get_fund_name(block, lookup):
 
     return "UNKNOWN FUND"
 
-# --- Optional LLM fallback ---
-def identify_fund_with_llm(block, lookup_keys):
-    prompt = f"""
-You are analyzing a fund performance summary. Given this block:
-
-\"\"\"{block}\"\"\"
-
-And this list of known fund names:
-
-{lookup_keys}
-
-Which fund is this block referring to? Respond with the exact name from the list, or say "UNKNOWN".
-"""
-    try:
-        response = together.Complete.create(
-            prompt=prompt,
-            model="mistralai/Mixtral-8x7B-Instruct-v0.1",
-            max_tokens=50,
-            temperature=0.3,
-            stop=["\n"]
-        )
-        result = response["choices"][0]["text"].strip()
-        return result if result in lookup_keys else "UNKNOWN FUND"
-    except Exception as e:
-        st.warning(f"LLM fallback failed: {e}")
-        return "UNKNOWN FUND"
 
 # --- Streamlit App ---
 def run():
