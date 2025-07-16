@@ -136,26 +136,30 @@ def nav_button(label, filename):
     if st.sidebar.button(label, key=label):
         st.query_params.update({"page": filename})
 
-# === Navigation structure ===
-st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
-nav_button("Getting Started", "Getting_Started.py")
-nav_button("Capabilities & Potential", "capabilities_and_potential.py")
-nav_button("Resources", "resources.py")
-
-
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
-nav_button("Fund Scorecard", "fund_scorecard.py")
-nav_button("Fund Scorecard Metrics", "fund_scorecard_metrics.py")
+
+# --- MPI Tools Dropdown ---
+mpi_tool_map = {
+    "Fund Scorecard": "fund_scorecard.py",
+    "Fund Scorecard Metrics": "fund_scorecard_metrics.py",
+    "Fund Summary": "fund_summary.py",
+    "Proposal Generator": "proposal_generator.py",
+    "Multi Fund Comparison": "multi_fund_comparison.py",
+    "Quarterly Comparison": "qtrly_comparison.py"
+}
+mpi_selected = st.sidebar.selectbox("MPI Tools", [""] + list(mpi_tool_map.keys()))
+if mpi_selected:
+    st.query_params.update({"page": mpi_tool_map[mpi_selected]})
+    st.rerun()
+
+# --- Other Individual Tools ---
 nav_button("Article Analyzer", "article_analyzer.py")
 nav_button("Data Scanner", "data_scanner.py")
 nav_button("Company Lookup", "company_lookup.py")
 
 st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', unsafe_allow_html=True)
 nav_button("Meeting Minutes Generator", "meeting_minutes_generator.py")
-nav_button("Fund Summary", "fund_summary.py")
-nav_button("Proposal Generator", "proposal_generator.py")
-nav_button("Multi Fund Comparison", "multi_fund_comparison.py")
-nav_button("Quarterly Comparison", "qtrly_comparison.py")
+
 
 # === Page router ===
 query_params = st.query_params
