@@ -55,8 +55,8 @@ def run():
         lines = block.split("\n")
 
         watchlist_status = "⚠️ On Watchlist"
-        metrics_summary = []
-        considerations = []
+        metrics = []
+        highlights = []
 
         for line in lines:
             line = line.strip()
@@ -66,76 +66,83 @@ def run():
                 watchlist_status = "✅ Meets Watchlist Criteria"
 
             if "Manager Tenure" in line and "Pass" in line:
-                tenure_match = re.search(r"(\d+\.\d+)\s+years", line)
-                if tenure_match:
-                    tenure = tenure_match.group(1)
-                    metrics_summary.append(f"- Manager Tenure: {tenure} years")
-                    considerations.append("Experienced management team")
+                val = re.search(r"(\d+\.\d+)\s+years", line)
+                if val:
+                    metrics.append(f"- **Manager Tenure:** {val.group(1)} years (Pass)")
+                    highlights.append("Long-tenured management suggests consistency.")
 
             if "Excess Performance (3Yr)" in line:
                 val = re.search(r"by\s+([-+]?\d+\.\d+)%", line)
                 if val:
-                    metrics_summary.append(f"- 3-Year Excess Return: +{val.group(1)}%")
-                    considerations.append("3-year excess return above benchmark")
+                    metrics.append(f"- **3-Year Excess Return:** +{val.group(1)}%")
+                    highlights.append("Outperformed benchmark over 3 years.")
 
             if "Excess Performance (5Yr)" in line:
                 val = re.search(r"by\s+([-+]?\d+\.\d+)%", line)
                 if val:
-                    metrics_summary.append(f"- 5-Year Excess Return: +{val.group(1)}%")
-                    considerations.append("5-year excess return above benchmark")
+                    metrics.append(f"- **5-Year Excess Return:** +{val.group(1)}%")
+                    highlights.append("Strong long-term excess return over benchmark.")
 
             if "Peer Return Rank (3Yr)" in line:
                 val = re.search(r"Rank is\s+(\d+)", line)
                 if val:
-                    metrics_summary.append(f"- 3-Year Peer Return Rank: {val.group(1)}th percentile")
-                    considerations.append("Strong short-term peer ranking")
+                    metrics.append(f"- **3-Year Peer Return Rank:** {val.group(1)}th percentile")
+                    highlights.append("Competitive short-term peer ranking.")
 
             if "Peer Return Rank (5Yr)" in line:
                 val = re.search(r"Rank is\s+(\d+)", line)
                 if val:
-                    metrics_summary.append(f"- 5-Year Peer Return Rank: {val.group(1)}th percentile")
-                    considerations.append("Strong long-term peer ranking")
+                    metrics.append(f"- **5-Year Peer Return Rank:** {val.group(1)}th percentile")
+                    highlights.append("Top-tier long-term peer ranking.")
 
             if "Expense Ratio Rank" in line:
                 val = re.search(r"percentile rank is\s+(\d+)", line)
                 if val:
-                    metrics_summary.append(f"- Expense Ratio: {val.group(1)}th percentile")
-                    considerations.append("Low cost relative to peers")
+                    metrics.append(f"- **Expense Ratio Rank:** {val.group(1)}th percentile (Pass)")
+                    highlights.append("Low expenses relative to peers.")
 
             if "Sharpe Ratio Rank (5Yr)" in line and "Pass" in line:
-                considerations.append("Strong risk-adjusted performance")
+                highlights.append("Strong risk-adjusted returns (Sharpe).")
 
             if "R-Squared" in line and "Review" in line:
-                metrics_summary.append("- R-Squared: Requires Review")
+                metrics.append("- **R-Squared:** Requires Review")
 
-        summary = [
-            f"**Recommendation Summary**",
-            "",
-            f"We recommend **{fund_name}** as a potential primary candidate based on key performance indicators.",
-            "",
-            f"**Watchlist Status:** {watchlist_status}",
-            "",
-            "**Performance Highlights:**",
-            *metrics_summary,
-            "",
-            "**Considerations:**",
-            *["- " + c for c in set(considerations)],
-            "",
-            "This recommendation should be confirmed against current plan goals, investment policy benchmarks, and fiduciary guidelines."
-        ]
+        markdown = []
 
-        return "\n".join(summary)
+        markdown.append(f"### {fund_name}")
+        markdown.append("")
+        markdown.append(f"**Recommendation:** This fund is recommended as a primary candidate based on key performance and peer rankings.")
+        markdown.append("")
+        markdown.append(f"**Watchlist Status:** {watchlist_status}")
+        markdown.append("")
+        markdown.append("---")
+        markdown.append("**Key Metrics Summary:**")
+        markdown.extend(metrics)
+        markdown.append("")
+        markdown.append("---")
+        markdown.append("**Analysis:**")
+        if highlights:
+            markdown.append("This fund shows:")
+            for h in set(highlights):
+                markdown.append(f"- {h}")
+        else:
+            markdown.append("This fund meets minimum watchlist standards but lacks notable strengths.")
+        markdown.append("")
+        markdown.append("**Conclusion:**")
+        markdown.append("Based on the above factors, this fund is suitable for continued consideration aligned with plan objectives and fiduciary standards.")
+
+        return "\n".join(markdown)
 
     writeup = build_writeup(selected_fund, block)
 
-    # === Display writeup ===
+    # === Preview ===
     st.subheader("📋 Writeup Preview")
     st.markdown(writeup)
 
     # === DOCX Export ===
     def export_docx(name, writeup):
         doc = Document()
-        doc.add_heading(f'Proposal: {name}', 0)
+        doc.add_heading(f'Fund Proposal: {name}', 0)
         for line in writeup.split("\n"):
             doc.add_paragraph(line)
         bio = BytesIO()
@@ -145,7 +152,7 @@ def run():
     # === PPTX Export ===
     def export_pptx(name, writeup):
         prs = Presentation()
-        slide = prs.slides.add_slide(prs.slide_layouts[5])  # blank
+        slide = prs.slides.add_slide(prs.slide_layouts[5])  # Blank
 
         # Title
         title_box = slide.shapes.add_textbox(Inches(0.3), Inches(0.3), Inches(9), Inches(1))
@@ -167,6 +174,6 @@ def run():
         prs.save(bio)
         return bio.getvalue()
 
-    # === Download buttons ===
+    # === Downloads ===
     st.download_button("📄 Export as DOCX", export_docx(selected_fund, writeup), file_name=f"{selected_fund}_proposal.docx")
     st.download_button("📊 Export as PPTX", export_pptx(selected_fund, writeup), file_name=f"{selected_fund}_slide.pptx")
