@@ -7,6 +7,7 @@ from pptx.dml.color import RGBColor
 from docx import Document
 from docx.shared import Inches as DocxInches
 from io import BytesIO
+import textwrap
 
 st.set_page_config(page_title="Writeup Generator", layout="wide")
 st.title("Writeup Generator")
@@ -56,9 +57,66 @@ block = fund_block_map[selected_fund]
 
 # === Generate Writeup Content ===
 def build_writeup_text(name, block):
-    return f"""
-**Recommendation Summary**
+    return textwrap.dedent(f"""
+        **Recommendation Summary**
 
-We reviewed the available funds and recommend **{name}** as a potential primary candidate based on key performance indicators:
+        We reviewed the available funds and recommend **{name}** as a potential primary candidate based on key performance indicators:
 
-- **Trailing Returns (Extracted Sample):**
+        **Trailing Returns (Extracted Sample):**
+
+        {block}
+
+        **Considerations:**
+        - Strong performance across long-term periods
+        - Low expense ratio compared to peers
+        - Solid category ranking and consistency
+
+        This recommendation should be confirmed against current plan goals, investment policy benchmarks, and fiduciary guidelines.
+    """).strip()
+
+writeup = build_writeup_text(selected_fund, block)
+
+# === Preview Writeup ===
+st.subheader("Writeup Preview")
+st.markdown(writeup)
+
+# === DOCX Export ===
+def export_docx(name, writeup):
+    doc = Document()
+    doc.add_heading(f'Proposal: {name}', 0)
+    for line in writeup.split("\n"):
+        doc.add_paragraph(line)
+    bio = BytesIO()
+    doc.save(bio)
+    return bio.getvalue()
+
+# === PPTX Export (Mimicking Slide Format) ===
+def export_pptx(name, writeup):
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[5])  # Blank
+
+    # Title box
+    title_box = slide.shapes.add_textbox(Inches(0.3), Inches(0.3), Inches(9), Inches(1))
+    title_tf = title_box.text_frame
+    title_run = title_tf.paragraphs[0].add_run()
+    title_run.text = f"Recommendation: {name}"
+    title_run.font.size = Pt(28)
+    title_run.font.bold = True
+    title_run.font.color.rgb = RGBColor(0, 32, 96)
+
+    # Body
+    body_box = slide.shapes.add_textbox(Inches(0.3), Inches(1.3), Inches(9), Inches(5.5))
+    body_tf = body_box.text_frame
+    for line in writeup.split("\n"):
+        if line.strip():
+            p = body_tf.add_paragraph()
+            p.text = line.strip()
+            p.level = 0
+
+    bio = BytesIO()
+    prs.save(bio)
+    return bio.getvalue()
+
+# === Export Buttons ===
+st.download_button("📄 Export as DOCX", export_docx(selected_fund, writeup), file_name=f"{selected_fund}_proposal.docx")
+st.download_button("📊 Export as PPTX", export_pptx(selected_fund, writeup), file_name=f"{selected_fund}_slide.pptx")
