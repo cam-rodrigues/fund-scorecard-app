@@ -136,7 +136,7 @@ def run():
     writeup = build_writeup(selected_fund, block)
 
     # === Preview ===
-    st.subheader("📋 Writeup Preview")
+    st.subheader("Writeup Preview")
     st.markdown(writeup)
 
     # === DOCX Export ===
@@ -175,5 +175,5 @@ def run():
         return bio.getvalue()
 
     # === Downloads ===
-    st.download_button("📄 Export as DOCX", export_docx(selected_fund, writeup), file_name=f"{selected_fund}_proposal.docx")
-    st.download_button("📊 Export as PPTX", export_pptx(selected_fund, writeup), file_name=f"{selected_fund}_slide.pptx")
+    st.download_button("Export as DOCX", export_docx(selected_fund, writeup), file_name=f"{selected_fund}_proposal.docx")
+    st.download_button("Export as PPTX", export_pptx(selected_fund, writeup), file_name=f"{selected_fund}_slide.pptx")
