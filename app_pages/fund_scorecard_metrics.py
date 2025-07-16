@@ -167,11 +167,14 @@ def run():
 
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    df_fixed = df.fillna("None").replace("NUM", "None")
-                    df_fixed.to_excel(writer, index=False, sheet_name="Fund Criteria", startrow=2)
+                    # Replace "None", "NUM", and NaN with blank cells
+                    df_cleaned = df.replace(["None", "NUM"], "").fillna("")
+                    df_cleaned.to_excel(writer, index=False, sheet_name="Fund Criteria", startrow=2)
+                
                     workbook = writer.book
                     worksheet = writer.sheets["Fund Criteria"]
-
+                
+                    # Formats
                     header_format = workbook.add_format({
                         'bold': True, 'bg_color': '#D9E1F2', 'font_color': '#1F4E78',
                         'align': 'center', 'valign': 'vcenter', 'border': 1, 'bottom': 2
@@ -182,40 +185,35 @@ def run():
                     status_format_review = workbook.add_format({
                         'bg_color': '#FFC7CE', 'font_color': '#9C0006', 'border': 1
                     })
-                    none_format = workbook.add_format({
-                        'bg_color': '#E0E0E0', 'font_color': '#666666', 'border': 1, 'italic': True
-                    })
                     normal_format = workbook.add_format({'border': 1})
                     center_format = workbook.add_format({'border': 1, 'align': 'center'})
                     updated_format = workbook.add_format({'italic': True, 'font_color': '#444444'})
-
+                
                     worksheet.write('A1', datetime.now().strftime("Last Updated: %B %d, %Y"), updated_format)
-
-                    for col_num, col_name in enumerate(df_fixed.columns):
-                        max_len = max(df_fixed[col_name].astype(str).map(len).max(), len(col_name)) + 2
+                
+                    for col_num, col_name in enumerate(df_cleaned.columns):
+                        max_len = max(df_cleaned[col_name].astype(str).map(len).max(), len(col_name)) + 2
                         worksheet.set_column(col_num, col_num, max_len)
                         worksheet.write(2, col_num, col_name, header_format)
-
-                    worksheet.autofilter(f"A3:{xl_col_to_name(len(df_fixed.columns) - 1)}3")
+                
+                    worksheet.autofilter(f"A3:{xl_col_to_name(len(df_cleaned.columns) - 1)}3")
                     worksheet.freeze_panes(3, 0)
-
-                    for row in range(len(df_fixed)):
-                        for col in range(len(df_fixed.columns)):
-                            value = df_fixed.iloc[row, col]
-                            col_name = df_fixed.columns[col]
+                
+                    for row in range(len(df_cleaned)):
+                        for col in range(len(df_cleaned.columns)):
+                            value = df_cleaned.iloc[row, col]
+                            col_name = df_cleaned.columns[col]
                             fmt = center_format if col_name == "Ticker" else normal_format
-
-                            if str(value).strip().lower() == "none":
-                                fmt = none_format
-                            elif col_name == "Meets Criteria":
+                
+                            if col_name == "Meets Criteria":
                                 fmt = workbook.add_format({'border': 2, 'align': 'center'})
-
+                
                             worksheet.write(row + 3, col, value, fmt)
-
-                    for col_num, col_name in enumerate(df_fixed.columns):
+                
+                    for col_num, col_name in enumerate(df_cleaned.columns):
                         col_letter = xl_col_to_name(col_num)
-                        data_range = f"{col_letter}4:{col_letter}{len(df_fixed)+3}"
-
+                        data_range = f"{col_letter}4:{col_letter}{len(df_cleaned)+3}"
+                
                         worksheet.conditional_format(data_range, {
                             'type': 'text', 'criteria': 'containing', 'value': 'Pass', 'format': status_format_pass
                         })
@@ -228,6 +226,7 @@ def run():
                         worksheet.conditional_format(data_range, {
                             'type': 'text', 'criteria': 'containing', 'value': 'No', 'format': status_format_review
                         })
+
 
                 excel_data = output.getvalue()
                 st.download_button("Download as Excel",
