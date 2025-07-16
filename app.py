@@ -137,18 +137,13 @@ nav_button("Resources", "resources.py")
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
 
 # --- MPI Tools Dropdown ---
-mpi_tools = {
-    "Fund Scorecard": "fund_scorecard.py",
-    "Fund Scorecard Metrics": "fund_scorecard_metrics.py",
-    "Fund Summary": "fund_summary.py",
-    "Proposal Generator": "proposal_generator.py",
-    "Multi Fund Comparison": "multi_fund_comparison.py",
-    "Quarterly Comparison": "qtrly_comparison.py"
-}
-mpi_choice = st.sidebar.selectbox("📊 MPI Tools", [""] + list(mpi_tools.keys()))
-if mpi_choice:
-    st.query_params.update({"page": mpi_tools[mpi_choice]})
-    st.rerun()
+with st.sidebar.expander("MPI Tools", expanded=False):
+    nav_button("Fund Scorecard", "fund_scorecard.py")
+    nav_button("Metrics", "fund_scorecard_metrics.py")
+    nav_button("Fund Summary", "fund_summary.py")
+    nav_button("Proposal Generator", "proposal_generator.py")
+    nav_button("Multi Fund Comparison", "multi_fund_comparison.py")
+    nav_button("Quarterly Comparison", "qtrly_comparison.py")
 
 # --- Other buttons ---
 nav_button("Article Analyzer", "article_analyzer.py")
