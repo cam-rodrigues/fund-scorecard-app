@@ -86,7 +86,6 @@ def run():
 
     if pdf_file:
         rows = []
-        original_blocks = []
         with pdfplumber.open(pdf_file) as pdf:
             total_pages = len(pdf.pages)
             status_text = st.empty()
@@ -121,7 +120,7 @@ def run():
                         if line.startswith((
                             "Manager Tenure", "Excess Performance", "Peer Return Rank",
                             "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
-                            "Sortino Ratio Rank", "Tracking Error Rank",
+                            "Sortino Ratio Rank", "Tracking Error Rank", 
                             "Tracking Error (3Yr)", "Tracking Error (5Yr)")):
                             m = re.match(r"^(.*?)\s+(Pass|Review)", line.strip())
                             if m:
@@ -134,7 +133,6 @@ def run():
                             "Meets Criteria": meets,
                             **metrics
                         })
-                        original_blocks.append(block)
 
                 progress.progress((i + 1) / total_pages)
                 status_text.text(f"Processed page {i + 1} of {total_pages}")
@@ -168,8 +166,7 @@ def run():
                                    mime="text/csv")
 
                 output = BytesIO()
-                with pd.ExcelWriter(output, engine='xlsxwriter',
-                                    engine_kwargs={'options': {'nan_inf_to_errors': True}}) as writer:
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                     df_fixed = df.fillna("None").replace("NUM", "None")
                     df_fixed.to_excel(writer, index=False, sheet_name="Fund Criteria", startrow=2)
                     workbook = writer.book
@@ -177,4 +174,67 @@ def run():
 
                     header_format = workbook.add_format({
                         'bold': True, 'bg_color': '#D9E1F2', 'font_color': '#1F4E78',
-                        'align': 'center', '
+                        'align': 'center', 'valign': 'vcenter', 'border': 1, 'bottom': 2
+                    })
+                    status_format_pass = workbook.add_format({
+                        'bg_color': '#C6EFCE', 'font_color': '#006100', 'border': 1
+                    })
+                    status_format_review = workbook.add_format({
+                        'bg_color': '#FFC7CE', 'font_color': '#9C0006', 'border': 1
+                    })
+                    none_format = workbook.add_format({
+                        'bg_color': '#E0E0E0', 'font_color': '#666666', 'border': 1, 'italic': True
+                    })
+                    normal_format = workbook.add_format({'border': 1})
+                    center_format = workbook.add_format({'border': 1, 'align': 'center'})
+                    updated_format = workbook.add_format({'italic': True, 'font_color': '#444444'})
+
+                    worksheet.write('A1', datetime.now().strftime("Last Updated: %B %d, %Y"), updated_format)
+
+                    for col_num, col_name in enumerate(df_fixed.columns):
+                        max_len = max(df_fixed[col_name].astype(str).map(len).max(), len(col_name)) + 2
+                        worksheet.set_column(col_num, col_num, max_len)
+                        worksheet.write(2, col_num, col_name, header_format)
+
+                    worksheet.autofilter(f"A3:{xl_col_to_name(len(df_fixed.columns) - 1)}3")
+                    worksheet.freeze_panes(3, 0)
+
+                    for row in range(len(df_fixed)):
+                        for col in range(len(df_fixed.columns)):
+                            value = df_fixed.iloc[row, col]
+                            col_name = df_fixed.columns[col]
+                            fmt = center_format if col_name == "Ticker" else normal_format
+
+                            if str(value).strip().lower() == "none":
+                                fmt = none_format
+                            elif col_name == "Meets Criteria":
+                                fmt = workbook.add_format({'border': 2, 'align': 'center'})
+
+                            worksheet.write(row + 3, col, value, fmt)
+
+                    for col_num, col_name in enumerate(df_fixed.columns):
+                        col_letter = xl_col_to_name(col_num)
+                        data_range = f"{col_letter}4:{col_letter}{len(df_fixed)+3}"
+
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text', 'criteria': 'containing', 'value': 'Pass', 'format': status_format_pass
+                        })
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text', 'criteria': 'containing', 'value': 'Yes', 'format': status_format_pass
+                        })
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text', 'criteria': 'containing', 'value': 'Review', 'format': status_format_review
+                        })
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text', 'criteria': 'containing', 'value': 'No', 'format': status_format_review
+                        })
+
+                excel_data = output.getvalue()
+                st.download_button("Download as Excel",
+                                   data=excel_data,
+                                   file_name="fund_criteria_results.xlsx",
+                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        else:
+            st.warning("No fund entries found in the uploaded PDF.")
+    else:
+        st.info("Please upload an MPI fund scorecard PDF to begin.")
