@@ -188,42 +188,54 @@ def run():
                         'valign': 'vcenter'
                     })
                     pass_format = workbook.add_format({
-                        'bg_color': '#C6EFCE',
+                        'bg_color': '#C6EFCE',  # Light green for metrics
                         'font_color': '#006100',
                         'border': 1
                     })
                     review_format = workbook.add_format({
-                        'bg_color': '#FFC7CE',
+                        'bg_color': '#FFC7CE',  # Light red for metrics
                         'font_color': '#9C0006',
                         'border': 1
                     })
-                    normal_format = workbook.add_format({
+                    meets_yes_format = workbook.add_format({
+                        'bg_color': '#A9D08E',  # Darker green for Meets Criteria
+                        'font_color': '#274E13',
                         'border': 1
                     })
+                    meets_no_format = workbook.add_format({
+                        'bg_color': '#F4B084',  # Darker red for Meets Criteria
+                        'font_color': '#7F1F1F',
+                        'border': 1
+                    })
+                    normal_format = workbook.add_format({'border': 1})
+                    center_format = workbook.add_format({'border': 1, 'align': 'center'})
                     updated_format = workbook.add_format({
                         'italic': True,
                         'font_color': '#444444'
                     })
                 
-                    # === Row 1: Last Updated ===
+                    # === Last Updated Timestamp (Row 1) ===
                     timestamp = datetime.now().strftime("Last Updated: %B %d, %Y")
                     worksheet.write('A1', timestamp, updated_format)
                 
-                    # === Header row (row 3 = index 2) ===
+                    # === Header row (Row 3 = index 2) ===
                     for col_num, col_name in enumerate(df.columns):
                         max_len = max(df[col_name].astype(str).map(len).max(), len(col_name)) + 2
                         worksheet.set_column(col_num, col_num, max_len)
                         worksheet.write(2, col_num, col_name, header_format)
                 
-                    # === Freeze header row ===
-                    worksheet.freeze_panes(3, 0)
+                    worksheet.freeze_panes(3, 0)  # Freeze the header row
                 
-                    # === Write data (starting from row 4) ===
+                    # === Write data (starting from Row 4 = index 3) ===
                     for row in range(len(df)):
                         for col in range(len(df.columns)):
-                            worksheet.write(row + 3, col, df.iloc[row, col], normal_format)
+                            value = df.iloc[row, col]
+                            if df.columns[col] == "Ticker":
+                                worksheet.write(row + 3, col, value, center_format)
+                            else:
+                                worksheet.write(row + 3, col, value, normal_format)
                 
-                    # === Conditional formatting for all status columns ===
+                    # === Conditional formatting ===
                     for col_num, col_name in enumerate(df.columns):
                         col_letter = xl_col_to_name(col_num)
                         data_range = f"{col_letter}4:{col_letter}{len(df)+3}"
@@ -233,13 +245,13 @@ def run():
                                 'type': 'text',
                                 'criteria': 'containing',
                                 'value': 'Yes',
-                                'format': pass_format
+                                'format': meets_yes_format
                             })
                             worksheet.conditional_format(data_range, {
                                 'type': 'text',
                                 'criteria': 'containing',
                                 'value': 'No',
-                                'format': review_format
+                                'format': meets_no_format
                             })
                         else:
                             worksheet.conditional_format(data_range, {
