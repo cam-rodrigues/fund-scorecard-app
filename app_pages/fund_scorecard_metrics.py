@@ -198,13 +198,13 @@ def run():
                         'border': 1
                     })
                     meets_yes_format = workbook.add_format({
-                        'bg_color': '#B7E1CD',  # Darker green for Meets Criteria
-                        'font_color': '#006100',
+                        'bg_color': '#D0EAD7',  # Darker green for Meets Criteria
+                        'font_color': '#215E32',
                         'border': 1
                     })
                     meets_no_format = workbook.add_format({
-                        'bg_color': '#F4CCCC',  # Darker red for Meets Criteria
-                        'font_color': '#9C0006',
+                        'bg_color': '#F8D7DA',  # Darker red for Meets Criteria
+                        'font_color': '#7B2D2F',
                         'border': 1
                     })
                     normal_format = workbook.add_format({'border': 1})
