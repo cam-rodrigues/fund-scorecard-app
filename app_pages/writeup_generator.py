@@ -1,20 +1,23 @@
 import streamlit as st
 import pdfplumber
 import re
+import textwrap
 from jinja2 import Template
 
+# === Main App Function ===
 def run():
     st.set_page_config(page_title="Fund Writeup Generator", layout="wide")
-    st.title("Fund Writeup Generator")
+    st.title("📄 Fund Writeup Generator")
 
     st.markdown("Upload an MPI-style PDF and generate a client-ready writeup.")
 
-    # Upload section
+    # === Step 1: Upload PDF ===
     uploaded_file = st.file_uploader("Upload MPI-style PDF", type=["pdf"])
 
     if uploaded_file:
         pdf_text = extract_pdf_text(uploaded_file)
 
+        # === Step 2: Input Form ===
         with st.form("writeup_form"):
             fund_name = st.text_input("Fund Name", value="BlackRock Mid Cap Growth Equity")
             manager = st.text_input("Manager Name", value="Phil Ruvinsky")
@@ -30,12 +33,14 @@ def run():
             st.subheader("📋 Writeup Preview")
             st.markdown(writeup)
 
-# === Extract full PDF text ===
+
+# === Extract full text from uploaded PDF ===
 def extract_pdf_text(file_obj):
     with pdfplumber.open(file_obj) as pdf:
         return "\n".join([p.extract_text() for p in pdf.pages if p.extract_text()])
 
-# === Extract metrics next to fund name line (basic logic) ===
+
+# === Find return metrics near the fund name line ===
 def extract_sample_metrics(text, fund_name):
     pattern = rf"{re.escape(fund_name)}.*?(-?\d+\.\d+)%.*?(-?\d+\.\d+)%.*?(-?\d+\.\d+)%.*?(-?\d+\.\d+)%.*?(-?\d+\.\d+)%"
     match = re.search(pattern, text, re.DOTALL)
@@ -49,28 +54,31 @@ def extract_sample_metrics(text, fund_name):
         }
     return {k: "N/A" for k in ["qtd", "1yr", "3yr", "5yr", "10yr"]}
 
-# === Jinja2 writeup generation ===
+
+# === Generate writeup using Jinja2 ===
 def generate_writeup(fund_name, manager, peer_rank, rec, metrics):
-    template = Template("""
-### {{ fund_name }}
+    template_str = textwrap.dedent("""
+        ### {{ fund_name }}
 
-**Performance Summary**
-- QTD: {{ metrics["qtd"] }}%
-- 1YR: {{ metrics["1yr"] }}%
-- 3YR: {{ metrics["3yr"] }}%
-- 5YR: {{ metrics["5yr"] }}%
-- 10YR: {{ metrics["10yr"] }}%
+        **Performance Summary**
+        - QTD: {{ metrics["qtd"] }}%
+        - 1YR: {{ metrics["1yr"] }}%
+        - 3YR: {{ metrics["3yr"] }}%
+        - 5YR: {{ metrics["5yr"] }}%
+        - 10YR: {{ metrics["10yr"] }}%
 
-**Manager & Strategy**
-Managed by **{{ manager }}**, this fund has demonstrated performance {{ peer_rank }} relative to its peers.
+        **Manager & Strategy**
+        Managed by **{{ manager }}**, this fund has demonstrated performance {{ peer_rank }} relative to its peers.
 
-**Recommendation**
-**Action:** {{ rec }}
-""")
+        **Recommendation**
+        **Action:** {{ rec }}
+    """)
+
+    template = Template(template_str)
     return template.render(
         fund_name=fund_name,
+        metrics=metrics,
         manager=manager,
         peer_rank=peer_rank,
-        rec=rec,
-        metrics=metrics
+        rec=rec
     )
