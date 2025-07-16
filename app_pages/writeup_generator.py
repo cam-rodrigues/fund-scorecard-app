@@ -1,14 +1,12 @@
 import streamlit as st
 import pdfplumber
 import re
-import textwrap
-from jinja2 import Template
+from jinja2 import Template, StrictUndefined
 from io import BytesIO
 from docx import Document
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
-
 
 def run():
     st.set_page_config(page_title="Fund Writeup Generator", layout="wide")
@@ -41,7 +39,6 @@ def run():
             st.subheader("📋 Writeup Preview")
             st.markdown(writeup)
 
-            # Export options
             docx_bytes = generate_docx(writeup)
             pptx_bytes = generate_pptx_slide(writeup)
 
@@ -52,21 +49,20 @@ def run():
                 st.download_button("📊 Download as PPTX", pptx_bytes, file_name="fund_writeup.pptx")
 
 
-# === PDF extraction ===
+# === PDF Processing ===
 def extract_pdf_text(file_obj):
     with pdfplumber.open(file_obj) as pdf:
         return "\n".join([p.extract_text() for p in pdf.pages if p.extract_text()])
 
 
 def extract_fund_names(text):
-    # Match long names followed by returns (%)
     lines = text.splitlines()
     fund_names = set()
     for line in lines:
         if re.search(r"[A-Za-z]{4,}.*?(-?\d+\.\d+%)", line):
             name = line.strip()
             if len(name.split()) >= 3:
-                fund_names.add(name.split("  ")[0].strip())  # remove trailing returns
+                fund_names.add(name.split("  ")[0].strip())
     return sorted(fund_names)
 
 
@@ -84,24 +80,27 @@ def extract_sample_metrics(text, fund_name):
     return {k: "N/A" for k in ["qtd", "1yr", "3yr", "5yr", "10yr"]}
 
 
+# === Writeup Generation ===
 def generate_writeup(fund_name, manager, peer_rank, rec, metrics):
-    template_str = textwrap.dedent("""
-        ### {{ fund_name }}
+    template_str = """
+### {{ fund_name }}
 
-        **Performance Summary**
-        - QTD: {{ metrics["qtd"] }}%
-        - 1YR: {{ metrics["1yr"] }}%
-        - 3YR: {{ metrics["3yr"] }}%
-        - 5YR: {{ metrics["5yr"] }}%
-        - 10YR: {{ metrics["10yr"] }}%
+**Performance Summary**
+- QTD: {{ metrics["qtd"] }}%
+- 1YR: {{ metrics["1yr"] }}%
+- 3YR: {{ metrics["3yr"] }}%
+- 5YR: {{ metrics["5yr"] }}%
+- 10YR: {{ metrics["10yr"] }}%
 
-        **Manager & Strategy**
-        Managed by **{{ manager }}**, this fund has demonstrated performance {{ peer_rank }} relative to its peers.
+**Manager & Strategy**
+Managed by **{{ manager }}**, this fund has demonstrated performance {{ peer_rank }} relative to its peers.
 
-        **Recommendation**
-        **Action:** {{ rec }}
-    """)
-    return Template(template_str).render(
+**Recommendation**
+**Action:** {{ rec }}
+""".strip()
+
+    template = Template(template_str, undefined=StrictUndefined)
+    return template.render(
         fund_name=fund_name,
         metrics=metrics,
         manager=manager,
@@ -110,7 +109,7 @@ def generate_writeup(fund_name, manager, peer_rank, rec, metrics):
     )
 
 
-# === Exporters ===
+# === DOCX Export ===
 def generate_docx(writeup_text):
     doc = Document()
     doc.add_heading('Fund Writeup', 0)
@@ -127,6 +126,7 @@ def generate_docx(writeup_text):
     return buf
 
 
+# === PPTX Export ===
 def generate_pptx_slide(writeup_text):
     prs = Presentation()
     slide_layout = prs.slide_layouts[5]
