@@ -94,7 +94,6 @@ def run():
 
             ticker_lookup = build_ticker_lookup(pdf)
 
-            # ✅ Manual patch for known missing WisdomTree fund
             if not any("Enhanced Commodity" in name for name in ticker_lookup):
                 ticker_lookup["WisdomTree Enhanced Commodity Stgy Fd"] = "WTES"
 
@@ -145,7 +144,6 @@ def run():
 
         df = pd.DataFrame(rows)
 
-        # Final ticker correction (fuzzy + substring)
         for i, row in df.iterrows():
             if row["Ticker"] == "N/A" and row["Fund Name"] != "UNKNOWN FUND":
                 fund_name = row["Fund Name"]
@@ -163,116 +161,99 @@ def run():
             st.dataframe(df, use_container_width=True)
 
             with st.expander("Download Results"):
-                # CSV export
                 csv = df.to_csv(index=False).encode("utf-8")
                 st.download_button("Download as CSV",
                                    data=csv,
                                    file_name="fund_criteria_results.csv",
                                    mime="text/csv")
 
-                # Excel export with formatting
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter',
                                     engine_kwargs={'options': {'nan_inf_to_errors': True}}) as writer:
                     df.to_excel(writer, index=False, sheet_name="Fund Criteria", startrow=2)
                     workbook = writer.book
                     worksheet = writer.sheets["Fund Criteria"]
-                
-                    # === Formats ===
+
                     header_format = workbook.add_format({
                         'bold': True,
                         'bg_color': '#D9E1F2',
                         'font_color': '#1F4E78',
-                        'border': 1,
                         'align': 'center',
-                        'valign': 'vcenter'
+                        'valign': 'vcenter',
+                        'border': 1,
+                        'bottom': 2
                     })
-                    pass_format = workbook.add_format({
-                        'bg_color': '#C6EFCE',  # Light green for metrics
+                    status_format_pass = workbook.add_format({
+                        'bg_color': '#C6EFCE',
                         'font_color': '#006100',
                         'border': 1
                     })
-                    review_format = workbook.add_format({
-                        'bg_color': '#FFC7CE',  # Light red for metrics
+                    status_format_review = workbook.add_format({
+                        'bg_color': '#FFC7CE',
                         'font_color': '#9C0006',
-                        'border': 1
-                    })
-                    meets_yes_format = workbook.add_format({
-                        'bg_color': '#D0EAD7',  # Darker green for Meets Criteria
-                        'font_color': '#215E32',
-                        'border': 1
-                    })
-                    meets_no_format = workbook.add_format({
-                        'bg_color': '#F8D7DA',  # Darker red for Meets Criteria
-                        'font_color': '#7B2D2F',
                         'border': 1
                     })
                     normal_format = workbook.add_format({'border': 1})
                     center_format = workbook.add_format({'border': 1, 'align': 'center'})
-                    updated_format = workbook.add_format({
-                        'italic': True,
-                        'font_color': '#444444'
-                    })
-                
-                    # === Last Updated Timestamp (Row 1) ===
+                    updated_format = workbook.add_format({'italic': True, 'font_color': '#444444'})
+
                     timestamp = datetime.now().strftime("Last Updated: %B %d, %Y")
                     worksheet.write('A1', timestamp, updated_format)
-                
-                    # === Header row (Row 3 = index 2) ===
+
                     for col_num, col_name in enumerate(df.columns):
                         max_len = max(df[col_name].astype(str).map(len).max(), len(col_name)) + 2
                         worksheet.set_column(col_num, col_num, max_len)
                         worksheet.write(2, col_num, col_name, header_format)
-                
-                    worksheet.freeze_panes(3, 0)  # Freeze the header row
-                
-                    # === Write data (starting from Row 4 = index 3) ===
+
+                    worksheet.autofilter(f"A3:{xl_col_to_name(len(df.columns) - 1)}3")
+                    worksheet.freeze_panes(3, 0)
+
                     for row in range(len(df)):
                         for col in range(len(df.columns)):
                             value = df.iloc[row, col]
-                            if df.columns[col] == "Ticker":
-                                worksheet.write(row + 3, col, value, center_format)
+                            col_name = df.columns[col]
+                            fmt = center_format if col_name == "Ticker" else normal_format
+
+                            if col_name == "Meets Criteria":
+                                meets_cell_format = workbook.add_format({'border': 2, 'align': 'center'})
+                                worksheet.write(row + 3, col, value, meets_cell_format)
                             else:
-                                worksheet.write(row + 3, col, value, normal_format)
-                
-                    # === Conditional formatting ===
+                                worksheet.write(row + 3, col, value, fmt)
+
                     for col_num, col_name in enumerate(df.columns):
                         col_letter = xl_col_to_name(col_num)
                         data_range = f"{col_letter}4:{col_letter}{len(df)+3}"
-                
-                        if col_name == "Meets Criteria":
-                            worksheet.conditional_format(data_range, {
-                                'type': 'text',
-                                'criteria': 'containing',
-                                'value': 'Yes',
-                                'format': meets_yes_format
-                            })
-                            worksheet.conditional_format(data_range, {
-                                'type': 'text',
-                                'criteria': 'containing',
-                                'value': 'No',
-                                'format': meets_no_format
-                            })
-                        else:
-                            worksheet.conditional_format(data_range, {
-                                'type': 'text',
-                                'criteria': 'containing',
-                                'value': 'Pass',
-                                'format': pass_format
-                            })
-                            worksheet.conditional_format(data_range, {
-                                'type': 'text',
-                                'criteria': 'containing',
-                                'value': 'Review',
-                                'format': review_format
-                            })
-                
+
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text',
+                            'criteria': 'containing',
+                            'value': 'Pass',
+                            'format': status_format_pass
+                        })
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text',
+                            'criteria': 'containing',
+                            'value': 'Yes',
+                            'format': status_format_pass
+                        })
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text',
+                            'criteria': 'containing',
+                            'value': 'Review',
+                            'format': status_format_review
+                        })
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text',
+                            'criteria': 'containing',
+                            'value': 'No',
+                            'format': status_format_review
+                        })
+
                 excel_data = output.getvalue()
                 st.download_button("Download as Excel",
                                    data=excel_data,
                                    file_name="fund_criteria_results.xlsx",
                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
 
         else:
             st.warning("No fund entries found in the uploaded PDF.")
