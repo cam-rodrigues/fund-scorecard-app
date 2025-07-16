@@ -83,8 +83,8 @@ def generate_fund_writeup(row):
 
 # --- Main App ---
 def run():
-    st.set_page_config(page_title="Fund Scorecard Metrics", layout="wide")
-    st.title("Fund Scorecard Metrics")
+    st.set_page_config(page_title="Fund Writeup Generator", layout="wide")
+    st.title("Fund Writeup Generator")
 
     st.markdown("Upload an MPI-style PDF fund scorecard. The app will extract each fund, evaluate watchlist status, and generate writeups.")
 
