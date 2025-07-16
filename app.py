@@ -50,7 +50,6 @@ st.markdown("""
             flex-direction: column;
             align-items: flex-start;
             justify-content: flex-start;
-
         }
 
         .sidebar-title-container {
@@ -58,7 +57,7 @@ st.markdown("""
             display: inline-block;
             transform: scale(1.35);
             transform-origin: top left;
-            text align: left;
+            text-align: left;
         }
 
         .sidebar-title {
@@ -84,11 +83,9 @@ st.markdown("""
             letter-spacing: 0.3px;
             white-space: nowrap;
             z-index: 2;
-
             opacity: 0;
             animation: fadeScaleUp 0.5s ease-out 0.7s forwards;
         }
-
 
         .sidebar-section {
             font-size: 0.85rem;
@@ -98,7 +95,6 @@ st.markdown("""
             margin-bottom: 0.3rem;
             letter-spacing: 0.5px;
         }
-
 
         @keyframes fadeScaleUp {
             0% {
@@ -110,13 +106,11 @@ st.markdown("""
                 transform: translateX(-50%) scale(1);
             }
         }
-
     </style>
 """, unsafe_allow_html=True)
 
 # === Sidebar logo block ===
-st.sidebar.markdown(
-    '''
+st.sidebar.markdown('''
     <div class="sidebar-logo-wrapper">
         <div class="sidebar-title-container">
             <div class="sidebar-title">FidSync</div>
@@ -127,19 +121,23 @@ st.sidebar.markdown(
             <div class="line-gap"></div>
         </div>
     </div>
-    ''',
-    unsafe_allow_html=True
-)
+''', unsafe_allow_html=True)
 
 # === Navigation helper ===
 def nav_button(label, filename):
     if st.sidebar.button(label, key=label):
         st.query_params.update({"page": filename})
 
+# === Navigation structure ===
+st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_allow_html=True)
+nav_button("Getting Started", "Getting_Started.py")
+nav_button("Capabilities & Potential", "capabilities_and_potential.py")
+nav_button("Resources", "resources.py")
+
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
 
 # --- MPI Tools Dropdown ---
-mpi_tool_map = {
+mpi_tools = {
     "Fund Scorecard": "fund_scorecard.py",
     "Fund Scorecard Metrics": "fund_scorecard_metrics.py",
     "Fund Summary": "fund_summary.py",
@@ -147,19 +145,19 @@ mpi_tool_map = {
     "Multi Fund Comparison": "multi_fund_comparison.py",
     "Quarterly Comparison": "qtrly_comparison.py"
 }
-mpi_selected = st.sidebar.selectbox("MPI Tools", [""] + list(mpi_tool_map.keys()))
-if mpi_selected:
-    st.query_params.update({"page": mpi_tool_map[mpi_selected]})
+mpi_choice = st.sidebar.selectbox("📊 MPI Tools", [""] + list(mpi_tools.keys()))
+if mpi_choice:
+    st.query_params.update({"page": mpi_tools[mpi_choice]})
     st.rerun()
 
-# --- Other Individual Tools ---
+# --- Other buttons ---
 nav_button("Article Analyzer", "article_analyzer.py")
 nav_button("Data Scanner", "data_scanner.py")
 nav_button("Company Lookup", "company_lookup.py")
 
+# --- Under Construction ---
 st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', unsafe_allow_html=True)
 nav_button("Meeting Minutes Generator", "meeting_minutes_generator.py")
-
 
 # === Page router ===
 query_params = st.query_params
@@ -202,14 +200,14 @@ Your streamlined financial data toolkit for **comparing**, **analyzing**, and **
 - **Explore Fund Scorecards** — Evaluate fund performance and watchlist status  
 - **Compare Quarters** — Track changes in fund criteria over time  
 - **Scan Articles** — Turn financial news into structured summaries  
-- **Search Companies** — Quickly look up firm-level data across sectors
-- **User Request** - Suggest changes, report bugs request tools.
+- **Search Companies** — Quickly look up firm-level data across sectors  
+- **User Request** — Suggest changes, report bugs, or request new tools.
 
 ---
 
 This content was generated using automation and may not be perfectly accurate. Please verify against official sources.
 """)
-    
+
 # === Required for Multipage Setup ===
 def run():
     main()
