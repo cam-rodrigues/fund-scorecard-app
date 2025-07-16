@@ -174,7 +174,7 @@ def run():
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter',
                                     engine_kwargs={'options': {'nan_inf_to_errors': True}}) as writer:
-                    df.to_excel(writer, index=False, sheet_name="Fund Criteria", startrow=3)
+                    df.to_excel(writer, index=False, sheet_name="Fund Criteria", startrow=2)
                     workbook = writer.book
                     worksheet = writer.sheets["Fund Criteria"]
                 
@@ -183,7 +183,9 @@ def run():
                         'bold': True,
                         'bg_color': '#D9E1F2',
                         'font_color': '#1F4E78',
-                        'border': 1
+                        'border': 1,
+                        'align': 'center',
+                        'valign': 'vcenter'
                     })
                     pass_format = workbook.add_format({
                         'bg_color': '#C6EFCE',
@@ -195,64 +197,69 @@ def run():
                         'font_color': '#9C0006',
                         'border': 1
                     })
-                    normal_format = workbook.add_format({'border': 1})
-                    banner_format = workbook.add_format({
+                    normal_format = workbook.add_format({
+                        'border': 1
+                    })
+                    updated_format = workbook.add_format({
                         'italic': True,
-                        'font_color': '#666666'
+                        'font_color': '#444444'
                     })
                 
-                    # === Insert logo in A1, smaller scale ===
-                    try:
-                        worksheet.insert_image('A1', 'assets/logo.png', {
-                            'x_scale': 0.15,
-                            'y_scale': 0.15,
-                            'x_offset': 0,
-                            'y_offset': 0,
-                            'object_position': 1  # Move and size with cells
-                        })
-                    except Exception as e:
-                        st.warning(f"Logo insertion failed: {e}")
-                
-                    # === Add Last Updated timestamp in C1 (to avoid logo overlap) ===
+                    # === Row 1: Last Updated ===
                     timestamp = datetime.now().strftime("Last Updated: %B %d, %Y")
-                    worksheet.write('C1', timestamp, banner_format)
+                    worksheet.write('A1', timestamp, updated_format)
                 
-                    # === Column widths and headers (row 4 = index 3) ===
+                    # === Header row (row 3 = index 2) ===
                     for col_num, col_name in enumerate(df.columns):
                         max_len = max(df[col_name].astype(str).map(len).max(), len(col_name)) + 2
                         worksheet.set_column(col_num, col_num, max_len)
-                        worksheet.write(3, col_num, col_name, header_format)
+                        worksheet.write(2, col_num, col_name, header_format)
                 
-                    worksheet.freeze_panes(4, 0)  # Freeze header row (row 4)
+                    # === Freeze header row ===
+                    worksheet.freeze_panes(3, 0)
                 
-                    # === Write all data with borders ===
+                    # === Write data (starting from row 4) ===
                     for row in range(len(df)):
                         for col in range(len(df.columns)):
-                            worksheet.write(row + 4, col, df.iloc[row, col], normal_format)
+                            worksheet.write(row + 3, col, df.iloc[row, col], normal_format)
                 
-                    # === Conditional formatting ===
-                    for col in range(len(df.columns)):
-                        col_letter = xl_col_to_name(col)
-                        data_range = f"{col_letter}5:{col_letter}{len(df)+4}"
-                        worksheet.conditional_format(data_range, {
-                            'type': 'text',
-                            'criteria': 'containing',
-                            'value': 'Pass',
-                            'format': pass_format
-                        })
-                        worksheet.conditional_format(data_range, {
-                            'type': 'text',
-                            'criteria': 'containing',
-                            'value': 'Review',
-                            'format': review_format
-                        })
+                    # === Conditional formatting for all status columns ===
+                    for col_num, col_name in enumerate(df.columns):
+                        col_letter = xl_col_to_name(col_num)
+                        data_range = f"{col_letter}4:{col_letter}{len(df)+3}"
+                
+                        if col_name == "Meets Criteria":
+                            worksheet.conditional_format(data_range, {
+                                'type': 'text',
+                                'criteria': 'containing',
+                                'value': 'Yes',
+                                'format': pass_format
+                            })
+                            worksheet.conditional_format(data_range, {
+                                'type': 'text',
+                                'criteria': 'containing',
+                                'value': 'No',
+                                'format': review_format
+                            })
+                        else:
+                            worksheet.conditional_format(data_range, {
+                                'type': 'text',
+                                'criteria': 'containing',
+                                'value': 'Pass',
+                                'format': pass_format
+                            })
+                            worksheet.conditional_format(data_range, {
+                                'type': 'text',
+                                'criteria': 'containing',
+                                'value': 'Review',
+                                'format': review_format
+                            })
                 
                 excel_data = output.getvalue()
                 st.download_button("Download as Excel",
                                    data=excel_data,
                                    file_name="fund_criteria_results.xlsx",
                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
 
 
         else:
