@@ -174,11 +174,11 @@ def run():
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter',
                                     engine_kwargs={'options': {'nan_inf_to_errors': True}}) as writer:
-                    df.to_excel(writer, index=False, sheet_name="Fund Criteria", startrow=1)  # Start on row 2
+                    df.to_excel(writer, index=False, sheet_name="Fund Criteria", startrow=3)
                     workbook = writer.book
                     worksheet = writer.sheets["Fund Criteria"]
                 
-                    # === Define formats ===
+                    # === Formats ===
                     header_format = workbook.add_format({
                         'bold': True,
                         'bg_color': '#D9E1F2',
@@ -201,40 +201,39 @@ def run():
                         'font_color': '#666666'
                     })
                 
-                    # === Insert Logo into A1 (scaled to fit) ===
+                    # === Insert logo in A1, smaller scale ===
                     try:
                         worksheet.insert_image('A1', 'assets/logo.png', {
-                            'x_scale': 0.2,
-                            'y_scale': 0.2,
-                            'x_offset': 1,
-                            'y_offset': 1,
+                            'x_scale': 0.15,
+                            'y_scale': 0.15,
+                            'x_offset': 0,
+                            'y_offset': 0,
                             'object_position': 1  # Move and size with cells
                         })
                     except Exception as e:
                         st.warning(f"Logo insertion failed: {e}")
                 
-                    # === Add Last Updated text in B1 ===
+                    # === Add Last Updated timestamp in C1 (to avoid logo overlap) ===
                     timestamp = datetime.now().strftime("Last Updated: %B %d, %Y")
-                    worksheet.write('B1', timestamp, banner_format)
+                    worksheet.write('C1', timestamp, banner_format)
                 
-                    # === Set column widths and format headers ===
+                    # === Column widths and headers (row 4 = index 3) ===
                     for col_num, col_name in enumerate(df.columns):
                         max_len = max(df[col_name].astype(str).map(len).max(), len(col_name)) + 2
                         worksheet.set_column(col_num, col_num, max_len)
-                        worksheet.write(1, col_num, col_name, header_format)  # Row 2 (index 1)
+                        worksheet.write(3, col_num, col_name, header_format)
                 
-                    # === Freeze header row (row 2) ===
-                    worksheet.freeze_panes(2, 0)
+                    worksheet.freeze_panes(4, 0)  # Freeze header row (row 4)
                 
-                    # === Write data cells with normal formatting ===
+                    # === Write all data with borders ===
                     for row in range(len(df)):
                         for col in range(len(df.columns)):
-                            worksheet.write(row + 2, col, df.iloc[row, col], normal_format)  # Shift by +2
+                            worksheet.write(row + 4, col, df.iloc[row, col], normal_format)
                 
-                    # === Conditional formatting for "Pass" and "Review" ===
+                    # === Conditional formatting ===
                     for col in range(len(df.columns)):
                         col_letter = xl_col_to_name(col)
-                        data_range = f"{col_letter}3:{col_letter}{len(df)+2}"
+                        data_range = f"{col_letter}5:{col_letter}{len(df)+4}"
                         worksheet.conditional_format(data_range, {
                             'type': 'text',
                             'criteria': 'containing',
@@ -253,6 +252,7 @@ def run():
                                    data=excel_data,
                                    file_name="fund_criteria_results.xlsx",
                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
         else:
