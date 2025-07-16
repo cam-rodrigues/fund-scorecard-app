@@ -145,6 +145,7 @@ with st.sidebar.expander("MPI Tools", expanded=False):
     nav_button("Fund Scorecard", "fund_scorecard.py")
     nav_button("Metrics", "fund_scorecard_metrics.py")
     nav_button("Proposal Generator", "proposal_generator.py")
+    nav_button("Writeup Generator", "writeup_generator.py")
     nav_button("Multi Fund Comparison", "multi_fund_comparison.py")
 
 # --- Under Construction ---
