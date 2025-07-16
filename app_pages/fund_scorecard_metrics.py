@@ -170,12 +170,71 @@ def run():
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                     df.to_excel(writer, index=False, sheet_name="Fund Criteria")
+                    workbook = writer.book
+                    worksheet = writer.sheets["Fund Criteria"]
+                
+                    # Define formats
+                    header_format = workbook.add_format({
+                        'bold': True,
+                        'bg_color': '#D9E1F2',  # Light blue
+                        'font_color': '#1F4E78',
+                        'border': 1
+                    })
+                    pass_format = workbook.add_format({
+                        'bg_color': '#C6EFCE',
+                        'font_color': '#006100',
+                        'border': 1
+                    })
+                    review_format = workbook.add_format({
+                        'bg_color': '#FFC7CE',
+                        'font_color': '#9C0006',
+                        'border': 1
+                    })
+                    normal_format = workbook.add_format({
+                        'border': 1
+                    })
+                
+                    # Set column widths and apply header format
+                    for col_num, col_name in enumerate(df.columns):
+                        max_len = max(
+                            df[col_name].astype(str).map(len).max(),
+                            len(col_name)
+                        ) + 2
+                        worksheet.set_column(col_num, col_num, max_len)
+                        worksheet.write(0, col_num, col_name, header_format)
+                
+                    # Freeze top row
+                    worksheet.freeze_panes(1, 0)
+                
+                    # Apply border to all data cells
+                    for row in range(1, len(df) + 1):
+                        for col in range(len(df.columns)):
+                            worksheet.write(row, col, df.iloc[row - 1, col], normal_format)
+                
+                    # Conditional formatting for "Pass" and "Review"
+                    for col in range(len(df.columns)):
+                        col_letter = xlsxwriter.utility.xl_col_to_name(col)
+                        data_range = f"{col_letter}2:{col_letter}{len(df)+1}"
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text',
+                            'criteria': 'containing',
+                            'value': 'Pass',
+                            'format': pass_format
+                        })
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text',
+                            'criteria': 'containing',
+                            'value': 'Review',
+                            'format': review_format
+                        })
+                
                 excel_data = output.getvalue()
-
+                
                 st.download_button("Download as Excel",
                                    data=excel_data,
                                    file_name="fund_criteria_results.xlsx",
                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
         else:
             st.warning("No fund entries found in the uploaded PDF.")
