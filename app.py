@@ -135,8 +135,12 @@ nav_button("Capabilities & Potential", "capabilities_and_potential.py")
 nav_button("Resources", "resources.py")
 
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
+nav_button("Article Analyzer", "article_analyzer.py")
+nav_button("Data Scanner", "data_scanner.py")
+nav_button("Company Lookup", "company_lookup.py")
 
 # --- MPI Tools Dropdown ---
+st.sidebar.markdown('<div class="sidebar-section">MPI Tools</div>', unsafe_allow_html=True)
 with st.sidebar.expander("MPI Tools", expanded=False):
     nav_button("Fund Scorecard", "fund_scorecard.py")
     nav_button("Metrics", "fund_scorecard_metrics.py")
@@ -144,11 +148,6 @@ with st.sidebar.expander("MPI Tools", expanded=False):
     nav_button("Proposal Generator", "proposal_generator.py")
     nav_button("Multi Fund Comparison", "multi_fund_comparison.py")
     nav_button("Quarterly Comparison", "qtrly_comparison.py")
-
-# --- Other buttons ---
-nav_button("Article Analyzer", "article_analyzer.py")
-nav_button("Data Scanner", "data_scanner.py")
-nav_button("Company Lookup", "company_lookup.py")
 
 # --- Under Construction ---
 st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', unsafe_allow_html=True)
