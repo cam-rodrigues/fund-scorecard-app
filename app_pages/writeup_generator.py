@@ -17,11 +17,12 @@ def run():
     uploaded_file = st.file_uploader("Upload MPI-style PDF", type=["pdf"])
 
     if uploaded_file:
-        text = extract_pdf_text(uploaded_file)
-        fund_names = extract_fund_names(text)
+        with pdfplumber.open(uploaded_file) as pdf:
+            text = extract_pdf_text(pdf)
+            fund_names = extract_fund_names_from_scorecard_pages(pdf)
 
         if not fund_names:
-            st.warning("No fund names detected. Try uploading a different PDF.")
+            st.warning("No fund names detected in 'Fund Scorecard' pages.")
             return
 
         with st.form("writeup_form"):
@@ -49,23 +50,40 @@ def run():
                 st.download_button("📊 Download as PPTX", pptx_bytes, file_name="fund_writeup.pptx")
 
 
-# === PDF Processing ===
-def extract_pdf_text(file_obj):
-    with pdfplumber.open(file_obj) as pdf:
-        return "\n".join([p.extract_text() for p in pdf.pages if p.extract_text()])
+# === Extract all PDF text ===
+def extract_pdf_text(pdf):
+    return "\n".join([p.extract_text() for p in pdf.pages if p.extract_text()])
 
 
-def extract_fund_names(text):
-    lines = text.splitlines()
+# === Extract fund names only from "Fund Scorecard" pages ===
+def extract_fund_names_from_scorecard_pages(pdf):
     fund_names = set()
-    for line in lines:
-        if re.search(r"[A-Za-z]{4,}.*?(-?\d+\.\d+%)", line):
-            name = line.strip()
-            if len(name.split()) >= 3:
-                fund_names.add(name.split("  ")[0].strip())
+    for page in pdf.pages:
+        text = page.extract_text()
+        if not text or "Fund Scorecard" not in text:
+            continue
+
+        lines = text.splitlines()
+        for line in lines:
+            clean = line.strip()
+
+            # Skip metric headers and diagnostic values
+            if any(x in clean for x in [
+                "Fund Scorecard", "Watchlist Criteria", "Sharpe", "Sortino", "Tracking Error", "Benchmark",
+                "Peer Return", "Category", "Expense Ratio", "R-Squared", "Tenure", "Alpha", "Beta"
+            ]):
+                continue
+            if len(clean) < 15 or clean.count(" ") < 2:
+                continue
+            if re.search(r"\d{4}|[%•]", clean):
+                continue
+
+            fund_names.add(clean)
+
     return sorted(fund_names)
 
 
+# === Try to extract 5 return metrics near fund name ===
 def extract_sample_metrics(text, fund_name):
     pattern = rf"{re.escape(fund_name)}.*?(-?\d+\.\d+)%.*?(-?\d+\.\d+)%.*?(-?\d+\.\d+)%.*?(-?\d+\.\d+)%.*?(-?\d+\.\d+)%"
     match = re.search(pattern, text, re.DOTALL)
@@ -80,7 +98,7 @@ def extract_sample_metrics(text, fund_name):
     return {k: "N/A" for k in ["qtd", "1yr", "3yr", "5yr", "10yr"]}
 
 
-# === Writeup Generation ===
+# === Generate formatted writeup ===
 def generate_writeup(fund_name, manager, peer_rank, rec, metrics):
     template_str = """
 ### {{ fund_name }}
