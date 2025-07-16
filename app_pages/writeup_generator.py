@@ -9,10 +9,11 @@ def run():
 
     st.markdown("Upload an MPI-style PDF and generate a client-ready writeup.")
 
+    # Upload section
     uploaded_file = st.file_uploader("Upload MPI-style PDF", type=["pdf"])
 
     if uploaded_file:
-        text = extract_pdf_text(uploaded_file)
+        pdf_text = extract_pdf_text(uploaded_file)
 
         with st.form("writeup_form"):
             fund_name = st.text_input("Fund Name", value="BlackRock Mid Cap Growth Equity")
@@ -22,16 +23,19 @@ def run():
             submit = st.form_submit_button("Generate Writeup")
 
         if submit:
-            metrics = extract_sample_metrics(text, fund_name)
+            metrics = extract_sample_metrics(pdf_text, fund_name)
             writeup = generate_writeup(fund_name, manager, peer_rank, rec, metrics)
+
             st.markdown("---")
             st.subheader("📋 Writeup Preview")
             st.markdown(writeup)
 
+# === Extract full PDF text ===
 def extract_pdf_text(file_obj):
     with pdfplumber.open(file_obj) as pdf:
         return "\n".join([p.extract_text() for p in pdf.pages if p.extract_text()])
 
+# === Extract metrics next to fund name line (basic logic) ===
 def extract_sample_metrics(text, fund_name):
     pattern = rf"{re.escape(fund_name)}.*?(-?\d+\.\d+)%.*?(-?\d+\.\d+)%.*?(-?\d+\.\d+)%.*?(-?\d+\.\d+)%.*?(-?\d+\.\d+)%"
     match = re.search(pattern, text, re.DOTALL)
@@ -45,16 +49,17 @@ def extract_sample_metrics(text, fund_name):
         }
     return {k: "N/A" for k in ["qtd", "1yr", "3yr", "5yr", "10yr"]}
 
+# === Jinja2 writeup generation ===
 def generate_writeup(fund_name, manager, peer_rank, rec, metrics):
     template = Template("""
 ### {{ fund_name }}
 
 **Performance Summary**
-- QTD: {{ metrics.qtd }}%
-- 1YR: {{ metrics.1yr }}%
-- 3YR: {{ metrics.3yr }}%
-- 5YR: {{ metrics.5yr }}%
-- 10YR: {{ metrics.10yr }}%
+- QTD: {{ metrics["qtd"] }}%
+- 1YR: {{ metrics["1yr"] }}%
+- 3YR: {{ metrics["3yr"] }}%
+- 5YR: {{ metrics["5yr"] }}%
+- 10YR: {{ metrics["10yr"] }}%
 
 **Manager & Strategy**
 Managed by **{{ manager }}**, this fund has demonstrated performance {{ peer_rank }} relative to its peers.
@@ -62,4 +67,10 @@ Managed by **{{ manager }}**, this fund has demonstrated performance {{ peer_ran
 **Recommendation**
 **Action:** {{ rec }}
 """)
-    return template.render(fund_name=fund_name, metrics=metrics, manager=manager, peer_rank=peer_rank, rec=rec)
+    return template.render(
+        fund_name=fund_name,
+        manager=manager,
+        peer_rank=peer_rank,
+        rec=rec,
+        metrics=metrics
+    )
