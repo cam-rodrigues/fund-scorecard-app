@@ -176,8 +176,8 @@ def run():
                     df.to_excel(writer, index=False, sheet_name="Fund Criteria")
                     workbook = writer.book
                     worksheet = writer.sheets["Fund Criteria"]
-
-                    # Formats
+                
+                    # === Formats ===
                     header_format = workbook.add_format({
                         'bold': True,
                         'bg_color': '#D9E1F2',
@@ -195,21 +195,36 @@ def run():
                         'border': 1
                     })
                     normal_format = workbook.add_format({'border': 1})
-
-                    # Header and column widths
+                    footer_format = workbook.add_format({
+                        'italic': True,
+                        'font_color': '#666666'
+                    })
+                
+                    # === Insert Logo ===
+                    try:
+                        worksheet.insert_image('A1', 'assets/logo.png', {
+                            'x_scale': 0.4,
+                            'y_scale': 0.4,
+                            'x_offset': 2,
+                            'y_offset': 2
+                        })
+                    except Exception as e:
+                        st.warning(f"Logo insertion failed: {e}")
+                
+                    # === Adjust column widths and headers ===
                     for col_num, col_name in enumerate(df.columns):
                         max_len = max(df[col_name].astype(str).map(len).max(), len(col_name)) + 2
                         worksheet.set_column(col_num, col_num, max_len)
                         worksheet.write(0, col_num, col_name, header_format)
-
+                
                     worksheet.freeze_panes(1, 0)
-
-                    # Apply border formatting to all cells
+                
+                    # === Write data cells with borders ===
                     for row in range(1, len(df) + 1):
                         for col in range(len(df.columns)):
                             worksheet.write(row, col, df.iloc[row - 1, col], normal_format)
-
-                    # Conditional formatting
+                
+                    # === Conditional formatting ===
                     for col in range(len(df.columns)):
                         col_letter = xl_col_to_name(col)
                         data_range = f"{col_letter}2:{col_letter}{len(df)+1}"
@@ -225,12 +240,18 @@ def run():
                             'value': 'Review',
                             'format': review_format
                         })
-
+                
+                    # === Last Updated footer ===
+                    footer_row = len(df) + 3
+                    timestamp = pd.Timestamp.now().strftime("Last updated: %B %d, %Y at %I:%M %p")
+                    worksheet.write(footer_row, 0, timestamp, footer_format)
+                
                 excel_data = output.getvalue()
                 st.download_button("Download as Excel",
                                    data=excel_data,
                                    file_name="fund_criteria_results.xlsx",
                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
         else:
             st.warning("No fund entries found in the uploaded PDF.")
     else:
