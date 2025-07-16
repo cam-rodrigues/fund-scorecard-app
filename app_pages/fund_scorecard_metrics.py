@@ -6,6 +6,7 @@ from difflib import get_close_matches
 from io import BytesIO
 import xlsxwriter
 from xlsxwriter.utility import xl_col_to_name
+from datetime import datetime
 
 # --- Ticker Lookup (stacked + inline formats) ---
 def build_ticker_lookup(pdf):
@@ -173,11 +174,11 @@ def run():
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter',
                                     engine_kwargs={'options': {'nan_inf_to_errors': True}}) as writer:
-                    df.to_excel(writer, index=False, sheet_name="Fund Criteria")
+                    df.to_excel(writer, index=False, sheet_name="Fund Criteria", startrow=1)  # Start on row 2
                     workbook = writer.book
                     worksheet = writer.sheets["Fund Criteria"]
                 
-                    # === Formats ===
+                    # === Define formats ===
                     header_format = workbook.add_format({
                         'bold': True,
                         'bg_color': '#D9E1F2',
@@ -195,39 +196,45 @@ def run():
                         'border': 1
                     })
                     normal_format = workbook.add_format({'border': 1})
-                    footer_format = workbook.add_format({
+                    banner_format = workbook.add_format({
                         'italic': True,
                         'font_color': '#666666'
                     })
                 
-                    # === Insert Logo ===
+                    # === Insert Logo into A1 (scaled to fit) ===
                     try:
                         worksheet.insert_image('A1', 'assets/logo.png', {
-                            'x_scale': 0.4,
-                            'y_scale': 0.4,
-                            'x_offset': 2,
-                            'y_offset': 2
+                            'x_scale': 0.2,
+                            'y_scale': 0.2,
+                            'x_offset': 1,
+                            'y_offset': 1,
+                            'object_position': 1  # Move and size with cells
                         })
                     except Exception as e:
                         st.warning(f"Logo insertion failed: {e}")
                 
-                    # === Adjust column widths and headers ===
+                    # === Add Last Updated text in B1 ===
+                    timestamp = datetime.now().strftime("Last Updated: %B %d, %Y")
+                    worksheet.write('B1', timestamp, banner_format)
+                
+                    # === Set column widths and format headers ===
                     for col_num, col_name in enumerate(df.columns):
                         max_len = max(df[col_name].astype(str).map(len).max(), len(col_name)) + 2
                         worksheet.set_column(col_num, col_num, max_len)
-                        worksheet.write(0, col_num, col_name, header_format)
+                        worksheet.write(1, col_num, col_name, header_format)  # Row 2 (index 1)
                 
-                    worksheet.freeze_panes(1, 0)
+                    # === Freeze header row (row 2) ===
+                    worksheet.freeze_panes(2, 0)
                 
-                    # === Write data cells with borders ===
-                    for row in range(1, len(df) + 1):
+                    # === Write data cells with normal formatting ===
+                    for row in range(len(df)):
                         for col in range(len(df.columns)):
-                            worksheet.write(row, col, df.iloc[row - 1, col], normal_format)
+                            worksheet.write(row + 2, col, df.iloc[row, col], normal_format)  # Shift by +2
                 
-                    # === Conditional formatting ===
+                    # === Conditional formatting for "Pass" and "Review" ===
                     for col in range(len(df.columns)):
                         col_letter = xl_col_to_name(col)
-                        data_range = f"{col_letter}2:{col_letter}{len(df)+1}"
+                        data_range = f"{col_letter}3:{col_letter}{len(df)+2}"
                         worksheet.conditional_format(data_range, {
                             'type': 'text',
                             'criteria': 'containing',
@@ -241,16 +248,12 @@ def run():
                             'format': review_format
                         })
                 
-                    # === Last Updated footer ===
-                    footer_row = len(df) + 3
-                    timestamp = pd.Timestamp.now().strftime("Last updated: %B %d, %Y at %I:%M %p")
-                    worksheet.write(footer_row, 0, timestamp, footer_format)
-                
                 excel_data = output.getvalue()
                 st.download_button("Download as Excel",
                                    data=excel_data,
                                    file_name="fund_criteria_results.xlsx",
                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
         else:
             st.warning("No fund entries found in the uploaded PDF.")
