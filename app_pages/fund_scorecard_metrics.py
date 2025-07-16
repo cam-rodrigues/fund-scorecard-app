@@ -4,6 +4,8 @@ import pandas as pd
 import re
 from difflib import get_close_matches
 from io import BytesIO
+import xlsxwriter
+from xlsxwriter.utility import xl_col_to_name
 
 # --- Ticker Lookup (stacked + inline formats) ---
 def build_ticker_lookup(pdf):
@@ -119,7 +121,8 @@ def run():
                         if line.startswith((
                             "Manager Tenure", "Excess Performance", "Peer Return Rank",
                             "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
-                            "Sortino Ratio Rank", "Tracking Error Rank", "Tracking Error (3Yr)", "Tracking Error (5Yr)")):
+                            "Sortino Ratio Rank", "Tracking Error Rank", 
+                            "Tracking Error (3Yr)", "Tracking Error (5Yr)")):
                             m = re.match(r"^(.*?)\s+(Pass|Review)", line.strip())
                             if m:
                                 metrics[m.group(1).strip()] = m.group(2).strip()
@@ -166,17 +169,18 @@ def run():
                                    file_name="fund_criteria_results.csv",
                                    mime="text/csv")
 
-                # Excel export
+                # Excel export with formatting
                 output = BytesIO()
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                with pd.ExcelWriter(output, engine='xlsxwriter',
+                                    engine_kwargs={'options': {'nan_inf_to_errors': True}}) as writer:
                     df.to_excel(writer, index=False, sheet_name="Fund Criteria")
                     workbook = writer.book
                     worksheet = writer.sheets["Fund Criteria"]
-                
-                    # Define formats
+
+                    # Formats
                     header_format = workbook.add_format({
                         'bold': True,
-                        'bg_color': '#D9E1F2',  # Light blue
+                        'bg_color': '#D9E1F2',
                         'font_color': '#1F4E78',
                         'border': 1
                     })
@@ -190,30 +194,24 @@ def run():
                         'font_color': '#9C0006',
                         'border': 1
                     })
-                    normal_format = workbook.add_format({
-                        'border': 1
-                    })
-                
-                    # Set column widths and apply header format
+                    normal_format = workbook.add_format({'border': 1})
+
+                    # Header and column widths
                     for col_num, col_name in enumerate(df.columns):
-                        max_len = max(
-                            df[col_name].astype(str).map(len).max(),
-                            len(col_name)
-                        ) + 2
+                        max_len = max(df[col_name].astype(str).map(len).max(), len(col_name)) + 2
                         worksheet.set_column(col_num, col_num, max_len)
                         worksheet.write(0, col_num, col_name, header_format)
-                
-                    # Freeze top row
+
                     worksheet.freeze_panes(1, 0)
-                
-                    # Apply border to all data cells
+
+                    # Apply border formatting to all cells
                     for row in range(1, len(df) + 1):
                         for col in range(len(df.columns)):
                             worksheet.write(row, col, df.iloc[row - 1, col], normal_format)
-                
-                    # Conditional formatting for "Pass" and "Review"
+
+                    # Conditional formatting
                     for col in range(len(df.columns)):
-                        col_letter = xlsxwriter.utility.xl_col_to_name(col)
+                        col_letter = xl_col_to_name(col)
                         data_range = f"{col_letter}2:{col_letter}{len(df)+1}"
                         worksheet.conditional_format(data_range, {
                             'type': 'text',
@@ -227,15 +225,12 @@ def run():
                             'value': 'Review',
                             'format': review_format
                         })
-                
+
                 excel_data = output.getvalue()
-                
                 st.download_button("Download as Excel",
                                    data=excel_data,
                                    file_name="fund_criteria_results.xlsx",
                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-
         else:
             st.warning("No fund entries found in the uploaded PDF.")
     else:
