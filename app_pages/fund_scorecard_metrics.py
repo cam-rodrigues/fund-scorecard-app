@@ -167,14 +167,16 @@ def run():
 
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    # Replace "None", "NUM", and NaN with blank cells
-                    df_cleaned = df.replace(["None", "NUM"], "").fillna("")
+                    df_cleaned = df.copy()
+                
+                    # Convert everything to string first, then replace all error values
+                    df_cleaned = df_cleaned.astype(str).replace(["nan", "None", "NUM", "NaN", "NAN"], "")
+                
                     df_cleaned.to_excel(writer, index=False, sheet_name="Fund Criteria", startrow=2)
                 
                     workbook = writer.book
                     worksheet = writer.sheets["Fund Criteria"]
                 
-                    # Formats
                     header_format = workbook.add_format({
                         'bold': True, 'bg_color': '#D9E1F2', 'font_color': '#1F4E78',
                         'align': 'center', 'valign': 'vcenter', 'border': 1, 'bottom': 2
@@ -226,6 +228,7 @@ def run():
                         worksheet.conditional_format(data_range, {
                             'type': 'text', 'criteria': 'containing', 'value': 'No', 'format': status_format_review
                         })
+
 
 
                 excel_data = output.getvalue()
