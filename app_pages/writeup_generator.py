@@ -6,18 +6,16 @@ from jinja2 import Template
 st.set_page_config(page_title="Fund Writeup Generator", layout="wide")
 st.title("📄 Fund Writeup Generator")
 
-st.markdown("Upload an MPI-style fund scorecard to auto-generate a summary writeup.")
-
+st.markdown("Upload an MPI-style PDF and generate a client-ready writeup.")
 
 # --- PDF Text Extractor ---
-def extract_pdf_text(file):
-    with pdfplumber.open(file) as pdf:
+def extract_pdf_text(file_obj):
+    with pdfplumber.open(file_obj) as pdf:
         return "\n".join([p.extract_text() for p in pdf.pages if p.extract_text()])
 
 
-# --- Example Metrics Extractor (very rough) ---
+# --- Sample Metric Extractor ---
 def extract_sample_metrics(text, fund_name):
-    # Search for line with fund name followed by 5 return figures
     pattern = rf"{re.escape(fund_name)}.*?(-?\d+\.\d+)%.*?(-?\d+\.\d+)%.*?(-?\d+\.\d+)%.*?(-?\d+\.\d+)%.*?(-?\d+\.\d+)%"
     match = re.search(pattern, text, re.DOTALL)
     if match:
@@ -28,13 +26,7 @@ def extract_sample_metrics(text, fund_name):
             "5yr": match.group(4),
             "10yr": match.group(5)
         }
-    return {
-        "qtd": "N/A",
-        "1yr": "N/A",
-        "3yr": "N/A",
-        "5yr": "N/A",
-        "10yr": "N/A"
-    }
+    return {k: "N/A" for k in ["qtd", "1yr", "3yr", "5yr", "10yr"]}
 
 
 # --- Writeup Generator ---
@@ -50,7 +42,7 @@ def generate_writeup(fund_name, manager, peer_rank, rec, metrics):
 - 10YR: {{ metrics.10yr }}%
 
 **Manager & Strategy**
-Managed by **{{ manager }}**, this fund has demonstrated performance {{ peer_rank }} compared to its peers.
+Managed by **{{ manager }}**, this fund has demonstrated performance {{ peer_rank }} relative to its peers.
 
 **Recommendation**
 **Action:** {{ rec }}
@@ -58,18 +50,23 @@ Managed by **{{ manager }}**, this fund has demonstrated performance {{ peer_ran
     return template.render(fund_name=fund_name, metrics=metrics, manager=manager, peer_rank=peer_rank, rec=rec)
 
 
-# === Streamlit Upload + Form ===
-uploaded = st.file_uploader("Upload MPI PDF", type=["pdf"])
-if uploaded:
-    text = extract_pdf_text(uploaded)
+# --- Streamlit Form ---
+with st.expander("Step 1: Upload MPI PDF", expanded=True):
+    uploaded_file = st.file_uploader("Upload MPI-style PDF", type=["pdf"])
 
-    fund_name = st.text_input("Fund Name", value="BlackRock Mid Cap Growth Equity")
-    manager = st.text_input("Manager Name", value="Phil Ruvinsky")
-    peer_rank = st.selectbox("Peer Rank", ["Top Quartile", "Middle Quartile", "Bottom Quartile"])
-    rec = st.selectbox("Action", ["Recommended", "Watchlist", "Replace", "Hold"])
+if uploaded_file:
+    pdf_text = extract_pdf_text(uploaded_file)
 
-    metrics = extract_sample_metrics(text, fund_name)
+    with st.form("writeup_form"):
+        fund_name = st.text_input("Fund Name", value="BlackRock Mid Cap Growth Equity")
+        manager = st.text_input("Manager Name", value="Phil Ruvinsky")
+        peer_rank = st.selectbox("Peer Rank", ["Top Quartile", "Middle Quartile", "Bottom Quartile"])
+        rec = st.selectbox("Recommendation", ["Recommended", "Watchlist", "Replace", "Hold"])
+        submit = st.form_submit_button("Generate Writeup")
 
-    if st.button("Generate Writeup"):
+    if submit:
+        metrics = extract_sample_metrics(pdf_text, fund_name)
         writeup = generate_writeup(fund_name, manager, peer_rank, rec, metrics)
+        st.markdown("---")
+        st.subheader("📋 Writeup Preview")
         st.markdown(writeup)
