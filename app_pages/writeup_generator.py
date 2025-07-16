@@ -5,9 +5,7 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from docx import Document
-from docx.shared import Inches as DocxInches
 from io import BytesIO
-import textwrap
 
 st.set_page_config(page_title="Writeup Generator", layout="wide")
 st.title("Writeup Generator")
@@ -29,7 +27,7 @@ def extract_fund_blocks(pdf_bytes):
                 lines = text.split("\n")
                 for i, line in enumerate(lines):
                     if fund_name_pattern.search(line):
-                        block = "\n".join(lines[i : i + 12])  # extract ~12 lines
+                        block = "\n".join(lines[i : i + 12])
                         fund_blocks.append(block)
     return fund_blocks
 
@@ -57,22 +55,23 @@ block = fund_block_map[selected_fund]
 
 # === Generate Writeup Content ===
 def build_writeup_text(name, block):
-    return textwrap.dedent(f"""
-        **Recommendation Summary**
-
-        We reviewed the available funds and recommend **{name}** as a potential primary candidate based on key performance indicators:
-
-        **Trailing Returns (Extracted Sample):**
-
-        {block}
-
-        **Considerations:**
-        - Strong performance across long-term periods
-        - Low expense ratio compared to peers
-        - Solid category ranking and consistency
-
-        This recommendation should be confirmed against current plan goals, investment policy benchmarks, and fiduciary guidelines.
-    """).strip()
+    lines = [
+        "**Recommendation Summary**",
+        "",
+        f"We reviewed the available funds and recommend **{name}** as a potential primary candidate based on key performance indicators:",
+        "",
+        "**Trailing Returns (Extracted Sample):**",
+        "",
+        block,
+        "",
+        "**Considerations:**",
+        "- Strong performance across long-term periods",
+        "- Low expense ratio compared to peers",
+        "- Solid category ranking and consistency",
+        "",
+        "This recommendation should be confirmed against current plan goals, investment policy benchmarks, and fiduciary guidelines."
+    ]
+    return "\n".join(lines)
 
 writeup = build_writeup_text(selected_fund, block)
 
@@ -93,7 +92,7 @@ def export_docx(name, writeup):
 # === PPTX Export (Mimicking Slide Format) ===
 def export_pptx(name, writeup):
     prs = Presentation()
-    slide = prs.slides.add_slide(prs.slide_layouts[5])  # Blank
+    slide = prs.slides.add_slide(prs.slide_layouts[5])  # Blank layout
 
     # Title box
     title_box = slide.shapes.add_textbox(Inches(0.3), Inches(0.3), Inches(9), Inches(1))
