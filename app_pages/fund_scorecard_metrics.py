@@ -4,29 +4,42 @@ import pandas as pd
 import re
 from difflib import get_close_matches
 from io import BytesIO
-from utils.export.pptx_exporter import create_fidsync_template_slide
+import xlsxwriter
+from xlsxwriter.utility import xl_col_to_name
+from datetime import datetime
 
-# --- Build ticker lookup ---
+# --- Ticker Lookup (stacked + inline formats) ---
 def build_ticker_lookup(pdf):
     lookup = {}
+
     for page in pdf.pages:
         lines = page.extract_text().split("\n") if page.extract_text() else []
 
         for i in range(len(lines) - 1):
             name_line = lines[i].strip()
             ticker_line = lines[i + 1].strip()
-            if re.match(r"^[A-Z]{4,6}X?$", ticker_line) and len(name_line.split()) >= 3:
-                if not re.match(r"^[A-Z]{4,6}X?$", name_line):
-                    lookup[" ".join(name_line.split())] = ticker_line
+
+            if (
+                re.match(r"^[A-Z]{4,6}X?$", ticker_line)
+                and len(name_line.split()) >= 3
+                and not re.match(r"^[A-Z]{4,6}X?$", name_line)
+            ):
+                clean_name = " ".join(name_line.split())
+                lookup[clean_name] = ticker_line.strip()
 
         for line in lines:
-            parts = line.strip().rsplit(" ", 1)
-            if len(parts) == 2 and re.match(r"^[A-Z]{4,6}X?$", parts[1]):
-                if len(parts[0].split()) >= 3:
-                    lookup[parts[0].strip()] = parts[1].strip()
+            line = line.strip()
+            parts = line.rsplit(" ", 1)
+            if (
+                len(parts) == 2
+                and re.match(r"^[A-Z]{4,6}X?$", parts[1])
+                and len(parts[0].split()) >= 3
+            ):
+                lookup[parts[0].strip()] = parts[1].strip()
+
     return lookup
 
-# --- Fund name from block ---
+# --- Extract fund name from block ---
 def get_fund_name(block, lookup):
     block_lower = block.lower()
     for name in lookup:
@@ -34,115 +47,60 @@ def get_fund_name(block, lookup):
             return name
 
     lines = block.split("\n")
-    candidates = [line.strip() for line in lines[:6] if sum(c.isupper() for c in line) > 5]
+    top_lines = lines[:6]
+    candidates = [line.strip() for line in top_lines if sum(c.isupper() for c in line) > 5]
 
     for line in candidates:
-        match = get_close_matches(line, lookup.keys(), n=1, cutoff=0.5)
-        if match:
-            return match[0]
+        matches = get_close_matches(line, lookup.keys(), n=1, cutoff=0.5)
+        if matches:
+            return matches[0]
 
-    metric_start = next((i for i, line in enumerate(lines) if any(m in line for m in [
-        "Manager Tenure", "Excess Performance", "Peer Return Rank",
-        "Expense Ratio Rank", "Sharpe Ratio", "Tracking Error"
-    ])), None)
+    metric_start = None
+    for i, line in enumerate(lines):
+        if any(metric in line for metric in [
+            "Manager Tenure", "Excess Performance", "Peer Return Rank",
+            "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
+            "Sortino Ratio Rank", "Tracking Error Rank"
+        ]):
+            metric_start = i
+            break
 
     if metric_start and metric_start > 0:
-        fallback = lines[metric_start - 1].strip()
-        fallback = re.sub(r"(This|The)?\s?fund\s(has|meets).*", "", fallback, flags=re.I).strip()
-        if fallback:
-            return fallback
+        fallback_name = lines[metric_start - 1].strip()
+        fallback_name = re.sub(r"(This|The)?\s?fund\s(has|meets).*", "", fallback_name, flags=re.IGNORECASE).strip()
+        if fallback_name:
+            return fallback_name
+
     return "UNKNOWN FUND"
 
-# --- Parse metrics ---
-def parse_metrics(block):
-    metrics = {
-        "Manager Tenure": {"status": None, "value": None},
-        "Excess Performance (3Yr)": {"status": None, "value": None},
-        "Excess Performance (5Yr)": {"status": None, "value": None},
-        "Peer Return Rank (3Yr)": {"status": None, "value": None},
-        "Peer Return Rank (5Yr)": {"status": None, "value": None},
-        "Expense Ratio Rank": {"status": None, "value": None},
-        "Sharpe Ratio Rank (3Yr)": {"status": None, "value": None},
-        "Sharpe Ratio Rank (5Yr)": {"status": None, "value": None},
-    }
-
-    for line in block.split("\n"):
-        for key in metrics:
-            if key in line:
-                if "Pass" in line:
-                    metrics[key]["status"] = "Pass"
-                elif "Review" in line:
-                    metrics[key]["status"] = "Review"
-                elif "Fail" in line:
-                    metrics[key]["status"] = "Fail"
-
-                match = re.search(r"[-+]?\d+\.?\d*%?", line)
-                if match:
-                    metrics[key]["value"] = match.group()
-    return metrics
-
-# --- Writeup builder ---
-def generate_analysis(m):
-    lines = []
-
-    if m["Excess Performance (3Yr)"]["status"] == "Pass" or m["Excess Performance (5Yr)"]["status"] == "Pass":
-        perf3 = m["Excess Performance (3Yr)"]["value"]
-        perf5 = m["Excess Performance (5Yr)"]["value"]
-        if perf3 and perf5:
-            lines.append(f"The fund has outperformed its benchmark by {perf3} over the trailing 3 years and by {perf5} over 5 years, signaling consistent long-term performance.")
-        elif perf3:
-            lines.append(f"The fund has posted {perf3} excess return over 3 years, indicating near-term strength.")
-        elif perf5:
-            lines.append(f"The fund delivered {perf5} excess return over 5 years, showcasing its long-term capability.")
-
-    if m["Peer Return Rank (5Yr)"]["status"] == "Pass":
-        rank = m["Peer Return Rank (5Yr)"]["value"]
-        lines.append(f"Its 5-year peer return rank of {rank} places it among the strongest in its category.")
-    elif m["Peer Return Rank (3Yr)"]["status"] == "Pass":
-        rank = m["Peer Return Rank (3Yr)"]["value"]
-        lines.append(f"The fund also ranks competitively over the past 3 years, with a peer ranking of {rank}.")
-
-    if m["Sharpe Ratio Rank (5Yr)"]["status"] == "Pass":
-        lines.append("Risk-adjusted returns over the last 5 years have been strong, with a high Sharpe ratio relative to peers.")
-    elif m["Sharpe Ratio Rank (3Yr)"]["status"] == "Pass":
-        lines.append("The fund's 3-year Sharpe ratio suggests solid risk-adjusted outperformance.")
-
-    if m["Expense Ratio Rank"]["status"] == "Pass":
-        exp = m["Expense Ratio Rank"]["value"]
-        lines.append(f"With an expense ratio rank of {exp}, the fund remains cost-efficient compared to peers.")
-
-    if m["Manager Tenure"]["status"] == "Pass":
-        val = m["Manager Tenure"]["value"]
-        lines.append(f"The management team is experienced, having overseen the strategy for {val}.")
-
-    if m["Excess Performance (3Yr)"]["status"] == "Review" or m["Excess Performance (5Yr)"]["status"] == "Review":
-        lines.append("Recent performance relative to the benchmark has been mixed and may warrant further review.")
-
-    if m["Sharpe Ratio Rank (3Yr)"]["status"] == "Review" or m["Sharpe Ratio Rank (5Yr)"]["status"] == "Review":
-        lines.append("Risk-adjusted returns are currently under evaluation and do not stand out within the peer set.")
-
-    if not lines:
-        return "This fund's performance is mixed across key metrics and should be reviewed further before making a recommendation."
-
-    lines.append("Overall, the fund shows positive attributes that may make it suitable for continued monitoring or inclusion based on plan objectives.")
-    return " ".join(lines)
-
-# --- Streamlit App ---
+# --- Main App ---
 def run():
-    st.set_page_config(page_title="Fund Writeup Generator", layout="wide")
-    st.title("Fund Writeup Generator")
+    st.set_page_config(page_title="Fund Scorecard Metrics", layout="wide")
+    st.title("Fund Scorecard Metrics")
+
+    st.markdown("""
+    Upload an MPI-style PDF fund scorecard below. The app will extract each fund, determine if it meets the watchlist criteria, and display a detailed breakdown of metric statuses.
+    """)
 
     pdf_file = st.file_uploader("Upload MPI PDF", type=["pdf"])
 
     if pdf_file:
+        rows = []
         with pdfplumber.open(pdf_file) as pdf:
-            ticker_lookup = build_ticker_lookup(pdf)
-            fund_blocks = []
-            fund_names = []
+            total_pages = len(pdf.pages)
+            status_text = st.empty()
+            progress = st.progress(0)
 
-            for page in pdf.pages:
+            ticker_lookup = build_ticker_lookup(pdf)
+
+            if not any("Enhanced Commodity" in name for name in ticker_lookup):
+                ticker_lookup["WisdomTree Enhanced Commodity Stgy Fd"] = "WTES"
+
+            for i, page in enumerate(pdf.pages):
                 txt = page.extract_text()
                 if not txt:
+                    progress.progress((i + 1) / total_pages)
+                    status_text.text(f"Skipping page {i + 1} (no text)...")
                     continue
 
                 blocks = re.split(
@@ -152,52 +110,133 @@ def run():
                 for block in blocks:
                     if not block.strip():
                         continue
-                    name = get_fund_name(block, ticker_lookup)
-                    fund_names.append(name)
-                    fund_blocks.append(block)
 
-        if not fund_blocks:
-            st.error("No fund entries found.")
-            return
+                    fund_name = get_fund_name(block, ticker_lookup)
+                    ticker = ticker_lookup.get(fund_name, "N/A")
+                    meets = "Yes" if "placed on watchlist" not in block else "No"
 
-        selected = st.selectbox("Select a fund", fund_names)
+                    metrics = {}
+                    for line in block.split("\n"):
+                        if line.startswith((
+                            "Manager Tenure", "Excess Performance", "Peer Return Rank",
+                            "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
+                            "Sortino Ratio Rank", "Tracking Error Rank", 
+                            "Tracking Error (3Yr)", "Tracking Error (5Yr)")):
+                            m = re.match(r"^(.*?)\s+(Pass|Review)", line.strip())
+                            if m:
+                                metrics[m.group(1).strip()] = m.group(2).strip()
 
-        if selected:
-            idx = fund_names.index(selected)
-            block = fund_blocks[idx]
-            metrics = parse_metrics(block)
-            writeup = generate_analysis(metrics)
+                    if metrics:
+                        rows.append({
+                            "Fund Name": fund_name,
+                            "Ticker": ticker,
+                            "Meets Criteria": meets,
+                            **metrics
+                        })
 
-            # === Table ===
-            st.subheader("Metric Summary Table")
-            table = []
-            for k, v in metrics.items():
-                table.append({"Metric": k, "Status": v["status"] or "-", "Value": v["value"] or "-"})
-            df = pd.DataFrame(table)
+                progress.progress((i + 1) / total_pages)
+                status_text.text(f"Processed page {i + 1} of {total_pages}")
 
-            def colorize(row):
-                bg = "#ffffff"
-                if row["Status"] == "Pass": bg = "#d6f5d6"
-                elif row["Status"] == "Review": bg = "#fff5cc"
-                elif row["Status"] == "Fail": bg = "#f7d6d6"
-                return [f"background-color: {bg}"] * len(row)
+            progress.empty()
+            status_text.empty()
 
-            st.dataframe(df.style.apply(colorize, axis=1), use_container_width=True)
+        df = pd.DataFrame(rows)
 
-            # === Writeup ===
-            st.subheader("Recommendation Summary")
-            st.markdown(f"""
-                <div style="background-color:#f6f9fc;padding:1rem;border-radius:0.5rem;border:1px solid #dbe2ea;">
-                {writeup}
-                </div>
-            """, unsafe_allow_html=True)
+        for i, row in df.iterrows():
+            if row["Ticker"] == "N/A" and row["Fund Name"] != "UNKNOWN FUND":
+                fund_name = row["Fund Name"]
+                match = get_close_matches(fund_name, ticker_lookup.keys(), n=1, cutoff=0.5)
+                if match:
+                    df.at[i, "Ticker"] = ticker_lookup[match[0]]
+                else:
+                    for known_name in ticker_lookup:
+                        if fund_name.lower() in known_name.lower() or known_name.lower() in fund_name.lower():
+                            df.at[i, "Ticker"] = ticker_lookup[known_name]
+                            break
 
-            # === Export ===
-            pptx = create_fidsync_template_slide(selected, [writeup])
-            st.download_button("Download PowerPoint (.pptx)",
-                               data=pptx,
-                               file_name=f"{selected}_writeup.pptx",
-                               mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+        if not df.empty:
+            st.success(f"Found {len(df)} fund entries.")
+            st.dataframe(df, use_container_width=True)
 
-    st.markdown("---")
-    st.caption("This content was generated using automation and may not be perfectly accurate. Please verify against official sources.")
+            with st.expander("Download Results"):
+                csv = df.to_csv(index=False).encode("utf-8")
+                st.download_button("Download as CSV",
+                                   data=csv,
+                                   file_name="fund_criteria_results.csv",
+                                   mime="text/csv")
+
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    df_cleaned = df.copy()
+                
+                    # Convert everything to string first, then replace all error values
+                    df_cleaned = df_cleaned.astype(str).replace(["nan", "None", "NUM", "NaN", "NAN"], "")
+                
+                    df_cleaned.to_excel(writer, index=False, sheet_name="Fund Criteria", startrow=2)
+                
+                    workbook = writer.book
+                    worksheet = writer.sheets["Fund Criteria"]
+                
+                    header_format = workbook.add_format({
+                        'bold': True, 'bg_color': '#D9E1F2', 'font_color': '#1F4E78',
+                        'align': 'center', 'valign': 'vcenter', 'border': 1, 'bottom': 2
+                    })
+                    status_format_pass = workbook.add_format({
+                        'bg_color': '#C6EFCE', 'font_color': '#006100', 'border': 1
+                    })
+                    status_format_review = workbook.add_format({
+                        'bg_color': '#FFC7CE', 'font_color': '#9C0006', 'border': 1
+                    })
+                    normal_format = workbook.add_format({'border': 1})
+                    center_format = workbook.add_format({'border': 1, 'align': 'center'})
+                    updated_format = workbook.add_format({'italic': True, 'font_color': '#444444'})
+                
+                    worksheet.write('A1', datetime.now().strftime("Last Updated: %B %d, %Y"), updated_format)
+                
+                    for col_num, col_name in enumerate(df_cleaned.columns):
+                        max_len = max(df_cleaned[col_name].astype(str).map(len).max(), len(col_name)) + 2
+                        worksheet.set_column(col_num, col_num, max_len)
+                        worksheet.write(2, col_num, col_name, header_format)
+                
+                    worksheet.autofilter(f"A3:{xl_col_to_name(len(df_cleaned.columns) - 1)}3")
+                    worksheet.freeze_panes(3, 0)
+                
+                    for row in range(len(df_cleaned)):
+                        for col in range(len(df_cleaned.columns)):
+                            value = df_cleaned.iloc[row, col]
+                            col_name = df_cleaned.columns[col]
+                            fmt = center_format if col_name == "Ticker" else normal_format
+                
+                            if col_name == "Meets Criteria":
+                                fmt = workbook.add_format({'border': 2, 'align': 'center'})
+                
+                            worksheet.write(row + 3, col, value, fmt)
+                
+                    for col_num, col_name in enumerate(df_cleaned.columns):
+                        col_letter = xl_col_to_name(col_num)
+                        data_range = f"{col_letter}4:{col_letter}{len(df_cleaned)+3}"
+                
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text', 'criteria': 'containing', 'value': 'Pass', 'format': status_format_pass
+                        })
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text', 'criteria': 'containing', 'value': 'Yes', 'format': status_format_pass
+                        })
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text', 'criteria': 'containing', 'value': 'Review', 'format': status_format_review
+                        })
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text', 'criteria': 'containing', 'value': 'No', 'format': status_format_review
+                        })
+
+
+
+                excel_data = output.getvalue()
+                st.download_button("Download as Excel",
+                                   data=excel_data,
+                                   file_name="fund_criteria_results.xlsx",
+                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        else:
+            st.warning("No fund entries found in the uploaded PDF.")
+    else:
+        st.info("Please upload an MPI fund scorecard PDF to begin.")
