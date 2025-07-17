@@ -3,8 +3,8 @@ import pdfplumber
 import re
 import io
 from pptx.util import Inches
-from utils.pptx_exporter import create_fidsync_template_slide
-from utils.docx_exporter import create_fidsync_docx
+from utils.export.pptx_exporter import create_fidsync_template_slide
+from utils.export.docx_exporter import create_fidsync_docx
 
 # --- Extract fund blocks from relevant pages ---
 def extract_fund_blocks(pdf):
