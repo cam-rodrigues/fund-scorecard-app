@@ -6,63 +6,46 @@ from datetime import datetime
 from io import BytesIO
 from difflib import get_close_matches
 
-# --- IPS Metric Labels (exact order) ---
 IPS_METRICS = [
-    "Manager Tenure",
-    "R-Squared (3Yr)",
-    "Return Rank (3Yr)",
-    "Sharpe Ratio Rank (3Yr)",
-    "Sortino Ratio Rank (3Yr)",
-    "R-Squared (5Yr)",
-    "Return Rank (5Yr)",
-    "Sharpe Ratio Rank (5Yr)",
-    "Sortino Ratio Rank (5Yr)",
-    "Expense Ratio Rank",
-    "Style Match",  # Always Pass
+    "Manager Tenure", "R-Squared (3Yr)", "Return Rank (3Yr)", "Sharpe Ratio Rank (3Yr)",
+    "Sortino Ratio Rank (3Yr)", "R-Squared (5Yr)", "Return Rank (5Yr)", "Sharpe Ratio Rank (5Yr)",
+    "Sortino Ratio Rank (5Yr)", "Expense Ratio Rank", "Style Match"
 ]
 
 COLUMN_HEADERS = [
     "Name Of Fund", "Category", "Ticker", "Time Period", "Plan Assets"
 ] + [str(i+1) for i in range(11)] + ["IPS Status"]
 
-# --- Step 1: Extract Performance Funds (Name, Ticker, Category) ---
-def extract_performance_funds(pdf):
+def extract_all_performance_funds(pdf):
     funds = []
     for page in pdf.pages:
-        if "Fund Performance: Current vs. Proposed Comparison" not in (page.extract_text() or ""):
-            continue
-        lines = page.extract_text().split("\n")
+        lines = page.extract_text().split("\n") if page.extract_text() else []
         current_category = None
-
         for i in range(len(lines) - 1):
             line = lines[i].strip()
             next_line = lines[i+1].strip()
 
-            if re.search(r"(Cap|Growth|Value|Income|Fixed|International)", line, re.IGNORECASE):
+            if re.search(r"(Cap|Growth|Value|Income|Fixed|International|Blend)", line, re.IGNORECASE):
                 current_category = line
 
             match = re.match(r"(.+?)\s+([A-Z]{4,6}X?)$", line)
             if match:
-                fund_name = match.group(1).strip()
+                name = match.group(1).strip()
                 ticker = match.group(2).strip()
                 funds.append({
-                    "name": fund_name,
-                    "category": current_category or "Unknown",
-                    "ticker": ticker
+                    "name": name,
+                    "ticker": ticker,
+                    "category": current_category or "Unknown"
                 })
     return funds
 
-# --- Step 2: Extract Scorecard Metrics (Pass/Review per Fund) ---
 def extract_scorecard_metrics(pdf):
     scorecard = {}
     fund_name = None
     metrics = []
 
     for page in pdf.pages:
-        if "Fund Scorecard" not in (page.extract_text() or ""):
-            continue
-
-        lines = page.extract_text().split("\n")
+        lines = page.extract_text().split("\n") if page.extract_text() else []
         for line in lines:
             line = line.strip()
             if re.match(r".+\s+[A-Z]{4,6}X?$", line):
@@ -77,10 +60,8 @@ def extract_scorecard_metrics(pdf):
                 if len(metrics) == 11:
                     scorecard[fund_name] = metrics
                     fund_name, metrics = None, []
-
     return scorecard
 
-# --- Step 3: Determine IPS Status ---
 def determine_status(metrics):
     metrics = metrics[:10] + ["Pass"]
     fail_count = metrics.count("Review")
@@ -91,7 +72,6 @@ def determine_status(metrics):
     else:
         return "Formal Watch (FW)"
 
-# --- Step 4: Combine + Build Final Table ---
 def build_ips_table(performance_funds, scorecard_metrics):
     quarter = f"Q{((datetime.now().month - 1) // 3) + 1} {datetime.now().year}"
     data = []
@@ -110,7 +90,6 @@ def build_ips_table(performance_funds, scorecard_metrics):
 
     return pd.DataFrame(data, columns=COLUMN_HEADERS)
 
-# --- Streamlit App ---
 def run():
     st.set_page_config(page_title="IPS Investment Criteria", layout="wide")
     st.title("IPS Investment Criteria Table Generator")
@@ -120,7 +99,7 @@ def run():
 
     if uploaded_file:
         with pdfplumber.open(uploaded_file) as pdf:
-            perf_funds = extract_performance_funds(pdf)
+            perf_funds = extract_all_performance_funds(pdf)
             scorecard = extract_scorecard_metrics(pdf)
             df = build_ips_table(perf_funds, scorecard)
 
