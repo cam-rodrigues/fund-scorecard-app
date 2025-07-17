@@ -1,6 +1,6 @@
 import streamlit as st
 from datetime import datetime
-from utils/google_sheets.py import log_to_google_sheets
+from utils.google_sheets.py import log_to_google_sheets
 
 def run():
     st.title("Submit a Request")
