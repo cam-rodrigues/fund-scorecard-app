@@ -1,8 +1,11 @@
+# pages/user_requests.py
+
 import streamlit as st
 from datetime import datetime
 from utils.google_sheets import log_to_google_sheets
 
 def run():
+    st.set_page_config(page_title="Submit a Request", layout="wide")
     st.title("Submit a Request")
 
     st.markdown("""
@@ -28,7 +31,6 @@ def run():
 
         if success:
             st.success("✅ Your request has been saved.")
-
             st.markdown("#### Submission Details:")
             st.markdown(f"- **Timestamp:** {timestamp}")
             st.markdown(f"- **Name:** {name}")
@@ -36,6 +38,5 @@ def run():
             st.markdown(f"- **Type:** {request_type}")
             st.markdown(f"- **Message:** {message if message else '*None*'}")
             st.markdown(f"- **File:** {uploaded_file.name if uploaded_file else '*None*'}")
-
         else:
             st.error("❌ There was an error logging your request. Please try again or contact support.")
