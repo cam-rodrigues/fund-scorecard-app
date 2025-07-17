@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st 
 import pdfplumber
 import re
 import io
@@ -8,17 +8,15 @@ from utils.export.pptx_exporter import create_fidsync_template_slide
 # --- Extract fund blocks from relevant pages ---
 def extract_fund_blocks(pdf):
     fund_blocks = []
-    capture = False
     for page in pdf.pages:
         text = page.extract_text()
         if text and "Fund Scorecard" in text:
             lines = text.split('\n')
             current_block = []
             for line in lines:
-                if "Fund Scorecard" in line:
-                    if current_block:
-                        fund_blocks.append('\n'.join(current_block))
-                        current_block = []
+                if "Fund Scorecard" in line and current_block:
+                    fund_blocks.append('\n'.join(current_block))
+                    current_block = []
                 current_block.append(line)
             if current_block:
                 fund_blocks.append('\n'.join(current_block))
@@ -95,6 +93,9 @@ def run():
     uploaded_pdf = st.file_uploader("Upload MPI PDF", type=["pdf"])
 
     if uploaded_pdf:
+        if isinstance(uploaded_pdf, list):
+            uploaded_pdf = uploaded_pdf[0]
+
         with pdfplumber.open(uploaded_pdf) as pdf:
             blocks = extract_fund_blocks(pdf)
 
@@ -121,7 +122,6 @@ def run():
             """, unsafe_allow_html=True)
 
             col1 = st.columns(1)
-            with col1:
-                if st.download_button("⬇ Export to PowerPoint (.pptx)", create_fidsync_template_slide(selected, [writeup]), file_name=f"{selected}_writeup.pptx"):
-                    st.success("PowerPoint file ready.")
-
+            with col1[0]:
+                pptx_data = create_fidsync_template_slide(selected, [writeup])
+                st.download_button("Download PowerPoint (.pptx)", pptx_data, file_name=f"{selected}_writeup.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
