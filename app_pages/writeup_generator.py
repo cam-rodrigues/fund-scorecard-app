@@ -3,17 +3,35 @@ import pdfplumber
 import re
 from utils.export.pptx_exporter import create_fidsync_template_slide
 
-# --- Extract fund blocks from relevant pages ---
+# --- Extract fund names and blocks ---
 def extract_fund_blocks(pdf):
-    fund_blocks = []
+    blocks = []
+    current_block = []
+    fund_headers = []
+
     for page in pdf.pages:
         text = page.extract_text()
-        if text and "Fund Scorecard" in text:
-            fund_sections = text.split("Fund Scorecard")
-            for section in fund_sections[1:]:  # Skip first if it's header
-                block = "Fund Scorecard" + section.strip()
-                fund_blocks.append(block)
-    return fund_blocks
+        if not text:
+            continue
+        lines = text.split('\n')
+
+        for line in lines:
+            if "Fund Scorecard" in line and "Fund" in line:
+                # If we're in a block, save the previous one
+                if current_block:
+                    blocks.append("\n".join(current_block))
+                    current_block = []
+
+                match = re.search(r"^(.*?) Fund Scorecard", line)
+                if match:
+                    fund_headers.append(match.group(1).strip())
+
+            current_block.append(line)
+
+    if current_block:
+        blocks.append("\n".join(current_block))
+
+    return fund_headers, blocks
 
 # --- Improved metric parser ---
 def parse_metrics(block):
@@ -47,7 +65,6 @@ def parse_metrics(block):
 def generate_analysis(m):
     lines = []
 
-    # Performance
     if m["Excess Performance (3Yr)"]["status"] == "Pass" or m["Excess Performance (5Yr)"]["status"] == "Pass":
         perf3 = m["Excess Performance (3Yr)"]["value"]
         perf5 = m["Excess Performance (5Yr)"]["value"]
@@ -58,7 +75,6 @@ def generate_analysis(m):
         elif perf5:
             lines.append(f"The fund delivered {perf5} excess return over 5 years, showcasing its long-term capability.")
 
-    # Peer Ranks
     if m["Peer Return Rank (5Yr)"]["status"] == "Pass":
         rank = m["Peer Return Rank (5Yr)"]["value"]
         lines.append(f"Its 5-year peer return rank of {rank} places it among the strongest in its category.")
@@ -66,23 +82,19 @@ def generate_analysis(m):
         rank = m["Peer Return Rank (3Yr)"]["value"]
         lines.append(f"The fund also ranks competitively over the past 3 years, with a peer ranking of {rank}.")
 
-    # Sharpe
     if m["Sharpe Ratio Rank (5Yr)"]["status"] == "Pass":
         lines.append("Risk-adjusted returns over the last 5 years have been strong, with a high Sharpe ratio relative to peers.")
     elif m["Sharpe Ratio Rank (3Yr)"]["status"] == "Pass":
         lines.append("The fund's 3-year Sharpe ratio suggests solid risk-adjusted outperformance.")
 
-    # Expense
     if m["Expense Ratio Rank"]["status"] == "Pass":
         exp = m["Expense Ratio Rank"]["value"]
         lines.append(f"With an expense ratio rank of {exp}, the fund remains cost-efficient compared to peers.")
 
-    # Tenure
     if m["Manager Tenure"]["status"] == "Pass":
         val = m["Manager Tenure"]["value"]
         lines.append(f"The management team is experienced, having overseen the strategy for {val}.")
 
-    # Reviews
     if m["Excess Performance (3Yr)"]["status"] == "Review" or m["Excess Performance (5Yr)"]["status"] == "Review":
         lines.append("Recent performance relative to the benchmark has been mixed and may warrant further review.")
 
@@ -104,24 +116,18 @@ def run():
 
     if uploaded_pdf:
         with pdfplumber.open(uploaded_pdf) as pdf:
-            blocks = extract_fund_blocks(pdf)
+            fund_names, blocks = extract_fund_blocks(pdf)
 
-        if not blocks:
-            st.error("No fund scorecard blocks detected.")
+        if not blocks or not fund_names or len(fund_names) != len(blocks):
+            st.error("Could not extract fund sections correctly. Please check the PDF format.")
             return
-
-        fund_names = []
-        for b in blocks:
-            match = re.search(r"([A-Z][A-Za-z &\-]+?) Fund", b)
-            if match:
-                fund_names.append(match.group(1).strip())
 
         selected = st.selectbox("Select a fund", fund_names)
 
         if selected:
-            selected_index = fund_names.index(selected)
-            match_block = blocks[selected_index]
-            metrics = parse_metrics(match_block)
+            index = fund_names.index(selected)
+            block = blocks[index]
+            metrics = parse_metrics(block)
             writeup = generate_analysis(metrics)
 
             st.subheader("Preview")
