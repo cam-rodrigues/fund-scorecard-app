@@ -1,6 +1,7 @@
 import streamlit as st 
 import pdfplumber
 import re
+import pandas as pd
 from utils.export.pptx_exporter import create_fidsync_template_slide
 
 # --- Extract fund names and blocks ---
@@ -17,7 +18,7 @@ def extract_fund_blocks(pdf):
 
         for line in lines:
             if "Fund Scorecard" in line and "Fund" in line:
-                # If we're in a block, save the previous one
+                # Save previous block if exists
                 if current_block:
                     blocks.append("\n".join(current_block))
                     current_block = []
@@ -118,9 +119,15 @@ def run():
         with pdfplumber.open(uploaded_pdf) as pdf:
             fund_names, blocks = extract_fund_blocks(pdf)
 
-        if not blocks or not fund_names or len(fund_names) != len(blocks):
-            st.error("Could not extract fund sections correctly. Please check the PDF format.")
+        if not blocks:
+            st.error("No fund scorecard blocks found. Please check the PDF or use another file.")
             return
+
+        if len(fund_names) != len(blocks):
+            st.warning("Mismatch between fund names and sections. Using fallback labels.")
+            fund_names = [f"Fund {i+1}" for i in range(len(blocks))]
+
+        st.write(f"Detected {len(fund_names)} funds.")
 
         selected = st.selectbox("Select a fund", fund_names)
 
@@ -130,14 +137,38 @@ def run():
             metrics = parse_metrics(block)
             writeup = generate_analysis(metrics)
 
-            st.subheader("Preview")
+            # === Metrics Table with Color ===
+            st.subheader("Metric Summary Table")
+            metric_data = []
+            for key, result in metrics.items():
+                metric_data.append({
+                    "Metric": key,
+                    "Status": result["status"] or "-",
+                    "Value": result["value"] or "-"
+                })
+            df = pd.DataFrame(metric_data)
+
+            def highlight_status(row):
+                color = "#ffffff"
+                if row["Status"] == "Pass":
+                    color = "#d6f5d6"
+                elif row["Status"] == "Review":
+                    color = "#fff5cc"
+                elif row["Status"] == "Fail":
+                    color = "#f7d6d6"
+                return ['background-color: {}'.format(color)] * len(row)
+
+            st.dataframe(df.style.apply(highlight_status, axis=1), use_container_width=True)
+
+            # === Writeup Preview ===
+            st.subheader("Recommendation Summary")
             st.markdown(f"""
                 <div style="background-color:#f6f9fc;padding:1rem;border-radius:0.5rem;border:1px solid #dbe2ea;">
-                <b>Recommendation Summary</b><br><br>
                 {writeup}
                 </div>
             """, unsafe_allow_html=True)
 
+            # === Download Button ===
             pptx_data = create_fidsync_template_slide(selected, [writeup])
             st.download_button(
                 "Download PowerPoint (.pptx)",
