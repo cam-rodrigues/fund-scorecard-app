@@ -1,10 +1,14 @@
+import streamlit as st
 import pdfplumber
 import pandas as pd
 import re
 from datetime import datetime
 
+st.set_page_config(page_title="IPS Fund Evaluation", layout="wide")
+st.title("IPS Investment Criteria Evaluation")
 
-# === Step 1: Extract fund name, category, ticker ===
+uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"])
+
 def extract_fund_info(pdf):
     fund_info = []
     in_perf_section = False
@@ -15,7 +19,6 @@ def extract_fund_info(pdf):
             continue
 
         lines = text.split("\n")
-
         for i, line in enumerate(lines):
             if "Fund Performance: Current vs. Proposed Comparison" in line:
                 in_perf_section = True
@@ -35,7 +38,6 @@ def extract_fund_info(pdf):
                     })
     return fund_info
 
-# === Step 2 & 3: Extract scorecard blocks and evaluate ===
 def parse_value(text):
     try:
         return float(re.findall(r"[-+]?\d*\.\d+|\d+", text)[0])
@@ -92,7 +94,6 @@ def extract_scorecard(pdf):
             fund_blocks[current_fund] = current_metrics
     return fund_blocks
 
-# === Step 4: Build final table ===
 def build_table(fund_info_list, scorecard_blocks):
     quarter = f"Q{((datetime.now().month - 1) // 3) + 1} {datetime.now().year}"
     results = []
@@ -127,11 +128,15 @@ def build_table(fund_info_list, scorecard_blocks):
 
     return pd.DataFrame(results)
 
-# === Run Everything ===
-with pdfplumber.open(pdf_path) as pdf:
-    fund_info_list = extract_fund_info(pdf)
-    scorecard_blocks = extract_scorecard(pdf)
-    df = build_table(fund_info_list, scorecard_blocks)
+# === Run the logic if file is uploaded ===
+if uploaded_file:
+    with pdfplumber.open(uploaded_file) as pdf:
+        fund_info_list = extract_fund_info(pdf)
+        scorecard_blocks = extract_scorecard(pdf)
+        df = build_table(fund_info_list, scorecard_blocks)
 
-# === Display or export ===
-import ace_tools as tools; tools.display_dataframe_to_user(name="Full IPS Investment Criteria Table", dataframe=df)
+    st.success("Evaluation complete.")
+    st.dataframe(df, use_container_width=True)
+
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button("Download CSV", csv, "ips_evaluation.csv", "text/csv")
