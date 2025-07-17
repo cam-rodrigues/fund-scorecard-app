@@ -120,12 +120,8 @@ def run():
                 </div>
             """, unsafe_allow_html=True)
 
-            col1, col2 = st.columns(2)
+            col1 = st.columns(1)
             with col1:
-                if st.download_button("⬇ Export to Word (.docx)", create_fidsync_docx(selected, writeup), file_name=f"{selected}_writeup.docx"):
-                    st.success("Word file ready.")
-
-            with col2:
                 if st.download_button("⬇ Export to PowerPoint (.pptx)", create_fidsync_template_slide(selected, [writeup]), file_name=f"{selected}_writeup.pptx"):
                     st.success("PowerPoint file ready.")
 
