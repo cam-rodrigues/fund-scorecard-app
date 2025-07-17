@@ -12,11 +12,11 @@ IPS_METRICS = [
     "R-Squared (3Yr)",
     "Return Rank (3Yr)",
     "Sharpe Ratio Rank (3Yr)",
-    "Sortino Ratio Rank (3Yr)",  # Alt: Tracking Error (3Yr)
+    "Sortino Ratio Rank (3Yr)",
     "R-Squared (5Yr)",
     "Return Rank (5Yr)",
     "Sharpe Ratio Rank (5Yr)",
-    "Sortino Ratio Rank (5Yr)",  # Alt: Tracking Error (5Yr)
+    "Sortino Ratio Rank (5Yr)",
     "Expense Ratio Rank",
     "Style Match",  # Always Pass
 ]
@@ -38,11 +38,9 @@ def extract_performance_funds(pdf):
             line = lines[i].strip()
             next_line = lines[i+1].strip()
 
-            # Detect category (e.g., Mid Cap Growth)
             if re.search(r"(Cap|Growth|Value|Income|Fixed|International)", line, re.IGNORECASE):
                 current_category = line
 
-            # Detect fund name + ticker
             match = re.match(r"(.+?)\s+([A-Z]{4,6}X?)$", line)
             if match:
                 fund_name = match.group(1).strip()
@@ -67,7 +65,6 @@ def extract_scorecard_metrics(pdf):
         lines = page.extract_text().split("\n")
         for line in lines:
             line = line.strip()
-            # Detect new fund block
             if re.match(r".+\s+[A-Z]{4,6}X?$", line):
                 if fund_name and metrics:
                     scorecard[fund_name] = metrics
@@ -85,7 +82,7 @@ def extract_scorecard_metrics(pdf):
 
 # --- Step 3: Determine IPS Status ---
 def determine_status(metrics):
-    metrics = metrics[:10] + ["Pass"]  # Always pass #11
+    metrics = metrics[:10] + ["Pass"]
     fail_count = metrics.count("Review")
     if fail_count <= 4:
         return "Passed IPS Screen"
@@ -96,7 +93,7 @@ def determine_status(metrics):
 
 # --- Step 4: Combine + Build Final Table ---
 def build_ips_table(performance_funds, scorecard_metrics):
-    quarter = datetime.today().strftime("Q{} %Y".format((datetime.today().month - 1)//3 + 1))
+    quarter = f"Q{((datetime.now().month - 1) // 3) + 1} {datetime.now().year}"
     data = []
 
     for perf in performance_funds:
@@ -106,7 +103,7 @@ def build_ips_table(performance_funds, scorecard_metrics):
             continue
         matched_name = match[0]
         metrics = scorecard_metrics[matched_name]
-        metrics = metrics[:10] + ["Pass"]  # Force #11 to Pass
+        metrics = metrics[:10] + ["Pass"]
         status = determine_status(metrics)
         row = [name, perf["category"], perf["ticker"], quarter, "$"] + metrics + [status]
         data.append(row)
@@ -115,8 +112,9 @@ def build_ips_table(performance_funds, scorecard_metrics):
 
 # --- Streamlit App ---
 def run():
+    st.set_page_config(page_title="IPS Investment Criteria", layout="wide")
     st.title("IPS Investment Criteria Table Generator")
-    st.markdown("Upload an MPI PDF and generate a table with IPS evaluation per fund.")
+    st.markdown("Upload an MPI PDF and generate a table evaluating funds against 11 IPS metrics.")
 
     uploaded_file = st.file_uploader("Upload MPI.pdf", type=["pdf"])
 
@@ -126,14 +124,16 @@ def run():
             scorecard = extract_scorecard_metrics(pdf)
             df = build_ips_table(perf_funds, scorecard)
 
+            st.success(f"Extracted {len(df)} fund(s).")
             st.dataframe(df, use_container_width=True)
 
             buffer = BytesIO()
             df.to_excel(buffer, index=False)
+            buffer.seek(0)
             st.download_button(
-                "Download as Excel",
-                buffer.getvalue(),
-                "ips_investment_criteria.xlsx",
+                "Download Excel File",
+                data=buffer,
+                file_name="ips_investment_criteria.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
