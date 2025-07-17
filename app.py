@@ -152,6 +152,10 @@ with st.sidebar.expander("MPI Tools", expanded=False):
 st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', unsafe_allow_html=True)
 nav_button("Meeting Minutes Generator", "meeting_minutes_generator.py")
 
+st.sidebar.markdown('<div class="sidebar-section">---</div>', unsafe_allow_html=True)
+nav_button("User Requests", "user_requests.py")
+
+
 # === Page router ===
 query_params = st.query_params
 selected_page = query_params.get("page")
