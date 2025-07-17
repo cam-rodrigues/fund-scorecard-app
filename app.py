@@ -133,6 +133,7 @@ st.sidebar.markdown('<div class="sidebar-section">Documentation</div>', unsafe_a
 nav_button("Getting Started", "Getting_Started.py")
 nav_button("Capabilities & Potential", "capabilities_and_potential.py")
 nav_button("Resources", "resources.py")
+nav_button("User Requests", "user_requests.py")
 
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
 nav_button("Article Analyzer", "article_analyzer.py")
