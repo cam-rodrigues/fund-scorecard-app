@@ -1,92 +1,138 @@
-import streamlit as st
 import pdfplumber
 import pandas as pd
 import re
 from datetime import datetime
-from io import BytesIO
 
-# --- IPS Investment Criteria Mapping ---
-IPS_METRICS = [
-    "Manager Tenure ≥ 3 years",
-    "3Y Perf > Benchmark OR 3Y R² > 95%",
-    "3Y Perf > 50% of Peers",
-    "3Y Sharpe > 50% of Peers",
-    "3Y Sortino > 50% of Peers OR 3Y TE < 90% of Peers",
-    "5Y Perf > Benchmark OR 5Y R² > 95%",
-    "5Y Perf > 50% of Peers",
-    "5Y Sharpe > 50% of Peers",
-    "5Y Sortino > 50% of Peers OR 5Y TE < 90% of Peers",
-    "Expense Ratio < 50% of Peers",
-    "Style aligns with objectives",
-]
+pdf_path = "MPI.pdf"  # Update path as needed
 
-COLUMN_HEADERS = [
-    "Name Of Fund", "Category", "Ticker", "Time Period", "Plan Assets"
-] + [str(i+1) for i in range(11)] + ["IPS Status"]
-
-# --- Helper: Parse relevant tables from the MPI PDF ---
-def extract_fund_tables(pdf):
-    data = []
-    quarter = datetime.today().strftime("Q{} %Y".format((datetime.today().month - 1)//3 + 1))
+# === Step 1: Extract fund name, category, ticker ===
+def extract_fund_info(pdf):
+    fund_info = []
+    in_perf_section = False
 
     for page in pdf.pages:
         text = page.extract_text()
-        if text and "Fund Scorecard" in text:
-            lines = text.split("\n")
-            fund_name, ticker, category = None, None, None
-            metrics = []
+        if not text:
+            continue
 
-            for line in lines:
-                if re.match(r"^.+\s+[A-Z]{4,6}X?$", line.strip()):
-                    parts = line.rsplit(" ", 1)
-                    fund_name, ticker = parts[0].strip(), parts[1].strip()
-                    category_match = re.search(r"(Large|Mid|Small|International|Emerging|Fixed Income|Value|Growth|Blend)", fund_name, re.IGNORECASE)
-                    if category_match:
-                        cat = category_match.group(0)
-                        try:
-                            style = fund_name.split(cat)[-1].split()[0]
-                            category = f"{cat} {style}"
-                        except IndexError:
-                            category = cat
-                    else:
-                        category = "Unknown"
-                    metrics = []
-                elif "Pass" in line or "Review" in line:
-                    metrics.append("Pass" if "Pass" in line else "Review")
+        lines = text.split("\n")
 
-                    if len(metrics) == 11:
-                        fail_count = metrics.count("Review")
-                        if fail_count <= 4:
-                            status = "Passed IPS Screen"
-                        elif fail_count == 5:
-                            status = "Informal Watch (IW)"
-                        else:
-                            status = "Formal Watch (FW)"
+        for i, line in enumerate(lines):
+            if "Fund Performance: Current vs. Proposed Comparison" in line:
+                in_perf_section = True
 
-                        data.append([fund_name, category, ticker, quarter, "$"] + metrics + [status])
+            if in_perf_section:
+                if re.match(r"^[A-Z]{4,6}X?$", line.strip()):  # Ticker line
+                    name_line = lines[i - 1].strip()
+                    category = ""
+                    for j in range(i - 2, max(i - 6, 0), -1):
+                        if "Cap" in lines[j] or "Blend" in lines[j] or "Value" in lines[j] or "Growth" in lines[j]:
+                            category = lines[j].strip()
+                            break
+                    fund_info.append({
+                        "Fund Name": name_line,
+                        "Category": category,
+                        "Ticker": line.strip()
+                    })
+    return fund_info
 
-    return pd.DataFrame(data, columns=COLUMN_HEADERS)
+# === Step 2 & 3: Extract scorecard blocks and evaluate ===
+def parse_value(text):
+    try:
+        return float(re.findall(r"[-+]?\d*\.\d+|\d+", text)[0])
+    except:
+        return None
 
-# --- Streamlit App ---
-def run():
-    st.title("IPS Investment Criteria Table Generator")
-    st.markdown("Upload an MPI PDF and extract IPS Investment Criteria into a structured table.")
+def evaluate_metric(text, index):
+    text = text.lower()
+    if index == 0:
+        return parse_value(text) >= 3
+    elif index == 1:
+        return "outperform" in text or ("r²" in text and parse_value(text) >= 95)
+    elif index == 2:
+        return "rank" in text and parse_value(text) <= 50
+    elif index == 3:
+        return "sharpe" in text and parse_value(text) <= 50
+    elif index == 4:
+        return ("sortino" in text and parse_value(text) <= 50) or ("tracking" in text and parse_value(text) < 90)
+    elif index == 5:
+        return "outperform" in text or ("r²" in text and parse_value(text) >= 95)
+    elif index == 6:
+        return "rank" in text and parse_value(text) <= 50
+    elif index == 7:
+        return "sharpe" in text and parse_value(text) <= 50
+    elif index == 8:
+        return ("sortino" in text and parse_value(text) <= 50) or ("tracking" in text and parse_value(text) < 90)
+    elif index == 9:
+        return "expense" in text and parse_value(text) < 50
+    elif index == 10:
+        return "consistent" in text
+    return False
 
-    uploaded_file = st.file_uploader("Upload MPI.pdf", type=["pdf"])
+def extract_scorecard(pdf):
+    fund_blocks = {}
+    current_fund = None
+    current_metrics = []
 
-    if uploaded_file:
-        with pdfplumber.open(uploaded_file) as pdf:
-            df = extract_fund_tables(pdf)
-            st.dataframe(df, use_container_width=True)
+    for page in pdf.pages:
+        text = page.extract_text()
+        if not text:
+            continue
+        lines = text.split("\n")
+        for line in lines:
+            if "Fund Scorecard" in line:
+                continue
+            if re.match(r'^[A-Z][\w\s\-&,]+$', line.strip()) and len(line.strip().split()) > 2:
+                if current_fund and current_metrics:
+                    fund_blocks[current_fund] = current_metrics.copy()
+                current_fund = line.strip()
+                current_metrics = []
+            elif any(metric in line for metric in ["Tenure", "Performance", "Sharpe", "Sortino", "Tracking", "Expense", "Style"]):
+                current_metrics.append(line.strip())
+        if current_fund and current_metrics:
+            fund_blocks[current_fund] = current_metrics
+    return fund_blocks
 
-            buffer = BytesIO()
-            df.to_excel(buffer, index=False)
-            st.download_button(
-                "Download as Excel",
-                buffer.getvalue(),
-                "ips_investment_criteria.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+# === Step 4: Build final table ===
+def build_table(fund_info_list, scorecard_blocks):
+    quarter = f"Q{((datetime.now().month - 1) // 3) + 1} {datetime.now().year}"
+    results = []
 
-if __name__ == "__main__":
-    run()
+    for fund in fund_info_list:
+        name = fund["Fund Name"]
+        matched_name = next((sc_name for sc_name in scorecard_blocks if name.lower() in sc_name.lower()), None)
+        metrics = scorecard_blocks.get(matched_name, [])
+        pass_fail = []
+        for i in range(11):
+            if i < len(metrics):
+                pass_fail.append("Pass" if evaluate_metric(metrics[i], i) else "Fail")
+            else:
+                pass_fail.append("Fail")
+        fails = pass_fail.count("Fail")
+        if fails <= 4:
+            status = "Passed IPS Screen"
+        elif fails == 5:
+            status = "Informal Watch (IW)"
+        else:
+            status = "Formal Watch (FW)"
+
+        results.append({
+            "Name Of Fund": name,
+            "Category": fund["Category"],
+            "Ticker": fund["Ticker"],
+            "Time Period": quarter,
+            "Plan Assets": "$",
+            **{str(i+1): pass_fail[i] for i in range(11)},
+            "IPS Status": status
+        })
+
+    return pd.DataFrame(results)
+
+# === Run Everything ===
+with pdfplumber.open(pdf_path) as pdf:
+    fund_info_list = extract_fund_info(pdf)
+    scorecard_blocks = extract_scorecard(pdf)
+    df = build_table(fund_info_list, scorecard_blocks)
+
+# === Display or export ===
+import ace_tools as tools; tools.display_dataframe_to_user(name="Full IPS Investment Criteria Table", dataframe=df)
