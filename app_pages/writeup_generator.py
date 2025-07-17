@@ -1,8 +1,6 @@
 import streamlit as st 
 import pdfplumber
 import re
-import io
-from pptx.util import Inches
 from utils.export.pptx_exporter import create_fidsync_template_slide
 
 # --- Extract fund blocks from relevant pages ---
@@ -93,9 +91,6 @@ def run():
     uploaded_pdf = st.file_uploader("Upload MPI PDF", type=["pdf"])
 
     if uploaded_pdf:
-        if isinstance(uploaded_pdf, list):
-            uploaded_pdf = uploaded_pdf[0]
-
         with pdfplumber.open(uploaded_pdf) as pdf:
             blocks = extract_fund_blocks(pdf)
 
@@ -121,7 +116,10 @@ def run():
                 </div>
             """, unsafe_allow_html=True)
 
-            col1 = st.columns(1)
-            with col1[0]:
-                pptx_data = create_fidsync_template_slide(selected, [writeup])
-                st.download_button("Download PowerPoint (.pptx)", pptx_data, file_name=f"{selected}_writeup.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+            pptx_data = create_fidsync_template_slide(selected, [writeup])
+            st.download_button(
+                "Download PowerPoint (.pptx)",
+                data=pptx_data,
+                file_name=f"{selected}_writeup.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
