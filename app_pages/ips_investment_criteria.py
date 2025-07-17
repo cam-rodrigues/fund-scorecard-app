@@ -6,6 +6,7 @@ from datetime import datetime
 from io import BytesIO
 from difflib import get_close_matches
 
+# === Config ===
 IPS_METRICS = [
     "Manager Tenure", "R-Squared (3Yr)", "Return Rank (3Yr)", "Sharpe Ratio Rank (3Yr)",
     "Sortino Ratio Rank (3Yr)", "R-Squared (5Yr)", "Return Rank (5Yr)", "Sharpe Ratio Rank (5Yr)",
@@ -16,6 +17,7 @@ COLUMN_HEADERS = [
     "Name Of Fund", "Category", "Ticker", "Time Period", "Plan Assets"
 ] + [str(i+1) for i in range(11)] + ["IPS Status"]
 
+# === Fund Extractor ===
 def extract_all_performance_funds(pdf):
     funds = []
     for page in pdf.pages:
@@ -39,6 +41,7 @@ def extract_all_performance_funds(pdf):
                 })
     return funds
 
+# === Scorecard Extractor ===
 def extract_scorecard_metrics(pdf):
     scorecard = {}
     fund_name = None
@@ -65,6 +68,7 @@ def extract_scorecard_metrics(pdf):
                     fund_name, metrics = None, []
     return scorecard
 
+# === Status Logic ===
 def determine_status(metrics):
     metrics = metrics[:10] + ["Pass"]
     fail_count = metrics.count("Review")
@@ -75,6 +79,7 @@ def determine_status(metrics):
     else:
         return "Formal Watch (FW)"
 
+# === Final Table Builder ===
 def build_ips_table(performance_funds, scorecard_metrics):
     quarter = f"Q{((datetime.now().month - 1) // 3) + 1} {datetime.now().year}"
     data = []
@@ -84,23 +89,33 @@ def build_ips_table(performance_funds, scorecard_metrics):
         try:
             match = get_close_matches(name, list(scorecard_metrics.keys()), n=1, cutoff=0.8)
             if not match:
+                st.warning(f"No close match found for '{name}'")
                 continue
+
             matched_name = match[0]
-            metrics = scorecard_metrics.get(matched_name, [])
-            if not metrics or len(metrics) < 10:
+            metrics = scorecard_metrics.get(matched_name)
+
+            if not isinstance(metrics, list):
+                st.warning(f"Metrics for '{matched_name}' are not a valid list.")
                 continue
+            if len(metrics) < 10:
+                st.warning(f"Metrics for '{matched_name}' are too short: {len(metrics)} item(s).")
+                continue
+
             metrics = metrics[:10] + ["Pass"]
             status = determine_status(metrics)
+
             row = [name, perf["category"], perf["ticker"], quarter, "$"] + metrics + [status]
             data.append(row)
         except Exception as e:
-            st.warning(f"Error processing fund '{name}': {e}")
+            st.error(f"Error processing fund '{name}': {e}")
 
     if not data:
         return pd.DataFrame(columns=COLUMN_HEADERS)
 
     return pd.DataFrame(data, columns=COLUMN_HEADERS)
 
+# === Streamlit App ===
 def run():
     st.set_page_config(page_title="IPS Investment Criteria", layout="wide")
     st.title("IPS Investment Criteria Table Generator")
