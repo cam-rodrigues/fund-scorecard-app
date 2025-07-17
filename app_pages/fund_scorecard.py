@@ -175,3 +175,6 @@ def run():
 
         except Exception as e:
             st.error(f"❌ Failed to update Excel: {str(e)}")
+
+    st.markdown("---")
+    st.caption("This content was generated using automation and may not be perfectly accurate. Please verify against official sources.")
