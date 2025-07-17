@@ -2,7 +2,7 @@
 
 import streamlit as st
 from datetime import datetime
-from utils.google_sheets import log_to_google_sheets
+from utils.system.google_sheets import log_to_google_sheets
 
 def run():
     st.set_page_config(page_title="Submit a Request", layout="wide")
