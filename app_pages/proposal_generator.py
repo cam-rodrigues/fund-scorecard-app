@@ -211,3 +211,6 @@ def run():
         file_name=file_name,
         mime=mime_type
     )
+
+    st.markdown("---")
+    st.caption("This content was generated using automation and may not be perfectly accurate. Please verify against official sources.")
