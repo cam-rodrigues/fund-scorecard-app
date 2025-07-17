@@ -198,3 +198,6 @@ def run():
                                data=pptx,
                                file_name=f"{selected}_writeup.pptx",
                                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+
+    st.markdown("---")
+    st.caption("This content was generated using automation and may not be perfectly accurate. Please verify against official sources.")
