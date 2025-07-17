@@ -101,3 +101,6 @@ def run():
 # === Run the app ===
 if __name__ == "__main__":
     run()
+
+    st.markdown("---")
+    st.caption("This content was generated using automation and may not be perfectly accurate. Please verify against official sources.")
