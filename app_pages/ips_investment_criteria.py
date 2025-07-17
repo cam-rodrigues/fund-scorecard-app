@@ -16,10 +16,14 @@ COLUMN_HEADERS = [
     "Name Of Fund", "Category", "Ticker", "Time Period", "Plan Assets"
 ] + [str(i+1) for i in range(11)] + ["IPS Status"]
 
+# --- Step 1: Extract funds from all pages, not just the labeled section
 def extract_all_performance_funds(pdf):
     funds = []
     for page in pdf.pages:
-        lines = page.extract_text().split("\n") if page.extract_text() else []
+        text = page.extract_text()
+        if not text:
+            continue
+        lines = text.split("\n")
         current_category = None
         for i in range(len(lines) - 1):
             line = lines[i].strip()
@@ -39,13 +43,17 @@ def extract_all_performance_funds(pdf):
                 })
     return funds
 
+# --- Step 2: Extract Pass/Review metrics from scorecard pages
 def extract_scorecard_metrics(pdf):
     scorecard = {}
     fund_name = None
     metrics = []
 
     for page in pdf.pages:
-        lines = page.extract_text().split("\n") if page.extract_text() else []
+        text = page.extract_text()
+        if not text:
+            continue
+        lines = text.split("\n")
         for line in lines:
             line = line.strip()
             if re.match(r".+\s+[A-Z]{4,6}X?$", line):
@@ -62,6 +70,7 @@ def extract_scorecard_metrics(pdf):
                     fund_name, metrics = None, []
     return scorecard
 
+# --- Step 3: Status Logic
 def determine_status(metrics):
     metrics = metrics[:10] + ["Pass"]
     fail_count = metrics.count("Review")
@@ -72,6 +81,7 @@ def determine_status(metrics):
     else:
         return "Formal Watch (FW)"
 
+# --- Step 4: Final Table Builder
 def build_ips_table(performance_funds, scorecard_metrics):
     quarter = f"Q{((datetime.now().month - 1) // 3) + 1} {datetime.now().year}"
     data = []
@@ -90,6 +100,7 @@ def build_ips_table(performance_funds, scorecard_metrics):
 
     return pd.DataFrame(data, columns=COLUMN_HEADERS)
 
+# --- Streamlit App UI
 def run():
     st.set_page_config(page_title="IPS Investment Criteria", layout="wide")
     st.title("IPS Investment Criteria Table Generator")
