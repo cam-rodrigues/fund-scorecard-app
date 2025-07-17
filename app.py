@@ -138,7 +138,6 @@ nav_button("User Requests", "user_requests.py")
 st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_html=True)
 nav_button("Article Analyzer", "article_analyzer.py")
 nav_button("Company Lookup", "company_lookup.py")
-nav_button("Meeting Minutes", "meeting_minutes_generator.py")
 
 # --- MPI Tools Dropdown ---
 st.sidebar.markdown('<div class="sidebar-section">MPI Tools</div>', unsafe_allow_html=True)
