@@ -138,6 +138,7 @@ st.sidebar.markdown('<div class="sidebar-section">Tools</div>', unsafe_allow_htm
 nav_button("Article Analyzer", "article_analyzer.py")
 nav_button("Data Scanner", "data_scanner.py")
 nav_button("Company Lookup", "company_lookup.py")
+nav_button("Meeting Minutes", "meeting_minutes_generator.py")
 
 # --- MPI Tools Dropdown ---
 st.sidebar.markdown('<div class="sidebar-section">MPI Tools</div>', unsafe_allow_html=True)
@@ -148,9 +149,6 @@ with st.sidebar.expander("MPI Tools", expanded=False):
     nav_button("Writeup Generator", "writeup_generator.py")
     nav_button("Multi Fund Comparison", "multi_fund_comparison.py")
 
-# --- Under Construction ---
-st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', unsafe_allow_html=True)
-nav_button("Meeting Minutes Generator", "meeting_minutes_generator.py")
 
 # === Page router ===
 query_params = st.query_params
