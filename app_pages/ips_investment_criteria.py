@@ -3,7 +3,6 @@ import pandas as pd
 import re
 from datetime import datetime
 
-pdf_path = "MPI.pdf"  # Update path as needed
 
 # === Step 1: Extract fund name, category, ticker ===
 def extract_fund_info(pdf):
