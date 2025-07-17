@@ -1,6 +1,9 @@
 import streamlit as st
 import os
 import importlib.util
+import app_pages.ips_investment_criteria as ips
+ips.run()
+
 
 st.set_page_config(page_title="FidSync Beta", layout="wide")
 
