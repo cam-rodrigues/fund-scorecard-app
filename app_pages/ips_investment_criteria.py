@@ -3,72 +3,93 @@ import pdfplumber
 import re
 
 def run():
-    st.set_page_config(page_title="Step 6: Clean TOC More", layout="wide")
-    st.title("Step 6: Final TOC Cleanup and Section Extraction")
+    st.set_page_config(page_title="Step 7: Fund Scorecard Extract", layout="wide")
+    st.title("Step 7: Extract Fund Scorecard Section")
 
-    # Step 1 – Upload
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step6_upload")
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step7_upload")
 
-    if uploaded_file:
-        st.success("✅ MPI PDF uploaded.")
+    if not uploaded_file:
+        return
 
-        try:
-            with pdfplumber.open(uploaded_file) as pdf:
-                # Step 2 – Page 1 Cleanup
-                page1 = pdf.pages[0].extract_text()
-                page1_clean = re.sub(
-                    r"For Plan Sponsor use only.*?Created with mpi Stylus\.", "", page1 or "", flags=re.DOTALL
-                )
+    try:
+        with pdfplumber.open(uploaded_file) as pdf:
+            # Extract page 1 date and compute quarter (copied from prior step)
+            page1 = pdf.pages[0].extract_text()
+            date_match = re.search(r'(3/31|6/30|9/30|12/31)/20\d{2}', page1 or "")
+            if date_match:
+                date_str = date_match.group(0)
+                quarter_map = {"3/31": "Q1", "6/30": "Q2", "9/30": "Q3", "12/31": "Q4"}
+                month_day = date_str.split("/")[0] + "/" + date_str.split("/")[1]
+                quarter = quarter_map.get(month_day, "Unknown") + " " + date_str[-4:]
+            else:
+                quarter = "Not found"
 
-                # Step 3 – Time Period (Q1/Q2/etc.)
-                date_match = re.search(r'(3/31|6/30|9/30|12/31)/20\d{2}', page1_clean)
-                if date_match:
-                    date_str = date_match.group(0)  # e.g. "3/31/2025"
-                    quarter_map = {"3/31": "Q1", "6/30": "Q2", "9/30": "Q3", "12/31": "Q4"}
-                    month_day = date_str.split("/")[0] + "/" + date_str.split("/")[1]
-                    quarter = quarter_map.get(month_day, "Unknown") + " " + date_str[-4:]
-                else:
-                    quarter = "Not found"
+            # Extract TOC and clean lines
+            toc_text = pdf.pages[1].extract_text()
+            ignore_keywords = [
+                "Calendar Year", "Risk Analysis", "Style Box", "Returns Correlation",
+                "Fund Factsheets", "Definitions & Disclosures", "Past performance",
+                "Total Options", "http://", quarter.replace(" ", "/"),
+                "shares may be worth more/less than original cost",
+                "Returns assume reinvestment of all distributions at NAV"
+            ]
+            toc_lines = toc_text.split("\n")
+            cleaned_toc_lines = [line for line in toc_lines if not any(kw in line for kw in ignore_keywords)]
 
-                # Step 4 – Extract page 2 Table of Contents
-                toc_text = pdf.pages[1].extract_text()
+            def find_page(section_title, toc_lines):
+                for line in toc_lines:
+                    if section_title in line:
+                        match = re.search(r"(\d+)$", line)
+                        return int(match.group(1)) if match else None
+                return None
 
-                # Step 5 & 6 – Clean up irrelevant TOC lines
-                lines = toc_text.split("\n")
-                ignore_keywords = [
-                    "Calendar Year", "Risk Analysis", "Style Box", "Returns Correlation",
-                    "Fund Factsheets", "Definitions & Disclosures", "Past performance",
-                    "Total Options", "http://", quarter.replace(" ", "/"),
-                    "shares may be worth more/less than original cost",
-                    "Returns assume reinvestment of all distributions at NAV"
-                ]
+            scorecard_page = find_page("Fund Scorecard", cleaned_toc_lines)
+            if not scorecard_page:
+                st.error("❌ Could not find Fund Scorecard section.")
+                return
 
-                cleaned_toc_lines = [
-                    line for line in lines
-                    if not any(kw in line for kw in ignore_keywords)
-                ]
+            # Go to Fund Scorecard section
+            st.markdown(f"**Scorecard Section starts on page:** {scorecard_page}")
 
-                # Step 6 – Extract target section pages
-                def find_page(section_title, toc_lines):
-                    for line in toc_lines:
-                        if section_title in line:
-                            match = re.search(r"(\d+)$", line)
-                            return int(match.group(1)) if match else None
-                    return None
+            metric_blocks = []
+            current_fund = None
 
-                perf_page = find_page("Fund Performance: Current vs. Proposed Comparison", cleaned_toc_lines)
-                scorecard_page = find_page("Fund Scorecard", cleaned_toc_lines)
+            # Parse all pages starting from scorecard_page
+            for page in pdf.pages[scorecard_page - 1:]:
+                text = page.extract_text()
+                if not text:
+                    continue
 
-                # Display cleaned TOC
-                st.subheader("Cleaned Table of Contents")
-                for line in cleaned_toc_lines:
-                    st.markdown(f"- {line}")
+                lines = text.split("\n")
+                for line in lines:
+                    line = line.strip()
 
-                # Display extracted data
-                st.subheader("Extracted Section Pages")
-                st.markdown(f"**Time Period:** {quarter}")
-                st.markdown(f"**Fund Performance Page:** {perf_page if perf_page else 'Not found'}")
-                st.markdown(f"**Fund Scorecard Page:** {scorecard_page if scorecard_page else 'Not found'}")
+                    # Skip watchlist lines
+                    if "Fund Meets Watchlist Criteria" in line or "Fund has been placed on watchlist" in line:
+                        continue
 
-        except Exception as e:
-            st.error(f"❌ Error reading PDF: {e}")
+                    # Fund name (bold subheadings)
+                    if re.match(r'^[A-Z].{5,}$', line) and "Pass" not in line and "Review" not in line:
+                        current_fund = {"name": line.strip(), "metrics": []}
+                        metric_blocks.append(current_fund)
+                        continue
+
+                    # Metric line with Pass/Review
+                    if current_fund and ("Pass" in line or "Review" in line):
+                        m = re.match(r"(.+?)\s+(Pass|Review)\s+(.+)", line)
+                        if m:
+                            metric_name = m.group(1).strip()
+                            status = m.group(2).strip()
+                            reason = m.group(3).strip()
+                            current_fund["metrics"].append((metric_name, status, reason))
+
+            # Display Results
+            st.subheader("Extracted Funds + Metrics")
+            for fund in metric_blocks:
+                st.markdown(f"**{fund['name']}**")
+                for metric in fund["metrics"]:
+                    st.markdown(f"- {metric[0]} → **{metric[1]}** — {metric[2]}")
+                st.markdown("---")
+
+    except Exception as e:
+        st.error(f"❌ Error reading PDF: {e}")
