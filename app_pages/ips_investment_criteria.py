@@ -1,17 +1,45 @@
 import streamlit as st
 import pdfplumber
+import re
 
 def run():
-    st.set_page_config(page_title="Step 1: Upload MPI PDF", layout="wide")
-    st.title("Step 1: Upload MPI.pdf")
+    st.set_page_config(page_title="Step 2: Read Page 1", layout="wide")
+    st.title("Step 2: Read First Page of MPI PDF")
 
-    # Step 1: Upload PDF
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step1_upload")
+    # Step 1 – Upload PDF
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step2_upload")
 
     if uploaded_file:
         st.success("✅ MPI PDF successfully uploaded.")
+
         try:
             with pdfplumber.open(uploaded_file) as pdf:
-                st.write(f"PDF contains {len(pdf.pages)} pages.")
+                page1 = pdf.pages[0].extract_text()
+                st.subheader("Raw Text from Page 1")
+                st.text(page1)
+
+                # Step 2 – Extract Quarter Date
+                quarter_match = re.search(r'(3/31|6/30|9/30|12/31)/20\d{2}', page1)
+                quarter = quarter_match.group(0) if quarter_match else "Not found"
+
+                # Total Options
+                total_match = re.search(r"Total Options:\s*(\d+)", page1)
+                total_options = total_match.group(1) if total_match else "Not found"
+
+                # Prepared For
+                prepared_for_match = re.search(r"Prepared For:\s*\n(.+)", page1)
+                prepared_for = prepared_for_match.group(1).strip() if prepared_for_match else "Not found"
+
+                # Prepared By
+                prepared_by_match = re.search(r"Prepared By:\s*\n(.+)", page1)
+                prepared_by = prepared_by_match.group(1).strip() if prepared_by_match else "Not found"
+
+                # Show extracted info
+                st.subheader("Extracted Page 1 Info")
+                st.markdown(f"**Quarter End Date:** {quarter}")
+                st.markdown(f"**Total Options:** {total_options}")
+                st.markdown(f"**Prepared For:** {prepared_for}")
+                st.markdown(f"**Prepared By:** {prepared_by}")
+
         except Exception as e:
-            st.error(f"Error reading PDF: {e}")
+            st.error(f"❌ Error reading PDF: {e}")
