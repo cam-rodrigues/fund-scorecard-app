@@ -3,170 +3,111 @@ import pdfplumber
 import re
 
 def run():
-    st.set_page_config(page_title="Step 12: IPS Criteria Screening", layout="wide")
-    st.title("Step 12: IPS Investment Criteria Screening")
+    st.set_page_config(page_title="Step 13: Fund Performance Extract", layout="wide")
+    st.title("Step 13: Extract Fund Performance Info")
 
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step12_upload")
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step13_upload")
     if not uploaded_file:
         return
 
     try:
         with pdfplumber.open(uploaded_file) as pdf:
-            # === Extract Total Options ===
-            page1_text = pdf.pages[0].extract_text()
-            total_match = re.search(r"Total Options:\s*(\d+)", page1_text or "")
-            declared_total = int(total_match.group(1)) if total_match else None
-
-            # === Extract Scorecard Page ===
-            toc_text = pdf.pages[1].extract_text()
-            def find_page(section_title):
+            # === Step 1: Fund Names from Scorecard Section (re-run block from Step 12) ===
+            def get_scorecard_page(toc_text):
                 for line in toc_text.split("\n"):
-                    if section_title in line:
-                        match = re.search(r"(\d+)$", line)
-                        return int(match.group(1)) if match else None
+                    if "Fund Scorecard" in line:
+                        m = re.search(r"(\d+)$", line)
+                        return int(m.group(1)) if m else None
                 return None
-            scorecard_page = find_page("Fund Scorecard")
-            if not scorecard_page:
-                st.error("❌ Could not find Fund Scorecard page.")
+
+            def get_perf_page(toc_text):
+                for line in toc_text.split("\n"):
+                    if "Fund Performance: Current vs. Proposed Comparison" in line:
+                        m = re.search(r"(\d+)$", line)
+                        return int(m.group(1)) if m else None
+                return None
+
+            # --- TOC
+            toc_text = pdf.pages[1].extract_text()
+            scorecard_page = get_scorecard_page(toc_text)
+            perf_page = get_perf_page(toc_text)
+
+            if not scorecard_page or not perf_page:
+                st.error("❌ Could not find required TOC sections.")
                 return
 
-            # === Pull Scorecard Text ===
-            lines_buffer = []
+            # === Step 2: Extract Cleaned Fund Names from Scorecard Section ===
+            scorecard_lines = []
             for page in pdf.pages[scorecard_page - 1:]:
                 text = page.extract_text()
-                if not text:
-                    continue
-                lines_buffer.extend(text.split("\n"))
+                if text and "Fund Scorecard" in text:
+                    scorecard_lines.extend(text.split("\n"))
+                else:
+                    break  # exit if we move past scorecard section
 
-            skip_keywords = [
-                "Criteria Threshold", "Portfolio manager", "must outperform", "must be in the top",
-                "must be greater than", "Created with mpi Stylus"
-            ]
-            cleaned_lines = [
-                line.strip() for line in lines_buffer
-                if not any(kw in line for kw in skip_keywords)
-            ]
+            # --- Remove boilerplate
+            skip_keywords = ["Criteria Threshold", "must outperform", "Created with mpi Stylus"]
+            scorecard_lines = [l.strip() for l in scorecard_lines if not any(k in l for k in skip_keywords)]
 
-            # === Extract Funds ===
-            fund_blocks = []
+            # --- Extract names above "Manager Tenure"
+            fund_names = []
             i = 0
-            while i < len(cleaned_lines):
-                if "Manager Tenure" in cleaned_lines[i]:
-                    if i == 0:
-                        i += 1
-                        continue
-                    fund_name = cleaned_lines[i - 1].strip()
-                    metrics_block = cleaned_lines[i:i + 14]
-                    parsed_metrics = []
-
-                    for m_line in metrics_block:
-                        m = re.match(r"(.+?)\s+(Pass|Review)\s+(.*)", m_line)
-                        if m:
-                            metric_name = m.group(1).strip()
-                            status = m.group(2).strip()
-                            reason = m.group(3).strip()
-                            parsed_metrics.append((metric_name, status, reason))
-
-                    fund_blocks.append({
-                        "name": fund_name,
-                        "metrics": parsed_metrics
-                    })
+            while i < len(scorecard_lines):
+                if "Manager Tenure" in scorecard_lines[i]:
+                    if i > 0:
+                        fund_name = scorecard_lines[i - 1]
+                        fund_name = re.sub(r"Fund Meets Watchlist Criteria\.", "", fund_name)
+                        fund_name = re.sub(r"Fund has been placed on watchlist.*", "", fund_name).strip()
+                        if fund_name and "FUND FACTS 3 YEAR ROLLING STYLE" not in fund_name.upper():
+                            fund_names.append(fund_name)
                     i += 14
                 else:
                     i += 1
 
-            # === Filter Fund Names ===
-            def clean_watchlist_text(name):
-                name = re.sub(r"Fund Meets Watchlist Criteria\.", "", name)
-                name = re.sub(r"Fund has been placed on watchlist.*", "", name)
-                return name.strip()
-
-            invalid_name_terms = [
-                "FUND FACTS 3 YEAR ROLLING STYLE",
-                "FUND FACTS 3 YEAR ROLLING STYLE ASSET LOADINGS (Returns-based)"
-            ]
-
-            cleaned_funds = []
-            for f in fund_blocks:
-                if any(term in f["name"].upper() for term in invalid_name_terms):
-                    continue
-                name = clean_watchlist_text(f["name"])
-                if name:
-                    cleaned_funds.append({"name": name, "metrics": f["metrics"]})
-
-            # === IPS Screening Logic ===
-            def screen_ips(fund):
-                name = fund["name"]
-                metrics = {m[0]: m[1] for m in fund["metrics"]}
-
-                is_passive = "bitcoin" in name.lower()
-
-                def status(metric_name):
-                    return metrics.get(metric_name, "Review")
-
-                results = []
-
-                # 1: Manager Tenure
-                results.append(status("Manager Tenure"))
-
-                # 2: 3Y Performance or 3Y R²
-                results.append(
-                    status("R-Squared (3Yr)") if is_passive else status("Excess Performance (3Yr)")
-                )
-
-                # 3: 3Y Peer Rank
-                results.append(status("Peer Return Rank (3Yr)"))
-
-                # 4: 3Y Sharpe
-                results.append(status("Sharpe Ratio Rank (3Yr)"))
-
-                # 5: 3Y Sortino or Tracking Error
-                results.append(
-                    status("Tracking Error Rank (3Yr)") if is_passive else status("Sortino Ratio Rank (3Yr)")
-                )
-
-                # 6: 5Y Performance or 5Y R²
-                results.append(
-                    status("R-Squared (5Yr)") if is_passive else status("Excess Performance (5Yr)")
-                )
-
-                # 7: 5Y Peer Rank
-                results.append(status("Peer Return Rank (5Yr)"))
-
-                # 8: 5Y Sharpe
-                results.append(status("Sharpe Ratio Rank (5Yr)"))
-
-                # 9: 5Y Sortino or Tracking Error
-                results.append(
-                    status("Tracking Error Rank (5Yr)") if is_passive else status("Sortino Ratio Rank (5Yr)")
-                )
-
-                # 10: Expense Ratio
-                results.append(status("Expense Ratio Rank"))
-
-                # 11: Investment Style = always Pass
-                results.append("Pass")
-
-                return results
-
-            # === Display IPS Results ===
-            st.subheader("IPS Investment Criteria Results")
-            for fund in cleaned_funds:
-                ips_results = screen_ips(fund)
-                fail_count = sum(1 for r in ips_results if r == "Review")
-
-                if fail_count <= 4:
-                    status_label = "✅ Passed IPS Screen"
-                elif fail_count == 5:
-                    status_label = "🟠 Informal Watch (IW)"
+            # === Step 3: Extract Tickers, Categories, Benchmarks ===
+            perf_lines = []
+            for page in pdf.pages[perf_page - 1:]:
+                text = page.extract_text()
+                if text and "Fund Performance: Current vs. Proposed Comparison" in text:
+                    perf_lines.extend(text.split("\n"))
                 else:
-                    status_label = "🔴 Formal Watch (FW)"
+                    break  # exit if we move past section
 
-                st.markdown(f"### {fund['name']}")
-                for idx, res in enumerate(ips_results, start=1):
-                    color = "green" if res == "Pass" else "red"
-                    st.markdown(f"- **{idx}.** `{res}`", unsafe_allow_html=True)
-                st.markdown(f"**Final IPS Status:** {status_label}")
+            # Create map: fund_name ➝ (ticker, category, benchmark)
+            fund_perf_data = {}
+
+            for i, line in enumerate(perf_lines):
+                for fund in fund_names:
+                    if fund in line:
+                        # Check right side of line for 5-letter uppercase ticker
+                        right_part = line.split(fund)[-1]
+                        match = re.search(r"\b([A-Z]{5})\b", right_part)
+                        ticker = match.group(1) if match else "Not Found"
+
+                        # Category = line above
+                        category = perf_lines[i - 1].strip() if i > 0 else "Unknown"
+
+                        # Benchmark = line below
+                        benchmark = perf_lines[i + 1].strip() if i + 1 < len(perf_lines) else "Unknown"
+
+                        fund_perf_data[fund] = {
+                            "ticker": ticker,
+                            "category": category,
+                            "benchmark": benchmark
+                        }
+
+            # === Step 4: Display Results ===
+            st.subheader("Fund Performance Extracted Info")
+            for fund in fund_names:
+                data = fund_perf_data.get(fund, {})
+                ticker = data.get("ticker", "Not Found")
+                category = data.get("category", "Unknown")
+                benchmark = data.get("benchmark", "Unknown")
+
+                st.markdown(f"### {fund}")
+                st.markdown(f"- **Ticker:** {ticker}")
+                st.markdown(f"- **Category:** {category}")
+                st.markdown(f"- **Benchmark:** {benchmark}")
                 st.markdown("---")
 
     except Exception as e:
