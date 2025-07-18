@@ -58,15 +58,11 @@ def run():
     st.set_page_config(page_title="IPS Investment Criteria", layout="wide")
     st.title("IPS Investment Criteria Screening")
 
-    # --- Sidebar Content ---
-    with st.sidebar:
-        st.markdown("### IPS Evaluation")
-        st.markdown("Upload an MPI PDF and evaluate funds against IPS metrics.")
-
     uploaded_file = st.file_uploader("Upload an MPI-style PDF", type=["pdf"])
     if not uploaded_file:
         st.stop()
 
+    # Extract PDF content
     with pdfplumber.open(uploaded_file) as pdf:
         raw_text = [safe_extract(p) for p in pdf.pages]
         page1 = raw_text[0] if raw_text else ""
@@ -165,18 +161,8 @@ def run():
 
         # --- Step 8: Display & Download ---
         st.success("IPS Evaluation Complete")
-
-        data = []
-        for r in ws.iter_rows(min_row=2, values_only=True):
-            if r is None:
-                continue
-            r = list(r)
-            if len(r) < len(headers):
-                r += [""] * (len(headers) - len(r))
-            data.append(r)
-
-        df = pd.DataFrame(data, columns=headers)
-        st.dataframe(df)
+        st.dataframe(pd.DataFrame([r[:5] + r[5:-1] + [r[-1]] for r in ws.iter_rows(min_row=2, values_only=True)],
+                                  columns=headers))
 
         buffer = BytesIO()
         wb.save(buffer)
