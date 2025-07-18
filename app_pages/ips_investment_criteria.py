@@ -2,171 +2,146 @@ import streamlit as st
 import pdfplumber
 import pandas as pd
 import re
-from io import BytesIO
 from datetime import datetime
-from openpyxl import Workbook
-from openpyxl.styles import PatternFill, Font
 
-# --- IPS Metric Names ---
-IPS_METRICS = [
-    "Manager Tenure",
-    "3Y: Benchmark/R²",
-    "3Y: Peer Rank",
-    "3Y: Sharpe",
-    "3Y: Sortino/TE",
-    "5Y: Benchmark/R²",
-    "5Y: Peer Rank",
-    "5Y: Sharpe",
-    "5Y: Sortino/TE",
-    "Expense Ratio",
-    "Investment Style"
-]
+# === STEP 1: Extract fund names, tickers, and categories ===
+def extract_fund_info(pdf):
+    fund_info = []
+    in_perf_section = False
 
-# --- Color Styles ---
-GREEN = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
-RED = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
-ORANGE = PatternFill(start_color="F4B084", end_color="F4B084", fill_type="solid")
-WHITE_TEXT = Font(color="FFFFFF")
+    for page in pdf.pages:
+        text = page.extract_text()
+        if not text:
+            continue
 
-# --- Utility: Extract text safely ---
-def safe_extract(page):
-    try:
-        return page.extract_text()
-    except:
-        return ""
+        lines = text.split("\n")
+        for i, line in enumerate(lines):
+            if "Fund Performance: Current vs. Proposed Comparison" in line:
+                in_perf_section = True
 
-# --- IPS Pass/Fail logic ---
-def evaluate_ips_status(metrics, fund_type):
-    passes = []
-    for idx, metric in enumerate(metrics[:10]):
-        if metric == "Pass":
-            passes.append(True)
-        else:
-            passes.append(False)
-    passes.append(True)  # Investment Style is always Pass
+            if in_perf_section:
+                if re.match(r"^[A-Z]{4,6}X?$", line.strip()):  # Ticker line
+                    name_line = lines[i - 1].strip()
+                    category = ""
+                    for j in range(i - 2, max(i - 6, 0), -1):
+                        if any(word in lines[j] for word in ["Cap", "Blend", "Value", "Growth"]):
+                            category = lines[j].strip()
+                            break
+                    fund_info.append({
+                        "Fund Name": name_line,
+                        "Category": category,
+                        "Ticker": line.strip()
+                    })
+    return fund_info
 
-    fails = 11 - sum(passes)
-    if fails <= 4:
-        return "Passed IPS Screen", GREEN
-    elif fails == 5:
-        return "Informal Watch", ORANGE
-    else:
-        return "Formal Watch", RED
+# === STEP 2: Extract scorecard metrics ===
+def extract_scorecard(pdf):
+    fund_blocks = {}
+    current_fund = None
+    current_metrics = []
 
-# --- Main App ---
-def run():
-    st.set_page_config(page_title="IPS Investment Criteria", layout="wide")
-    st.title("IPS Investment Criteria Screening")
-
-    uploaded_file = st.file_uploader("Upload an MPI-style PDF", type=["pdf"])
-    if not uploaded_file:
-        st.stop()
-
-    # Extract PDF content
-    with pdfplumber.open(uploaded_file) as pdf:
-        raw_text = [safe_extract(p) for p in pdf.pages]
-        page1 = raw_text[0] if raw_text else ""
-        toc_page = raw_text[1] if len(raw_text) > 1 else ""
-
-        # --- Step 2: Extract Time Period ---
-        time_period = None
-        for line in page1.split("\n"):
-            if re.search(r"\b(3/31|6/20|9/30|12/31)/20\d{2}\b", line):
-                time_period = line.strip()
-                break
-
-        # --- Step 3: Page 1 Info ---
-        total_options = None
-        prepared_for = None
-        for line in page1.split("\n"):
-            if "Total Options" in line:
-                total_options = re.search(r"Total Options: ?(\d+)", line)
-                total_options = int(total_options.group(1)) if total_options else None
-            if "Prepared For" in line:
-                idx = page1.split("\n").index(line)
-                prepared_for = page1.split("\n")[idx + 1].strip()
-
-        # --- Step 4: Locate section pages from ToC ---
-        def find_section_page(section_name):
-            for line in toc_page.split("\n"):
-                if section_name in line:
-                    match = re.search(r"\s(\d+)$", line.strip())
-                    return int(match.group(1)) - 1 if match else None
-            return None
-
-        perf_pg = find_section_page("Fund Performance: Current vs. Proposed Comparison")
-        scorecard_pg = find_section_page("Fund Scorecard")
-
-        if perf_pg is None or scorecard_pg is None:
-            st.error("Failed to locate section pages.")
-            st.stop()
-
-        # --- Step 5: Extract Fund Scorecard Section ---
-        fund_data = []
-        fund_name = None
-        current_metrics = []
-        fund_lines = "\n".join(raw_text[scorecard_pg:])
-
-        for line in fund_lines.split("\n"):
-            if re.match(r"^[A-Z].+\b(Fund|ETF)\b", line):
-                if fund_name and current_metrics:
-                    fund_data.append((fund_name, current_metrics))
-                fund_name = line.strip()
+    for page in pdf.pages:
+        text = page.extract_text()
+        if not text:
+            continue
+        lines = text.split("\n")
+        for line in lines:
+            if "Fund Scorecard" in line:
+                continue
+            if re.match(r'^[A-Z][\w\s\-&,]+$', line.strip()) and len(line.strip().split()) > 2:
+                if current_fund and current_metrics:
+                    fund_blocks[current_fund] = current_metrics.copy()
+                current_fund = line.strip()
                 current_metrics = []
-            elif any(metric in line for metric in IPS_METRICS):
-                if "Pass" in line:
-                    current_metrics.append("Pass")
-                elif "Review" in line:
-                    current_metrics.append("Fail")
+            elif any(metric in line for metric in ["Tenure", "Performance", "Sharpe", "Sortino", "Tracking", "Expense", "Style"]):
+                current_metrics.append(line.strip())
+        if current_fund and current_metrics:
+            fund_blocks[current_fund] = current_metrics
+    return fund_blocks
 
-        if fund_name and current_metrics:
-            fund_data.append((fund_name, current_metrics))
+# === STEP 3: IPS evaluation logic ===
+def parse_value(text):
+    try:
+        return float(re.findall(r"[-+]?\d*\.\d+|\d+", text)[0])
+    except:
+        return None
 
-        # --- Step 6: Match to Performance Table ---
-        ticker_lookup = {}
-        category_lookup = {}
-        perf_lines = "\n".join(raw_text[perf_pg:]).split("\n")
-        for i, line in enumerate(perf_lines):
-            if re.match(r"^[A-Z]{5}$", line.strip()):
-                fund = perf_lines[i - 1].strip()
-                category = perf_lines[i - 2].strip()
-                ticker = line.strip()
-                ticker_lookup[fund] = ticker
-                category_lookup[fund] = category
+def evaluate_metric(text, index):
+    text = text.lower()
+    if index == 0:
+        return parse_value(text) >= 3
+    elif index == 1:
+        return "outperform" in text or ("r²" in text and parse_value(text) >= 95)
+    elif index == 2:
+        return "rank" in text and parse_value(text) <= 50
+    elif index == 3:
+        return "sharpe" in text and parse_value(text) <= 50
+    elif index == 4:
+        return ("sortino" in text and parse_value(text) <= 50) or ("tracking" in text and parse_value(text) < 90)
+    elif index == 5:
+        return "outperform" in text or ("r²" in text and parse_value(text) >= 95)
+    elif index == 6:
+        return "rank" in text and parse_value(text) <= 50
+    elif index == 7:
+        return "sharpe" in text and parse_value(text) <= 50
+    elif index == 8:
+        return ("sortino" in text and parse_value(text) <= 50) or ("tracking" in text and parse_value(text) < 90)
+    elif index == 9:
+        return "expense" in text and parse_value(text) < 50
+    elif index == 10:
+        return "consistent" in text
+    return False
 
-        # --- Step 7: Build Output Table ---
-        wb = Workbook()
-        ws = wb.active
-        headers = [
-            "Investment Option", "Category", "Ticker", "Time Period", "Plan Assets"
-        ] + [f"{i+1}" for i in range(11)] + ["IPS Status"]
-        ws.append(headers)
+# === STEP 4: Build final table ===
+def build_table(fund_info_list, scorecard_blocks):
+    quarter = f"Q{((datetime.now().month - 1) // 3) + 1} {datetime.now().year}"
+    results = []
 
-        for fund, metrics in fund_data:
-            ticker = ticker_lookup.get(fund, "N/A")
-            category = category_lookup.get(fund, "N/A")
-            fund_type = "Passive" if "Bitcoin" in fund else "Active"
-            status, status_fill = evaluate_ips_status(metrics, fund_type)
+    for fund in fund_info_list:
+        name = fund["Fund Name"]
+        matched_name = next((sc_name for sc_name in scorecard_blocks if name.lower() in sc_name.lower()), None)
+        metrics = scorecard_blocks.get(matched_name, [])
+        pass_fail = []
+        for i in range(11):
+            if i < len(metrics):
+                pass_fail.append("Pass" if evaluate_metric(metrics[i], i) else "Fail")
+            else:
+                pass_fail.append("Fail")
+        fails = pass_fail.count("Fail")
+        if fails <= 4:
+            status = "Passed IPS Screen"
+        elif fails == 5:
+            status = "Informal Watch (IW)"
+        else:
+            status = "Formal Watch (FW)"
 
-            row = [fund, category, ticker, time_period, "$"] + metrics + [status]
-            ws.append(row)
-            for i, val in enumerate(metrics):
-                cell = ws.cell(row=ws.max_row, column=6 + i)
-                cell.fill = GREEN if val == "Pass" else RED
+        results.append({
+            "Name Of Fund": name,
+            "Category": fund["Category"],
+            "Ticker": fund["Ticker"],
+            "Time Period": quarter,
+            "Plan Assets": "$",
+            **{str(i+1): pass_fail[i] for i in range(11)},
+            "IPS Status": status
+        })
 
-            # Format IPS Status Cell
-            status_cell = ws.cell(row=ws.max_row, column=len(headers))
-            status_cell.fill = status_fill
-            status_cell.font = WHITE_TEXT
+    return pd.DataFrame(results)
 
-        # --- Step 8: Display & Download ---
-        st.success("IPS Evaluation Complete")
-        st.dataframe(pd.DataFrame([r[:5] + r[5:-1] + [r[-1]] for r in ws.iter_rows(min_row=2, values_only=True)],
-                                  columns=headers))
+# === MAIN STREAMLIT ENTRYPOINT ===
+def run():
+    st.set_page_config(page_title="IPS Fund Evaluation", layout="wide")
+    st.title("IPS Investment Criteria Evaluation")
 
-        buffer = BytesIO()
-        wb.save(buffer)
-        st.download_button("Download Excel", buffer.getvalue(), file_name="IPS_Evaluation.xlsx")
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"])
 
-if __name__ == "__main__":
-    run()
+    if uploaded_file:
+        with pdfplumber.open(uploaded_file) as pdf:
+            fund_info_list = extract_fund_info(pdf)
+            scorecard_blocks = extract_scorecard(pdf)
+            df = build_table(fund_info_list, scorecard_blocks)
+
+        st.success("Evaluation complete.")
+        st.dataframe(df, use_container_width=True)
+
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("Download CSV", csv, "ips_evaluation.csv", "text/csv")
