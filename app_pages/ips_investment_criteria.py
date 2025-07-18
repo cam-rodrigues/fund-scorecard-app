@@ -58,6 +58,11 @@ def run():
     st.set_page_config(page_title="IPS Investment Criteria", layout="wide")
     st.title("IPS Investment Criteria Screening")
 
+    # --- Sidebar Content ---
+    with st.sidebar:
+        st.markdown("### IPS Evaluation")
+        st.markdown("Upload an MPI PDF and evaluate funds against IPS metrics.")
+
     uploaded_file = st.file_uploader("Upload an MPI-style PDF", type=["pdf"])
     if not uploaded_file:
         st.stop()
