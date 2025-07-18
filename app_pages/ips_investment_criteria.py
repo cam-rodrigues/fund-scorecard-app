@@ -7,21 +7,21 @@ def extract_short_name(name, words=5):
     return " ".join(name.split()[:words]).lower()
 
 def run():
-    st.set_page_config(page_title="Step 12: IPS + Ticker Match", layout="wide")
-    st.title("Step 12: IPS Investment Criteria Screening + Ticker")
+    st.set_page_config(page_title="Step 14: IPS + Ticker + Reasoning", layout="wide")
+    st.title("Step 14: IPS Investment Criteria with Ticker + Reasoning")
 
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step12_upload")
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step14_upload")
     if not uploaded_file:
         return
 
     try:
         with pdfplumber.open(uploaded_file) as pdf:
-            # === Step 1: Get Total Options from Page 1 ===
+            # === Page 1 Data ===
             page1_text = pdf.pages[0].extract_text()
             total_match = re.search(r"Total Options:\s*(\d+)", page1_text or "")
             declared_total = int(total_match.group(1)) if total_match else None
 
-            # === Step 2: Find TOC Pages ===
+            # === Table of Contents (Page 2) ===
             toc_text = pdf.pages[1].extract_text()
             def find_page(title):
                 for line in toc_text.split("\n"):
@@ -29,18 +29,19 @@ def run():
                         match = re.search(r"(\d+)$", line.strip())
                         return int(match.group(1)) if match else None
                 return None
+
             scorecard_page = find_page("Fund Scorecard")
             perf_page = find_page("Fund Performance: Current vs. Proposed Comparison")
             if not scorecard_page or not perf_page:
-                st.error("❌ Missing page numbers for required sections.")
+                st.error("❌ Could not find required sections in Table of Contents.")
                 return
 
-            # === Step 3: Extract Fund Scorecard ===
+            # === Extract Scorecard Section ===
             lines_buffer = []
             for page in pdf.pages[scorecard_page - 1:]:
                 text = page.extract_text()
-                if not text:
-                    continue
+                if not text or "Style Box Analysis" in text:
+                    break
                 lines_buffer.extend(text.split("\n"))
 
             skip_keywords = [
@@ -76,7 +77,7 @@ def run():
                 else:
                     i += 1
 
-            # === Step 4: Clean Watchlist + Invalid Names ===
+            # === Clean Names ===
             def clean_watchlist_text(name):
                 name = re.sub(r"Fund Meets Watchlist Criteria\.", "", name)
                 name = re.sub(r"Fund has been placed on watchlist.*", "", name)
@@ -95,7 +96,7 @@ def run():
                 if name:
                     cleaned_funds.append({"name": name, "metrics": f["metrics"]})
 
-            # === Step 5: Extract Tickers from Performance Section ===
+            # === Ticker Matching ===
             perf_lines = []
             for page in pdf.pages[perf_page - 1:]:
                 text = page.extract_text()
@@ -118,35 +119,67 @@ def run():
                 else:
                     fund["ticker"] = "Not Found"
 
-            # === Step 6: IPS Screening ===
+            # === IPS Screening w/ Descriptions ===
             def screen_ips(fund):
                 name = fund["name"]
-                metrics = {m[0]: m[1] for m in fund["metrics"]}
+                metrics_raw = {m[0]: (m[1], m[2]) for m in fund["metrics"]}
                 is_passive = "bitcoin" in name.lower()
 
-                def status(metric_name):
-                    return metrics.get(metric_name, "Review")
+                def get(metric_name):
+                    return metrics_raw.get(metric_name, ("Review", "No data"))
 
-                results = [
-                    status("Manager Tenure"),
-                    status("R-Squared (3Yr)") if is_passive else status("Excess Performance (3Yr)"),
-                    status("Peer Return Rank (3Yr)"),
-                    status("Sharpe Ratio Rank (3Yr)"),
-                    status("Tracking Error Rank (3Yr)") if is_passive else status("Sortino Ratio Rank (3Yr)"),
-                    status("R-Squared (5Yr)") if is_passive else status("Excess Performance (5Yr)"),
-                    status("Peer Return Rank (5Yr)"),
-                    status("Sharpe Ratio Rank (5Yr)"),
-                    status("Tracking Error Rank (5Yr)") if is_passive else status("Sortino Ratio Rank (5Yr)"),
-                    status("Expense Ratio Rank"),
-                    "Pass"
-                ]
+                results = []
+
+                results.append(("Manager Tenure", *get("Manager Tenure")))
+
+                if is_passive:
+                    label = "R² (3Y)"
+                    metric_result, metric_reason = get("R-Squared (3Yr)")
+                else:
+                    label = "3Y Performance"
+                    metric_result, metric_reason = get("Excess Performance (3Yr)")
+                results.append((label, metric_result, metric_reason))
+
+                results.append(("3Y Peer Rank", *get("Peer Return Rank (3Yr)")))
+                results.append(("3Y Sharpe", *get("Sharpe Ratio Rank (3Yr)")))
+
+                if is_passive:
+                    label = "Tracking Error (3Y)"
+                    metric_result, metric_reason = get("Tracking Error Rank (3Yr)")
+                else:
+                    label = "3Y Sortino"
+                    metric_result, metric_reason = get("Sortino Ratio Rank (3Yr)")
+                results.append((label, metric_result, metric_reason))
+
+                if is_passive:
+                    label = "R² (5Y)"
+                    metric_result, metric_reason = get("R-Squared (5Yr)")
+                else:
+                    label = "5Y Performance"
+                    metric_result, metric_reason = get("Excess Performance (5Yr)")
+                results.append((label, metric_result, metric_reason))
+
+                results.append(("5Y Peer Rank", *get("Peer Return Rank (5Yr)")))
+                results.append(("5Y Sharpe", *get("Sharpe Ratio Rank (5Yr)")))
+
+                if is_passive:
+                    label = "Tracking Error (5Y)"
+                    metric_result, metric_reason = get("Tracking Error Rank (5Yr)")
+                else:
+                    label = "5Y Sortino"
+                    metric_result, metric_reason = get("Sortino Ratio Rank (5Yr)")
+                results.append((label, metric_result, metric_reason))
+
+                results.append(("Expense Ratio", *get("Expense Ratio Rank")))
+                results.append(("Investment Style", "Pass", "Automatically satisfied"))
+
                 return results
 
-            # === Step 7: Display Results ===
-            st.subheader("IPS Investment Criteria Results + Ticker")
+            # === Display Output ===
+            st.subheader("IPS Results with Reasoning")
             for fund in cleaned_funds:
                 ips_results = screen_ips(fund)
-                fail_count = sum(1 for r in ips_results if r == "Review")
+                fail_count = sum(1 for m in ips_results if m[1] == "Review")
 
                 if fail_count <= 4:
                     status_label = "✅ Passed IPS Screen"
@@ -157,8 +190,8 @@ def run():
 
                 st.markdown(f"### {fund['name']}")
                 st.markdown(f"- **Ticker:** `{fund['ticker']}`")
-                for idx, res in enumerate(ips_results, start=1):
-                    st.markdown(f"- **{idx}.** `{res}`")
+                for idx, (label, result, reason) in enumerate(ips_results, start=1):
+                    st.markdown(f"- **{idx}. {label}** → `{result}` — {reason}")
                 st.markdown(f"**Final IPS Status:** {status_label}")
                 st.markdown("---")
 
