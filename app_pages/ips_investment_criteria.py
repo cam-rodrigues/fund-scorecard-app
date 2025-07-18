@@ -87,15 +87,20 @@ def run():
                 if not any(term in f["name"].upper() for term in invalid_name_terms)
             ]
 
-            # --- Step 11: Remove Watchlist Text From Fund Names ---
-            watchlist_phrases = [
-                "Fund Meets Watchlist Criteria.",
-                "Fund has been placed on watchlist"
-            ]
-            final_funds = [
-                f for f in cleaned_funds
-                if not any(phrase in f["name"] for phrase in watchlist_phrases)
-            ]
+            # --- Step 11: Clean Watchlist Sentences from Fund Names ---
+            def clean_watchlist_text(name):
+                name = re.sub(r"Fund Meets Watchlist Criteria\.", "", name)
+                name = re.sub(r"Fund has been placed on watchlist.*", "", name)
+                return name.strip()
+
+            final_funds = []
+            for f in cleaned_funds:
+                cleaned_name = clean_watchlist_text(f["name"])
+                if cleaned_name:  # Only include if something remains
+                    final_funds.append({
+                        "name": cleaned_name,
+                        "metrics": f["metrics"]
+                    })
 
             # --- Display Results ---
             st.subheader("Double Check: Investment Option Count")
@@ -109,7 +114,7 @@ def run():
             else:
                 st.error("❌ Mismatch between declared and extracted Investment Options.")
 
-            st.subheader("Cleaned Investment Options (Watchlist removed)")
+            st.subheader("Cleaned Investment Options (Watchlist stripped)")
             for fund in final_funds:
                 st.markdown(f"### {fund['name']}")
                 for metric in fund["metrics"]:
