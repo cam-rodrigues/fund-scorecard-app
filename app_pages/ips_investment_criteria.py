@@ -3,21 +3,21 @@ import pdfplumber
 import re
 
 def run():
-    st.set_page_config(page_title="Step 9: Fund Match Check", layout="wide")
-    st.title("Step 9: Check Number of Investment Options")
+    st.set_page_config(page_title="Step 10: Clean Fund Names", layout="wide")
+    st.title("Step 10: Final Cleanup of Investment Options")
 
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step9_upload")
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step10_upload")
     if not uploaded_file:
         return
 
     try:
         with pdfplumber.open(uploaded_file) as pdf:
-            # --- Extract Total Options from page 1 ---
+            # --- Step 1: Extract Total Options from page 1 ---
             page1_text = pdf.pages[0].extract_text()
             total_match = re.search(r"Total Options:\s*(\d+)", page1_text or "")
             declared_total = int(total_match.group(1)) if total_match else None
 
-            # --- Extract Fund Scorecard starting page from TOC ---
+            # --- Step 2: Find Fund Scorecard page ---
             toc_text = pdf.pages[1].extract_text()
             def find_page(section_title):
                 for line in toc_text.split("\n"):
@@ -31,7 +31,7 @@ def run():
                 st.error("❌ Could not find Fund Scorecard page.")
                 return
 
-            # --- Extract Investment Options from scorecard section ---
+            # --- Step 3: Extract lines from scorecard section ---
             lines_buffer = []
             for page in pdf.pages[scorecard_page - 1:]:
                 text = page.extract_text()
@@ -39,7 +39,7 @@ def run():
                     continue
                 lines_buffer.extend(text.split("\n"))
 
-            # Step 8 cleanup: remove threshold/boilerplate definitions
+            # --- Step 4: Remove threshold/boilerplate definitions ---
             cleaned_lines = []
             skip_keywords = [
                 "Criteria Threshold", "Portfolio manager", "must outperform", "must be in the top",
@@ -49,7 +49,7 @@ def run():
                 if not any(kw in line for kw in skip_keywords):
                     cleaned_lines.append(line.strip())
 
-            # Step 8 logic: parse funds
+            # --- Step 5: Parse funds ---
             fund_blocks = []
             i = 0
             while i < len(cleaned_lines):
@@ -78,24 +78,34 @@ def run():
                 else:
                     i += 1
 
-            # --- Step 9: Compare counts ---
-            extracted_count = len(fund_blocks)
+            # --- Step 6: Remove invalid Investment Options ---
+            invalid_terms = [
+                "FUND FACTS 3 YEAR ROLLING STYLE",
+                "FUND FACTS 3 YEAR ROLLING STYLE ASSET LOADINGS (Returns-based)"
+            ]
+            valid_funds = [
+                block for block in fund_blocks
+                if not any(term in block["name"].upper() for term in invalid_terms)
+            ]
 
+            # --- Step 7: Show results ---
             st.subheader("Double Check: Investment Option Count")
             st.markdown(f"- Declared in PDF (Page 1): **{declared_total if declared_total else 'Not found'}**")
-            st.markdown(f"- Extracted from Scorecard: **{extracted_count}**")
+            st.markdown(f"- Extracted from Scorecard (after cleanup): **{len(valid_funds)}**")
 
             if declared_total is None:
                 st.warning("⚠️ Could not find Total Options on Page 1.")
-            elif declared_total == extracted_count:
+            elif declared_total == len(valid_funds):
                 st.success("✅ Number of Investment Options matches.")
             else:
-                st.error("❌ Mismatch: PDF says one number, but we extracted a different number.")
+                st.error("❌ Mismatch: Declared vs Extracted count.")
 
-            # Optional display of the fund names
-            st.subheader("Extracted Fund Names")
-            for block in fund_blocks:
-                st.markdown(f"- {block['name']}")
+            st.subheader("Cleaned Investment Options")
+            for block in valid_funds:
+                st.markdown(f"**{block['name']}**")
+                for metric in block["metrics"]:
+                    st.markdown(f"- {metric[0]} → {metric[1]} — {metric[2]}")
+                st.markdown("---")
 
     except Exception as e:
         st.error(f"❌ Error reading PDF: {e}")
