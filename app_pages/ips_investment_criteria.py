@@ -5,17 +5,17 @@ import re
 from io import BytesIO
 from datetime import datetime
 
-# --- Helper: Extract Time Period (Step 2) ---
+# --- Step 2: Extract Time Period ---
 def extract_time_period(text):
     match = re.search(r'(3/31|6/30|9/30|12/31)/20\d{2}', text)
     return match.group(0) if match else "Unknown"
 
-# --- Helper: Get Page Numbers from TOC (Step 4) ---
+# --- Step 4: Extract Page Number from TOC ---
 def find_section_page(text, section_title):
     match = re.search(rf"{re.escape(section_title)}\s+\.{{2,}}\s+(\d+)", text)
     return int(match.group(1)) if match else None
 
-# --- Helper: Extract IPS Metrics from Scorecard (Step 5) ---
+# --- Step 5: Extract Metrics from Fund Scorecard ---
 def extract_fund_scorecard_blocks(pdf, scorecard_start):
     blocks = []
     current_fund = None
@@ -38,9 +38,9 @@ def extract_fund_scorecard_blocks(pdf, scorecard_start):
                     current_fund["metrics"].append((metric_name.strip(), status))
     return blocks
 
-# --- Helper: Determine IPS Status (Step 5.5) ---
+# --- Step 5.5: Apply IPS Rules ---
 def apply_ips_scoring(fund):
-    metrics = fund["metrics"][:11]  # First 11 only
+    metrics = fund["metrics"][:11]  # Use first 11
     fails = sum(1 for m in metrics if m[1] == "Review")
     if fails <= 4:
         status = "Passed IPS Screen"
@@ -50,7 +50,7 @@ def apply_ips_scoring(fund):
         status = "Formal Watch (FW)"
     return [("Fail" if m[1] == "Review" else "Pass") for m in metrics], status
 
-# --- Helper: Match Fund to Ticker + Category (Step 6) ---
+# --- Step 6: Build Fund Name ➝ Ticker/Category Lookup ---
 def build_perf_lookup(pdf, perf_page):
     lookup = {}
     text = pdf.pages[perf_page - 1].extract_text()
@@ -69,7 +69,7 @@ def build_perf_lookup(pdf, perf_page):
                 }
     return lookup
 
-# --- Final Output Table (Step 7) ---
+# --- Step 7: Assemble Final DataFrame ---
 def build_final_df(blocks, perf_lookup, time_period):
     rows = []
     for fund in blocks:
@@ -87,12 +87,12 @@ def build_final_df(blocks, perf_lookup, time_period):
     columns = ["Investment Option", "Category", "Ticker", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
     return pd.DataFrame(rows, columns=columns)
 
-# --- Streamlit App ---
+# --- Step 1 + 8: Streamlit UI ---
 def run():
     st.set_page_config(page_title="IPS Investment Criteria Evaluator", layout="wide")
     st.title("IPS Investment Criteria Evaluator")
 
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"])
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="ips_pdf_upload")
     if not uploaded_file:
         return
 
@@ -102,25 +102,27 @@ def run():
         time_period = extract_time_period(page1 or "")
         st.info(f"Time Period Detected: **{time_period}**")
 
-        # Step 4 – TOC Pages
+        # Step 4 – TOC Parsing
         toc = pdf.pages[1].extract_text()
-        perf_page = find_section_page(toc, "Fund Performance: Current vs. Proposed Comparison")
+        st.text("TOC (Page 2):\n" + toc)  # Optional Debug Viewer
+
+        perf_page = find_section_page(toc, "Fund Performance")
         scorecard_page = find_section_page(toc, "Fund Scorecard")
         if not perf_page or not scorecard_page:
             st.error("Could not detect required sections from Table of Contents.")
             return
 
-        # Step 5 – Extract Metrics
+        # Step 5 – Extract Metrics from Fund Scorecard
         blocks = extract_fund_scorecard_blocks(pdf, scorecard_page)
 
-        # Step 6 – Ticker/Category Match
+        # Step 6 – Ticker and Category from Performance
         perf_lookup = build_perf_lookup(pdf, perf_page)
 
-        # Step 7 – Build Table
+        # Step 7 – Build Final Output
         df = build_final_df(blocks, perf_lookup, time_period)
         st.dataframe(df)
 
-        # Step 8 – Downloads
+        # Step 8 – Download Options
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button("Download CSV", data=csv, file_name="IPS_Results.csv", mime="text/csv")
 
@@ -128,5 +130,3 @@ def run():
         with pd.ExcelWriter(excel_io, engine='xlsxwriter') as writer:
             df.to_excel(writer, index=False, sheet_name="IPS Results")
         st.download_button("Download Excel", data=excel_io.getvalue(), file_name="IPS_Results.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-# For modular apps, don't call run() here. Do that in app.py or __main__.
