@@ -9,7 +9,7 @@ def extract_time_period(text):
     match = re.search(r'(3/31|6/30|9/30|12/31)/20\d{2}', text)
     return match.group(0) if match else "Unknown"
 
-# STEP 3 – Extract Prepared For / By / Total Options
+# STEP 3 – Extract Page 1 Global Info
 def extract_page1_info(text):
     total_options = re.search(r"Total Options:\s*(\d+)", text)
     prepared_for = re.search(r"Prepared For:\s*(.+)", text)
@@ -20,13 +20,13 @@ def extract_page1_info(text):
         "Prepared By": prepared_by.group(1).strip() if prepared_by else "Unknown"
     }
 
-# STEP 4 – TOC Page Number Lookup
+# STEP 4 – TOC Section Finder
 def find_section_page(text, section_title):
     pattern = rf"{re.escape(section_title)}[\s\.]*?(\d+)"
     match = re.search(pattern, text)
     return int(match.group(1)) if match else None
 
-# STEP 5 – Extract Fund Scorecard Blocks
+# STEP 5 – Extract Scorecard Fund Blocks
 def extract_scorecard_blocks(pdf, scorecard_start):
     blocks = []
     current_fund = None
@@ -48,7 +48,7 @@ def extract_scorecard_blocks(pdf, scorecard_start):
                     current_fund["metrics"].append((m.group(1).strip(), m.group(2)))
     return blocks
 
-# STEP 6 – Apply IPS Rules
+# STEP 6 – Apply IPS Status Logic
 def apply_ips_scoring(fund):
     raw_metrics = fund["metrics"][:11]
     while len(raw_metrics) < 11:
@@ -68,7 +68,7 @@ def apply_ips_scoring(fund):
         status = "Formal Watch (FW)"
     return status_list, status
 
-# STEP 7 – Build Fund Name ➝ Ticker + Category lookup
+# STEP 7 – Fund Name ➝ Ticker + Category Lookup
 def build_perf_lookup(pdf, perf_page):
     lookup = {}
     text = pdf.pages[perf_page - 1].extract_text()
@@ -91,8 +91,8 @@ def build_perf_lookup(pdf, perf_page):
             current_category = line.replace("Category", "").strip()
     return lookup
 
-# STEP 8 – Final Output Table
-def build_final_df(blocks, perf_lookup, time_period):
+# STEP 8 – Build Final Output Table
+def build_final_df(blocks, perf_lookup, time_period, page1_info):
     rows = []
     for fund in blocks:
         name = fund["name"]
@@ -104,9 +104,18 @@ def build_final_df(blocks, perf_lookup, time_period):
             match.get("ticker", "Unknown"),
             time_period,
             "$"
-        ] + metrics + [ips_status]
+        ] + metrics + [
+            ips_status,
+            page1_info["Total Options"],
+            page1_info["Prepared For"]
+        ]
         rows.append(row)
-    columns = ["Investment Option", "Category", "Ticker", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
+
+    columns = (
+        ["Investment Option", "Category", "Ticker", "Time Period", "Plan Assets"]
+        + [str(i) for i in range(1, 12)]
+        + ["IPS Status", "Total Options", "Prepared For"]
+    )
     return pd.DataFrame(rows, columns=columns)
 
 # STEP 1 + 9 – Streamlit App
@@ -119,19 +128,20 @@ def run():
         return
 
     with pdfplumber.open(uploaded_file) as pdf:
-        page1 = pdf.pages[0].extract_text()
-        time_period = extract_time_period(page1 or "")
-        page1_info = extract_page1_info(page1 or "")
+        # Extract report context from page 1
+        page1_text = pdf.pages[0].extract_text()
+        time_period = extract_time_period(page1_text or "")
+        page1_info = extract_page1_info(page1_text or "")
 
+        # Extract TOC info from page 2
         toc = pdf.pages[1].extract_text()
         perf_page = find_section_page(toc, "Fund Performance: Current vs. Proposed Comparison")
         scorecard_page = find_section_page(toc, "Fund Scorecard")
-
         if not perf_page or not scorecard_page:
             st.error("❌ Could not find required section page numbers.")
             return
 
-        # Show extracted report-level info
+        # Display header context above table
         st.markdown(f"""
         **Time Period:** {time_period}  
         **Prepared For:** {page1_info['Prepared For']}  
@@ -139,14 +149,15 @@ def run():
         **Total Options:** {page1_info['Total Options']}
         """)
 
-        # Fund processing
+        # Extract and process funds
         blocks = extract_scorecard_blocks(pdf, scorecard_page)
         perf_lookup = build_perf_lookup(pdf, perf_page)
-        df = build_final_df(blocks, perf_lookup, time_period)
+        df = build_final_df(blocks, perf_lookup, time_period, page1_info)
 
-        # Display & download
+        # Show table
         st.dataframe(df)
 
+        # Export buttons
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button("Download CSV", data=csv, file_name="IPS_Results.csv", mime="text/csv")
 
@@ -154,4 +165,3 @@ def run():
         with pd.ExcelWriter(excel_io, engine='xlsxwriter') as writer:
             df.to_excel(writer, index=False, sheet_name="IPS Results")
         st.download_button("Download Excel", data=excel_io.getvalue(), file_name="IPS_Results.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
