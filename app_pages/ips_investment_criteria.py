@@ -2,145 +2,172 @@ import streamlit as st
 import pdfplumber
 import re
 
-def extract_date_and_info(first_page_text):
-    date_match = re.search(r"(3/31|6/20|9/30|12/31)/20\d{2}", first_page_text)
-    quarter = {
-        "3/31": "Q1",
-        "6/20": "Q2",
-        "9/30": "Q3",
-        "12/31": "Q4"
-    }.get(date_match.group(1)) if date_match else "Unknown"
-
-    total_options = re.search(r"Total Options:\s*(\d+)", first_page_text)
-    total_options_count = int(total_options.group(1)) if total_options else 0
-
-    prepared_for = re.search(r"Prepared For:\s*\n(.+)", first_page_text)
-    client_name = prepared_for.group(1).strip() if prepared_for else "Unknown"
-
-    prepared_by = re.search(r"Prepared By:\s*\n(.+)", first_page_text)
-    prepared_by_name = prepared_by.group(1).strip() if prepared_by else "Unknown"
-
-    return quarter, total_options_count, client_name, prepared_by_name
-
-def get_section_pages(toc_text):
-    def find_page(keyword):
-        for line in toc_text.split("\n"):
-            if keyword in line:
-                match = re.search(r"(\d+)$", line.strip())
-                return int(match.group(1)) if match else None
-        return None
-
-    performance_page = find_page("Fund Performance: Current vs. Proposed Comparison")
-    scorecard_page = find_page("Fund Scorecard")
-    return performance_page, scorecard_page
-
-def clean_scorecard_funds(scorecard_lines):
-    funds = []
-    i = 0
-    while i < len(scorecard_lines):
-        line = scorecard_lines[i]
-        if "Manager Tenure" in line:
-            if i > 0:
-                name = scorecard_lines[i - 1].strip()
-                name = re.sub(r"Fund Meets Watchlist Criteria\.", "", name)
-                name = re.sub(r"Fund has been placed on watchlist.*", "", name)
-                if (
-                    name and
-                    "criteria threshold" not in name.lower() and
-                    "style" not in name.lower() and
-                    "asset loading" not in name.lower() and
-                    not name.lower().startswith("fund facts")
-                ):
-                    funds.append(name.strip())
-            i += 14
-        else:
-            i += 1
-    return funds
-
-def extract_performance_data(perf_lines, fund_names):
-    results = []
-
-    for idx in range(1, len(perf_lines) - 1):
-        raw_fund_line = perf_lines[idx]
-        fund_line = raw_fund_line.strip()
-        raw_cat_line = perf_lines[idx - 1]
-        cat_line = raw_cat_line.strip()
-
-        match = re.match(r"^(.*?)([A-Z]{5})\s*$", fund_line)
-        if not match:
-            continue
-
-        fund_name = match.group(1).strip()
-        ticker = match.group(2).strip()
-
-        fund_indent = len(raw_fund_line) - len(raw_fund_line.lstrip())
-        cat_indent = len(raw_cat_line) - len(raw_cat_line.lstrip())
-        category = cat_line if cat_indent < fund_indent and not any(char.isdigit() for char in cat_line) else "Unknown"
-
-        raw_benchmark = perf_lines[idx + 1].strip() if idx + 1 < len(perf_lines) else ""
-        benchmark = raw_benchmark if raw_benchmark.lower().endswith("index") else "Unknown"
-
-        if any(fund_name.lower().startswith(f.lower().split()[0]) for f in fund_names):
-            results.append({
-                "Fund Name": fund_name,
-                "Ticker": ticker,
-                "Category": category,
-                "Benchmark": benchmark
-            })
-
-    return results
-
 def run():
-    st.set_page_config(page_title="All Steps Combined", layout="wide")
-    st.title("IPS Investment Criteria Evaluator (Full Pipeline)")
+    st.set_page_config(page_title="Step 12: IPS Criteria Screening", layout="wide")
+    st.title("Step 12: IPS Investment Criteria Screening")
 
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"])
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step12_upload")
     if not uploaded_file:
         return
 
     try:
         with pdfplumber.open(uploaded_file) as pdf:
-            first_page_text = pdf.pages[0].extract_text()
-            quarter, total_options, client_name, prepared_by = extract_date_and_info(first_page_text)
+            # === Extract Total Options ===
+            page1_text = pdf.pages[0].extract_text()
+            total_match = re.search(r"Total Options:\s*(\d+)", page1_text or "")
+            declared_total = int(total_match.group(1)) if total_match else None
 
-            st.markdown(f"**Time Period Detected:** {quarter}")
-            st.markdown(f"**Total Options:** {total_options}")
-            st.markdown(f"**Prepared For:** {client_name}")
-            st.markdown(f"**Prepared By:** {prepared_by}")
-
+            # === Extract Scorecard Page ===
             toc_text = pdf.pages[1].extract_text()
-            perf_page, scorecard_page = get_section_pages(toc_text)
-            if not perf_page or not scorecard_page:
-                st.error("❌ Could not detect required sections from Table of Contents.")
+            def find_page(section_title):
+                for line in toc_text.split("\n"):
+                    if section_title in line:
+                        match = re.search(r"(\d+)$", line)
+                        return int(match.group(1)) if match else None
+                return None
+            scorecard_page = find_page("Fund Scorecard")
+            if not scorecard_page:
+                st.error("❌ Could not find Fund Scorecard page.")
                 return
 
-            scorecard_lines = []
+            # === Pull Scorecard Text ===
+            lines_buffer = []
             for page in pdf.pages[scorecard_page - 1:]:
                 text = page.extract_text()
-                if not text or "Style Box Analysis" in text:
-                    break
-                scorecard_lines.extend(text.split("\n"))
-            fund_names = clean_scorecard_funds(scorecard_lines)
+                if not text:
+                    continue
+                lines_buffer.extend(text.split("\n"))
 
-            perf_lines = []
-            for page in pdf.pages[perf_page - 1:]:
-                text = page.extract_text()
-                if not text or "Fund Factsheets" in text:
-                    break
-                perf_lines.extend(text.split("\n"))
+            skip_keywords = [
+                "Criteria Threshold", "Portfolio manager", "must outperform", "must be in the top",
+                "must be greater than", "Created with mpi Stylus"
+            ]
+            cleaned_lines = [
+                line.strip() for line in lines_buffer
+                if not any(kw in line for kw in skip_keywords)
+            ]
 
-            performance_results = extract_performance_data(perf_lines, fund_names)
+            # === Extract Funds ===
+            fund_blocks = []
+            i = 0
+            while i < len(cleaned_lines):
+                if "Manager Tenure" in cleaned_lines[i]:
+                    if i == 0:
+                        i += 1
+                        continue
+                    fund_name = cleaned_lines[i - 1].strip()
+                    metrics_block = cleaned_lines[i:i + 14]
+                    parsed_metrics = []
 
-            st.subheader("Final Extracted Fund Performance Info")
-            if not performance_results:
-                st.warning("No matching funds found.")
-            else:
-                for r in performance_results:
-                    st.markdown(f"### ✅ {r['Fund Name']}")
-                    st.markdown(f"- **Ticker:** {r['Ticker']}")
-                    st.markdown(f"- **Category:** {r['Category']}")
-                    st.markdown(f"- **Benchmark:** {r['Benchmark']}")
-                    st.markdown("---")
+                    for m_line in metrics_block:
+                        m = re.match(r"(.+?)\s+(Pass|Review)\s+(.*)", m_line)
+                        if m:
+                            metric_name = m.group(1).strip()
+                            status = m.group(2).strip()
+                            reason = m.group(3).strip()
+                            parsed_metrics.append((metric_name, status, reason))
+
+                    fund_blocks.append({
+                        "name": fund_name,
+                        "metrics": parsed_metrics
+                    })
+                    i += 14
+                else:
+                    i += 1
+
+            # === Filter Fund Names ===
+            def clean_watchlist_text(name):
+                name = re.sub(r"Fund Meets Watchlist Criteria\.", "", name)
+                name = re.sub(r"Fund has been placed on watchlist.*", "", name)
+                return name.strip()
+
+            invalid_name_terms = [
+                "FUND FACTS 3 YEAR ROLLING STYLE",
+                "FUND FACTS 3 YEAR ROLLING STYLE ASSET LOADINGS (Returns-based)"
+            ]
+
+            cleaned_funds = []
+            for f in fund_blocks:
+                if any(term in f["name"].upper() for term in invalid_name_terms):
+                    continue
+                name = clean_watchlist_text(f["name"])
+                if name:
+                    cleaned_funds.append({"name": name, "metrics": f["metrics"]})
+
+            # === IPS Screening Logic ===
+            def screen_ips(fund):
+                name = fund["name"]
+                metrics = {m[0]: m[1] for m in fund["metrics"]}
+
+                is_passive = "bitcoin" in name.lower()
+
+                def status(metric_name):
+                    return metrics.get(metric_name, "Review")
+
+                results = []
+
+                # 1: Manager Tenure
+                results.append(status("Manager Tenure"))
+
+                # 2: 3Y Performance or 3Y R²
+                results.append(
+                    status("R-Squared (3Yr)") if is_passive else status("Excess Performance (3Yr)")
+                )
+
+                # 3: 3Y Peer Rank
+                results.append(status("Peer Return Rank (3Yr)"))
+
+                # 4: 3Y Sharpe
+                results.append(status("Sharpe Ratio Rank (3Yr)"))
+
+                # 5: 3Y Sortino or Tracking Error
+                results.append(
+                    status("Tracking Error Rank (3Yr)") if is_passive else status("Sortino Ratio Rank (3Yr)")
+                )
+
+                # 6: 5Y Performance or 5Y R²
+                results.append(
+                    status("R-Squared (5Yr)") if is_passive else status("Excess Performance (5Yr)")
+                )
+
+                # 7: 5Y Peer Rank
+                results.append(status("Peer Return Rank (5Yr)"))
+
+                # 8: 5Y Sharpe
+                results.append(status("Sharpe Ratio Rank (5Yr)"))
+
+                # 9: 5Y Sortino or Tracking Error
+                results.append(
+                    status("Tracking Error Rank (5Yr)") if is_passive else status("Sortino Ratio Rank (5Yr)")
+                )
+
+                # 10: Expense Ratio
+                results.append(status("Expense Ratio Rank"))
+
+                # 11: Investment Style = always Pass
+                results.append("Pass")
+
+                return results
+
+            # === Display IPS Results ===
+            st.subheader("IPS Investment Criteria Results")
+            for fund in cleaned_funds:
+                ips_results = screen_ips(fund)
+                fail_count = sum(1 for r in ips_results if r == "Review")
+
+                if fail_count <= 4:
+                    status_label = "✅ Passed IPS Screen"
+                elif fail_count == 5:
+                    status_label = "🟠 Informal Watch (IW)"
+                else:
+                    status_label = "🔴 Formal Watch (FW)"
+
+                st.markdown(f"### {fund['name']}")
+                for idx, res in enumerate(ips_results, start=1):
+                    color = "green" if res == "Pass" else "red"
+                    st.markdown(f"- **{idx}.** `{res}`", unsafe_allow_html=True)
+                st.markdown(f"**Final IPS Status:** {status_label}")
+                st.markdown("---")
 
     except Exception as e:
         st.error(f"❌ Error processing PDF: {e}")
