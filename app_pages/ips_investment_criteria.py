@@ -1,56 +1,69 @@
 import streamlit as st
 import pdfplumber
 import re
-from datetime import datetime
 
 def run():
-    st.set_page_config(page_title="Step 4: Table of Contents", layout="wide")
-    st.title("Step 4: Table of Contents – Page Numbers")
+    st.set_page_config(page_title="Step 5: Clean TOC", layout="wide")
+    st.title("Step 5: Clean and Parse Table of Contents")
 
-    # Step 1 – Upload PDF
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step4_upload")
+    # Step 1 – Upload
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step5_upload")
 
     if uploaded_file:
-        st.success("✅ MPI PDF successfully uploaded.")
+        st.success("✅ MPI PDF uploaded.")
 
         try:
             with pdfplumber.open(uploaded_file) as pdf:
-                # Page 1 – Context
-                raw_text = pdf.pages[0].extract_text()
-                cleaned_text = re.sub(
-                    r"For Plan Sponsor use only.*?Created with mpi Stylus\.", "", raw_text, flags=re.DOTALL
+                # Step 2 – Page 1 Cleanup
+                page1 = pdf.pages[0].extract_text()
+                page1_clean = re.sub(
+                    r"For Plan Sponsor use only.*?Created with mpi Stylus\.", "", page1 or "", flags=re.DOTALL
                 )
 
-                # Extract Time Period (Q1–Q4)
-                quarter_match = re.search(r'(3/31|6/30|9/30|12/31)/20\d{2}', cleaned_text)
-                if quarter_match:
-                    date_str = quarter_match.group(0)
-                    month_day = date_str[:5]
-                    year = "20" + date_str[-2:]
+                # Step 3 – Time Period
+                date_match = re.search(r'(3/31|6/30|9/30|12/31)/20\d{2}', page1_clean)
+                if date_match:
+                    date_str = date_match.group(0)
                     quarter_map = {"3/31": "Q1", "6/30": "Q2", "9/30": "Q3", "12/31": "Q4"}
-                    quarter = quarter_map.get(month_day, "Unknown") + " " + year
+                    quarter = quarter_map[date_str[:5]] + " 20" + date_str[-2:]
                 else:
                     quarter = "Not found"
 
-                # Page 2 – Table of Contents
+                # Step 4 – Page 2 TOC
                 toc_text = pdf.pages[1].extract_text()
-                st.subheader("Raw Table of Contents (Page 2)")
-                st.text(toc_text)
 
-                # Find section pages
-                def find_page_number(section_title, toc_text):
-                    pattern = rf"{re.escape(section_title)}[\s\.]*?(\d+)"
-                    match = re.search(pattern, toc_text)
-                    return int(match.group(1)) if match else None
+                # Step 5 – Remove irrelevant TOC lines
+                lines = toc_text.split("\n")
+                ignore_keywords = [
+                    "Calendar Year", "Risk Analysis", "Style Box", "Returns Correlation", "Fund Factsheets",
+                    "Definitions & Disclosures", "Past performance", "Total Options", "http://", quarter.replace(" ", "/")
+                ]
 
-                perf_page = find_page_number("Fund Performance: Current vs. Proposed Comparison", toc_text)
-                scorecard_page = find_page_number("Fund Scorecard", toc_text)
+                cleaned_toc_lines = [
+                    line for line in lines
+                    if not any(kw in line for kw in ignore_keywords)
+                ]
 
-                # Display extracted results
-                st.subheader("Extracted Sections")
+                # Step 5 – Extract relevant section page numbers
+                def find_page(section_title, toc_lines):
+                    for line in toc_lines:
+                        if section_title in line:
+                            match = re.search(r"(\d+)$", line)
+                            return int(match.group(1)) if match else None
+                    return None
+
+                perf_page = find_page("Fund Performance: Current vs. Proposed Comparison", cleaned_toc_lines)
+                scorecard_page = find_page("Fund Scorecard", cleaned_toc_lines)
+
+                # Display cleaned TOC + section page numbers
+                st.subheader("Cleaned Table of Contents")
+                for line in cleaned_toc_lines:
+                    st.markdown(f"- {line}")
+
+                st.subheader("Extracted Section Pages")
                 st.markdown(f"**Time Period:** {quarter}")
-                st.markdown(f"**Fund Performance Section Page:** {perf_page if perf_page else 'Not found'}")
-                st.markdown(f"**Fund Scorecard Section Page:** {scorecard_page if scorecard_page else 'Not found'}")
+                st.markdown(f"**Fund Performance Page:** {perf_page if perf_page else 'Not found'}")
+                st.markdown(f"**Fund Scorecard Page:** {scorecard_page if scorecard_page else 'Not found'}")
 
         except Exception as e:
             st.error(f"❌ Error reading PDF: {e}")
