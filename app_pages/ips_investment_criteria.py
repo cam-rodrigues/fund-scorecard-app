@@ -40,7 +40,7 @@ def run():
                 fund_line = raw_fund_line.strip()
                 cat_line_raw = perf_lines[i - 1]
                 cat_line = cat_line_raw.strip()
-                benchmark = perf_lines[i + 1].strip()  # ✅ Original working benchmark logic
+                benchmark = perf_lines[idx + 1].strip() if idx + 1 < len(perf_lines) else "Unknown"
 
                 # Match fund + ticker pattern at end
                 m = re.match(r"^(.*?)([A-Z]{5})\s*$", fund_line)
