@@ -4,9 +4,9 @@ import re
 
 def run():
     st.set_page_config(page_title="Step 13: Final Fund Info Extract", layout="wide")
-    st.title("Step 13: Ticker, Category, Benchmark (Layout + Fuzzy Benchmark Logic)")
+    st.title("Step 13: Ticker, Category, Benchmark (Strict One-Line Benchmark)")
 
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step13_final_combined")
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step13_final")
     if not uploaded_file:
         return
 
@@ -26,7 +26,7 @@ def run():
                 st.error("❌ Could not locate Fund Performance section.")
                 return
 
-            # === Collect Performance Section Lines ===
+            # === Collect Lines from Performance Section ===
             perf_lines = []
             for page in pdf.pages[perf_page - 1:]:
                 text = page.extract_text()
@@ -41,7 +41,7 @@ def run():
                 raw_cat_line = perf_lines[idx - 1]
                 cat_line = raw_cat_line.strip()
 
-                # Ticker match pattern (5 capital letters at end of fund name)
+                # Ticker pattern: 5-letter uppercase at end
                 m = re.match(r"^(.*?)([A-Z]{5})\s*$", fund_line)
                 if not m:
                     continue
@@ -49,7 +49,7 @@ def run():
                 fund_name = m.group(1).strip()
                 ticker = m.group(2).strip()
 
-                # Category logic (must be 1 line above, more left-aligned, and no digits)
+                # Category: one line above, no digits, and more left-aligned
                 fund_indent = len(raw_fund_line) - len(raw_fund_line.lstrip())
                 cat_indent = len(raw_cat_line) - len(raw_cat_line.lstrip())
                 category = (
@@ -57,8 +57,9 @@ def run():
                     else "Unknown"
                 )
 
-                # ✅ Benchmark logic from fuzzy version (no filtering)
-                benchmark = perf_lines[idx + 1].strip() if idx + 1 < len(perf_lines) else "Unknown"
+                # Benchmark: one line below, only if it ends with "Index"
+                raw_benchmark = perf_lines[idx + 1].strip() if idx + 1 < len(perf_lines) else ""
+                benchmark = raw_benchmark if raw_benchmark.lower().endswith("index") else "Unknown"
 
                 results.append({
                     "Fund Name": fund_name,
@@ -67,10 +68,10 @@ def run():
                     "Benchmark": benchmark
                 })
 
-            # === Display Extracted Fund Info ===
+            # === Display Results ===
             st.subheader("Final Extracted Fund Performance Info")
             if not results:
-                st.warning("No matching funds found.")
+                st.warning("No matching fund blocks found.")
             else:
                 for r in results:
                     st.markdown(f"### ✅ {r['Fund Name']}")
