@@ -4,18 +4,17 @@ import re
 from difflib import get_close_matches
 
 def run():
-    st.set_page_config(page_title="Step 13: Fuzzy Fund Performance Match", layout="wide")
-    st.title("Step 13: Extract Fund Performance Info with Fuzzy Matching")
+    st.set_page_config(page_title="Step 13: Extract Performance Info", layout="wide")
+    st.title("Step 13: Fund Performance - Ticker, Category, Benchmark")
 
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step13_fuzzy")
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step13_final")
     if not uploaded_file:
         return
 
     try:
         with pdfplumber.open(uploaded_file) as pdf:
-            # === Get TOC and Page Numbers ===
+            # === TOC parsing ===
             toc_text = pdf.pages[1].extract_text()
-
             def get_page(section_title):
                 for line in toc_text.split("\n"):
                     if section_title in line:
@@ -25,12 +24,11 @@ def run():
 
             scorecard_page = get_page("Fund Scorecard")
             perf_page = get_page("Fund Performance: Current vs. Proposed Comparison")
-
             if not scorecard_page or not perf_page:
                 st.error("❌ Could not find required TOC entries.")
                 return
 
-            # === Extract Fund Names from Scorecard ===
+            # === Fund Names from Scorecard ===
             scorecard_lines = []
             for page in pdf.pages[scorecard_page - 1:]:
                 text = page.extract_text()
@@ -59,21 +57,19 @@ def run():
                 else:
                     i += 1
 
-            # Prepare short keys for matching (first 4–5 words only)
             def short_key(name):
                 return " ".join(name.split()[:5])
-
             short_keys = {short_key(name): name for name in fund_names}
 
-            # === Pull all lines from Performance Section ===
+            # === Extract all lines from performance section ===
             perf_lines = []
             for page in pdf.pages[perf_page - 1:]:
                 text = page.extract_text()
                 if not text or "Fund Factsheets" in text:
                     break
                 perf_lines.extend(text.split("\n"))
-
             all_perf_lines = [line.strip() for line in perf_lines if len(line.strip()) > 5]
+
             fund_perf_data = {}
 
             for key, full_name in short_keys.items():
@@ -90,9 +86,19 @@ def run():
                 matched_line = match[0]
                 idx = perf_lines.index(matched_line)
 
-                ticker_match = re.search(r"\b([A-Z]{5})\b", matched_line)
-                ticker = ticker_match.group(1) if ticker_match else "Not Found"
-                category = perf_lines[idx - 1].strip() if idx > 0 else "Unknown"
+                # === Ticker: 5-letter uppercase, anywhere in the line ===
+                ticker_match = re.findall(r"\b[A-Z]{5}\b", matched_line)
+                ticker = ticker_match[0] if ticker_match else "Not Found"
+
+                # === Category: Go up until we find a line with no digits ===
+                category = "Unknown"
+                for j in range(idx - 1, -1, -1):
+                    line_above = perf_lines[j].strip()
+                    if not any(char.isdigit() for char in line_above):
+                        category = line_above
+                        break
+
+                # === Benchmark: line after the match ===
                 benchmark = perf_lines[idx + 1].strip() if idx + 1 < len(perf_lines) else "Unknown"
 
                 fund_perf_data[full_name] = {
@@ -104,7 +110,7 @@ def run():
                 }
 
             # === Display Results ===
-            st.subheader("Fund Performance Info (Fuzzy Matched)")
+            st.subheader("Fund Performance Info")
             for fund in fund_names:
                 info = fund_perf_data.get(fund, {})
                 st.markdown(f"### {'✅' if info.get('match_found') else '❌'} {fund}")
