@@ -3,10 +3,10 @@ import pdfplumber
 import re
 
 def run():
-    st.set_page_config(page_title="Step 13: Extract Fund Performance Info", layout="wide")
-    st.title("Step 13: Ticker, Category, Benchmark (Final Version)")
+    st.set_page_config(page_title="Step 13: Fund Performance", layout="wide")
+    st.title("Step 13: Extract Ticker, Category, Benchmark (Final with Index-Based Benchmark)")
 
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step13_upload_final_final")
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step13_final_benchmark")
     if not uploaded_file:
         return
 
@@ -23,7 +23,7 @@ def run():
 
             perf_page = get_page("Fund Performance: Current vs. Proposed Comparison")
             if not perf_page:
-                st.error("❌ Could not locate Fund Performance section.")
+                st.error("❌ Could not locate 'Fund Performance' section.")
                 return
 
             # === Collect Lines from Performance Section ===
@@ -35,14 +35,13 @@ def run():
                 perf_lines.extend(text.split("\n"))
 
             results = []
-            for i in range(1, len(perf_lines) - 1):
-                raw_fund_line = perf_lines[i]
+            for idx in range(1, len(perf_lines) - 1):
+                raw_fund_line = perf_lines[idx]
                 fund_line = raw_fund_line.strip()
-                cat_line_raw = perf_lines[i - 1]
-                cat_line = cat_line_raw.strip()
-                benchmark = perf_lines[idx + 1].strip() if idx + 1 < len(perf_lines) else "Unknown"
+                raw_cat_line = perf_lines[idx - 1]
+                cat_line = raw_cat_line.strip()
 
-                # Match fund + ticker pattern at end
+                # Match fund name + 5-letter ticker pattern
                 m = re.match(r"^(.*?)([A-Z]{5})\s*$", fund_line)
                 if not m:
                     continue
@@ -50,13 +49,16 @@ def run():
                 fund_name = m.group(1).strip()
                 ticker = m.group(2).strip()
 
-                # Alignment-aware category check (must be left of fund and contain no digits)
+                # Category check (must be one line above, no digits, more left-aligned)
                 fund_indent = len(raw_fund_line) - len(raw_fund_line.lstrip())
-                cat_indent = len(cat_line_raw) - len(cat_line_raw.lstrip())
+                cat_indent = len(raw_cat_line) - len(raw_cat_line.lstrip())
                 category = (
                     cat_line if cat_indent < fund_indent and not any(char.isdigit() for char in cat_line)
                     else "Unknown"
                 )
+
+                # Benchmark logic (your proven version)
+                benchmark = perf_lines[idx + 1].strip() if idx + 1 < len(perf_lines) else "Unknown"
 
                 results.append({
                     "Fund Name": fund_name,
@@ -66,7 +68,7 @@ def run():
                 })
 
             # === Display Results ===
-            st.subheader("Extracted Fund Performance Info")
+            st.subheader("Final Extracted Fund Performance Info")
             if not results:
                 st.warning("No matching fund blocks found.")
             else:
@@ -78,4 +80,4 @@ def run():
                     st.markdown("---")
 
     except Exception as e:
-        st.error(f"❌ Error reading PDF: {e}")
+        st.error(f"❌ Error processing PDF: {e}")
