@@ -4,9 +4,9 @@ import re
 
 def run():
     st.set_page_config(page_title="Step 13: Extract Fund Performance Info", layout="wide")
-    st.title("Step 13: Ticker, Category, Benchmark (Final, Stable Version)")
+    st.title("Step 13: Ticker, Category, Benchmark (Final Version)")
 
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step13_upload_final")
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step13_upload_final_final")
     if not uploaded_file:
         return
 
@@ -26,7 +26,7 @@ def run():
                 st.error("❌ Could not locate Fund Performance section.")
                 return
 
-            # === Collect Lines from Section ===
+            # === Collect Lines from Performance Section ===
             perf_lines = []
             for page in pdf.pages[perf_page - 1:]:
                 text = page.extract_text()
@@ -40,7 +40,7 @@ def run():
                 fund_line = raw_fund_line.strip()
                 cat_line_raw = perf_lines[i - 1]
                 cat_line = cat_line_raw.strip()
-                bench_line = perf_lines[i + 1].strip()  # ← restored: simple next line logic
+                benchmark = perf_lines[i + 1].strip()  # ✅ Original working benchmark logic
 
                 # Match fund + ticker pattern at end
                 m = re.match(r"^(.*?)([A-Z]{5})\s*$", fund_line)
@@ -50,7 +50,7 @@ def run():
                 fund_name = m.group(1).strip()
                 ticker = m.group(2).strip()
 
-                # Alignment-based Category check (must be to the left, no digits)
+                # Alignment-aware category check (must be left of fund and contain no digits)
                 fund_indent = len(raw_fund_line) - len(raw_fund_line.lstrip())
                 cat_indent = len(cat_line_raw) - len(cat_line_raw.lstrip())
                 category = (
@@ -62,7 +62,7 @@ def run():
                     "Fund Name": fund_name,
                     "Ticker": ticker,
                     "Category": category,
-                    "Benchmark": bench_line
+                    "Benchmark": benchmark
                 })
 
             # === Display Results ===
