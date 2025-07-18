@@ -3,11 +3,11 @@ import pdfplumber
 import re
 
 def run():
-    st.set_page_config(page_title="Step 5: Clean TOC", layout="wide")
-    st.title("Step 5: Clean and Parse Table of Contents")
+    st.set_page_config(page_title="Step 6: Clean TOC More", layout="wide")
+    st.title("Step 6: Final TOC Cleanup and Section Extraction")
 
     # Step 1 – Upload
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step5_upload")
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step6_upload")
 
     if uploaded_file:
         st.success("✅ MPI PDF uploaded.")
@@ -33,12 +33,14 @@ def run():
                 # Step 4 – Extract page 2 Table of Contents
                 toc_text = pdf.pages[1].extract_text()
 
-                # Step 5 – Clean up irrelevant lines
+                # Step 5 & 6 – Clean up irrelevant TOC lines
                 lines = toc_text.split("\n")
                 ignore_keywords = [
                     "Calendar Year", "Risk Analysis", "Style Box", "Returns Correlation",
                     "Fund Factsheets", "Definitions & Disclosures", "Past performance",
-                    "Total Options", "http://", quarter.replace(" ", "/")
+                    "Total Options", "http://", quarter.replace(" ", "/"),
+                    "shares may be worth more/less than original cost",
+                    "Returns assume reinvestment of all distributions at NAV"
                 ]
 
                 cleaned_toc_lines = [
@@ -46,7 +48,7 @@ def run():
                     if not any(kw in line for kw in ignore_keywords)
                 ]
 
-                # Step 5 – Extract target pages
+                # Step 6 – Extract target section pages
                 def find_page(section_title, toc_lines):
                     for line in toc_lines:
                         if section_title in line:
