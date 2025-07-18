@@ -4,9 +4,9 @@ import re
 
 def run():
     st.set_page_config(page_title="Step 13: Extract Fund Info", layout="wide")
-    st.title("Step 13: Ticker, Category, Benchmark (with Benchmark Filter)")
+    st.title("Step 13: Ticker, Category, Benchmark (Ends with 'Index')")
 
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step13_final_filtered")
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step13_final_indexcheck")
     if not uploaded_file:
         return
 
@@ -26,7 +26,7 @@ def run():
                 st.error("❌ Could not locate Fund Performance section.")
                 return
 
-            # === Collect Lines from Performance Section ===
+            # === Extract Performance Lines ===
             perf_lines = []
             for page in pdf.pages[perf_page - 1:]:
                 text = page.extract_text()
@@ -41,7 +41,7 @@ def run():
                 raw_cat_line = perf_lines[idx - 1]
                 cat_line = raw_cat_line.strip()
 
-                # Match fund name + ticker at end
+                # Fund Name + Ticker pattern
                 m = re.match(r"^(.*?)([A-Z]{5})\s*$", fund_line)
                 if not m:
                     continue
@@ -49,7 +49,7 @@ def run():
                 fund_name = m.group(1).strip()
                 ticker = m.group(2).strip()
 
-                # Category: only if more left-aligned and no digits
+                # Category check (1 line above, no digits, more left aligned)
                 fund_indent = len(raw_fund_line) - len(raw_fund_line.lstrip())
                 cat_indent = len(raw_cat_line) - len(raw_cat_line.lstrip())
                 category = (
@@ -57,12 +57,9 @@ def run():
                     else "Unknown"
                 )
 
-                # Benchmark: line after fund — but filter out rank lines
+                # Benchmark: next line, only if ends in "Index"
                 raw_benchmark = perf_lines[idx + 1].strip() if idx + 1 < len(perf_lines) else ""
-                if re.fullmatch(r"(\(\d+\)\s*){3,}", raw_benchmark) or sum(c.isalpha() for c in raw_benchmark) < 5:
-                    benchmark = "Unknown"
-                else:
-                    benchmark = raw_benchmark
+                benchmark = raw_benchmark if raw_benchmark.lower().endswith("index") else "Unknown"
 
                 results.append({
                     "Fund Name": fund_name,
@@ -72,9 +69,9 @@ def run():
                 })
 
             # === Display Results ===
-            st.subheader("Clean Fund Performance Extraction")
+            st.subheader("Fund Performance Info (Final Pass)")
             if not results:
-                st.warning("No funds matched.")
+                st.warning("No matching funds found.")
             else:
                 for r in results:
                     st.markdown(f"### ✅ {r['Fund Name']}")
