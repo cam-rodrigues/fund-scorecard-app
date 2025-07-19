@@ -242,50 +242,67 @@ def run():
                 is_passive = "bitcoin" in name.lower()
 
                 def status(metric_name):
-                    return metrics.get(metric_name, "Review")
+                    return metrics_raw.get(metric_name, ("Review", "No data"))
 
                 results = []
 
                 # 1: Manager Tenure
-                results.append(status("Manager Tenure"))
+                results.append(("Manager Tenure", *get("Manager Tenure")))
 
                 # 2: 3Y Performance or 3Y R²
-                results.append(
-                    status("R-Squared (3Yr)") if is_passive else status("Excess Performance (3Yr)")
-                )
-
+                if is_passive:
+                    label = "R² (3Y)"
+                    metric_result, metric_reason = get("R-Squared (3Yr)")
+                else:
+                    label = "3Y Performance"
+                    metric_result, metric_reason = get("Excess Performance (3Yr)")
+                results.append((label, metric_result, metric_reason))
+                
                 # 3: 3Y Peer Rank
-                results.append(status("Peer Return Rank (3Yr)"))
+                results.append(("3Y Peer Rank", *get("Peer Return Rank (3Yr)")))
 
                 # 4: 3Y Sharpe
-                results.append(status("Sharpe Ratio Rank (3Yr)"))
+                results.append(("3Y Sharpe", *get("Sharpe Ratio Rank (3Yr)")))
 
                 # 5: 3Y Sortino or Tracking Error
-                results.append(
-                    status("Tracking Error Rank (3Yr)") if is_passive else status("Sortino Ratio Rank (3Yr)")
-                )
+                if is_passive:
+                    label = "Tracking Error (3Y)"
+                    metric_result, metric_reason = get("Tracking Error Rank (3Yr)")
+                else:
+                    label = "3Y Sortino"
+                    metric_result, metric_reason = get("Sortino Ratio Rank (3Yr)")
+                results.append((label, metric_result, metric_reason))
+
 
                 # 6: 5Y Performance or 5Y R²
-                results.append(
-                    status("R-Squared (5Yr)") if is_passive else status("Excess Performance (5Yr)")
-                )
+                if is_passive:
+                    label = "R² (5Y)"
+                    metric_result, metric_reason = get("R-Squared (5Yr)")
+                else:
+                    label = "5Y Performance"
+                    metric_result, metric_reason = get("Excess Performance (5Yr)")
+                results.append((label, metric_result, metric_reason))
 
                 # 7: 5Y Peer Rank
-                results.append(status("Peer Return Rank (5Yr)"))
+                results.append(("5Y Peer Rank", *get("Peer Return Rank (5Yr)")))
 
                 # 8: 5Y Sharpe
-                results.append(status("Sharpe Ratio Rank (5Yr)"))
+                results.append(("5Y Sharpe", *get("Sharpe Ratio Rank (5Yr)")))
 
                 # 9: 5Y Sortino or Tracking Error
-                results.append(
-                    status("Tracking Error Rank (5Yr)") if is_passive else status("Sortino Ratio Rank (5Yr)")
-                )
+                if is_passive:
+                    label = "Tracking Error (5Y)"
+                    metric_result, metric_reason = get("Tracking Error Rank (5Yr)")
+                else:
+                    label = "5Y Sortino"
+                    metric_result, metric_reason = get("Sortino Ratio Rank (5Yr)")
+                results.append((label, metric_result, metric_reason))
 
                 # 10: Expense Ratio
-                results.append(status("Expense Ratio Rank"))
+                results.append(("Expense Ratio", *get("Expense Ratio Rank")))
 
                 # 11: Investment Style = always Pass
-                results.append("Pass")
+                results.append(("Investment Style", "Pass", "Automatically satisfied"))
 
                 return results
 
