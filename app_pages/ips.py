@@ -46,3 +46,25 @@ def run():
         prepared_by_match = re.search(r"Prepared By:\s*\n(.+)", text)
         prepared_by = prepared_by_match.group(1).strip() if prepared_by_match else "Not found"
         st.write("**Prepared By:**", prepared_by)
+
+
+        # === Step 4: Pg 2 - Table of Contents ===
+        st.subheader("Step 4: Pg 2 - Table of Contents")
+        page2 = pdf.pages[1]
+        text2 = page2.extract_text()
+
+        fund_perf_pg = "Not found"
+        fund_scorecard_pg = "Not found"
+
+        for line in text2.split("\n"):
+            if "Fund Performance: Current vs. Proposed Comparison" in line:
+                match = re.search(r"(\d+)$", line)
+                if match:
+                    fund_perf_pg = int(match.group(1))
+            if "Fund Scorecard" in line:
+                match = re.search(r"(\d+)$", line)
+                if match:
+                    fund_scorecard_pg = int(match.group(1))
+
+        st.write("**Fund Performance Page:**", fund_perf_pg)
+        st.write("**Fund Scorecard Page:**", fund_scorecard_pg)
