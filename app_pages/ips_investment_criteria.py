@@ -1,6 +1,7 @@
 import streamlit as st
 import pdfplumber
 import re
+import pandas as pd
 from difflib import get_close_matches
 
 def extract_short_name(name, words=5):
@@ -197,3 +198,57 @@ def run():
 
     except Exception as e:
         st.error(f"❌ Error processing PDF: {e}")
+
+
+# === Final IPS Summary Table ===
+
+def build_final_table(cleaned_funds, time_period="Q1 2025"):
+    table_rows = []
+    for fund in cleaned_funds:
+        ips_results = screen_ips(fund)
+        metric_statuses = [r[1] for r in ips_results]
+        fail_count = sum(1 for r in metric_statuses if r == "Review")
+
+        if fail_count <= 4:
+            ips_label = "Passed IPS Screen"
+        elif fail_count == 5:
+            ips_label = "Informal Watch (IW)"
+        else:
+            ips_label = "Formal Watch (FW)"
+
+        row = {
+            "Investment Option": fund["name"],
+            "Ticker": fund["ticker"],
+            "Time Period": time_period,
+            "Plan Assets": "$"
+        }
+        for i, val in enumerate(metric_statuses, 1):
+            row[str(i)] = val
+        row["IPS Status"] = ips_label
+        table_rows.append(row)
+
+    return pd.DataFrame(table_rows)
+
+final_df = build_final_table(cleaned_funds)
+
+def color_metric(val):
+    if val == "Pass":
+        return "background-color: #d4edda"  # green
+    elif val == "Review":
+        return "background-color: #f8d7da"  # red
+    return ""
+
+def color_status(val):
+    if val == "Passed IPS Screen":
+        return "background-color: #28a745; color: white"
+    elif "Informal" in val:
+        return "background-color: #fd7e14; color: white"
+    elif "Formal" in val:
+        return "background-color: #dc3545; color: white"
+    return ""
+
+styled = final_df.style.applymap(color_metric, subset=[str(i) for i in range(1, 12)])
+styled = styled.applymap(color_status, subset=["IPS Status"])
+
+st.subheader("Final IPS Table")
+st.dataframe(styled, use_container_width=True)
