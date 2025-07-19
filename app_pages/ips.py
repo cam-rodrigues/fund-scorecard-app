@@ -1,6 +1,8 @@
 import streamlit as st
 import pdfplumber
 import re
+from difflib import SequenceMatcher
+import pandas as pd
 
 def run():
     st.title("IPS Write-Up Tool")
@@ -265,11 +267,7 @@ def run():
 
         # === Step 9.4: Match Investment Option Names & Extract Tickers ===
         st.subheader("Step 9.4: Match Investment Option Names Between Sections")
-
-        from difflib import SequenceMatcher
-        import re
-        import pandas as pd
-
+        
         def is_valid_fund_line(line):
             if len(line.split()) < 3:
                 return False
