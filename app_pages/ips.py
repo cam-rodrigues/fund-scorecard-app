@@ -81,6 +81,10 @@ def run():
         metrics_header = []
         fund_blocks = []
 
+        # Text cleaning pattern
+        fund_status_pattern = re.compile(
+            r"\s+(Fund Meets Watchlist Criteria\.|Fund has been placed on watchlist for not meeting.+)", re.IGNORECASE)
+
         # Read all pages starting from Fund Scorecard page
         for i in range(fund_scorecard_pg - 1, len(pdf.pages)):
             page = pdf.pages[i]
@@ -100,7 +104,10 @@ def run():
             # Capture fund blocks: look for lines starting with a metric, backtrack for fund name
             for j in range(len(lines)):
                 if lines[j].startswith("Manager Tenure"):
-                    fund_name = lines[j-1].strip()
+                    raw_fund_line = lines[j-1].strip()
+                    # Clean extra status text from the same line
+                    fund_name = fund_status_pattern.sub("", raw_fund_line).strip()
+
                     fund_metrics = []
                     for k in range(j, j+14):
                         if k >= len(lines): break
@@ -121,7 +128,8 @@ def run():
         # Display criteria header
         if metrics_header:
             st.markdown("**Criteria Threshold (14 Metrics):**")
-            st.markdown(metrics_header)
+            for item in metrics_header:
+                st.markdown(f"- {item}")
 
         # Display fund blocks
         for block in fund_blocks:
