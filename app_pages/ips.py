@@ -263,20 +263,18 @@ def run():
 
 #------------------------------------------------------------------------------------------------------------------
 
-        # === Step 9.4: Match Investment Option Names (2-column table w/ fuzzy logic) ===
+        # === Step 9.4: Match Investment Option Names Based on Line Snippets ===
         st.subheader("Step 9.4: Match Investment Option Names Between Sections")
 
         from difflib import SequenceMatcher
         import pandas as pd
 
         scorecard_names = [block["Fund Name"] for block in fund_blocks]
-        perf_names_raw = []  # (name, ticker)
+        perf_line_snippets = []
 
         if fund_perf_pg == "Not found":
             st.error("❌ Fund Performance page not found in Table of Contents.")
         else:
-            name_ticker_pattern = re.compile(r"^[A-Z]{5}$")
-
             for i in range(fund_perf_pg - 1, len(pdf.pages)):
                 page = pdf.pages[i]
                 text = page.extract_text()
@@ -284,33 +282,28 @@ def run():
                     break
 
                 lines = text.split("\n")
-                for j in range(len(lines) - 1):
-                    name_line = lines[j].strip()
-                    ticker_line = lines[j + 1].strip()
+                for line in lines:
+                    words = line.strip().split()
+                    if len(words) >= 3:
+                        snippet = " ".join(words[:7])
+                        perf_line_snippets.append(snippet)
 
-                    if name_ticker_pattern.match(ticker_line):
-                        if len(name_line.split()) >= 3:
-                            perf_names_raw.append((name_line, ticker_line))
-
-            performance_names = [name for name, _ in perf_names_raw]
-
-            # Build match table using fuzzy logic
+            # Fuzzy match each scorecard name to best snippet
             match_data = []
             for score_name in scorecard_names:
                 best_match = None
                 best_ratio = 0
-                for perf_name in performance_names:
-                    ratio = SequenceMatcher(None, score_name.lower(), perf_name.lower()).ratio()
+                for snippet in perf_line_snippets:
+                    ratio = SequenceMatcher(None, score_name.lower(), snippet.lower()).ratio()
                     if ratio > best_ratio:
-                        best_match = perf_name
+                        best_match = snippet
                         best_ratio = ratio
                 match_data.append({
                     "Fund Scorecard Name": score_name,
-                    "Fund Performance Name": best_match,
+                    "Fund Perf Snippet (First 7 words)": best_match,
                     "Match Score (0-100)": round(best_ratio * 100),
                     "Matched": "✅" if best_ratio * 100 >= 20 else "❌"
                 })
 
             df_matches = pd.DataFrame(match_data)
             st.dataframe(df_matches)
-
