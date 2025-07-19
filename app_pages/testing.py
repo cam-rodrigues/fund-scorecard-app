@@ -193,10 +193,6 @@ def run():
                 "FUND FACTS 3 YEAR ROLLING STYLE",
                 "FUND FACTS 3 YEAR ROLLING STYLE ASSET LOADINGS (Returns-based)"
             ]
-            valid_funds = [
-                block for block in fund_blocks
-                if not any(term in block["name"].upper() for term in invalid_name_terms)
-            ]
 
             cleaned_funds = [
                 f for f in fund_blocks
