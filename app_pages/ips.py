@@ -13,7 +13,6 @@ def run():
         # === Step 1: Metadata ===
         st.subheader("Step 1: PDF Metadata")
         st.write("**Total Pages:**", len(pdf.pages))
-        st.write("**PDF Info:**", pdf.metadata)
 
         # === Step 2: Page 1 Extraction ===
         st.subheader("Step 2: Pg 1")
