@@ -18,7 +18,7 @@ def run():
             with pdfplumber.open(uploaded_file) as pdf:
                 raw_text = pdf.pages[0].extract_text()
 
-# Step 8 
+# Step 9 
                 page1_text = pdf.pages[0].extract_text()
                 total_match = re.search(r"Total Options:\s*(\d+)", page1_text or "")
                 declared_total = int(total_match.group(1)) if total_match else None
@@ -186,7 +186,16 @@ def run():
                     i += 14  # skip the block
                 else:
                     i += 1
-
+#Step 10
+            invalid_terms = [
+                "FUND FACTS 3 YEAR ROLLING STYLE",
+                "FUND FACTS 3 YEAR ROLLING STYLE ASSET LOADINGS (Returns-based)"
+            ]
+            valid_funds = [
+                block for block in fund_blocks
+                if not any(term in block["name"].upper() for term in invalid_terms)
+            ]
+            
  # --- Step 9: Compare counts ---
             extracted_count = len(fund_blocks)
 
