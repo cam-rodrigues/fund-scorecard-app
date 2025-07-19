@@ -14,6 +14,8 @@ def run():
         st.subheader("Step 1: PDF Metadata")
         st.write("**Total Pages:**", len(pdf.pages))
 
+#------------------------------------------------------------------------------------------------------------------
+
         # === Step 2: Page 1 Extraction ===
         st.subheader("Step 2: Pg 1")
         page1 = pdf.pages[0]
@@ -47,6 +49,7 @@ def run():
         prepared_by = prepared_by_match.group(1).strip() if prepared_by_match else "Not found"
         st.write("**Prepared By:**", prepared_by)
 
+#------------------------------------------------------------------------------------------------------------------
 
         # === Step 4: Pg 2 - Table of Contents ===
         st.subheader("Step 4: Pg 2 - Table of Contents")
@@ -68,3 +71,62 @@ def run():
 
         st.write("**Fund Performance Page:**", fund_perf_pg)
         st.write("**Fund Scorecard Page:**", fund_scorecard_pg)
+
+#------------------------------------------------------------------------------------------------------------------
+
+        # === Step 5: Fund Scorecard Section ===
+        st.subheader("Step 5: Fund Scorecard Section")
+
+        metrics_data = []
+        metrics_header = []
+        fund_blocks = []
+
+        # Read all pages starting from Fund Scorecard page
+        for i in range(fund_scorecard_pg - 1, len(pdf.pages)):
+            page = pdf.pages[i]
+            text = page.extract_text()
+            if not text or "Fund Scorecard" not in text:
+                break
+
+            lines = text.split("\n")
+
+            # Capture Criteria Threshold section (appears once)
+            if not metrics_header:
+                for j in range(len(lines)):
+                    if "Criteria Threshold" in lines[j]:
+                        metrics_header = lines[j+1:j+15]
+                        break
+
+            # Capture fund blocks: look for lines starting with a metric, backtrack for fund name
+            for j in range(len(lines)):
+                if lines[j].startswith("Manager Tenure"):
+                    fund_name = lines[j-1].strip()
+                    fund_metrics = []
+                    for k in range(j, j+14):
+                        if k >= len(lines): break
+                        metric_line = lines[k]
+                        match = re.match(r"(.+?)\s+(Pass|Review)\s+(.*)", metric_line)
+                        if match:
+                            metric_name, status, reason = match.groups()
+                            fund_metrics.append({
+                                "Metric": metric_name.strip(),
+                                "Status": status,
+                                "Reason": reason.strip()
+                            })
+                    fund_blocks.append({
+                        "Fund Name": fund_name,
+                        "Metrics": fund_metrics
+                    })
+
+        # Display criteria header
+        if metrics_header:
+            st.markdown("**Criteria Threshold (14 Metrics):**")
+            st.write(metrics_header)
+
+        # Display fund blocks
+        for block in fund_blocks:
+            st.markdown(f"**{block['Fund Name']}**")
+            for metric in block["Metrics"]:
+                st.write(f"- {metric['Metric']}: **{metric['Status']}** – {metric['Reason']}")
+                
+#------------------------------------------------------------------------------------------------------------------
