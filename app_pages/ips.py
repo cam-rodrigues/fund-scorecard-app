@@ -318,7 +318,7 @@ def run():
                 "Matched Line": best_match,
                 "Ticker": matched_ticker,
                 "Match Score (0–100)": round(best_score * 100),
-                "Matched": "✅" if best_score * 100 >= 20 else "❌"
+                "Matched": "✅" if best_score * 100 >= 80 else "❌"
             })
 
         df_matches = pd.DataFrame(match_data)
