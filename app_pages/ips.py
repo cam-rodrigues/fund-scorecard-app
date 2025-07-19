@@ -158,8 +158,88 @@ def run():
             st.error("❌ Unable to validate count due to unreadable 'Total Options' value.")
 
 
+#------------------------------------------------------------------------------------------------------------------
 
+        # === Step 8: IPS Investment Criteria Screening ===
+        st.subheader("Step 8: IPS Investment Criteria Screening")
 
+        ips_criteria = [
+            "Manager Tenure ≥ 3 years",
+            "3-Year Performance > Benchmark / +3-Year R² > 95%",
+            "3-Year Performance > 50% of Peers",
+            "3-Year Sharpe Ratio > 50% of Peers",
+            "3-Year Sortino Ratio > 50% of Peers / +3-Year Tracking Error < 90% of Peers",
+            "5-Year Performance > Benchmark / +5-Year R² > 95%",
+            "5-Year Performance > 50% of Peers",
+            "5-Year Sharpe Ratio > 50% of Peers",
+            "5-Year Sortino Ratio > 50% of Peers / +5-Year Tracking Error < 90% of Peers",
+            "Expense Ratio < 50% of Peers",
+            "Investment Style aligns with fund objectives"
+        ]
+
+        st.markdown("**IPS Investment Criteria:**")
+        for i, crit in enumerate(ips_criteria, 1):
+            st.markdown(f"{i}. {crit}")
+
+        # Define mappings to fund scorecard metric labels
+        def map_metric_names(fund_type):
+            if fund_type == "Passive":
+                return [
+                    "Manager Tenure",
+                    "R² (3Yr)",
+                    "Return Rank (3Yr)",
+                    "Sharpe Ratio Rank (3Yr)",
+                    "Tracking Error Rank (3Yr)",
+                    "R² (5Yr)",
+                    "Return Rank (5Yr)",
+                    "Sharpe Ratio Rank (5Yr)",
+                    "Tracking Error Rank (5Yr)",
+                    "Expense Ratio Rank",
+                    "Investment Style"
+                ]
+            else:  # Active
+                return [
+                    "Manager Tenure",
+                    "Excess Performance (3Yr)",
+                    "Return Rank (3Yr)",
+                    "Sharpe Ratio Rank (3Yr)",
+                    "Sortino Ratio Rank (3Yr)",
+                    "Excess Performance (5Yr)",
+                    "Return Rank (5Yr)",
+                    "Sharpe Ratio Rank (5Yr)",
+                    "Sortino Ratio Rank (5Yr)",
+                    "Expense Ratio Rank",
+                    "Investment Style"
+                ]
+
+        # Evaluate IPS compliance for each fund
+        for block in fund_blocks:
+            fund_name = block["Fund Name"]
+            fund_type = "Passive" if "bitcoin" in fund_name.lower() else "Active"
+            expected_metrics = map_metric_names(fund_type)
+
+            metric_lookup = {m["Metric"]: m["Status"] for m in block["Metrics"]}
+
+            ips_results = []
+            for label in expected_metrics[:-1]:  # first 10 metrics
+                status = metric_lookup.get(label, "Review")
+                ips_results.append("Pass" if status == "Pass" else "Fail")
+            ips_results.append("Pass")  # Metric 11 always passes
+
+            fail_count = ips_results.count("Fail")
+            if fail_count <= 4:
+                overall_status = "Passed IPS Screen"
+            elif fail_count == 5:
+                overall_status = "Informal Watch (IW)"
+            else:
+                overall_status = "Formal Watch (FW)"
+
+            # Display results
+            st.markdown(f"### {fund_name}")
+            st.write(f"**Fund Type:** {fund_type}")
+            for i, status in enumerate(ips_results, 1):
+                st.write(f"- Metric {i}: {status}")
+            st.write(f"**Overall IPS Status:** `{overall_status}`")
 
 
 
