@@ -204,7 +204,7 @@ def run():
 
             if declared_total is None:
                 st.warning("⚠️ Could not find Total Options on Page 1.")
-            elif declared_total == extracted_count:
+            elif declared_total == len(valid_funds):
                 st.success("✅ Number of Investment Options matches.")
             else:
                 st.error("❌ Mismatch: PDF says one number, but we extracted a different number.")
