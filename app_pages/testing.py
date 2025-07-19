@@ -6,7 +6,7 @@ from difflib import get_close_matches
 
 def run():
     st.set_page_config(page_title="Steps: Convert & Cleanup", layout="wide")
-    st.title("Steps")
+    st.title("Steps 1-11")
 
     # Step 1 – Upload PDF
     uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step3_upload")
@@ -234,6 +234,81 @@ def run():
                     st.markdown(f"- **{metric[0]}** → {metric[1]} — {metric[2]}")
                 st.markdown("---")
 
+    # === Step 12 - IPS Screening Logic ===
+            def screen_ips(fund):
+                name = fund["name"]
+                metrics = {m[0]: m[1] for m in fund["metrics"]}
+
+                is_passive = "bitcoin" in name.lower()
+
+                def status(metric_name):
+                    return metrics.get(metric_name, "Review")
+
+                results = []
+
+                # 1: Manager Tenure
+                results.append(status("Manager Tenure"))
+
+                # 2: 3Y Performance or 3Y R²
+                results.append(
+                    status("R-Squared (3Yr)") if is_passive else status("Excess Performance (3Yr)")
+                )
+
+                # 3: 3Y Peer Rank
+                results.append(status("Peer Return Rank (3Yr)"))
+
+                # 4: 3Y Sharpe
+                results.append(status("Sharpe Ratio Rank (3Yr)"))
+
+                # 5: 3Y Sortino or Tracking Error
+                results.append(
+                    status("Tracking Error Rank (3Yr)") if is_passive else status("Sortino Ratio Rank (3Yr)")
+                )
+
+                # 6: 5Y Performance or 5Y R²
+                results.append(
+                    status("R-Squared (5Yr)") if is_passive else status("Excess Performance (5Yr)")
+                )
+
+                # 7: 5Y Peer Rank
+                results.append(status("Peer Return Rank (5Yr)"))
+
+                # 8: 5Y Sharpe
+                results.append(status("Sharpe Ratio Rank (5Yr)"))
+
+                # 9: 5Y Sortino or Tracking Error
+                results.append(
+                    status("Tracking Error Rank (5Yr)") if is_passive else status("Sortino Ratio Rank (5Yr)")
+                )
+
+                # 10: Expense Ratio
+                results.append(status("Expense Ratio Rank"))
+
+                # 11: Investment Style = always Pass
+                results.append("Pass")
+
+                return results
+
+            # === Display IPS Results ===
+            st.subheader("IPS Investment Criteria Results")
+            for fund in cleaned_funds:
+                ips_results = screen_ips(fund)
+                fail_count = sum(1 for r in ips_results if r == "Review")
+
+                if fail_count <= 4:
+                    status_label = "✅ Passed IPS Screen"
+                elif fail_count == 5:
+                    status_label = "🟠 Informal Watch (IW)"
+                else:
+                    status_label = "🔴 Formal Watch (FW)"
+
+                st.markdown(f"### {fund['name']}")
+                for idx, res in enumerate(ips_results, start=1):
+                    color = "green" if res == "Pass" else "red"
+                    st.markdown(f"- **{idx}.** `{res}`", unsafe_allow_html=True)
+                st.markdown(f"**Final IPS Status:** {status_label}")
+                st.markdown("---")
+        
             
         except Exception as e:
             st.error(f"❌ Error reading PDF: {e}")
