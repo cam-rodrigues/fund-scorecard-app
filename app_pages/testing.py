@@ -115,9 +115,6 @@ def run():
 
 #Step 7
         
-    try:
-        with pdfplumber.open(uploaded_file) as pdf:
-            # --- Extract scorecard section page number (from TOC) ---
             toc_text = pdf.pages[1].extract_text()
             def find_page(section_title):
                 for line in toc_text.split("\n"):
