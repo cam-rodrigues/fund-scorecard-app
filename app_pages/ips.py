@@ -263,16 +263,17 @@ def run():
 
 #------------------------------------------------------------------------------------------------------------------
 
-        # === Step 9.4: Match Investment Option Names in Fund Performance Section ===
-        st.subheader("Step 9.4: Match Investment Option Names in Fund Performance Section")
+        # === Step 9.4: Match Investment Option Names Between Sections ===
+        st.subheader("Step 9.4: Match Investment Option Names Between Sections")
 
         from difflib import get_close_matches
 
         if fund_perf_pg == "Not found":
-            st.error("❌ Cannot match fund names — Fund Performance page not found.")
+            st.error("❌ Fund Performance page not found in Table of Contents.")
         else:
             scorecard_names = [block["Fund Name"] for block in fund_blocks]
-            matched_perf_names = set()
+            matched_names = {}  # scorecard_name ➝ matched_perf_line
+            seen_perf_names = set()
 
             for i in range(fund_perf_pg - 1, len(pdf.pages)):
                 page = pdf.pages[i]
@@ -283,28 +284,34 @@ def run():
                 lines = text.split("\n")
 
                 for line in lines:
-                    # Look for potential fund name lines: minimum 3 words, no symbols, no digits, no all-caps lines
-                    if len(line.split()) >= 3 and not re.search(r"[^A-Za-z\s\-&]", line) and not line.isupper():
-                        clean_line = line.strip()
-                        match = get_close_matches(clean_line, scorecard_names, n=1, cutoff=0.85)
+                    # We assume the left column holds the fund name, possibly followed by other data
+                    fund_candidate = line.strip()
+                    if len(fund_candidate.split()) >= 3:
+                        match = get_close_matches(fund_candidate, scorecard_names, n=1, cutoff=0.85)
                         if match:
-                            matched_perf_names.add(match[0])
+                            matched_name = match[0]
+                            if matched_name not in matched_names:
+                                matched_names[matched_name] = fund_candidate
+                                seen_perf_names.add(fund_candidate)
 
-            matched_count = len(matched_perf_names)
+            # === Display Results ===
+            matched_count = len(matched_names)
             expected_count = len(scorecard_names)
 
             st.write("**# of Investment Options in Fund Scorecard:**", expected_count)
-            st.write("**# of Matched Options from Fund Performance Section:**", matched_count)
+            st.write("**# Matched to Fund Performance Section:**", matched_count)
 
             if matched_count == expected_count:
-                st.success("✅ Counts match across Fund Scorecard and Fund Performance sections.")
+                st.success("✅ All Investment Options successfully matched between sections.")
             else:
-                st.warning("⚠️ Mismatch in fund count.")
-                unmatched = set(scorecard_names) - matched_perf_names
+                st.warning("⚠️ Mismatch in matched fund count.")
+                unmatched = set(scorecard_names) - set(matched_names.keys())
                 if unmatched:
-                    st.markdown("**Unmatched Funds from Scorecard:**")
+                    st.markdown("**Unmatched Scorecard Funds:**")
                     for name in unmatched:
                         st.write(f"- {name}")
 
-
-
+            if matched_names:
+                st.markdown("**Matched Fund Name Pairs:**")
+                for scorecard_name, perf_name in matched_names.items():
+                    st.write(f"- **{scorecard_name}**  ⇄  `{perf_name}`")
