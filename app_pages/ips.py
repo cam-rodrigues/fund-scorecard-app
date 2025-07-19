@@ -107,6 +107,9 @@ def run():
                     raw_fund_line = lines[j-1].strip()
                     # Clean extra status text from the same line
                     fund_name = fund_status_pattern.sub("", raw_fund_line).strip()
+                    if "criteria threshold" in fund_name.lower():
+                        continue  # skip bad block that grabbed threshold box
+
 
                     fund_metrics = []
                     for k in range(j, j+14):
