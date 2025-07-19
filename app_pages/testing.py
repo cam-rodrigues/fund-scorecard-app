@@ -5,7 +5,7 @@ import pandas as pd
 from difflib import get_close_matches
 
 def run():
-    st.set_page_config(page_title="Step 3: Convert & Cleanup", layout="wide")
+    st.set_page_config(page_title="Steps: Convert & Cleanup", layout="wide")
     st.title("Step 3: Convert & Clean Page 1 Data")
 
     # Step 1 – Upload PDF
@@ -66,6 +66,31 @@ def run():
     # Step 4 - Table of Contents
     # Page 2 – Table of Contents
                 toc_text = pdf.pages[1].extract_text()
+                
+    # Step 5 – Remove irrelevant TOC lines
+                lines = toc_text.split("\n")
+                ignore_keywords = [
+                    "Calendar Year", "Risk Analysis", "Style Box", "Returns Correlation", "Fund Factsheets",
+                    "Definitions & Disclosures", "Past performance", "Total Options", "http://", quarter.replace(" ", "/")
+                ]
+
+                cleaned_toc_lines = [
+                    line for line in lines
+                    if not any(kw in line for kw in ignore_keywords)
+                ]
+
+                # Step 5 – Extract relevant section page numbers
+                def find_page(section_title, toc_lines):
+                    for line in toc_lines:
+                        if section_title in line:
+                            match = re.search(r"(\d+)$", line)
+                            return int(match.group(1)) if match else None
+                    return None
+
+                perf_page = find_page("Fund Performance: Current vs. Proposed Comparison", cleaned_toc_lines)
+                scorecard_page = find_page("Fund Scorecard", cleaned_toc_lines)
+
+                # Display cleaned TOC + section page number
                 st.subheader("Raw Table of Contents (Page 2)")
                 st.text(toc_text)
 
