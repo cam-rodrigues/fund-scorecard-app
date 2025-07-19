@@ -222,7 +222,7 @@ def run():
         row = {
             "Investment Option": name,
             "Ticker": fund.get("ticker", "Not Found"),
-            "Time Period": "Q1 2025",  # Replace with parsed value
+            "Time Period": "Q1 2025",  # Replace later with dynamic time_period if needed
             "Plan Assets": "$"
         }
         for i, (_, result, _) in enumerate(ips_results, start=1):
@@ -253,9 +253,8 @@ def run():
     
     st.subheader("Final IPS Table")
     st.dataframe(styled, use_container_width=True)
-    
-    # === Keep this line AFTER the block above ===
+
     except Exception as e:
-        st.error(f"❌ Error processing PDF: {e}")
+    st.error(f"❌ Error processing PDF: {e}")
 
     
