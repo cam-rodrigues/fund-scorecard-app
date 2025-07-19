@@ -189,7 +189,7 @@ def run():
                     i += 1
 
 # --- Step 10: Remove Invalid Names (Not Actual Funds) ---
-            invalid_terms = [
+            invalid_name_terms = [
                 "FUND FACTS 3 YEAR ROLLING STYLE",
                 "FUND FACTS 3 YEAR ROLLING STYLE ASSET LOADINGS (Returns-based)"
             ]
