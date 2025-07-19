@@ -115,63 +115,82 @@ def run():
 
 #Step 7
         
-                toc_lines = toc_text.split("\n")
-                cleaned_toc_lines = [line for line in toc_lines if not any(kw in line for kw in ignore_keywords)]
-    
-                def find_page(section_title, toc_lines):
-                    for line in toc_lines:
-                        if section_title in line:
-                            match = re.search(r"(\d+)$", line)
-                            return int(match.group(1)) if match else None
-                    return None
-    
-                scorecard_page = find_page("Fund Scorecard", cleaned_toc_lines)
-                if not scorecard_page:
-                    st.error("❌ Could not find Fund Scorecard section.")
-                    return
-    
-                # Go to Fund Scorecard section
-                st.markdown(f"**Scorecard Section starts on page:** {scorecard_page}")
-    
-                metric_blocks = []
-                current_fund = None
-    
-                # Parse all pages starting from scorecard_page
-                for page in pdf.pages[scorecard_page - 1:]:
-                    text = page.extract_text()
-                    if not text:
+    try:
+        with pdfplumber.open(uploaded_file) as pdf:
+            # --- Extract scorecard section page number (from TOC) ---
+            toc_text = pdf.pages[1].extract_text()
+            def find_page(section_title):
+                for line in toc_text.split("\n"):
+                    if section_title in line:
+                        match = re.search(r"(\d+)$", line)
+                        return int(match.group(1)) if match else None
+                return None
+            scorecard_page = find_page("Fund Scorecard")
+            if not scorecard_page:
+                st.error("❌ Could not find Fund Scorecard page.")
+                return
+
+            # --- Extract Investment Options + Metrics ---
+            fund_blocks = []
+            lines_buffer = []
+
+            # Read all text from Fund Scorecard pages
+            for page in pdf.pages[scorecard_page - 1:]:
+                text = page.extract_text()
+                if not text:
+                    continue
+                lines_buffer.extend(text.split("\n"))
+
+            # Clean up buffer
+            cleaned_lines = []
+            skip_keywords = [
+                "Criteria Threshold",
+                "Portfolio manager or management team",
+                "must outperform its benchmark",
+                "must be in the top 50%", "must be in the top 10%",
+                "must be greater than 95%",
+                "Created with mpi Stylus"
+            ]
+
+            for line in lines_buffer:
+                if not any(kw in line for kw in skip_keywords):
+                    cleaned_lines.append(line.strip())
+
+            # Parse blocks based on "Manager Tenure" anchor
+            i = 0
+            while i < len(cleaned_lines):
+                if "Manager Tenure" in cleaned_lines[i]:
+                    if i == 0:
+                        i += 1
                         continue
-    
-                    lines = text.split("\n")
-                    for line in lines:
-                        line = line.strip()
-    
-                        # Skip watchlist lines
-                        if "Fund Meets Watchlist Criteria" in line or "Fund has been placed on watchlist" in line:
-                            continue
-    
-                        # Fund name (bold subheadings)
-                        if re.match(r'^[A-Z].{5,}$', line) and "Pass" not in line and "Review" not in line:
-                            current_fund = {"name": line.strip(), "metrics": []}
-                            metric_blocks.append(current_fund)
-                            continue
-    
-                        # Metric line with Pass/Review
-                        if current_fund and ("Pass" in line or "Review" in line):
-                            m = re.match(r"(.+?)\s+(Pass|Review)\s+(.+)", line)
-                            if m:
-                                metric_name = m.group(1).strip()
-                                status = m.group(2).strip()
-                                reason = m.group(3).strip()
-                                current_fund["metrics"].append((metric_name, status, reason))
-    
-                # Display Results
-                st.subheader("Extracted Funds + Metrics")
-                for fund in metric_blocks:
-                    st.markdown(f"**{fund['name']}**")
-                    for metric in fund["metrics"]:
-                        st.markdown(f"- {metric[0]} → **{metric[1]}** — {metric[2]}")
-                    st.markdown("---")
+                    fund_name = cleaned_lines[i - 1].strip()
+                    metrics_block = cleaned_lines[i:i + 14]
+                    parsed_metrics = []
+
+                    for m_line in metrics_block:
+                        m = re.match(r"(.+?)\s+(Pass|Review)\s+(.*)", m_line)
+                        if m:
+                            metric_name = m.group(1).strip()
+                            status = m.group(2).strip()
+                            reason = m.group(3).strip()
+                            parsed_metrics.append((metric_name, status, reason))
+
+                    fund_blocks.append({
+                        "name": fund_name,
+                        "metrics": parsed_metrics
+                    })
+
+                    i += 14  # skip the block
+                else:
+                    i += 1
+
+            # --- Display results ---
+            st.subheader("Extracted Investment Options")
+            for block in fund_blocks:
+                st.markdown(f"### {block['name']}")
+                for metric in block["metrics"]:
+                    st.markdown(f"- **{metric[0]}** → {metric[1]} — {metric[2]}")
+                st.markdown("---")
             
         except Exception as e:
             st.error(f"❌ Error reading PDF: {e}")
