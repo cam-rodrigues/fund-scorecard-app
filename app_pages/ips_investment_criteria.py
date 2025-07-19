@@ -202,7 +202,17 @@ def run():
 
 # === Final IPS Table ===
 table_data = []
-for fund in cleaned_funds:
+
+for fund in fund_blocks:
+    name = re.sub(r"Fund Meets Watchlist Criteria\.", "", fund["name"])
+    name = re.sub(r"Fund has been placed on watchlist.*", "", name).strip()
+    if not name or any(term in name.upper() for term in [
+        "FUND FACTS 3 YEAR ROLLING STYLE",
+        "FUND FACTS 3 YEAR ROLLING STYLE ASSET LOADINGS (Returns-based)"
+    ]):
+        continue
+
+    fund["name"] = name
     ips_results = screen_ips(fund)
     fail_count = sum(1 for m in ips_results if m[1] == "Review")
 
@@ -214,9 +224,9 @@ for fund in cleaned_funds:
         status_label = "Formal Watch (FW)"
 
     row = {
-        "Investment Option": fund["name"],
+        "Investment Option": name,
         "Ticker": fund.get("ticker", "Not Found"),
-        "Time Period": "Q1 2025",  # Replace with parsed date logic if you extracted the quarter
+        "Time Period": "Q1 2025",  # Replace with parsed quarter if needed
         "Plan Assets": "$"
     }
     for i, (_, result, _) in enumerate(ips_results, start=1):
@@ -246,6 +256,5 @@ def color_status(val):
 styled = df.style.applymap(color_metric, subset=[str(i) for i in range(1, 12)])
 styled = styled.applymap(color_status, subset=["IPS Status"])
 
-# === Display Table ===
 st.subheader("Final IPS Table")
 st.dataframe(styled, use_container_width=True)
