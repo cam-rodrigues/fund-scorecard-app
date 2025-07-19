@@ -234,7 +234,10 @@ def run():
                     st.markdown(f"- **{metric[0]}** → {metric[1]} — {metric[2]}")
                 st.markdown("---")
 
-            # === Step 5: Extract Tickers from Performance Section ===
+# === Step 5: Extract Tickers from Performance Section ===
+def extract_short_name(name, words=5):
+    return " ".join(name.split()[:words]).lower()
+
             perf_lines = []
             for page in pdf.pages[perf_page - 1:]:
                 text = page.extract_text()
