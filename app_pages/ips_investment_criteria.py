@@ -255,6 +255,6 @@ def run():
     st.dataframe(styled, use_container_width=True)
 
     except Exception as e:
-    st.error(f"❌ Error processing PDF: {e}")
+        st.error(f"❌ Error processing PDF: {e}")
 
     
