@@ -202,40 +202,38 @@ def run():
 
 # === Final IPS Summary Table ===
 
-def build_final_table(cleaned_funds, time_period="Q1 2025"):
-    table_rows = []
-    for fund in cleaned_funds:
-        ips_results = screen_ips(fund)
-        metric_statuses = [r[1] for r in ips_results]
-        fail_count = sum(1 for r in metric_statuses if r == "Review")
+# === Final IPS Table ===
+table_data = []
+for fund in cleaned_funds:
+    ips_results = screen_ips(fund)
+    fail_count = sum(1 for m in ips_results if m[1] == "Review")
 
-        if fail_count <= 4:
-            ips_label = "Passed IPS Screen"
-        elif fail_count == 5:
-            ips_label = "Informal Watch (IW)"
-        else:
-            ips_label = "Formal Watch (FW)"
+    if fail_count <= 4:
+        status_label = "Passed IPS Screen"
+    elif fail_count == 5:
+        status_label = "Informal Watch (IW)"
+    else:
+        status_label = "Formal Watch (FW)"
 
-        row = {
-            "Investment Option": fund["name"],
-            "Ticker": fund["ticker"],
-            "Time Period": time_period,
-            "Plan Assets": "$"
-        }
-        for i, val in enumerate(metric_statuses, 1):
-            row[str(i)] = val
-        row["IPS Status"] = ips_label
-        table_rows.append(row)
+    row = {
+        "Investment Option": fund["name"],
+        "Ticker": fund.get("ticker", "Not Found"),
+        "Time Period": time_period,
+        "Plan Assets": "$"
+    }
+    for i, (_, result, _) in enumerate(ips_results, start=1):
+        row[str(i)] = result
+    row["IPS Status"] = status_label
+    table_data.append(row)
 
-    return pd.DataFrame(table_rows)
+df = pd.DataFrame(table_data)
 
-final_df = build_final_table(cleaned_funds)
-
+# === Color Formatting ===
 def color_metric(val):
     if val == "Pass":
-        return "background-color: #d4edda"  # green
+        return "background-color: #d4edda"
     elif val == "Review":
-        return "background-color: #f8d7da"  # red
+        return "background-color: #f8d7da"
     return ""
 
 def color_status(val):
@@ -247,8 +245,9 @@ def color_status(val):
         return "background-color: #dc3545; color: white"
     return ""
 
-styled = final_df.style.applymap(color_metric, subset=[str(i) for i in range(1, 12)])
+styled = df.style.applymap(color_metric, subset=[str(i) for i in range(1, 12)])
 styled = styled.applymap(color_status, subset=["IPS Status"])
 
+# === Display Table ===
 st.subheader("Final IPS Table")
 st.dataframe(styled, use_container_width=True)
