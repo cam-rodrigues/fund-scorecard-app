@@ -195,7 +195,7 @@ def run():
             ]
             valid_funds = [
                 block for block in fund_blocks
-                if not any(term in block["name"].upper() for term in invalid_terms)
+                if not any(term in block["name"].upper() for term in invalid_name_terms)
             ]
 
             cleaned_funds = [
