@@ -242,5 +242,28 @@ def run():
             st.write(f"**Overall IPS Status:** `{overall_status}`")
 
 
+#------------------------------------------------------------------------------------------------------------------
+        
+        # === Step 9: Fund Performance: Current vs. Proposed Comparison Section ===
+        st.subheader("Step 9: Fund Performance: Current vs. Proposed Comparison Section")
+
+        if fund_perf_pg == "Not found":
+            st.error("❌ Could not find the starting page for 'Fund Performance: Current vs. Proposed Comparison'")
+        else:
+            fund_perf_found = False
+            for i in range(fund_perf_pg - 1, len(pdf.pages)):
+                page = pdf.pages[i]
+                text = page.extract_text()
+                if not text:
+                    continue
+
+                if "Fund Performance: Current vs. Proposed Comparison" in text:
+                    fund_perf_found = True
+                    st.markdown(f"**Found section on page {i+1}**")
+                    st.text(text[:2000])  # Display preview of first 2000 characters
+                    break
+
+            if not fund_perf_found:
+                st.warning("⚠️ Reached end of PDF without finding the correct heading.")
 
 
