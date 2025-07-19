@@ -187,7 +187,8 @@ def run():
                     i += 14  # skip the block
                 else:
                     i += 1
-#Step 10
+
+# --- Step 10: Remove Invalid Names (Not Actual Funds) ---
             invalid_terms = [
                 "FUND FACTS 3 YEAR ROLLING STYLE",
                 "FUND FACTS 3 YEAR ROLLING STYLE ASSET LOADINGS (Returns-based)"
@@ -196,15 +197,34 @@ def run():
                 block for block in fund_blocks
                 if not any(term in block["name"].upper() for term in invalid_terms)
             ]
-            
+
+            cleaned_funds = [
+                f for f in fund_blocks
+                if not any(term in f["name"].upper() for term in invalid_name_terms)
+            ]
+
+ # --- Step 11: Clean Watchlist Sentences from Fund Names ---
+            def clean_watchlist_text(name):
+                name = re.sub(r"Fund Meets Watchlist Criteria\.", "", name)
+                name = re.sub(r"Fund has been placed on watchlist.*", "", name)
+                return name.strip()
+
+            final_funds = []
+            for f in cleaned_funds:
+                cleaned_name = clean_watchlist_text(f["name"])
+                if cleaned_name:  # Only include if something remains
+                    final_funds.append({
+                        "name": cleaned_name,
+                        "metrics": f["metrics"]
+                    })
  # --- Step 9: Compare counts ---
             st.subheader("Double Check: Investment Option Count")
             st.markdown(f"- Declared in PDF (Page 1): **{declared_total if declared_total else 'Not found'}**")
-            st.markdown(f"- Extracted from Scorecard (after cleanup): **{len(valid_funds)}**")
+            st.markdown(f"- Extracted from Scorecard (after cleanup): **{len(final_funds)}**")
 
             if declared_total is None:
                 st.warning("⚠️ Could not find Total Options on Page 1.")
-            elif declared_total == len(valid_funds):
+            elif declared_total == len(final_funds):
                 st.success("✅ Number of Investment Options matches.")
             else:
                 st.error("❌ Mismatch: PDF says one number, but we extracted a different number.")
@@ -215,12 +235,13 @@ def run():
                 st.markdown(f"- {block['name']}")
                 
             # --- Display results ---
-            st.subheader("Extracted Investment Options")
-            for block in fund_blocks:
-                st.markdown(f"### {block['name']}")
-                for metric in block["metrics"]:
+            st.subheader("Cleaned Investment Options (Watchlist stripped)")
+            for fund in final_funds:
+                st.markdown(f"### {fund['name']}")
+                for metric in fund["metrics"]:
                     st.markdown(f"- **{metric[0]}** → {metric[1]} — {metric[2]}")
                 st.markdown("---")
+
             
         except Exception as e:
             st.error(f"❌ Error reading PDF: {e}")
