@@ -40,7 +40,7 @@ def run():
                         "12/31": "Q4"
                     }
 
-                    quarter = quarter_map.get(month_day, "Unknown") + " " + year
+                    quarter = quarter_map.get(date_str[:date_str.rfind("/")], "Unknown") + " " + date_str[-4:]
                 else:
                     quarter = "Not found"
 
