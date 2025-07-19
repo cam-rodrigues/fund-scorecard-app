@@ -263,59 +263,65 @@ def run():
 
 #------------------------------------------------------------------------------------------------------------------
 
-        # === Step 9.4: Match Investment Option Names Between Sections Using First 7 Words ===
+        # === Step 9.4: Match Investment Option Names & Extract Tickers ===
         st.subheader("Step 9.4: Match Investment Option Names Between Sections")
 
         from difflib import SequenceMatcher
+        import re
         import pandas as pd
 
+        def is_valid_fund_line(line):
+            if len(line.split()) < 3:
+                return False
+            if any(kw in line.lower() for kw in ["disclosure", "matrix", "calendar year", "fund scorecard", "page", "style", "returns"]):
+                return False
+            cap_words = sum(1 for word in line.split() if word.istitle())
+            return cap_words >= 3
+
         scorecard_names = [block["Fund Name"] for block in fund_blocks]
-        perf_snippets = []
+        perf_section_pages = []
+        raw_lines = []
 
-        if fund_perf_pg == "Not found":
-            st.error("❌ Fund Performance page not found in Table of Contents.")
-        else:
-            for i in range(fund_perf_pg - 1, len(pdf.pages)):
-                page = pdf.pages[i]
+        # === Step 1: Gather text from Fund Performance section ===
+        with pdfplumber.open(uploaded_file) as pdf:
+            for i, page in enumerate(pdf.pages):
                 text = page.extract_text()
-                if not text:
-                    continue
+                if text and "Fund Performance: Current vs. Proposed Comparison" in text:
+                    perf_section_pages.append(i)
 
-                if "Fund Performance: Current vs. Proposed Comparison" not in text:
-                    break  # stop scanning after section ends
+            for i in perf_section_pages:
+                lines = pdf.pages[i].extract_text().split("\n")
+                for line in lines:
+                    raw_lines.append(line.strip())
 
-                for line in text.split("\n"):
-                    words = line.strip().split()
-                    if len(words) >= 3:
-                        snippet = " ".join(words[:7])
-                        perf_snippets.append(snippet)
+        # === Step 2: Clean + pair lines with potential tickers ===
+        line_pairs = []
+        for i, line in enumerate(raw_lines):
+            if is_valid_fund_line(line):
+                next_line = raw_lines[i + 1] if i + 1 < len(raw_lines) else ""
+                ticker_match = re.match(r"^[A-Z]{5}$", next_line.strip())
+                ticker = next_line.strip() if ticker_match else ""
+                line_pairs.append((line, ticker))
 
-            # Match fund names from scorecard to snippet candidates
-            match_data = []
-            for score_name in scorecard_names:
-                best_match = None
-                best_score = 0
-                for snippet in perf_snippets:
-                    ratio = SequenceMatcher(None, score_name.lower(), snippet.lower()).ratio()
-                    if ratio > best_score:
-                        best_match = snippet
-                        best_score = ratio
-                match_data.append({
-                    "Fund Scorecard Name": score_name,
-                    "Fund Perf Snippet (First 7 Words)": best_match,
-                    "Match Score (0–100)": round(best_score * 100),
-                    "Matched": "✅" if best_score * 100 >= 20 else "❌"
-                })
+        # === Step 3: Fuzzy match scorecard names to fund performance names ===
+        match_data = []
+        for score_name in scorecard_names:
+            best_match = None
+            best_score = 0
+            matched_ticker = ""
+            for line, ticker in line_pairs:
+                ratio = SequenceMatcher(None, score_name.lower(), line.lower()).ratio()
+                if ratio > best_score:
+                    best_score = ratio
+                    best_match = line
+                    matched_ticker = ticker
+            match_data.append({
+                "Fund Scorecard Name": score_name,
+                "Matched Line": best_match,
+                "Ticker": matched_ticker,
+                "Match Score (0–100)": round(best_score * 100),
+                "Matched": "✅" if best_score * 100 >= 20 else "❌"
+            })
 
-            df_matches = pd.DataFrame(match_data)
-            st.dataframe(df_matches)
-
-            # Count comparison
-            num_matched = sum(1 for row in match_data if row["Matched"] == "✅")
-            num_expected = len(scorecard_names)
-
-            st.write(f"**Matched Funds:** {num_matched} / {num_expected}")
-            if num_matched == num_expected:
-                st.success("✅ All Investment Options successfully matched.")
-            else:
-                st.warning("⚠️ Some Investment Options were not matched. Check the table above.")
+        df_matches = pd.DataFrame(match_data)
+        st.dataframe(df_matches)
