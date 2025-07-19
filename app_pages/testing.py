@@ -18,7 +18,7 @@ def run():
             with pdfplumber.open(uploaded_file) as pdf:
                 raw_text = pdf.pages[0].extract_text()
                 
-                # Step 3 – Remove boilerplate footer line
+    # Step 3 – Remove boilerplate footer line
                 cleaned_text = re.sub(
                     r"For Plan Sponsor use only.*?Created with mpi Stylus\.", "", raw_text, flags=re.DOTALL
                 )
@@ -26,7 +26,7 @@ def run():
                 st.subheader("Cleaned Text from Page 1")
                 st.text(cleaned_text)
 
-                # Step 2 – Extract Quarter-End Date
+    # Step 2 – Extract Quarter-End Date
                 quarter_match = re.search(r'(3/31|6/30|9/30|12/31)/20\d{2}', cleaned_text)
                 if quarter_match:
                     date_str = quarter_match.group(0)
@@ -63,5 +63,27 @@ def run():
                 st.markdown(f"**Prepared For:** {prepared_for}")
                 st.markdown(f"**Prepared By:** {prepared_by}")
 
+    # Step 4 - Table of Contents
+    # Page 2 – Table of Contents
+                toc_text = pdf.pages[1].extract_text()
+                st.subheader("Raw Table of Contents (Page 2)")
+                st.text(toc_text)
+
+                # Find section pages
+                def find_page_number(section_title, toc_text):
+                    pattern = rf"{re.escape(section_title)}[\s\.]*?(\d+)"
+                    match = re.search(pattern, toc_text)
+                    return int(match.group(1)) if match else None
+
+                perf_page = find_page_number("Fund Performance: Current vs. Proposed Comparison", toc_text)
+                scorecard_page = find_page_number("Fund Scorecard", toc_text)
+
+                # Display extracted results
+                st.subheader("Extracted Sections")
+                st.markdown(f"**Time Period:** {quarter}")
+                st.markdown(f"**Fund Performance Section Page:** {perf_page if perf_page else 'Not found'}")
+                st.markdown(f"**Fund Scorecard Section Page:** {scorecard_page if scorecard_page else 'Not found'}")
+
+        
         except Exception as e:
             st.error(f"❌ Error reading PDF: {e}")
