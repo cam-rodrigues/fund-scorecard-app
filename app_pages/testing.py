@@ -234,6 +234,29 @@ def run():
                     st.markdown(f"- **{metric[0]}** → {metric[1]} — {metric[2]}")
                 st.markdown("---")
 
+            # === Step 5: Extract Tickers from Performance Section ===
+            perf_lines = []
+            for page in pdf.pages[perf_page - 1:]:
+                text = page.extract_text()
+                if not text or "Fund Factsheets" in text:
+                    break
+                perf_lines.extend(text.split("\n"))
+
+            all_perf_lines = [line.strip() for line in perf_lines if len(line.strip()) > 5]
+
+            for fund in cleaned_funds:
+                short = extract_short_name(fund["name"])
+                match_line = next((
+                    line for line in all_perf_lines
+                    if short in extract_short_name(line)
+                ), None)
+
+                if match_line:
+                    m = re.search(r"\b([A-Z]{5})\b", match_line)
+                    fund["ticker"] = m.group(1) if m else "Not Found"
+                else:
+                    fund["ticker"] = "Not Found"
+
     # === Step 12 - IPS Screening Logic ===
             def screen_ips(fund):
                 name = fund["name"]
