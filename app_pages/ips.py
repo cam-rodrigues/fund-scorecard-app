@@ -268,58 +268,54 @@ def run():
         # === Step 9.4: Match Investment Option Names & Extract Tickers ===
         st.subheader("Step 9.4: Match Investment Option Names Between Sections")
         
-        def is_valid_fund_line(line):
-            if len(line.split()) < 3:
+        def is_valid_fund_candidate(line):
+            line = line.strip()
+            if not (15 <= len(line) <= 60):
                 return False
-            if any(kw in line.lower() for kw in ["disclosure", "matrix", "calendar year", "fund scorecard", "page", "style", "returns"]):
+            if any(kw in line.lower() for kw in [
+                "matrix", "disclosure", "calendar year", "fund scorecard",
+                "page", "style", "returns", "definitions"
+            ]):
                 return False
-            cap_words = sum(1 for word in line.split() if word.istitle())
-            return cap_words >= 3
-
+            if sum(1 for word in line.split() if word.istitle()) < 3:
+                return False
+            return True
+        
         scorecard_names = [block["Fund Name"] for block in fund_blocks]
         perf_section_pages = []
-        raw_lines = []
-
-        # === Step 1: Gather text from Fund Performance section ===
+        perf_lines = []
+        
         with pdfplumber.open(uploaded_file) as pdf:
             for i, page in enumerate(pdf.pages):
                 text = page.extract_text()
                 if text and "Fund Performance: Current vs. Proposed Comparison" in text:
                     perf_section_pages.append(i)
-
+        
             for i in perf_section_pages:
                 lines = pdf.pages[i].extract_text().split("\n")
-                for line in lines:
-                    raw_lines.append(line.strip())
-
-        # === Step 2: Clean + pair lines with potential tickers ===
-        line_pairs = []
-        for i, line in enumerate(raw_lines):
-            if is_valid_fund_line(line):
-                next_line = raw_lines[i + 1] if i + 1 < len(raw_lines) else ""
-                ticker_match = re.match(r"^[A-Z]{5}$", next_line.strip())
-                ticker = next_line.strip() if ticker_match else ""
-                line_pairs.append((line, ticker))
-
-        # === Step 3: Fuzzy match scorecard names to fund performance names ===
+                perf_lines.extend([line.strip() for line in lines if is_valid_fund_candidate(line)])
+        
+        # Match fund names to filtered candidate lines and try to pull next-line tickers
         match_data = []
-        for score_name in scorecard_names:
-            best_match = None
+        for name in scorecard_names:
             best_score = 0
-            matched_ticker = ""
-            for line, ticker in line_pairs:
-                ratio = SequenceMatcher(None, score_name.lower(), line.lower()).ratio()
-                if ratio > best_score:
-                    best_score = ratio
-                    best_match = line
-                    matched_ticker = ticker
+            best_line = ""
+            best_ticker = ""
+            for i, line in enumerate(perf_lines):
+                score = SequenceMatcher(None, name.lower(), line.lower()).ratio()
+                if score > best_score:
+                    best_score = score
+                    best_line = line
+                    if i + 1 < len(perf_lines):
+                        next_line = perf_lines[i + 1].strip()
+                        best_ticker = next_line if re.fullmatch(r"[A-Z]{5}", next_line) else ""
             match_data.append({
-                "Fund Scorecard Name": score_name,
-                "Matched Line": best_match,
-                "Ticker": matched_ticker,
+                "Fund Scorecard Name": name,
+                "Matched Line from Performance Section": best_line,
+                "Extracted Ticker": best_ticker,
                 "Match Score (0–100)": round(best_score * 100),
-                "Matched": "✅" if best_score * 100 >= 80 else "❌"
+                "Matched": "✅" if best_score * 100 >= 20 else "❌"
             })
-
+        
         df_matches = pd.DataFrame(match_data)
         st.dataframe(df_matches)
