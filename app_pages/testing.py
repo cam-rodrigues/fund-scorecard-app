@@ -235,8 +235,8 @@ def run():
                 st.markdown("---")
 
 # === Step 5: Extract Tickers from Performance Section ===
-def extract_short_name(name, words=5):
-    return " ".join(name.split()[:words]).lower()
+    def extract_short_name(name, words=5):
+        return " ".join(name.split()[:words]).lower()
 
             perf_lines = []
             for page in pdf.pages[perf_page - 1:]:
