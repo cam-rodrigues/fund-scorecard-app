@@ -241,7 +241,7 @@ def run():
 
                 is_passive = "bitcoin" in name.lower()
 
-                def status(metric_name):
+                def get(metric_name):
                     return metrics_raw.get(metric_name, ("Review", "No data"))
 
                 results = []
