@@ -67,11 +67,14 @@ def run():
     # Page 2 – Table of Contents
                 toc_text = pdf.pages[1].extract_text()
                 
-    # Step 5 – Remove irrelevant TOC lines
+    # Step 5/6 – Remove irrelevant TOC lines
                 lines = toc_text.split("\n")
                 ignore_keywords = [
-                    "Calendar Year", "Risk Analysis", "Style Box", "Returns Correlation", "Fund Factsheets",
-                    "Definitions & Disclosures", "Past performance", "Total Options", "http://", quarter.replace(" ", "/")
+                    "Calendar Year", "Risk Analysis", "Style Box", "Returns Correlation",
+                    "Fund Factsheets", "Definitions & Disclosures", "Past performance",
+                    "Total Options", "http://", quarter.replace(" ", "/"),
+                    "shares may be worth more/less than original cost",
+                    "Returns assume reinvestment of all distributions at NAV"
                 ]
 
                 cleaned_toc_lines = [
