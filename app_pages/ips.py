@@ -263,40 +263,24 @@ def run():
 
 #------------------------------------------------------------------------------------------------------------------
 
-        # === Step 9.3: Match Investment Option Names to Tickers ===
-        st.subheader("Step 9.3: Match Investment Option Names to Tickers")
+        # === Step 9.4: Double Check Matching Count ===
+        st.subheader("Step 9.4: Validate Matched Fund Count")
 
-        from difflib import get_close_matches
+        extracted_perf_names = list(fund_name_to_ticker.keys())
+        num_perf_names = len(extracted_perf_names)
+        num_scorecard_names = len(scorecard_names)
 
-        if fund_perf_pg == "Not found":
-            st.error("❌ Cannot match fund names — Fund Performance page not found.")
+        st.write("**# of Investment Options in Fund Scorecard:**", num_scorecard_names)
+        st.write("**# of Matched Options from Fund Performance Section:**", num_perf_names)
+
+        if num_perf_names == num_scorecard_names:
+            st.success("✅ Counts match across Fund Scorecard and Fund Performance sections.")
         else:
-            scorecard_names = [block["Fund Name"] for block in fund_blocks]
-            fund_name_to_ticker = {}
+            st.warning("⚠️ Mismatch in fund count between Fund Performance and Scorecard sections.")
+            missing = set(scorecard_names) - set(extracted_perf_names)
+            if missing:
+                st.markdown("**Unmatched Scorecard Funds:**")
+                for name in missing:
+                    st.write(f"- {name}")
 
-            ticker_pattern = re.compile(r"(.+?)\s+([A-Z]{5})$")
-
-            for i in range(fund_perf_pg - 1, len(pdf.pages)):
-                page = pdf.pages[i]
-                text = page.extract_text()
-                if not text or "Fund Performance: Current vs. Proposed Comparison" not in text:
-                    break  # End of section
-
-                for line in text.split("\n"):
-                    match = ticker_pattern.match(line.strip())
-                    if match:
-                        name_line, ticker = match.groups()
-                        name_line_clean = name_line.strip()
-
-                        best_match = get_close_matches(name_line_clean, scorecard_names, n=1, cutoff=0.8)
-                        if best_match:
-                            matched_name = best_match[0]
-                            fund_name_to_ticker[matched_name] = ticker
-
-            if fund_name_to_ticker:
-                st.markdown("**Matched Investment Options and Tickers:**")
-                for name, ticker in fund_name_to_ticker.items():
-                    st.write(f"- **{name}** ➝ {ticker}")
-            else:
-                st.warning("⚠️ No tickers matched to Investment Options.")
 
