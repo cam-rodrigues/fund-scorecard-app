@@ -181,6 +181,25 @@ def run():
                 else:
                     i += 1
 
+ # --- Step 9: Compare counts ---
+            extracted_count = len(fund_blocks)
+
+            st.subheader("Double Check: Investment Option Count")
+            st.markdown(f"- Declared in PDF (Page 1): **{declared_total if declared_total else 'Not found'}**")
+            st.markdown(f"- Extracted from Scorecard: **{extracted_count}**")
+
+            if declared_total is None:
+                st.warning("⚠️ Could not find Total Options on Page 1.")
+            elif declared_total == extracted_count:
+                st.success("✅ Number of Investment Options matches.")
+            else:
+                st.error("❌ Mismatch: PDF says one number, but we extracted a different number.")
+
+# Optional display of the fund names
+            st.subheader("Extracted Fund Names")
+            for block in fund_blocks:
+                st.markdown(f"- {block['name']}")
+                
             # --- Display results ---
             st.subheader("Extracted Investment Options")
             for block in fund_blocks:
