@@ -17,6 +17,12 @@ def run():
         try:
             with pdfplumber.open(uploaded_file) as pdf:
                 raw_text = pdf.pages[0].extract_text()
+
+# Step 8 
+                page1_text = pdf.pages[0].extract_text()
+                total_match = re.search(r"Total Options:\s*(\d+)", page1_text or "")
+                declared_total = int(total_match.group(1)) if total_match else None
+                    
                 
     # Step 3 – Remove boilerplate footer line
                 cleaned_text = re.sub(
