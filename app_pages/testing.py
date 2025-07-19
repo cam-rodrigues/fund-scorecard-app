@@ -200,7 +200,7 @@ def run():
  # --- Step 9: Compare counts ---
             st.subheader("Double Check: Investment Option Count")
             st.markdown(f"- Declared in PDF (Page 1): **{declared_total if declared_total else 'Not found'}**")
-            st.markdown(f"- Extracted from Scorecard: **{extracted_count}**")
+            st.markdown(f"- Extracted from Scorecard (after cleanup): **{len(valid_funds)}**")
 
             if declared_total is None:
                 st.warning("⚠️ Could not find Total Options on Page 1.")
