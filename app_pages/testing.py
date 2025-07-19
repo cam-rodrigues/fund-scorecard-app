@@ -91,8 +91,9 @@ def run():
                 scorecard_page = find_page("Fund Scorecard", cleaned_toc_lines)
 
                 # Display cleaned TOC + section page number
-                st.subheader("Raw Table of Contents (Page 2)")
-                st.text(toc_text)
+                st.subheader("Cleaned Table of Contents")
+                for line in cleaned_toc_lines:
+                    st.markdown(f"- {line}")
 
                 # Find section pages
                 def find_page_number(section_title, toc_text):
