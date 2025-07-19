@@ -263,17 +263,20 @@ def run():
 
 #------------------------------------------------------------------------------------------------------------------
 
-        # === Step 9.4: Match Investment Option Names Between Sections ===
+        # === Step 9.4: Match Investment Option Names Between Sections (Smart Reconstruction) ===
         st.subheader("Step 9.4: Match Investment Option Names Between Sections")
 
         from difflib import get_close_matches
 
+        scorecard_names = [block["Fund Name"] for block in fund_blocks]
+        perf_fund_names = []
+
         if fund_perf_pg == "Not found":
             st.error("❌ Fund Performance page not found in Table of Contents.")
         else:
-            scorecard_names = [block["Fund Name"] for block in fund_blocks]
-            matched_names = {}  # scorecard_name ➝ matched_perf_line
-            seen_perf_names = set()
+            # Reconstruct fund names based on expected pattern:
+            # line with words (name), followed by line with 5-letter ticker
+            name_ticker_pattern = re.compile(r"^[A-Z]{5}$")
 
             for i in range(fund_perf_pg - 1, len(pdf.pages)):
                 page = pdf.pages[i]
@@ -282,36 +285,41 @@ def run():
                     break
 
                 lines = text.split("\n")
+                for j in range(len(lines) - 1):
+                    name_line = lines[j].strip()
+                    ticker_line = lines[j + 1].strip()
 
-                for line in lines:
-                    # We assume the left column holds the fund name, possibly followed by other data
-                    fund_candidate = line.strip()
-                    if len(fund_candidate.split()) >= 3:
-                        match = get_close_matches(fund_candidate, scorecard_names, n=1, cutoff=0.85)
-                        if match:
-                            matched_name = match[0]
-                            if matched_name not in matched_names:
-                                matched_names[matched_name] = fund_candidate
-                                seen_perf_names.add(fund_candidate)
+                    if name_ticker_pattern.match(ticker_line):
+                        # Confirm that name_line looks like a real name
+                        if len(name_line.split()) >= 3 and not name_ticker_pattern.match(name_line):
+                            perf_fund_names.append(name_line)
 
-            # === Display Results ===
-            matched_count = len(matched_names)
-            expected_count = len(scorecard_names)
+            matched_names = {}
+            unmatched_scorecard_names = []
 
-            st.write("**# of Investment Options in Fund Scorecard:**", expected_count)
-            st.write("**# Matched to Fund Performance Section:**", matched_count)
+            for scorecard_name in scorecard_names:
+                best_match = get_close_matches(scorecard_name, perf_fund_names, n=1, cutoff=0.75)
+                if best_match:
+                    matched_names[scorecard_name] = best_match[0]
+                else:
+                    unmatched_scorecard_names.append(scorecard_name)
 
-            if matched_count == expected_count:
+            # Display results
+            st.write("**# of Investment Options in Fund Scorecard:**", len(scorecard_names))
+            st.write("**# Matched to Fund Performance Section:**", len(matched_names))
+
+            if len(matched_names) == len(scorecard_names):
                 st.success("✅ All Investment Options successfully matched between sections.")
             else:
                 st.warning("⚠️ Mismatch in matched fund count.")
-                unmatched = set(scorecard_names) - set(matched_names.keys())
-                if unmatched:
+
+                if unmatched_scorecard_names:
                     st.markdown("**Unmatched Scorecard Funds:**")
-                    for name in unmatched:
+                    for name in unmatched_scorecard_names:
                         st.write(f"- {name}")
 
             if matched_names:
                 st.markdown("**Matched Fund Name Pairs:**")
                 for scorecard_name, perf_name in matched_names.items():
-                    st.write(f"- **{scorecard_name}**  ⇄  `{perf_name}`")
+                    st.write(f"- **{scorecard_name}** ⇄ `{perf_name}`")
+
