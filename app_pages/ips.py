@@ -263,24 +263,48 @@ def run():
 
 #------------------------------------------------------------------------------------------------------------------
 
-        # === Step 9.4: Double Check Matching Count ===
-        st.subheader("Step 9.4: Validate Matched Fund Count")
+        # === Step 9.4: Match Investment Option Names in Fund Performance Section ===
+        st.subheader("Step 9.4: Match Investment Option Names in Fund Performance Section")
 
-        extracted_perf_names = list(fund_name_to_ticker.keys())
-        num_perf_names = len(extracted_perf_names)
-        num_scorecard_names = len(scorecard_names)
+        from difflib import get_close_matches
 
-        st.write("**# of Investment Options in Fund Scorecard:**", num_scorecard_names)
-        st.write("**# of Matched Options from Fund Performance Section:**", num_perf_names)
-
-        if num_perf_names == num_scorecard_names:
-            st.success("✅ Counts match across Fund Scorecard and Fund Performance sections.")
+        if fund_perf_pg == "Not found":
+            st.error("❌ Cannot match fund names — Fund Performance page not found.")
         else:
-            st.warning("⚠️ Mismatch in fund count between Fund Performance and Scorecard sections.")
-            missing = set(scorecard_names) - set(extracted_perf_names)
-            if missing:
-                st.markdown("**Unmatched Scorecard Funds:**")
-                for name in missing:
-                    st.write(f"- {name}")
+            scorecard_names = [block["Fund Name"] for block in fund_blocks]
+            matched_perf_names = set()
+
+            for i in range(fund_perf_pg - 1, len(pdf.pages)):
+                page = pdf.pages[i]
+                text = page.extract_text()
+                if not text or "Fund Performance: Current vs. Proposed Comparison" not in text:
+                    break
+
+                lines = text.split("\n")
+
+                for line in lines:
+                    # Look for potential fund name lines: minimum 3 words, no symbols, no digits, no all-caps lines
+                    if len(line.split()) >= 3 and not re.search(r"[^A-Za-z\s\-&]", line) and not line.isupper():
+                        clean_line = line.strip()
+                        match = get_close_matches(clean_line, scorecard_names, n=1, cutoff=0.85)
+                        if match:
+                            matched_perf_names.add(match[0])
+
+            matched_count = len(matched_perf_names)
+            expected_count = len(scorecard_names)
+
+            st.write("**# of Investment Options in Fund Scorecard:**", expected_count)
+            st.write("**# of Matched Options from Fund Performance Section:**", matched_count)
+
+            if matched_count == expected_count:
+                st.success("✅ Counts match across Fund Scorecard and Fund Performance sections.")
+            else:
+                st.warning("⚠️ Mismatch in fund count.")
+                unmatched = set(scorecard_names) - matched_perf_names
+                if unmatched:
+                    st.markdown("**Unmatched Funds from Scorecard:**")
+                    for name in unmatched:
+                        st.write(f"- {name}")
+
 
 
