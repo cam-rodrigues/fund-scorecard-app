@@ -260,3 +260,43 @@ def run():
             else:
                 st.warning(f"⚠️ The text on page {i + 1} does not contain the expected heading. Double-check TOC accuracy.")
                 st.text(text[:2000] if text else "No text found on this page.")
+
+#------------------------------------------------------------------------------------------------------------------
+
+        # === Step 9.3: Match Investment Option Names to Tickers ===
+        st.subheader("Step 9.3: Match Investment Option Names to Tickers")
+
+        from difflib import get_close_matches
+
+        if fund_perf_pg == "Not found":
+            st.error("❌ Cannot match fund names — Fund Performance page not found.")
+        else:
+            scorecard_names = [block["Fund Name"] for block in fund_blocks]
+            fund_name_to_ticker = {}
+
+            ticker_pattern = re.compile(r"(.+?)\s+([A-Z]{5})$")
+
+            for i in range(fund_perf_pg - 1, len(pdf.pages)):
+                page = pdf.pages[i]
+                text = page.extract_text()
+                if not text or "Fund Performance: Current vs. Proposed Comparison" not in text:
+                    break  # End of section
+
+                for line in text.split("\n"):
+                    match = ticker_pattern.match(line.strip())
+                    if match:
+                        name_line, ticker = match.groups()
+                        name_line_clean = name_line.strip()
+
+                        best_match = get_close_matches(name_line_clean, scorecard_names, n=1, cutoff=0.8)
+                        if best_match:
+                            matched_name = best_match[0]
+                            fund_name_to_ticker[matched_name] = ticker
+
+            if fund_name_to_ticker:
+                st.markdown("**Matched Investment Options and Tickers:**")
+                for name, ticker in fund_name_to_ticker.items():
+                    st.write(f"- **{name}** ➝ {ticker}")
+            else:
+                st.warning("⚠️ No tickers matched to Investment Options.")
+
