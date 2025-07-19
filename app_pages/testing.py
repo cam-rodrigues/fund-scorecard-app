@@ -225,11 +225,7 @@ def run():
             else:
                 st.error("❌ Mismatch: PDF says one number, but we extracted a different number.")
 
-# Optional display of the fund names
-            st.subheader("Extracted Fund Names")
-            for block in fund_blocks:
-                st.markdown(f"- {block['name']}")
-                
+
             # --- Display results ---
             st.subheader("Cleaned Investment Options (Watchlist stripped)")
             for fund in final_funds:
