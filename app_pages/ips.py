@@ -263,19 +263,17 @@ def run():
 
 #------------------------------------------------------------------------------------------------------------------
 
-        # === Step 9.4: Match Investment Option Names Between Sections (Smart Reconstruction) ===
+        # === Step 9.4: Match Investment Option Names Between Sections (Side-by-side display) ===
         st.subheader("Step 9.4: Match Investment Option Names Between Sections")
 
         from difflib import get_close_matches
 
         scorecard_names = [block["Fund Name"] for block in fund_blocks]
-        perf_fund_names = []
+        perf_names_raw = []  # list of (name, ticker)
 
         if fund_perf_pg == "Not found":
             st.error("❌ Fund Performance page not found in Table of Contents.")
         else:
-            # Reconstruct fund names based on expected pattern:
-            # line with words (name), followed by line with 5-letter ticker
             name_ticker_pattern = re.compile(r"^[A-Z]{5}$")
 
             for i in range(fund_perf_pg - 1, len(pdf.pages)):
@@ -290,36 +288,38 @@ def run():
                     ticker_line = lines[j + 1].strip()
 
                     if name_ticker_pattern.match(ticker_line):
-                        # Confirm that name_line looks like a real name
-                        if len(name_line.split()) >= 3 and not name_ticker_pattern.match(name_line):
-                            perf_fund_names.append(name_line)
+                        if len(name_line.split()) >= 3:
+                            perf_names_raw.append((name_line, ticker_line))
 
-            matched_names = {}
-            unmatched_scorecard_names = []
+            perf_names_only = [name for name, _ in perf_names_raw]
 
-            for scorecard_name in scorecard_names:
-                best_match = get_close_matches(scorecard_name, perf_fund_names, n=1, cutoff=0.75)
-                if best_match:
-                    matched_names[scorecard_name] = best_match[0]
+            matched_pairs = []
+            unmatched_names = []
+
+            for score_name in scorecard_names:
+                match = get_close_matches(score_name, perf_names_only, n=1, cutoff=0.65)
+                if match:
+                    matched_name = match[0]
+                    ticker = next(t for n, t in perf_names_raw if n == matched_name)
+                    matched_pairs.append((score_name, matched_name, ticker))
                 else:
-                    unmatched_scorecard_names.append(scorecard_name)
+                    unmatched_names.append(score_name)
 
-            # Display results
+            # === Display counts ===
             st.write("**# of Investment Options in Fund Scorecard:**", len(scorecard_names))
-            st.write("**# Matched to Fund Performance Section:**", len(matched_names))
+            st.write("**# Matched to Fund Performance Section:**", len(matched_pairs))
 
-            if len(matched_names) == len(scorecard_names):
-                st.success("✅ All Investment Options successfully matched between sections.")
+            # === Display matched names side-by-side ===
+            if matched_pairs:
+                st.markdown("**Matched Fund Names:**")
+                for score_name, perf_name, ticker in matched_pairs:
+                    st.write(f"- **{score_name}** ⇄ `{perf_name}` ➝ **{ticker}**")
             else:
-                st.warning("⚠️ Mismatch in matched fund count.")
+                st.warning("⚠️ No matches found.")
 
-                if unmatched_scorecard_names:
-                    st.markdown("**Unmatched Scorecard Funds:**")
-                    for name in unmatched_scorecard_names:
-                        st.write(f"- {name}")
+            if unmatched_names:
+                st.warning("⚠️ The following Scorecard funds could not be matched:")
+                for name in unmatched_names:
+                    st.write(f"- {name}")
 
-            if matched_names:
-                st.markdown("**Matched Fund Name Pairs:**")
-                for scorecard_name, perf_name in matched_names.items():
-                    st.write(f"- **{scorecard_name}** ⇄ `{perf_name}`")
 
