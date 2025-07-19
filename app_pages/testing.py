@@ -308,10 +308,10 @@ def run():
                 return results
 
             # === Display IPS Results ===
-            st.subheader("IPS Investment Criteria Results")
+            st.subheader("IPS Results with Reasoning")
             for fund in cleaned_funds:
                 ips_results = screen_ips(fund)
-                fail_count = sum(1 for r in ips_results if r == "Review")
+                fail_count = sum(1 for m in ips_results if m[1] == "Review")
 
                 if fail_count <= 4:
                     status_label = "✅ Passed IPS Screen"
@@ -321,12 +321,10 @@ def run():
                     status_label = "🔴 Formal Watch (FW)"
 
                 st.markdown(f"### {fund['name']}")
-                for idx, res in enumerate(ips_results, start=1):
-                    color = "green" if res == "Pass" else "red"
-                    st.markdown(f"- **{idx}.** `{res}`", unsafe_allow_html=True)
+                for idx, (label, result, reason) in enumerate(ips_results, start=1):
+                    st.markdown(f"- **{idx}. {label}** → `{result}` — {reason}")
                 st.markdown(f"**Final IPS Status:** {status_label}")
                 st.markdown("---")
-        
             
         except Exception as e:
             st.error(f"❌ Error reading PDF: {e}")
