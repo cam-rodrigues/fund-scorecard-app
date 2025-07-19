@@ -138,3 +138,26 @@ def run():
                 st.write(f"- {metric['Metric']}: **{metric['Status']}** – {metric['Reason']}")
                 
 #------------------------------------------------------------------------------------------------------------------
+        
+        # === Step 7: Double Check ===
+        st.subheader("Step 7: Double Check")
+
+        num_extracted_funds = len(fund_blocks)
+        st.write("**Investment Options Extracted:**", num_extracted_funds)
+
+        try:
+            total_expected = int(total_options)
+            if num_extracted_funds == total_expected:
+                st.success(f"✅ Count matches: {num_extracted_funds} funds found.")
+            else:
+                st.warning(f"⚠️ Count mismatch: Found {num_extracted_funds}, but expected {total_expected}.")
+        except:
+            st.error("❌ Unable to validate count due to unreadable 'Total Options' value.")
+
+
+
+
+
+
+
+
