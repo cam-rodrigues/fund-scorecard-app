@@ -201,7 +201,6 @@ def run():
 
 
 # === Final IPS Summary Table ===
-
 # === Final IPS Table ===
 table_data = []
 for fund in cleaned_funds:
@@ -226,6 +225,7 @@ for fund in cleaned_funds:
     row["IPS Status"] = status_label
     table_data.append(row)
 
+import pandas as pd
 df = pd.DataFrame(table_data)
 
 # === Color Formatting ===
@@ -252,21 +252,4 @@ styled = styled.applymap(color_status, subset=["IPS Status"])
 st.subheader("Final IPS Table")
 st.dataframe(styled, use_container_width=True)
 
-for fund in cleaned_funds:
-    ips_results = screen_ips(fund)
-    fail_count = sum(1 for m in ips_results if m[1] == "Review")
-
-    if fail_count <= 4:
-        status_label = "Passed IPS Screen"
-    elif fail_count == 5:
-        status_label = "Informal Watch (IW)"
-    else:
-        status_label = "Formal Watch (FW)"
-
-    st.markdown(f"### {fund['name']}")
-    st.markdown(f"- **Ticker:** `{fund['ticker']}`")
-    for idx, (label, result, reason) in enumerate(ips_results, start=1):
-        st.markdown(f"- **{idx}. {label}** → `{result}` — {reason}")
-    st.markdown(f"**Final IPS Status:** {status_label}")
-    st.markdown("---")
 
