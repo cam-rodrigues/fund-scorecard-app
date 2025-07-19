@@ -263,13 +263,14 @@ def run():
 
 #------------------------------------------------------------------------------------------------------------------
 
-        # === Step 9.4: Match Investment Option Names Between Sections (Side-by-side display) ===
+        # === Step 9.4: Match Investment Option Names (2-column table w/ fuzzy logic) ===
         st.subheader("Step 9.4: Match Investment Option Names Between Sections")
 
-        from difflib import get_close_matches
+        from difflib import SequenceMatcher
+        import pandas as pd
 
         scorecard_names = [block["Fund Name"] for block in fund_blocks]
-        perf_names_raw = []  # list of (name, ticker)
+        perf_names_raw = []  # (name, ticker)
 
         if fund_perf_pg == "Not found":
             st.error("❌ Fund Performance page not found in Table of Contents.")
@@ -291,35 +292,25 @@ def run():
                         if len(name_line.split()) >= 3:
                             perf_names_raw.append((name_line, ticker_line))
 
-            perf_names_only = [name for name, _ in perf_names_raw]
+            performance_names = [name for name, _ in perf_names_raw]
 
-            matched_pairs = []
-            unmatched_names = []
-
+            # Build match table using fuzzy logic
+            match_data = []
             for score_name in scorecard_names:
-                match = get_close_matches(score_name, perf_names_only, n=1, cutoff=0.65)
-                if match:
-                    matched_name = match[0]
-                    ticker = next(t for n, t in perf_names_raw if n == matched_name)
-                    matched_pairs.append((score_name, matched_name, ticker))
-                else:
-                    unmatched_names.append(score_name)
+                best_match = None
+                best_ratio = 0
+                for perf_name in performance_names:
+                    ratio = SequenceMatcher(None, score_name.lower(), perf_name.lower()).ratio()
+                    if ratio > best_ratio:
+                        best_match = perf_name
+                        best_ratio = ratio
+                match_data.append({
+                    "Fund Scorecard Name": score_name,
+                    "Fund Performance Name": best_match,
+                    "Match Score (0-100)": round(best_ratio * 100),
+                    "Matched": "✅" if best_ratio * 100 >= 20 else "❌"
+                })
 
-            # === Display counts ===
-            st.write("**# of Investment Options in Fund Scorecard:**", len(scorecard_names))
-            st.write("**# Matched to Fund Performance Section:**", len(matched_pairs))
-
-            # === Display matched names side-by-side ===
-            if matched_pairs:
-                st.markdown("**Matched Fund Names:**")
-                for score_name, perf_name, ticker in matched_pairs:
-                    st.write(f"- **{score_name}** ⇄ `{perf_name}` ➝ **{ticker}**")
-            else:
-                st.warning("⚠️ No matches found.")
-
-            if unmatched_names:
-                st.warning("⚠️ The following Scorecard funds could not be matched:")
-                for name in unmatched_names:
-                    st.write(f"- {name}")
-
+            df_matches = pd.DataFrame(match_data)
+            st.dataframe(df_matches)
 
