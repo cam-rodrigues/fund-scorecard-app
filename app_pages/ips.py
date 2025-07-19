@@ -121,7 +121,7 @@ def run():
         # Display criteria header
         if metrics_header:
             st.markdown("**Criteria Threshold (14 Metrics):**")
-            st.write(metrics_header)
+            st.markdown(metrics_header)
 
         # Display fund blocks
         for block in fund_blocks:
