@@ -160,6 +160,7 @@ def run():
                     cleaned_lines.append(line.strip())
 
             # Parse blocks based on "Manager Tenure" anchor
+            fund_blocks = []
             i = 0
             while i < len(cleaned_lines):
                 if "Manager Tenure" in cleaned_lines[i]:
@@ -197,8 +198,6 @@ def run():
             ]
             
  # --- Step 9: Compare counts ---
-            extracted_count = len(fund_blocks)
-
             st.subheader("Double Check: Investment Option Count")
             st.markdown(f"- Declared in PDF (Page 1): **{declared_total if declared_total else 'Not found'}**")
             st.markdown(f"- Extracted from Scorecard: **{extracted_count}**")
