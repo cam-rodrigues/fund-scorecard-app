@@ -250,20 +250,13 @@ def run():
         if fund_perf_pg == "Not found":
             st.error("❌ Could not find the starting page for 'Fund Performance: Current vs. Proposed Comparison'")
         else:
-            fund_perf_found = False
-            for i in range(fund_perf_pg - 1, len(pdf.pages)):
-                page = pdf.pages[i]
-                text = page.extract_text()
-                if not text:
-                    continue
+            i = fund_perf_pg - 1  # Convert to 0-based index
+            page = pdf.pages[i]
+            text = page.extract_text()
 
-                if "Fund Performance: Current vs. Proposed Comparison" in text:
-                    fund_perf_found = True
-                    st.markdown(f"**Found section on page {i+1}**")
-                    st.text(text[:2000])  # Display preview of first 2000 characters
-                    break
-
-            if not fund_perf_found:
-                st.warning("⚠️ Reached end of PDF without finding the correct heading.")
-
-
+            if text and "Fund Performance: Current vs. Proposed Comparison" in text:
+                st.markdown(f"**Found section on page {i + 1}**")
+                st.text(text[:2000])  # Display first part of the page for verification
+            else:
+                st.warning(f"⚠️ The text on page {i + 1} does not contain the expected heading. Double-check TOC accuracy.")
+                st.text(text[:2000] if text else "No text found on this page.")
