@@ -237,6 +237,7 @@ def run():
     # === Step 12 - IPS Screening Logic ===
             def screen_ips(fund):
                 name = fund["name"]
+                metrics_raw = {m[0]: (m[1], m[2]) for m in fund["metrics"]}
                 metrics = {m[0]: m[1] for m in fund["metrics"]}
 
                 is_passive = "bitcoin" in name.lower()
