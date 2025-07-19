@@ -200,9 +200,9 @@ def run():
         st.error(f"❌ Error processing PDF: {e}")
 
 
-# === Final IPS Summary Table ===
 # === Final IPS Table ===
 table_data = []
+
 for fund in cleaned_funds:
     ips_results = screen_ips(fund)
     fail_count = sum(1 for m in ips_results if m[1] == "Review")
@@ -220,15 +220,17 @@ for fund in cleaned_funds:
         "Time Period": time_period,
         "Plan Assets": "$"
     }
+
     for i, (_, result, _) in enumerate(ips_results, start=1):
         row[str(i)] = result
+
     row["IPS Status"] = status_label
     table_data.append(row)
 
+# --- Create and style DataFrame ---
 import pandas as pd
 df = pd.DataFrame(table_data)
 
-# === Color Formatting ===
 def color_metric(val):
     if val == "Pass":
         return "background-color: #d4edda"
@@ -248,8 +250,8 @@ def color_status(val):
 styled = df.style.applymap(color_metric, subset=[str(i) for i in range(1, 12)])
 styled = styled.applymap(color_status, subset=["IPS Status"])
 
-# === Display Table ===
 st.subheader("Final IPS Table")
 st.dataframe(styled, use_container_width=True)
+
 
 
