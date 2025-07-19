@@ -6,7 +6,7 @@ from difflib import get_close_matches
 
 def run():
     st.set_page_config(page_title="Steps: Convert & Cleanup", layout="wide")
-    st.title("Step 3: Convert & Clean Page 1 Data")
+    st.title("Steps")
 
     # Step 1 – Upload PDF
     uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="step3_upload")
@@ -113,6 +113,65 @@ def run():
                 st.markdown(f"**Fund Performance Section Page:** {perf_page if perf_page else 'Not found'}")
                 st.markdown(f"**Fund Scorecard Section Page:** {scorecard_page if scorecard_page else 'Not found'}")
 
+#Step 7
         
+                toc_lines = toc_text.split("\n")
+                cleaned_toc_lines = [line for line in toc_lines if not any(kw in line for kw in ignore_keywords)]
+    
+                def find_page(section_title, toc_lines):
+                    for line in toc_lines:
+                        if section_title in line:
+                            match = re.search(r"(\d+)$", line)
+                            return int(match.group(1)) if match else None
+                    return None
+    
+                scorecard_page = find_page("Fund Scorecard", cleaned_toc_lines)
+                if not scorecard_page:
+                    st.error("❌ Could not find Fund Scorecard section.")
+                    return
+    
+                # Go to Fund Scorecard section
+                st.markdown(f"**Scorecard Section starts on page:** {scorecard_page}")
+    
+                metric_blocks = []
+                current_fund = None
+    
+                # Parse all pages starting from scorecard_page
+                for page in pdf.pages[scorecard_page - 1:]:
+                    text = page.extract_text()
+                    if not text:
+                        continue
+    
+                    lines = text.split("\n")
+                    for line in lines:
+                        line = line.strip()
+    
+                        # Skip watchlist lines
+                        if "Fund Meets Watchlist Criteria" in line or "Fund has been placed on watchlist" in line:
+                            continue
+    
+                        # Fund name (bold subheadings)
+                        if re.match(r'^[A-Z].{5,}$', line) and "Pass" not in line and "Review" not in line:
+                            current_fund = {"name": line.strip(), "metrics": []}
+                            metric_blocks.append(current_fund)
+                            continue
+    
+                        # Metric line with Pass/Review
+                        if current_fund and ("Pass" in line or "Review" in line):
+                            m = re.match(r"(.+?)\s+(Pass|Review)\s+(.+)", line)
+                            if m:
+                                metric_name = m.group(1).strip()
+                                status = m.group(2).strip()
+                                reason = m.group(3).strip()
+                                current_fund["metrics"].append((metric_name, status, reason))
+    
+                # Display Results
+                st.subheader("Extracted Funds + Metrics")
+                for fund in metric_blocks:
+                    st.markdown(f"**{fund['name']}**")
+                    for metric in fund["metrics"]:
+                        st.markdown(f"- {metric[0]} → **{metric[1]}** — {metric[2]}")
+                    st.markdown("---")
+            
         except Exception as e:
             st.error(f"❌ Error reading PDF: {e}")
