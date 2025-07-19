@@ -196,63 +196,63 @@ def run():
                 st.markdown(f"**Final IPS Status:** {status_label}")
                 st.markdown("---")
 
-    # === Final IPS Table ===
-    table_data = []
-    
-    for fund in fund_blocks:
-        name = re.sub(r"Fund Meets Watchlist Criteria\.", "", fund["name"])
-        name = re.sub(r"Fund has been placed on watchlist.*", "", name).strip()
-        if not name or any(term in name.upper() for term in [
-            "FUND FACTS 3 YEAR ROLLING STYLE",
-            "FUND FACTS 3 YEAR ROLLING STYLE ASSET LOADINGS (Returns-based)"
-        ]):
-            continue
-    
-        fund["name"] = name
-        ips_results = screen_ips(fund)
-        fail_count = sum(1 for m in ips_results if m[1] == "Review")
-    
-        if fail_count <= 4:
-            status_label = "Passed IPS Screen"
-        elif fail_count == 5:
-            status_label = "Informal Watch (IW)"
-        else:
-            status_label = "Formal Watch (FW)"
-    
-        row = {
-            "Investment Option": name,
-            "Ticker": fund.get("ticker", "Not Found"),
-            "Time Period": "Q1 2025",  # Replace later with dynamic time_period if needed
-            "Plan Assets": "$"
-        }
-        for i, (_, result, _) in enumerate(ips_results, start=1):
-            row[str(i)] = result
-        row["IPS Status"] = status_label
-        table_data.append(row)
-    
-    df = pd.DataFrame(table_data)
-    
-    def color_metric(val):
-        if val == "Pass":
-            return "background-color: #d4edda"
-        elif val == "Review":
-            return "background-color: #f8d7da"
-        return ""
-    
-    def color_status(val):
-        if val == "Passed IPS Screen":
-            return "background-color: #28a745; color: white"
-        elif "Informal" in val:
-            return "background-color: #fd7e14; color: white"
-        elif "Formal" in val:
-            return "background-color: #dc3545; color: white"
-        return ""
-    
-    styled = df.style.applymap(color_metric, subset=[str(i) for i in range(1, 12)])
-    styled = styled.applymap(color_status, subset=["IPS Status"])
-    
-    st.subheader("Final IPS Table")
-    st.dataframe(styled, use_container_width=True)
+                # === Final IPS Table ===
+                table_data = []
+                
+                for fund in fund_blocks:
+                    name = re.sub(r"Fund Meets Watchlist Criteria\.", "", fund["name"])
+                    name = re.sub(r"Fund has been placed on watchlist.*", "", name).strip()
+                    if not name or any(term in name.upper() for term in [
+                        "FUND FACTS 3 YEAR ROLLING STYLE",
+                        "FUND FACTS 3 YEAR ROLLING STYLE ASSET LOADINGS (Returns-based)"
+                    ]):
+                        continue
+                
+                    fund["name"] = name
+                    ips_results = screen_ips(fund)
+                    fail_count = sum(1 for m in ips_results if m[1] == "Review")
+                
+                    if fail_count <= 4:
+                        status_label = "Passed IPS Screen"
+                    elif fail_count == 5:
+                        status_label = "Informal Watch (IW)"
+                    else:
+                        status_label = "Formal Watch (FW)"
+                
+                    row = {
+                        "Investment Option": name,
+                        "Ticker": fund.get("ticker", "Not Found"),
+                        "Time Period": "Q1 2025",  # Replace later with dynamic time_period if needed
+                        "Plan Assets": "$"
+                    }
+                    for i, (_, result, _) in enumerate(ips_results, start=1):
+                        row[str(i)] = result
+                    row["IPS Status"] = status_label
+                    table_data.append(row)
+                
+                df = pd.DataFrame(table_data)
+                
+                def color_metric(val):
+                    if val == "Pass":
+                        return "background-color: #d4edda"
+                    elif val == "Review":
+                        return "background-color: #f8d7da"
+                    return ""
+                
+                def color_status(val):
+                    if val == "Passed IPS Screen":
+                        return "background-color: #28a745; color: white"
+                    elif "Informal" in val:
+                        return "background-color: #fd7e14; color: white"
+                    elif "Formal" in val:
+                        return "background-color: #dc3545; color: white"
+                    return ""
+                
+                styled = df.style.applymap(color_metric, subset=[str(i) for i in range(1, 12)])
+                styled = styled.applymap(color_status, subset=["IPS Status"])
+                
+                st.subheader("Final IPS Table")
+                st.dataframe(styled, use_container_width=True)
 
     except Exception as e:
         st.error(f"❌ Error processing PDF: {e}")
