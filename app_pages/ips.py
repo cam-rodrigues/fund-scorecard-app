@@ -331,11 +331,13 @@ def run():
         # === Step 9.5: Category and Benchmark ===
         st.subheader("Step 9.5: Extract Category and Benchmark for Each Fund")
         
-        # Use previously collected Fund Scorecard names
+        from difflib import SequenceMatcher
+        import re
+        
         scorecard_names = [block["Fund Name"] for block in fund_blocks]
         
-        # Step 1: Read all pages from Fund Performance section until it changes
-        perf_lines = []
+        # Step 1: Extract all words in Fund Performance section (until heading changes)
+        lines_with_positions = []
         reading = False
         
         with pdfplumber.open(uploaded_file) as pdf:
@@ -350,21 +352,18 @@ def run():
                 ]):
                     break
                 if reading:
-                    perf_lines.extend(text.split("\n"))
+                    words = page.extract_words()
+                    line_map = {}
+                    for w in words:
+                        y0 = round(w['top'], 1)
+                        if y0 not in line_map:
+                            line_map[y0] = []
+                        line_map[y0].append(w['text'])
+                    for y in sorted(line_map.keys()):
+                        line_text = " ".join(line_map[y])
+                        lines_with_positions.append((y, line_text))
         
-        # Step 2: Filter out noise lines
-        def is_potential_fund_line(line):
-            if not (15 <= len(line) <= 90):
-                return False
-            if any(kw in line.lower() for kw in [
-                "matrix", "disclosure", "calendar year", "page", "style", "returns", "mpt statistics"
-            ]):
-                return False
-            return True
-        
-        clean_lines = [line.strip() for line in perf_lines if is_potential_fund_line(line)]
-        
-        # Step 3: Match names and extract ticker + category + benchmark
+        # Step 2: Match names and extract ticker + category (above) + benchmark (below)
         match_data = []
         for name in scorecard_names:
             best_score = 0
@@ -372,7 +371,7 @@ def run():
             best_line = ""
             best_ticker = ""
         
-            for i, line in enumerate(clean_lines):
+            for i, (y, line) in enumerate(lines_with_positions):
                 score = SequenceMatcher(None, name.lower(), line.lower()).ratio()
                 if score > best_score:
                     best_score = score
@@ -381,23 +380,19 @@ def run():
                     best_ticker = ticker_match.group(0) if ticker_match else ""
                     best_line = re.sub(r"\b[A-Z]{5}\b", "", line).strip()
         
-            category = clean_lines[best_idx - 1] if best_idx > 0 else ""
-            benchmark = clean_lines[best_idx + 1] if best_idx + 1 < len(clean_lines) else ""
+            # Extract adjacent category and benchmark lines
+            category_line = lines_with_positions[best_idx - 1][1] if best_idx > 0 else ""
+            benchmark_line = lines_with_positions[best_idx + 1][1] if best_idx + 1 < len(lines_with_positions) else ""
         
             match_data.append({
                 "Fund Scorecard Name": name,
                 "Matched Name (Fund Performance)": best_line,
                 "Extracted Ticker": best_ticker,
-                "Category": category,
-                "Benchmark": benchmark,
+                "Category": category_line,
+                "Benchmark": benchmark_line,
                 "Match Score (0–100)": round(best_score * 100),
                 "Matched": "✅" if best_score >= 0.60 else "❌"
             })
         
-        df_perf = pd.DataFrame(match_data)
-        st.dataframe(df_perf)
-
-
-
-
-
+        df_95 = pd.DataFrame(match_data)
+        st.dataframe(df_95)
