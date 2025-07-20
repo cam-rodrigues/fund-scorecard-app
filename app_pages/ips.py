@@ -327,45 +327,74 @@ def run():
         st.dataframe(df_matches)
 
 
-#---------------------------------------------------------------------------------------------------------------
-
-        # === Step 9.5: Extract Fund Ticker + Category (Direct Upward Scan) ===
+#--------------------------------------------------------------------------------------------------------------
+        
+        # === Step 9.5: Extract Fund Ticker and Category ===
         st.subheader("Step 9.5: Extract Fund Ticker and Category")
+        
+        import pdfplumber
+        from difflib import SequenceMatcher, get_close_matches
+        import pandas as pd
+        import re
         
         scorecard_names = [block["Fund Name"] for block in fund_blocks]
         
-        # Define known categories
-        known_categories = [c.lower() for c in [
-            "large cap growth", "large cap value", "large cap blend",
-            "mid cap growth", "mid cap value", "mid cap blend",
-            "small cap growth", "small cap value", "small cap blend",
-            "micro cap", "us equity", "u.s. equity", "domestic equity",
-            "international equity", "global equity", "world stock",
-            "foreign large blend", "foreign large growth", "foreign large value",
-            "foreign small mid blend", "foreign small mid growth", "foreign small mid value",
-            "emerging markets", "pacific asia ex japan", "japan stock",
-            "europe stock", "china region", "latin america stock",
-            "health", "health care", "financial", "financials", "real estate",
-            "natural resources", "utilities", "communications", "technology",
-            "energy", "consumer cyclical", "consumer defensive",
-            "industrials", "materials", "infrastructure",
-            "short term bond", "intermediate term bond", "long term bond",
-            "ultrashort bond", "high yield bond", "bank loan",
-            "corporate bond", "government bond", "municipal bond",
-            "inflation protected bond", "global bond", "emerging markets bond",
-            "multi sector bond", "nontraditional bond", "world bond", "strategic income",
-            "treasury inflation protected securities", "target date", "target date 2025", "target date 2030",
-            "target date 2035", "target date 2040", "target date 2045", "target date 2050",
-            "target date 2055", "target date 2060", "target retirement income",
-            "target allocation aggressive", "target allocation moderate", "target allocation conservative",
-            "balanced fund", "flexible portfolio", "global allocation", "tactical allocation", "retirement income fund",
-            "alternative global macro", "alternative long short equity", "alternative event driven",
-            "multi alternative", "market neutral", "bear market", "managed futures", "commodities",
-            "energy limited partnership", "infrastructure", "precious metals", "real asset",
-            "money market", "stable value", "capital preservation", "cash reserves", "ultra short term bond"
-        ]]
+        # Full category list with proper capitalization
+        CATEGORIES = {
+            # Equity: Market Cap & Style
+            "Large Cap Growth", "Large Cap Value", "Large Cap Blend",
+            "Mid Cap Growth", "Mid Cap Value", "Mid Cap Blend",
+            "Small Cap Growth", "Small Cap Value", "Small Cap Blend",
+            "Micro Cap", "Small Growth",
         
-        # Preprocessing: re-use lines extracted earlier from "Fund Performance" section
+            # Equity: Geography
+            "US Equity", "U.S. Equity", "Domestic Equity",
+            "International Equity", "Global Equity", "World Stock",
+            "Foreign Large Blend", "Foreign Large Growth", "Foreign Large Value",
+            "Foreign Small Mid Blend", "Foreign Small Mid Growth", "Foreign Small Mid Value",
+            "Emerging Markets", "Diversified Emerging Mkts", "Pacific Asia Ex Japan",
+            "Japan Stock", "Europe Stock", "China Region", "Latin America Stock",
+        
+            # Equity: Sector
+            "Health", "Health Care", "Financial", "Financials", "Real Estate", "Global Real Estate",
+            "Natural Resources", "Utilities", "Communications", "Technology",
+            "Energy", "Consumer Cyclical", "Consumer Defensive",
+            "Industrials", "Materials", "Infrastructure",
+        
+            # Fixed Income
+            "Short Term Bond", "Intermediate Term Bond", "Long Term Bond",
+            "Ultrashort Bond", "High Yield Bond", "Bank Loan",
+            "Corporate Bond", "Government Bond", "Municipal Bond",
+            "Inflation Protected Bond", "Inflation-Protected Bond",
+            "Global Bond", "Global Bond-USD Hedged", "Emerging Markets Bond",
+            "Multi Sector Bond", "Multisector Bond", "Nontraditional Bond",
+            "World Bond", "Strategic Income",
+            "Treasury Inflation Protected Securities",
+            "Intermediate Core Bond", "Intermediate Core-Plus Bond",
+        
+            # Allocation / Mixed
+            "Target Date", "Target Date 2025", "Target Date 2030",
+            "Target Date 2035", "Target Date 2040", "Target Date 2045",
+            "Target Date 2050", "Target Date 2055", "Target Date 2060",
+            "Target-Date 2065+", "Target Retirement Income", "Target-Date Retirement",
+            "Target Allocation Aggressive", "Target Allocation Moderate", "Target Allocation Conservative",
+            "Balanced Fund", "Flexible Portfolio", "Global Allocation",
+            "Tactical Allocation", "Retirement Income Fund",
+        
+            # Alternatives
+            "Alternative Global Macro", "Alternative Long Short Equity", "Alternative Event Driven",
+            "Multi Alternative", "Market Neutral", "Bear Market", "Managed Futures",
+            "Commodities", "Commodities Broad Basket", "Energy Limited Partnership",
+            "Precious Metals", "Real Asset",
+        
+            # Preservation
+            "Money Market", "Stable Value", "Capital Preservation", "Cash Reserves",
+            "Ultra Short Term Bond", "Money Market-Taxable"
+        }
+        category_lookup = {cat.lower(): cat for cat in CATEGORIES}
+        known_categories = list(category_lookup.keys())
+        
+        # === Extract relevant lines and positions from PDF ===
         lines_with_positions = []
         line_to_page_map = []
         reading = False
@@ -394,7 +423,7 @@ def run():
                         lines_with_positions.append((y, line_text))
                         line_to_page_map.append(i)
         
-        # Match fund name, extract ticker, scan upward for category
+        # === Match fund names, extract ticker and category ===
         results = []
         for name in scorecard_names:
             best_score = 0
@@ -411,13 +440,13 @@ def run():
                     best_ticker = ticker_match.group(0) if ticker_match else ""
                     best_line = re.sub(r"\b[A-Z]{5}\b", "", line).strip()
         
-            # Scan upward until a matching category is found
+            # Scan upward for category match
             category = ""
             for j in range(best_idx - 1, max(0, best_idx - 20), -1):
                 cand = lines_with_positions[j][1].strip().lower()
                 match = get_close_matches(cand, known_categories, n=1, cutoff=0.8)
                 if match:
-                    category = match[0]
+                    category = category_lookup[match[0]]
                     break
         
             results.append({
@@ -427,5 +456,5 @@ def run():
                 "Category": category
             })
         
-        df_step95 = pd.DataFrame(results)
-        st.dataframe(df_step95)
+        df_95 = pd.DataFrame(results)
+        st.dataframe(df_95)
