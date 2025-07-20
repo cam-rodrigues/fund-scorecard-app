@@ -263,58 +263,67 @@ def run():
                 st.warning(f"⚠️ The text on page {i + 1} does not contain the expected heading. Double-check TOC accuracy.")
                 st.text(text[:2000] if text else "No text found on this page.")
 
-#------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------
 
-        # === Step 9.4: Match Investment Option Names & Extract Tickers ===
+        # === Step 9.4 Redo: Match Investment Option Names & Extract Tickers ===
         st.subheader("Step 9.4: Match Investment Option Names Between Sections")
         
-        def is_valid_fund_candidate(line):
-            line = line.strip()
-            if not (15 <= len(line) <= 60):
-                return False
-            if any(kw in line.lower() for kw in [
-                "matrix", "disclosure", "calendar year", "fund scorecard",
-                "page", "style", "returns", "definitions"
-            ]):
-                return False
-            if sum(1 for word in line.split() if word.istitle()) < 3:
-                return False
-            return True
+        from difflib import SequenceMatcher
+        import re
+        import pandas as pd
         
+        # Pull fund names from previous Scorecard block
         scorecard_names = [block["Fund Name"] for block in fund_blocks]
-        perf_section_pages = []
+        
+        # Step 1: Read all pages in Fund Performance section (until heading changes)
         perf_lines = []
+        reading = False
         
         with pdfplumber.open(uploaded_file) as pdf:
             for i, page in enumerate(pdf.pages):
                 text = page.extract_text()
-                if text and "Fund Performance: Current vs. Proposed Comparison" in text:
-                    perf_section_pages.append(i)
+                if not text:
+                    continue
+                if "Fund Performance: Current vs. Proposed Comparison" in text:
+                    reading = True
+                elif reading and any(kw in text for kw in [
+                    "Risk Analysis", "Fund Scorecard", "Definitions & Disclosures", "Table of Contents"
+                ]):
+                    break
+                if reading:
+                    perf_lines.extend(text.split("\n"))
         
-            for i in perf_section_pages:
-                lines = pdf.pages[i].extract_text().split("\n")
-                perf_lines.extend([line.strip() for line in lines if is_valid_fund_candidate(line)])
+        # Step 2: Filter candidate lines
+        def is_potential_fund_line(line):
+            if not (15 <= len(line) <= 90):
+                return False
+            if any(kw in line.lower() for kw in [
+                "matrix", "disclosure", "calendar year", "page", "style", "returns", "mpt statistics"
+            ]):
+                return False
+            return True
         
-        # Match fund names to filtered candidate lines and try to pull next-line tickers
+        clean_lines = [line.strip() for line in perf_lines if is_potential_fund_line(line)]
+        
+        # Step 3: Fuzzy match each fund name and extract ticker if present
         match_data = []
-        for name in scorecard_names:
+        for score_name in scorecard_names:
             best_score = 0
             best_line = ""
             best_ticker = ""
-            for i, line in enumerate(perf_lines):
-                score = SequenceMatcher(None, name.lower(), line.lower()).ratio()
+            for line in clean_lines:
+                score = SequenceMatcher(None, score_name.lower(), line.lower()).ratio()
                 if score > best_score:
                     best_score = score
                     best_line = line
-                    if i + 1 < len(perf_lines):
-                        next_line = perf_lines[i + 1].strip()
-                        best_ticker = next_line if re.fullmatch(r"[A-Z]{5}", next_line) else ""
+                    ticker_match = re.search(r"\b[A-Z]{5}\b", line)
+                    best_ticker = ticker_match.group(0) if ticker_match else ""
             match_data.append({
-                "Fund Scorecard Name": name,
-                "Matched Line from Performance Section": best_line,
+                "Fund Scorecard Name": score_name,
+                "Matched Line (Fund Performance)": best_line,
                 "Extracted Ticker": best_ticker,
                 "Match Score (0–100)": round(best_score * 100),
-                "Matched": "✅" if best_score * 100 >= 20 else "❌"
+                "Matched": "✅" if best_score >= 0.60 else "❌"
             })
         
         df_matches = pd.DataFrame(match_data)
