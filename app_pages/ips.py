@@ -268,10 +268,6 @@ def run():
         # === Step 9.4 Redo: Match Investment Option Names & Extract Tickers ===
         st.subheader("Step 9.4: Match Investment Option Names Between Sections")
         
-        from difflib import SequenceMatcher
-        import re
-        import pandas as pd
-        
         # Pull fund names from previous Scorecard block
         scorecard_names = [block["Fund Name"] for block in fund_blocks]
         
