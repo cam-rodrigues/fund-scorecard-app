@@ -311,9 +311,9 @@ def run():
                 score = SequenceMatcher(None, score_name.lower(), line.lower()).ratio()
                 if score > best_score:
                     best_score = score
-                    best_line = line
                     ticker_match = re.search(r"\b[A-Z]{5}\b", line)
                     best_ticker = ticker_match.group(0) if ticker_match else ""
+                    best_line = re.sub(r"\b[A-Z]{5}\b", "", line).strip()
             match_data.append({
                 "Fund Scorecard Name": score_name,
                 "Matched Line (Fund Performance)": best_line,
