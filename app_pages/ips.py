@@ -2,6 +2,7 @@ import streamlit as st
 import pdfplumber
 import re
 from difflib import SequenceMatcher
+from difflib import SequenceMatcher, get_close_matches
 import pandas as pd
 
 def run():
@@ -328,12 +329,13 @@ def run():
 
 #----------------------------------------------------------------------------------------------------------------
 
-        # === Step 9.5: Extract Category using Horizontal Line Logic ===
-        st.subheader("Step 9.5: Extract Category from Fund Performance Section")
-
+        # === Step 9.5: Extract Ticker + Category using Horizontal Line Anchors and Category Fuzzy Match ===
+        st.subheader("Step 9.5: Extract Fund Ticker and Category")
+        
         scorecard_names = [block["Fund Name"] for block in fund_blocks]
         
         lines_with_positions = []
+        line_to_page_map = []
         horizontal_lines = []
         reading = False
         
@@ -352,8 +354,8 @@ def run():
                     words = page.extract_words()
                     hlines = page.lines
                     for h in hlines:
-                        if h['width'] > 200:  # horizontal lines only
-                            horizontal_lines.append(round(h['top'], 1))
+                        if h['width'] > 200:
+                            horizontal_lines.append((round(h['top'], 1), i))
                     line_map = {}
                     for w in words:
                         y0 = round(w['top'], 1)
@@ -363,8 +365,9 @@ def run():
                     for y in sorted(line_map.keys()):
                         line_text = " ".join(line_map[y])
                         lines_with_positions.append((y, line_text))
+                        line_to_page_map.append(i)
         
-        # Match each fund name to a fund line and locate category above
+        # Step 2: Match fund names and find tickers and categories
         match_data = []
         for name in scorecard_names:
             best_score = 0
@@ -382,23 +385,67 @@ def run():
                     best_line = re.sub(r"\b[A-Z]{5}\b", "", line).strip()
         
             fund_y = lines_with_positions[best_idx][0]
-            above_lines = [y for y in horizontal_lines if y < fund_y]
+            page_number = line_to_page_map[best_idx]
+        
+            above_lines = [y for (y, p) in horizontal_lines if p == page_number and y < fund_y]
             nearest_y = max(above_lines) if above_lines else None
         
-            category = ""
+            raw_category = ""
             if nearest_y:
-                category_candidates = [txt for y, txt in lines_with_positions if round(y, 1) < nearest_y]
-                if category_candidates:
-                    category = category_candidates[-1].strip()
+                candidates = [
+                    txt for (y, txt), p in zip(lines_with_positions, line_to_page_map)
+                    if p == page_number and y < nearest_y
+                ]
+                for line in reversed(candidates):
+                    if 2 <= len(line.split()) <= 5 and sum(c.isalpha() for c in line) / max(1, len(line)) > 0.7:
+                        raw_category = line.strip()
+                        break
         
             match_data.append({
                 "Fund Scorecard Name": name,
                 "Matched Name": best_line,
                 "Extracted Ticker": best_ticker,
-                "Category": category,
+                "Raw Category": raw_category,
                 "Match Score (0–100)": round(best_score * 100),
                 "Matched": "✅" if best_score >= 0.60 else "❌"
             })
         
+        # Step 3: Match against provided category list
+        known_categories = [c.lower() for c in [
+            "large cap growth", "large cap value", "large cap blend",
+            "mid cap growth", "mid cap value", "mid cap blend",
+            "small cap growth", "small cap value", "small cap blend",
+            "micro cap", "us equity", "u.s. equity", "domestic equity",
+            "international equity", "global equity", "world stock",
+            "foreign large blend", "foreign large growth", "foreign large value",
+            "foreign small mid blend", "foreign small mid growth", "foreign small mid value",
+            "emerging markets", "pacific asia ex japan", "japan stock",
+            "europe stock", "china region", "latin america stock",
+            "health", "health care", "financial", "financials", "real estate",
+            "natural resources", "utilities", "communications", "technology",
+            "energy", "consumer cyclical", "consumer defensive",
+            "industrials", "materials", "infrastructure",
+            "short term bond", "intermediate term bond", "long term bond",
+            "ultrashort bond", "high yield bond", "bank loan",
+            "corporate bond", "government bond", "municipal bond",
+            "inflation protected bond", "global bond", "emerging markets bond",
+            "multi sector bond", "nontraditional bond", "world bond", "strategic income",
+            "treasury inflation protected securities", "target date", "target date 2025", "target date 2030",
+            "target date 2035", "target date 2040", "target date 2045", "target date 2050",
+            "target date 2055", "target date 2060", "target retirement income",
+            "target allocation aggressive", "target allocation moderate", "target allocation conservative",
+            "balanced fund", "flexible portfolio", "global allocation", "tactical allocation", "retirement income fund",
+            "alternative global macro", "alternative long short equity", "alternative event driven",
+            "multi alternative", "market neutral", "bear market", "managed futures", "commodities",
+            "energy limited partnership", "infrastructure", "precious metals", "real asset",
+            "money market", "stable value", "capital preservation", "cash reserves", "ultra short term bond"
+        ]]
+        
+        for row in match_data:
+            raw = row["Raw Category"].lower().strip()
+            match = get_close_matches(raw, known_categories, n=1, cutoff=0.8)
+            row["Final Category"] = match[0] if match else ""
+        
+        # Optional: display results
         df_95 = pd.DataFrame(match_data)
         st.dataframe(df_95)
