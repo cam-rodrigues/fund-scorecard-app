@@ -4,6 +4,9 @@ import re
 from difflib import SequenceMatcher
 from difflib import SequenceMatcher, get_close_matches
 import pandas as pd
+from openpyxl import Workbook
+from openpyxl.styles import PatternFill, Font
+from io import BytesIO
 
 def run():
     st.title("IPS Write-Up Tool")
@@ -457,11 +460,7 @@ def run():
 #--------------------------------------------------------------------------------------------------------------
 
         # === Step 10: Output Combined Table (IPS Summary) ===
-        import pandas as pd
-        from openpyxl import Workbook
-        from openpyxl.styles import PatternFill, Font
-        from io import BytesIO
-        import streamlit as st
+
         
         st.subheader("Step 10: IPS Summary Table Export")
         
