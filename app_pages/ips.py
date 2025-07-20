@@ -461,35 +461,55 @@ def run():
 #--------------------------------------------------------------------------------------------------------------
 
         # === Step 10: Output Combined Table (IPS Summary) ===
-        ips_table = run_step_10(investment_options, ticker_lookup, criteria_results, ips_status_lookup, quarter_label)
-        def run_step_10(investment_options, ticker_lookup, criteria_results, ips_status_lookup, quarter_label):
-            st.header("Step 10: IPS Summary Table")
-        
-            # === Build Output Table ===
+        def generate_step10_table(fund_blocks, quarter_label):
             data = []
-            for name in investment_options:
+            for fund_name, info in fund_blocks.items():
                 row = {
-                    "Investment Option": name,
-                    "Ticker": ticker_lookup.get(name, "N/A"),
+                    "Investment Option": fund_name,
+                    "Ticker": info.get("Ticker", "N/A"),
                     "Time Period": quarter_label,
                     "Plan Assets": "$"
                 }
-        
-                criteria = criteria_results.get(name, [""] * 11)
-                for i, result in enumerate(criteria, 1):
-                    row[str(i)] = result
-        
-                status = ips_status_lookup.get(name, "Unknown")
-                row["IPS Status"] = status
+                for i, metric in enumerate(info.get("Metrics", []), start=1):
+                    row[str(i)] = metric
+                row["IPS Status"] = info.get("IPS Status", "N/A")
                 data.append(row)
         
-            df = pd.DataFrame(data)
+            columns = (
+                ["Investment Option", "Ticker", "Time Period", "Plan Assets"] +
+                [str(i) for i in range(1, 12)] +
+                ["IPS Status"]
+            )
+            return pd.DataFrame(data, columns=columns)
         
-            # === Show Table ===
-            st.dataframe(df, use_container_width=True)
+        def run_step10(fund_blocks, quarter_label):
+            st.subheader("Step 10: IPS Summary Table")
+            df = generate_step10_table(fund_blocks, quarter_label)
         
-            # === CSV Download ===
-            csv = df.to_csv(index=False)
-            st.download_button("Download IPS Table (CSV)", csv, file_name="ips_summary_table.csv", mime="text/csv")
+            # Color styling
+            def color_cells(val):
+                if val == "Pass":
+                    return "background-color: #c6efce; color: black;"  # green
+                elif val == "Fail":
+                    return "background-color: #ffc7ce; color: black;"  # red
+                return ""
         
-            return df
+            def color_status(val):
+                if "Passed" in val:
+                    return "background-color: #2e7d32; color: white;"  # dark green
+                elif "Informal" in val:
+                    return "background-color: orange; color: white;"
+                elif "Formal" in val:
+                    return "background-color: red; color: white;"
+                return ""
+        
+            styled_df = df.style.applymap(color_cells, subset=[str(i) for i in range(1, 12)])
+            styled_df = styled_df.applymap(color_status, subset=["IPS Status"])
+        
+            st.dataframe(styled_df, use_container_width=True)
+        
+            csv = df.to_csv(index=False).encode("utf-8")
+            st.download_button("Download as CSV", data=csv, file_name="ips_summary.csv", mime="text/csv")
+        
+        # Example usage inside your app:
+        # run_step10(fund_blocks, quarter_label)
