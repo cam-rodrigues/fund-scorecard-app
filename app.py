@@ -150,9 +150,8 @@ with st.sidebar.expander("MPI Tools", expanded=False):
 st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', unsafe_allow_html=True)
 nav_button("Proposal Generator", "proposal_generator.py")
 nav_button("Writeup Generator", "writeup_generator.py")
-nav_button("IPS Screening", "ips_investment_criteria.py")
+nav_button("IPS Screening", "ips.py")
 nav_button("Test", "testing.py")
-nav_button("Test 2", "ips.py")
 
 
 # === Page router ===
