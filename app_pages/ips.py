@@ -521,18 +521,18 @@ def run():
         summary_df = generate_step10_table(final_fund_blocks, quarter)
         def color_cells(val):
             if val == "Pass":
-                return "background-color: #c6efce; color: black;"
+                return "background-color: #80be78; color: black;"
             elif val == "Fail":
                 return "background-color: #ffc7ce; color: black;"
             return ""
         
         def color_status(val):
             if "Passed" in val:
-                return "background-color: #d9ead3; color: black;"
+                return "background-color: #457c3e; color: black;"
             elif "Informal" in val:
-                return "background-color: #ffe599; color: black;"
+                return "background-color: #e0a15f; color: black;"
             elif "Formal" in val:
-                return "background-color: #f4cccc; color: black;"
+                return "background-color: #e06a5f; color: black;"
             return ""
         
         styled_df = summary_df.style.applymap(color_cells, subset=[str(i) for i in range(1, 12)])
