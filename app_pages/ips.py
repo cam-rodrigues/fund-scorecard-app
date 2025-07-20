@@ -460,77 +460,25 @@ def run():
 #--------------------------------------------------------------------------------------------------------------
 
         # === Step 10: Output Combined Table (IPS Summary) ===
-        st.subheader("Step 10: IPS Summary Table Export")
         
-        # Fallback quarter label (if not set already)
-        if 'quarter_label' not in globals():
-            quarter_label = "Q1 2025"  # Default or hardcoded label
+        def build_ips_summary_table(investment_options, ticker_lookup, category_lookup, criteria_results, ips_status_lookup, quarter_label):
+            data = []
         
-        # Build output rows
-        rows = []
-        for block in fund_blocks:
-            row = {
-                "Investment Option": block.get("Fund Name", ""),
-                "Ticker": block.get("Ticker", ""),
-                "Time Period": quarter_label,
-                "Plan Assets": "$"
-            }
-            for i, m in enumerate(block.get("IPS Metrics", []), 1):
-                row[str(i)] = m["Status"]
-            row["IPS Status"] = block.get("IPS Status", "")
-            rows.append(row)
+            for fund in investment_options:
+                row = {
+                    "Investment Option": fund,
+                    "Ticker": ticker_lookup.get(fund, "N/A"),
+                    "Time Period": quarter_label,         # dynamically inserted
+                    "Plan Assets": "$",                   # always just a dollar sign
+                }
         
-        df_output = pd.DataFrame(rows)
+                # Add columns 1–11 (IPS metrics)
+                for i in range(1, 12):
+                    row[str(i)] = criteria_results.get(fund, ["N/A"] * 11)[i - 1]
         
-        # Display table in app
-        st.dataframe(df_output)
+                # Add IPS Status
+                row["IPS Status"] = ips_status_lookup.get(fund, "Unknown")
         
-        # Excel styles
-        green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
-        red_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
-        orange_fill = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")
-        white_font = Font(color="FFFFFF")
+                data.append(row)
         
-        # Create Excel sheet
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "IPS Table"
-        
-        headers = ["Investment Option", "Ticker", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
-        for col_idx, header in enumerate(headers, 1):
-            ws.cell(row=1, column=col_idx, value=header)
-        
-        # Write rows with conditional formatting
-        for row_idx, row in enumerate(df_output.itertuples(index=False), 2):
-            for col_idx, value in enumerate(row, 1):
-                cell = ws.cell(row=row_idx, column=col_idx, value=value)
-        
-                if col_idx in range(5, 16):  # Metrics 1–11
-                    if value == "Pass":
-                        cell.fill = green_fill
-                    elif value == "Fail":
-                        cell.fill = red_fill
-        
-                elif col_idx == 16:  # IPS Status
-                    if value == "Passed IPS Screen":
-                        cell.fill = green_fill
-                        cell.font = white_font
-                    elif value == "Informal Watch":
-                        cell.fill = orange_fill
-                        cell.font = white_font
-                    elif value == "Formal Watch":
-                        cell.fill = red_fill
-                        cell.font = white_font
-        
-        # Output buffer
-        excel_buffer = BytesIO()
-        wb.save(excel_buffer)
-        excel_buffer.seek(0)
-        
-        # Download button
-        st.download_button(
-            label="Download IPS Summary Excel",
-            data=excel_buffer,
-            file_name="ips_summary_table.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+            return pd.DataFrame(data)
