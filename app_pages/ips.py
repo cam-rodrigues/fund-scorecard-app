@@ -453,3 +453,87 @@ def run():
         
         df_95 = pd.DataFrame(results)
         st.dataframe(df_95)
+
+#--------------------------------------------------------------------------------------------------------------
+
+        # === Step 10: Output Combined Table (IPS Summary) ===
+        import pandas as pd
+        from openpyxl import Workbook
+        from openpyxl.styles import PatternFill, Font
+        from io import BytesIO
+        import streamlit as st
+        
+        st.subheader("Step 10: IPS Summary Table Export")
+        
+        # Build output rows
+        rows = []
+        for block in fund_blocks:
+            row = {
+                "Investment Option": block.get("Fund Name", ""),
+                "Ticker": block.get("Ticker", ""),
+                "Time Period": quarter_label,
+                "Plan Assets": "$"
+            }
+            for i, m in enumerate(block.get("IPS Metrics", []), 1):
+                row[str(i)] = m["Status"]
+            row["IPS Status"] = block.get("IPS Status", "")
+            rows.append(row)
+        
+        df_output = pd.DataFrame(rows)
+        
+        # Display table in app
+        st.dataframe(df_output)
+        
+        # Create styled Excel file
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "IPS Table"
+        
+        # Write headers
+        headers = [
+            "Investment Option", "Ticker", "Time Period", "Plan Assets"
+        ] + [str(i) for i in range(1, 12)] + ["IPS Status"]
+        
+        for col_idx, col_name in enumerate(headers, 1):
+            ws.cell(row=1, column=col_idx, value=col_name)
+        
+        # Define color styles
+        green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+        red_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+        orange_fill = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")
+        white_font = Font(color="FFFFFF")
+        
+        # Write data with conditional formatting
+        for row_idx, row in enumerate(df_output.itertuples(index=False), 2):
+            for col_idx, value in enumerate(row, 1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=value)
+        
+                if col_idx in range(5, 16):  # Columns 1-11
+                    if value == "Pass":
+                        cell.fill = green_fill
+                    elif value == "Fail":
+                        cell.fill = red_fill
+        
+                elif col_idx == 16:  # IPS Status column
+                    if value == "Passed IPS Screen":
+                        cell.fill = green_fill
+                        cell.font = white_font
+                    elif value == "Informal Watch":
+                        cell.fill = orange_fill
+                        cell.font = white_font
+                    elif value == "Formal Watch":
+                        cell.fill = red_fill
+                        cell.font = white_font
+        
+        # Save Excel to buffer
+        excel_buffer = BytesIO()
+        wb.save(excel_buffer)
+        excel_buffer.seek(0)
+        
+        # Offer download
+        st.download_button(
+            label="📥 Download IPS Summary Excel",
+            data=excel_buffer,
+            file_name="ips_summary_table.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
