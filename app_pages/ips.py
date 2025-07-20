@@ -332,11 +332,6 @@ def run():
         # === Step 9.5: Extract Fund Ticker and Category ===
         st.subheader("Step 9.5: Extract Fund Ticker and Category")
         
-        import pdfplumber
-        from difflib import SequenceMatcher, get_close_matches
-        import pandas as pd
-        import re
-        
         scorecard_names = [block["Fund Name"] for block in fund_blocks]
         
         # Full category list with proper capitalization
