@@ -461,24 +461,72 @@ def run():
 
         # === Step 10: Output Combined Table (IPS Summary) ===
         st.subheader("Step 10: Output Combined Table")
-        def build_ips_summary_table(investment_options, ticker_lookup, category_lookup, criteria_results, ips_status_lookup, quarter_label):
+        def build_colored_df(df_raw):
+            df_styled = df_raw.style
+        
+            # Style criteria columns 1–11
+            for i in range(1, 12):
+                col = str(i)
+                df_styled = df_styled.applymap(
+                    lambda x: 'background-color: #d0f0c0' if x == "Pass" else
+                              'background-color: #f8d7da' if x == "Fail" else
+                              'background-color: white',
+                    subset=[col]
+                )
+        
+            # Style IPS Status column
+            df_styled = df_styled.applymap(
+                lambda x: 'background-color: #2e7d32; color: white' if x == "Passed IPS Screen" else
+                          'background-color: #ef6c00; color: white' if x == "Informal Watch (IW)" else
+                          'background-color: #c62828; color: white' if x == "Formal Watch (FW)" else '',
+                subset=["IPS Status"]
+            )
+        
+            return df_styled
+        
+        def build_ips_summary_table(investment_options, ticker_lookup, criteria_results, ips_status_lookup, quarter_label):
             data = []
         
             for fund in investment_options:
                 row = {
                     "Investment Option": fund,
                     "Ticker": ticker_lookup.get(fund, "N/A"),
-                    "Time Period": quarter_label,         # dynamically inserted
-                    "Plan Assets": "$",                   # always just a dollar sign
+                    "Time Period": quarter_label,
+                    "Plan Assets": "$"
                 }
         
-                # Add columns 1–11 (IPS metrics)
-                for i in range(1, 12):
-                    row[str(i)] = criteria_results.get(fund, ["N/A"] * 11)[i - 1]
+                # Metrics 1–11
+                criteria = criteria_results.get(fund, ["N/A"] * 11)
+                for i in range(11):
+                    row[str(i + 1)] = criteria[i]
         
-                # Add IPS Status
+                # IPS Status
                 row["IPS Status"] = ips_status_lookup.get(fund, "Unknown")
-        
                 data.append(row)
         
             return pd.DataFrame(data)
+        
+        def run_step10(investment_options, ticker_lookup, criteria_results, ips_status_lookup, quarter_label):
+            st.subheader("Step 10: IPS Summary Table")
+        
+            df = build_ips_summary_table(
+                investment_options,
+                ticker_lookup,
+                criteria_results,
+                ips_status_lookup,
+                quarter_label
+            )
+        
+            st.write("Number of funds:", len(df))
+            st.dataframe(build_colored_df(df), use_container_width=True)
+        
+            # CSV download
+            csv_buffer = io.StringIO()
+            df.to_csv(csv_buffer, index=False)
+            st.download_button(
+                label="Download IPS Summary Table as CSV",
+                data=csv_buffer.getvalue(),
+                file_name="IPS_Summary.csv",
+                mime="text/csv"
+            )
+
