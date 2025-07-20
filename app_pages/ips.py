@@ -634,3 +634,7 @@ def run():
             wb.save(file_path)
             return file_path
 
+        if st.button("Download Excel Output"):
+            excel_path = export_step11_excel(summary_df)
+            with open(excel_path, "rb") as f:
+                st.download_button("Download Step 11 Excel", data=f, file_name="Step11_IPS_Export.xlsx")
