@@ -331,9 +331,6 @@ def run():
         # === Step 9.5: Category and Benchmark ===
         st.subheader("Step 9.5: Extract Category and Benchmark for Each Fund")
         
-        from difflib import SequenceMatcher
-        import re
-        
         # Use previously collected Fund Scorecard names
         scorecard_names = [block["Fund Name"] for block in fund_blocks]
         
