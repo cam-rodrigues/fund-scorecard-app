@@ -461,6 +461,32 @@ def run():
 #--------------------------------------------------------------------------------------------------------------
 
         # === Step 10: Output Combined Table (IPS Summary) ===
+        st.subheader("Step 10: IPS Summary Table")
+        
+        # Rebuild fund_blocks with ticker + IPS metrics + status
+        final_fund_blocks = {}
+        for i, block in enumerate(fund_blocks):
+            name = block["Fund Name"]
+            fund_metrics = [m["Status"] for m in block["Metrics"]]
+            fund_status = "Unknown"
+        
+            # Match IPS Status
+            for line in st.session_state.get("step8_results", []):
+                if line.get("Fund Name") == name:
+                    fund_status = line.get("Overall IPS Status", "Unknown")
+                    break
+        
+            # Match Ticker from df_95
+            ticker_row = df_95[df_95["Fund Scorecard Name"] == name]
+            ticker_val = ticker_row["Ticker"].values[0] if not ticker_row.empty else "N/A"
+        
+            final_fund_blocks[name] = {
+                "Ticker": ticker_val,
+                "Metrics": fund_metrics[:11],  # Only IPS Metrics (first 11)
+                "IPS Status": fund_status
+            }
+        
+        # Build Table
         def generate_step10_table(fund_blocks, quarter_label):
             data = []
             for fund_name, info in fund_blocks.items():
@@ -477,39 +503,33 @@ def run():
         
             columns = (
                 ["Investment Option", "Ticker", "Time Period", "Plan Assets"] +
-                [str(i) for i in range(1, 12)] +
-                ["IPS Status"]
+                [str(i) for i in range(1, 12)] + ["IPS Status"]
             )
             return pd.DataFrame(data, columns=columns)
         
-        def run_step10(fund_blocks, quarter_label):
-            st.subheader("Step 10: IPS Summary Table")
-            df = generate_step10_table(fund_blocks, quarter_label)
+        # Show Table
+        summary_df = generate_step10_table(final_fund_blocks, quarter)
+        def color_cells(val):
+            if val == "Pass":
+                return "background-color: #c6efce; color: black;"
+            elif val == "Fail":
+                return "background-color: #ffc7ce; color: black;"
+            return ""
         
-            # Color styling
-            def color_cells(val):
-                if val == "Pass":
-                    return "background-color: #c6efce; color: black;"  # green
-                elif val == "Fail":
-                    return "background-color: #ffc7ce; color: black;"  # red
-                return ""
+        def color_status(val):
+            if "Passed" in val:
+                return "background-color: #2e7d32; color: white;"
+            elif "Informal" in val:
+                return "background-color: orange; color: white;"
+            elif "Formal" in val:
+                return "background-color: red; color: white;"
+            return ""
         
-            def color_status(val):
-                if "Passed" in val:
-                    return "background-color: #2e7d32; color: white;"  # dark green
-                elif "Informal" in val:
-                    return "background-color: orange; color: white;"
-                elif "Formal" in val:
-                    return "background-color: red; color: white;"
-                return ""
+        styled_df = summary_df.style.applymap(color_cells, subset=[str(i) for i in range(1, 12)])
+        styled_df = styled_df.applymap(color_status, subset=["IPS Status"])
         
-            styled_df = df.style.applymap(color_cells, subset=[str(i) for i in range(1, 12)])
-            styled_df = styled_df.applymap(color_status, subset=["IPS Status"])
+        st.dataframe(styled_df, use_container_width=True)
         
-            st.dataframe(styled_df, use_container_width=True)
-        
-            csv = df.to_csv(index=False).encode("utf-8")
-            st.download_button("Download as CSV", data=csv, file_name="ips_summary.csv", mime="text/csv")
-        
-        # Example usage inside your app:
-        # run_step10(fund_blocks, quarter_label)
+        # Download Button
+        csv = summary_df.to_csv(index=False).encode("utf-8")
+        st.download_button("Download IPS Summary CSV", data=csv, file_name="ips_summary.csv", mime="text/csv")
