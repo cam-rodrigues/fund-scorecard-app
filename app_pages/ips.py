@@ -332,9 +332,6 @@ def run():
         # === Step 9.5: Extract Fund Ticker + Category (Direct Upward Scan) ===
         st.subheader("Step 9.5: Extract Fund Ticker and Category")
         
-        from difflib import SequenceMatcher, get_close_matches
-        import re
-        
         scorecard_names = [block["Fund Name"] for block in fund_blocks]
         
         # Define known categories
