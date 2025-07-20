@@ -523,7 +523,7 @@ def run():
             if val == "Pass":
                 return "background-color: #c6e7b5; color: black;"
             elif val == "Fail":
-                return "background-color: #ffc7ce; color: black;"
+                return "background-color: #e09385; color: black;"
             return ""
         
         def color_status(val):
