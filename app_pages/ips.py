@@ -7,6 +7,7 @@ import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font
 from io import BytesIO
+from io import StringIO
 
 def run():
     st.title("IPS Write-Up Tool")
@@ -460,67 +461,35 @@ def run():
 #--------------------------------------------------------------------------------------------------------------
 
         # === Step 10: Output Combined Table (IPS Summary) ===
-        st.subheader("Step 10: Output Combined Table")
+        ips_table = run_step_10(investment_options, ticker_lookup, criteria_results, ips_status_lookup, quarter_label)
+        def run_step_10(investment_options, ticker_lookup, criteria_results, ips_status_lookup, quarter_label):
+            st.header("Step 10: IPS Summary Table")
         
-        def build_ips_summary_table(investment_options, ticker_lookup, criteria_results, ips_status_lookup, quarter_label):
-            rows = []
-            for fund in investment_options:
-                ticker = ticker_lookup.get(fund, "N/A")
-                metrics = criteria_results.get(fund, ["Fail"] * 11)
-                ips_status = ips_status_lookup.get(fund, "Unknown")
-        
+            # === Build Output Table ===
+            data = []
+            for name in investment_options:
                 row = {
-                    "Investment Option": fund,
-                    "Ticker": ticker,
+                    "Investment Option": name,
+                    "Ticker": ticker_lookup.get(name, "N/A"),
                     "Time Period": quarter_label,
-                    "Plan Assets": "$",
+                    "Plan Assets": "$"
                 }
-                for i, result in enumerate(metrics, 1):
+        
+                criteria = criteria_results.get(name, [""] * 11)
+                for i, result in enumerate(criteria, 1):
                     row[str(i)] = result
-                row["IPS Status"] = ips_status
-                rows.append(row)
-            return pd.DataFrame(rows)
         
-        def build_colored_df(df):
-            def color_pass_fail(val):
-                if val == "Pass":
-                    return "background-color: #c6efce; color: black;"
-                elif val == "Fail":
-                    return "background-color: #ffc7ce; color: black;"
-                else:
-                    return ""
+                status = ips_status_lookup.get(name, "Unknown")
+                row["IPS Status"] = status
+                data.append(row)
         
-            def color_status(val):
-                if val == "Passed IPS Screen":
-                    return "background-color: #007e33; color: white;"
-                elif val == "Informal Watch (IW)":
-                    return "background-color: #ff9900; color: white;"
-                elif val == "Formal Watch (FW)":
-                    return "background-color: #cc0000; color: white;"
-                else:
-                    return ""
+            df = pd.DataFrame(data)
         
-            styled = df.style.applymap(color_pass_fail, subset=[str(i) for i in range(1, 12)])
-            styled = styled.applymap(color_status, subset=["IPS Status"])
-            return styled
+            # === Show Table ===
+            st.dataframe(df, use_container_width=True)
         
-        def run_step10(investment_options, ticker_lookup, criteria_results, ips_status_lookup, quarter_label):
-            st.subheader("Step 10: IPS Summary Table")
+            # === CSV Download ===
+            csv = df.to_csv(index=False)
+            st.download_button("Download IPS Table (CSV)", csv, file_name="ips_summary_table.csv", mime="text/csv")
         
-            if not all([investment_options, ticker_lookup, criteria_results, ips_status_lookup, quarter_label]):
-                st.warning("⚠️ Missing data from prior steps. Please complete Steps 1–9.5 first.")
-                return
-        
-            df = build_ips_summary_table(
-                investment_options,
-                ticker_lookup,
-                criteria_results,
-                ips_status_lookup,
-                quarter_label,
-            )
-        
-            st.write(f"### IPS Evaluation – {quarter_label}")
-            st.dataframe(build_colored_df(df), use_container_width=True)
-        
-            csv = df.to_csv(index=False).encode("utf-8")
-            st.download_button("Download Table as CSV", data=csv, file_name="IPS_Summary.csv", mime="text/csv")
+            return df
