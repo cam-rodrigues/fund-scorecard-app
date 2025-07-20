@@ -6,8 +6,11 @@ from difflib import SequenceMatcher, get_close_matches
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font
+from openpyxl.utils.dataframe import dataframe_to_rows
 from io import BytesIO
 from io import StringIO
+
+
 
 def run():
     st.title("IPS Write-Up Tool")
@@ -543,3 +546,91 @@ def run():
         # Download Button
         csv = summary_df.to_csv(index=False).encode("utf-8")
         st.download_button("Download IPS Summary CSV", data=csv, file_name="ips_summary.csv", mime="text/csv")
+
+#--------------------------------------------------------------------------------------------------------------
+
+
+
+
+         # === Step 10: Output Combined Table (IPS Summary) ===
+        st.subheader("Step 11: Excel Table")
+
+        def export_step11_excel(summary_df, file_path="Step11_Final_With10.xlsx"):
+            # === Sheet 1 Content ===
+            ips_criteria = [
+                "Manager Tenure ≥ 3 years",
+                "*3-Year Performance > Benchmark / +3-Year R² > 95%",
+                "3-Year Performance > 50% of Peers",
+                "3-Year Sharpe Ratio > 50% of Peers",
+                "*3-Year Sortino Ratio > 50% of Peers / +3-Year Tracking Error < 90% of Peers",
+                "*5-Year Performance > Benchmark / +5-Year R² > 95%",
+                "5-Year Performance > 50% of Peers",
+                "5-Year Sharpe Ratio > 50% of Peers",
+                "*5-Year Sortino Ratio > 50% of Peers / +5-Year Tracking Error < 90% of Peers",
+                "Expense Ratio < 50% of Peers",
+                "Investment Style aligns with fund objectives"
+            ]
+        
+            criteria_thresholds = [
+                "Manager Tenure - Portfolio manager or management team must have managed this product for at least 3 years.",
+                "Excess Performance (3Yr) - The fund must outperform its benchmark over the trailing 3-year period.",
+                "Excess Performance (5Yr) - The fund must outperform its benchmark over the trailing 5-year period.",
+                "Peer Return Rank (3Yr) - The fund's Return Rank must be in the top 50% of its peer group over the trailing 3-year period.",
+                "Peer Return Rank (5Yr) - The fund's Return Rank must be in the top 50% of its peer group over the trailing 5-year period.",
+                "Expense Ratio Rank - The fund's Expense Ratio must be in the top 50% of its peer group.",
+                "Sharpe Ratio Rank (3Yr) - The fund's Sharpe Ratio Rank must be in the top 50% of its peer group over the trailing 3-year period.",
+                "Sharpe Ratio Rank (5Yr) - The fund's Sharpe Ratio Rank must be in the top 50% of its peer group over the trailing 5-year period.",
+                "R-Squared (3Yr) - The fund's Benchmark R-Squared must be greater than 95% over the trailing 3-year period.",
+                "R-Squared (5Yr) - The fund's Benchmark R-Squared must be greater than 95% over the trailing 5-year period.",
+                "Sortino Ratio Rank (3Yr) - The fund's Sortino Ratio Rank must be in the top 50% of its peer group over the trailing 3-year period.",
+                "Sortino Ratio Rank (5Yr) - The fund's Sortino Ratio Rank must be in the top 50% of its peer group over the trailing 5-year period.",
+                "Tracking Error Rank (3Yr) - The fund's Tracking Error Rank must be in the top 10% of its peer group over the trailing 3-year period.",
+                "Tracking Error Rank (5Yr) - The fund's Tracking Error Rank must be in the top 10% of its peer group over the trailing 5-year period.",
+            ]
+        
+            # === Create Workbook ===
+            wb = Workbook()
+            ws1 = wb.active
+            ws1.title = "IPS & Scorecard Criteria"
+            ws1.append(["IPS Investment Criteria"])
+            for line in ips_criteria:
+                ws1.append([line])
+            ws1.append([])
+            ws1.append(["Criteria Threshold (14 Metrics)"])
+            for line in criteria_thresholds:
+                ws1.append([line])
+        
+            # === Sheet 2: IPS Summary Table ===
+            ws2 = wb.create_sheet("IPS Summary Table")
+            for row in dataframe_to_rows(summary_df, index=False, header=True):
+                ws2.append(row)
+        
+            # === Styling ===
+            green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+            red_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+            status_green = PatternFill(start_color="93C47D", end_color="93C47D", fill_type="solid")
+            status_red = PatternFill(start_color="F4CCCC", end_color="F4CCCC", fill_type="solid")
+            status_orange = PatternFill(start_color="FCE5CD", end_color="FCE5CD", fill_type="solid")
+            white_font = Font(color="FFFFFF")
+        
+            for row in ws2.iter_rows(min_row=2, max_row=ws2.max_row):
+                for cell in row[4:-1]:
+                    if cell.value == "Pass":
+                        cell.fill = green_fill
+                    elif cell.value == "Fail":
+                        cell.fill = red_fill
+                status_cell = row[-1]
+                if "Passed" in status_cell.value:
+                    status_cell.fill = status_green
+                    status_cell.font = white_font
+                elif "Informal" in status_cell.value:
+                    status_cell.fill = status_orange
+                    status_cell.font = white_font
+                elif "Formal" in status_cell.value:
+                    status_cell.fill = status_red
+                    status_cell.font = white_font
+        
+            # === Save File ===
+            wb.save(file_path)
+            return file_path
+
