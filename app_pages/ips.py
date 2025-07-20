@@ -327,9 +327,9 @@ def run():
         st.dataframe(df_matches)
 
 
-#----------------------------------------------------------------------------------------------------------------
+#---------------------------------------------------------------------------------------------------------------
 
-        # === Step 9.5: Extract Ticker + Category using Horizontal Line Anchors and Category Fuzzy Match ===
+        # === Step 9.5: Extract Ticker + Final Category ===
         st.subheader("Step 9.5: Extract Fund Ticker and Category")
         
         scorecard_names = [block["Fund Name"] for block in fund_blocks]
@@ -367,50 +367,7 @@ def run():
                         lines_with_positions.append((y, line_text))
                         line_to_page_map.append(i)
         
-        # Step 2: Match fund names and find tickers and categories
-        match_data = []
-        for name in scorecard_names:
-            best_score = 0
-            best_idx = -1
-            best_line = ""
-            best_ticker = ""
-        
-            for i, (y, line) in enumerate(lines_with_positions):
-                score = SequenceMatcher(None, name.lower(), line.lower()).ratio()
-                if score > best_score:
-                    best_score = score
-                    best_idx = i
-                    ticker_match = re.search(r"\b[A-Z]{5}\b", line)
-                    best_ticker = ticker_match.group(0) if ticker_match else ""
-                    best_line = re.sub(r"\b[A-Z]{5}\b", "", line).strip()
-        
-            fund_y = lines_with_positions[best_idx][0]
-            page_number = line_to_page_map[best_idx]
-        
-            above_lines = [y for (y, p) in horizontal_lines if p == page_number and y < fund_y]
-            nearest_y = max(above_lines) if above_lines else None
-        
-            raw_category = ""
-            if nearest_y:
-                candidates = [
-                    txt for (y, txt), p in zip(lines_with_positions, line_to_page_map)
-                    if p == page_number and y < nearest_y
-                ]
-                for line in reversed(candidates):
-                    if 2 <= len(line.split()) <= 5 and sum(c.isalpha() for c in line) / max(1, len(line)) > 0.7:
-                        raw_category = line.strip()
-                        break
-        
-            match_data.append({
-                "Fund Scorecard Name": name,
-                "Matched Name": best_line,
-                "Extracted Ticker": best_ticker,
-                "Raw Category": raw_category,
-                "Match Score (0–100)": round(best_score * 100),
-                "Matched": "✅" if best_score >= 0.60 else "❌"
-            })
-        
-        # Step 3: Match against provided category list
+        # Predefined valid categories (normalized to lowercase)
         known_categories = [c.lower() for c in [
             "large cap growth", "large cap value", "large cap blend",
             "mid cap growth", "mid cap value", "mid cap blend",
@@ -441,11 +398,55 @@ def run():
             "money market", "stable value", "capital preservation", "cash reserves", "ultra short term bond"
         ]]
         
-        for row in match_data:
-            raw = row["Raw Category"].lower().strip()
-            match = get_close_matches(raw, known_categories, n=1, cutoff=0.8)
-            row["Final Category"] = match[0] if match else ""
+        # Step 2: Match fund names and extract category + ticker
+        match_data = []
+        for name in scorecard_names:
+            best_score = 0
+            best_idx = -1
+            best_line = ""
+            best_ticker = ""
         
-        # Optional: display results
-        df_95 = pd.DataFrame(match_data)
-        st.dataframe(df_95)
+            for i, (y, line) in enumerate(lines_with_positions):
+                score = SequenceMatcher(None, name.lower(), line.lower()).ratio()
+                if score > best_score:
+                    best_score = score
+                    best_idx = i
+                    ticker_match = re.search(r"\b[A-Z]{5}\b", line)
+                    best_ticker = ticker_match.group(0) if ticker_match else ""
+                    best_line = re.sub(r"\b[A-Z]{5}\b", "", line).strip()
+        
+            fund_y = lines_with_positions[best_idx][0]
+            page_number = line_to_page_map[best_idx]
+        
+            above_lines = [y for (y, p) in horizontal_lines if p == page_number and y < fund_y]
+            nearest_y = max(above_lines) if above_lines else None
+        
+            raw_cat = ""
+            if nearest_y:
+                candidates = [
+                    txt for (y, txt), p in zip(lines_with_positions, line_to_page_map)
+                    if p == page_number and y < nearest_y
+                ]
+                for line in reversed(candidates):
+                    if 2 <= len(line.split()) <= 5 and sum(c.isalpha() for c in line) / max(1, len(line)) > 0.7:
+                        raw_cat = line.strip()
+                        break
+        
+            # Final category match
+            raw = raw_cat.lower().strip()
+            match = get_close_matches(raw, known_categories, n=1, cutoff=0.8)
+            final_category = match[0] if match else ""
+        
+            match_data.append({
+                "Fund Scorecard Name": name,
+                "Matched Name": best_line,
+                "Extracted Ticker": best_ticker,
+                "Category": final_category,
+                "Match Score (0–100)": round(best_score * 100),
+                "Matched": "✅" if best_score >= 0.60 else "❌"
+            })
+        
+        # Show cleaned results
+        df_clean = pd.DataFrame(match_data)
+        st.dataframe(df_clean)
+
