@@ -241,6 +241,16 @@ def run():
             else:
                 overall_status = "Formal Watch (FW)"
 
+            # ✅ ADD THIS BLOCK BELOW
+            if "step8_results" not in st.session_state:
+                st.session_state["step8_results"] = []
+            
+            st.session_state["step8_results"].append({
+                "Fund Name": fund_name,
+                "IPS Metrics": ips_results,
+                "Overall IPS Status": overall_status
+            })
+
             # Display results
             st.markdown(f"### {fund_name}")
             st.write(f"**Fund Type:** {fund_type}")
