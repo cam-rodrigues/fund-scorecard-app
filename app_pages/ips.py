@@ -528,11 +528,11 @@ def run():
         
         def color_status(val):
             if "Passed" in val:
-                return "background-color: #2e7d32; color: white;"
+                return "background-color: #d9ead3; color: white;"
             elif "Informal" in val:
-                return "background-color: orange; color: white;"
+                return "background-color: #ffe599; color: white;"
             elif "Formal" in val:
-                return "background-color: red; color: white;"
+                return "background-color: #f4cccc; color: white;"
             return ""
         
         styled_df = summary_df.style.applymap(color_cells, subset=[str(i) for i in range(1, 12)])
