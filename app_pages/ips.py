@@ -460,7 +460,7 @@ def run():
 #--------------------------------------------------------------------------------------------------------------
 
         # === Step 10: Output Combined Table (IPS Summary) ===
-        
+        st.subheader("Step 10: Output Combined Table")
         def build_ips_summary_table(investment_options, ticker_lookup, category_lookup, criteria_results, ips_status_lookup, quarter_label):
             data = []
         
