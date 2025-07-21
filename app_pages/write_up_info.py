@@ -582,70 +582,64 @@ def run():
 
 #-------------------------------------------------------------------------------------------
     
-        # === Step 6.2: Risk-Adjusted Returns ===
-        st.subheader("Step 6.2: Risk-Adjusted Returns")
+# === Step 6.2: Risk-Adjusted Returns ===
+st.subheader("Step 6.2: Risk-Adjusted Returns")
 
-        matched_facts = st.session_state.get("fund_factsheets_data", [])
-        if not matched_facts:
-            st.error("❌ No matched factsheets found to extract Risk-Adjusted Returns.")
-            return
+if "factsheet_matches" not in st.session_state:
+    st.warning("❌ Factsheet matches not found in session state.")
+else:
+    risk_returns_data = []
+
+    for match in st.session_state["factsheet_matches"]:
+        fund_name = match.get("Fund Name")
+        ticker = match.get("Ticker")
+        page_num = match.get("Page Number")
+        found_table = False
+        table_data = {
+            "Fund Name": fund_name,
+            "Ticker": ticker,
+            "Sharpe Ratio": {},
+            "Information Ratio": {},
+            "Sortino Ratio": {}
+        }
 
         with pdfplumber.open(uploaded_file) as pdf:
-            risk_adjusted_data = []
+            if page_num >= len(pdf.pages):
+                continue
+            page = pdf.pages[page_num]
+            text = page.extract_text()
+            lines = text.split("\n") if text else []
 
-            for row in matched_facts:
-                page_num = row["Page #"] - 1
-                fund_name = row["Matched Fund Name"]
-                ticker = row["Matched Ticker"]
+            for i, line in enumerate(lines):
+                if "risk-adjusted returns" in line.lower():
+                    # Attempt to capture the next 4–6 lines
+                    table_lines = lines[i+1:i+7]
+                    row_labels = ["Sharpe", "Information", "Sortino"]
 
-                try:
-                    text = pdf.pages[page_num].extract_text()
-                    if not text or "Risk-Adjusted Returns" not in text:
-                        st.warning(f"⚠️ 'Risk-Adjusted Returns' table not found for {fund_name} ({ticker})")
-                        continue
+                    for row in table_lines:
+                        row = row.strip()
+                        for label in row_labels:
+                            if label.lower() in row.lower():
+                                parts = re.split(r"\s{2,}", row)
+                                if len(parts) >= 5:
+                                    ratio_type = label + " Ratio"
+                                    values = parts[1:5]
+                                    table_data[ratio_type] = {
+                                        "1 Yr": values[0],
+                                        "3 Yrs": values[1],
+                                        "5 Yrs": values[2],
+                                        "10 Yrs": values[3]
+                                    }
+                                    found_table = True
+                    break  # stop after first match on page
 
-                    lines = text.split("\n")
-                    table_start = -1
-                    for i, line in enumerate(lines):
-                        if "Risk-Adjusted Returns" in line:
-                            table_start = i
-                            break
+        if found_table:
+            risk_returns_data.append(table_data)
+        else:
+            st.warning(f"⚠️ 'Risk-Adjusted Returns' table not found for {fund_name} ({ticker})")
 
-                    if table_start == -1 or table_start + 3 >= len(lines):
-                        st.warning(f"⚠️ Could not find full table rows for {fund_name}")
-                        continue
-
-                    def extract_row(line):
-                        parts = re.split(r"\s{2,}|\t", line.strip())
-                        return parts[1:] if len(parts) >= 5 else ["N/A"] * 4
-
-                    sharpe_vals = extract_row(lines[table_start + 1])
-                    info_vals = extract_row(lines[table_start + 2])
-                    sortino_vals = extract_row(lines[table_start + 3])
-
-                    risk_adjusted_data.append({
-                        "Fund Name": fund_name,
-                        "Ticker": ticker,
-                        "Sharpe (1Y)": sharpe_vals[0],
-                        "Sharpe (3Y)": sharpe_vals[1],
-                        "Sharpe (5Y)": sharpe_vals[2],
-                        "Sharpe (10Y)": sharpe_vals[3],
-                        "Info (1Y)": info_vals[0],
-                        "Info (3Y)": info_vals[1],
-                        "Info (5Y)": info_vals[2],
-                        "Info (10Y)": info_vals[3],
-                        "Sortino (1Y)": sortino_vals[0],
-                        "Sortino (3Y)": sortino_vals[1],
-                        "Sortino (5Y)": sortino_vals[2],
-                        "Sortino (10Y)": sortino_vals[3],
-                    })
-
-                except Exception as e:
-                    st.warning(f"⚠️ Error reading page {page_num+1} for {fund_name}: {e}")
-
-            df_risk = pd.DataFrame(risk_adjusted_data)
-            if not df_risk.empty:
-                st.session_state["risk_adjusted_returns"] = df_risk
-                st.dataframe(df_risk, use_container_width=True)
-            else:
-                st.error("❌ No Risk-Adjusted Returns data extracted.")
+    if not risk_returns_data:
+        st.error("❌ No Risk-Adjusted Returns data extracted.")
+    else:
+        st.success(f"✅ Extracted Risk-Adjusted Returns for {len(risk_returns_data)} funds.")
+        st.session_state["risk_adjusted_returns"] = risk_returns_data
