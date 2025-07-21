@@ -509,12 +509,14 @@ def run():
             # Loop through pages starting at the Fund Factsheets section
             for i in range(factsheet_start - 1, len(pdf.pages)):
                 page = pdf.pages[i]
-                text = page.extract_text()
-                if not text:
-                    continue
 
-                lines = text.split("\n")
-                first_line = lines[0].strip()
+                # === NEW: Try to extract header from top of page using extract_words
+                words = page.extract_words(use_text_flow=True)
+                header_words = [w['text'] for w in words if w['top'] < 100]
+                first_line = " ".join(header_words).strip()
+
+                if not first_line:
+                    continue  # Skip if header couldn't be extracted
 
                 # Match this first line against scorecard names + tickers
                 best_match_score = 0
