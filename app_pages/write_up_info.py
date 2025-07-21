@@ -24,8 +24,8 @@ def run():
             st.subheader("Step 1: Detect Reporting Quarter")
 
             page1_text = pdf.pages[0].extract_text() if pdf.pages else ""
-            quarter_date = None
             quarter_label = None
+            quarter_date = None
 
             patterns = {
                 r"3/31/20(\d{2})": "Q1, 20{}",
@@ -39,18 +39,50 @@ def run():
                 if match:
                     year_suffix = match.group(1)
                     quarter_label = label.format(year_suffix)
-                    quarter_date = pattern[:5] + "20" + year_suffix  # For full MM/DD/YYYY format
+                    quarter_date = pattern[:5] + "20" + year_suffix
                     break
 
             if quarter_label:
                 st.success(f"Detected Quarter: {quarter_label}")
-                # === Step 1.1: Save in structured session state format ===
-                st.session_state["reporting_info"] = {
-                    "quarter_label": quarter_label,
-                    "quarter_date": quarter_date
-                }
             else:
                 st.error("Could not determine the reporting quarter from page 1.")
+
+            # === Step 1.5: Extract Total Options, Client, and Preparer Info ===
+            st.subheader("Step 1.5: Extract Metadata")
+
+            total_match = re.search(r"Total Options:\s*(\d+)", page1_text)
+            total_options = int(total_match.group(1)) if total_match else None
+
+            prepared_for_match = re.search(r"Prepared For:\s*\n(.+)", page1_text)
+            prepared_for = prepared_for_match.group(1).strip() if prepared_for_match else None
+
+            prepared_by_match = re.search(r"Prepared By:\s*\n(.+)", page1_text)
+            prepared_by = prepared_by_match.group(1).strip() if prepared_by_match else None
+
+            # Display values
+            if total_options is not None:
+                st.write(f"**Total Investment Options:** {total_options}")
+            else:
+                st.warning("Could not find total number of investment options.")
+
+            if prepared_for:
+                st.write(f"**Prepared For:** {prepared_for}")
+            else:
+                st.warning("Could not find 'Prepared For' client name.")
+
+            if prepared_by:
+                st.write(f"**Prepared By:** {prepared_by}")
+            else:
+                st.warning("Could not find 'Prepared By' name.")
+
+            # Save everything for later use
+            st.session_state["reporting_info"] = {
+                "quarter_label": quarter_label,
+                "quarter_date": quarter_date,
+                "total_options": total_options,
+                "prepared_for": prepared_for,
+                "prepared_by": prepared_by
+            }
 
     except Exception as e:
         st.error(f"Failed to read PDF: {e}")
