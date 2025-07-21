@@ -134,7 +134,7 @@ def run():
     else:
         st.dataframe(metrics_df, use_container_width=True)
 
-    # === Step 3.5: Extract Investment Option Metrics into Separate Tables (TOC-Based Range) ===
+    # === Step 3.5: Extract Investment Option Metrics into Separate Tables (Allow Incomplete Funds) ===
     st.subheader("Step 3.5: Individual Investment Option Tables")
 
     fund_blocks = []
@@ -166,17 +166,24 @@ def run():
                     match = re.match(r"(.+?)\s+(Pass|Review)\s*[-–]?\s*(.*)", metric_line)
                     if match:
                         metric_name, status, reason = match.groups()
-                        fund_metrics.append({
-                            "Metric": metric_name.strip(),
-                            "Status": status.strip(),
-                            "Reason": reason.strip()
-                        })
+                    else:
+                        # Fallback if match failed
+                        parts = metric_line.split(" ", 1)
+                        metric_name = parts[0] if parts else "Unknown Metric"
+                        status = "N/A"
+                        reason = parts[1].strip() if len(parts) > 1 else ""
 
-                if len(fund_metrics) == 14:
-                    fund_blocks.append({
-                        "Fund Name": fund_name,
-                        "Metrics": fund_metrics
+                    fund_metrics.append({
+                        "Metric": metric_name.strip(),
+                        "Status": status.strip(),
+                        "Reason": reason.strip()
                     })
+
+                # Save even if partial metrics
+                fund_blocks.append({
+                    "Fund Name": fund_name,
+                    "Metrics": fund_metrics
+                })
 
     # Save to session state
     st.session_state["fund_blocks"] = fund_blocks
@@ -186,7 +193,6 @@ def run():
         st.markdown(f"### {block['Fund Name']}")
         df = pd.DataFrame(block["Metrics"])
         st.dataframe(df, use_container_width=True)
-
 
     # === Step 3.6: Double Check Fund Count ===
     st.subheader("Step 3.6: Investment Option Count Check")
