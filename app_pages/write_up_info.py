@@ -134,8 +134,9 @@ def run():
     else:
         st.dataframe(metrics_df, use_container_width=True)
 
-    # === Step 3.5: Extract Investment Option Names + 14 Metric Statuses ===
-    st.subheader("Step 3.5: Investment Option Metrics")
+    # === Step 3.5: Extract Investment Option Metrics into Separate Tables ===
+    st.subheader("Step 3.5: Individual Investment Option Tables")
+
     fund_blocks = []
 
     fund_status_pattern = re.compile(
@@ -153,7 +154,7 @@ def run():
                 raw_fund_line = lines[j - 1].strip()
                 fund_name = fund_status_pattern.sub("", raw_fund_line).strip()
                 if "criteria threshold" in fund_name.lower():
-                    continue  # skip box title
+                    continue  # skip bad block
 
                 fund_metrics = []
                 for k in range(j, j + 14):
@@ -174,24 +175,11 @@ def run():
                         "Metrics": fund_metrics
                     })
 
-    # Flatten table
-    flat_data = []
-    for block in fund_blocks:
-        for metric in block["Metrics"]:
-            flat_data.append({
-                "Investment Option": block["Fund Name"],
-                "Status": metric["Status"],
-                "Info": metric["Reason"]
-            })
-
-    fund_status_df = pd.DataFrame(flat_data)
-
-    # Save
+    # Save fund_blocks to session_state
     st.session_state["fund_blocks"] = fund_blocks
-    st.session_state["fund_status_table"] = fund_status_df
 
-    # Display flattened table
-    if not fund_status_df.empty:
-        st.dataframe(fund_status_df, use_container_width=True)
-    else:
-        st.write("No investment option metrics found.")
+    # Display a separate table per fund
+    for block in fund_blocks:
+        st.markdown(f"### {block['Fund Name']}")
+        df = pd.DataFrame(block["Metrics"])
+        st.dataframe(df, use_container_width=True)
