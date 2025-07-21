@@ -139,3 +139,74 @@ def run():
     else:
         st.dataframe(metrics_df, use_container_width=True)
 
+    # === Step 3.5: Extract Investment Option Metrics and Status ===
+    fund_blocks = []
+
+    # Go through each page starting at the Fund Scorecard section
+    for i in range(fund_scorecard_start - 1, len(pdf.pages)):
+        page = pdf.pages[i]
+        text = page.extract_text()
+        if not text or "Fund Scorecard" not in text:
+            break  # Stop when we reach a page that’s not part of Fund Scorecard
+
+        lines = text.split("\n")
+        current_fund = None
+        current_metrics = []
+
+        for idx, line in enumerate(lines):
+            # Identify the start of a new fund block
+            if "Manager Tenure" in line and idx > 0:
+                name_line = lines[idx - 1].strip()
+                name_clean = re.sub(r"Fund (Meets|has been placed).*", "", name_line).strip()
+
+                if current_fund and current_metrics:
+                    fund_blocks.append({
+                        "Fund Name": current_fund,
+                        "Metrics": current_metrics
+                    })
+
+                current_fund = name_clean
+                current_metrics = []
+
+            # If we're inside a fund block, look for metrics
+            if current_fund and any(metric_name in line for metric_name in ["Manager Tenure", "Tracking Error Rank", "Sharpe", "Sortino", "Alpha", "Beta", "R²", "Standard Deviation", "Upside", "Downside"]):
+                metric_match = re.match(r"(.+?)\s+(Pass|Review)\s*-\s*(.+)", line)
+                if metric_match:
+                    metric_name = metric_match.group(1).strip()
+                    status = metric_match.group(2).strip()
+                    reason = metric_match.group(3).strip()
+                    current_metrics.append({
+                        "Metric": metric_name,
+                        "Status": status,
+                        "Info": reason
+                    })
+
+        # Append last fund block
+        if current_fund and current_metrics:
+            fund_blocks.append({
+                "Fund Name": current_fund,
+                "Metrics": current_metrics
+            })
+
+    # Flatten into one table
+    flat_data = []
+    for block in fund_blocks:
+        for metric in block["Metrics"]:
+            flat_data.append({
+                "Investment Option": block["Fund Name"],
+                "Status": metric["Status"],
+                "Info": metric["Info"]
+            })
+
+    fund_status_df = pd.DataFrame(flat_data)
+
+    # Save to session state
+    st.session_state["fund_blocks"] = fund_blocks
+    st.session_state["fund_status_table"] = fund_status_df
+
+    # Display
+    st.subheader("Step 3.5: Investment Option Metrics")
+    if not fund_status_df.empty:
+        st.dataframe(fund_status_df, use_container_width=True)
+    else:
+        st.write("No fund metric data found.")
