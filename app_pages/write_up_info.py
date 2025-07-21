@@ -102,7 +102,7 @@ def run():
 
 #--------------------------------------------------------------------------------------------
 
-    # === Step 3: Fund Scorecard Section ===
+    # === Step 3: Fund Scorecard Section (Extract & Tabulate Metrics) ===
     fund_scorecard_start = toc_pages.get("Fund Scorecard")
     if not fund_scorecard_start:
         st.error("Fund Scorecard section page number not found in Table of Contents.")
@@ -110,7 +110,7 @@ def run():
 
     fund_scorecard_text = pdf.pages[fund_scorecard_start - 1].extract_text()
 
-    # Look for "Criteria Threshold" section and capture the 14 lines below it
+    # Look for "Criteria Threshold" section and capture the lines below it
     criteria_match = re.search(r"Criteria Threshold\s*\n((?:.*\n){10,20})", fund_scorecard_text)
     if criteria_match:
         criteria_block = criteria_match.group(1)
@@ -118,13 +118,23 @@ def run():
     else:
         metrics = []
 
+    # Convert metrics to table
+    if metrics:
+        metrics_df = pd.DataFrame({
+            "Metric #": list(range(1, len(metrics) + 1)),
+            "Fund Scorecard Metric": metrics
+        })
+    else:
+        metrics_df = pd.DataFrame(columns=["Metric #", "Fund Scorecard Metric"])
+
+    # Save to session_state
     st.session_state["fund_scorecard_metrics"] = metrics
+    st.session_state["fund_scorecard_table"] = metrics_df
 
     # Display
-    st.subheader("Step 3: Fund Scorecard Metrics")
-    if metrics:
-        st.write("Extracted Metrics from 'Criteria Threshold':")
-        for i, m in enumerate(metrics, 1):
-            st.write(f"{i}. {m}")
-    else:
+    st.subheader("Step 3: Fund Scorecard Metrics Table")
+    if not metrics:
         st.write("No metrics found under 'Criteria Threshold'.")
+    else:
+        st.dataframe(metrics_df, use_container_width=True)
+
