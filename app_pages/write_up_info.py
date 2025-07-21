@@ -508,22 +508,15 @@ def run():
                     words = page.extract_words(use_text_flow=True)
                     header_words = [w['text'] for w in words if w['top'] < 100]
         
-                    # Grab the top-line text
                     first_line = " ".join(header_words).strip()
                     if not first_line or "Benchmark:" not in first_line or "Expense Ratio:" not in first_line:
-                        continue  # skip if not a valid factsheet header
+                        continue
         
-                    # === Attempt to extract fund name + ticker from left side of the string ===
                     ticker_match = re.search(r"\b([A-Z]{5})\b", first_line)
                     ticker = ticker_match.group(1) if ticker_match else ""
         
-                    # Assume fund name is everything before the ticker
-                    if ticker:
-                        fund_name_raw = first_line.split(ticker)[0].strip()
-                    else:
-                        fund_name_raw = ""
+                    fund_name_raw = first_line.split(ticker)[0].strip() if ticker else ""
         
-                    # === Attempt to match to saved names from Fund Performance ===
                     best_score = 0
                     matched_name = ""
                     matched_ticker = ""
@@ -556,7 +549,6 @@ def run():
         
                     matched_factsheets.append({
                         "Page #": i + 1,
-                        "Top Line": first_line,
                         "Parsed Fund Name": fund_name_raw,
                         "Parsed Ticker": ticker,
                         "Matched Fund Name": matched_name,
@@ -568,12 +560,17 @@ def run():
                         "Avg. Market Cap": avg_cap,
                         "Expense Ratio": expense,
                         "Match Score": best_score,
-                        "Matched": "✅" if best_score >= 70 else "❌"
+                        "Matched": "✅" if best_score > 20 else "❌"
                     })
         
+            # Remove "first_line" / "Top Line" from display
             df_facts = pd.DataFrame(matched_factsheets)
             st.session_state["fund_factsheets_data"] = matched_factsheets
-            st.dataframe(df_facts)
+        
+            st.dataframe(
+                df_facts.drop(columns=["Parsed Fund Name"]),
+                use_container_width=True
+            )
         
             matched_count = sum(1 for row in matched_factsheets if row["Matched"] == "✅")
             st.write(f"✅ Matched {matched_count} of {len(matched_factsheets)} factsheet pages.")
