@@ -212,122 +212,83 @@ def run():
 
 #--------------------------------------------------------------------------------------------
 
-    # === Step 4: IPS Investment Criteria Screening ===
-    st.subheader("Step 4: IPS Investment Criteria Screening")
+    # === Step 4: IPS Investment Criteria Definitions ===
+    st.subheader("Step 4: IPS Investment Criteria Setup")
 
     IPS_CRITERIA = [
-        "Manager Tenure ≥ 3 years",
-        "*3-Year Performance > Benchmark / +3-Year R² > 95%",
-        "3-Year Performance > 50% of Peers",
-        "3-Year Sharpe Ratio > 50% of Peers",
-        "*3-Year Sortino Ratio > 50% of Peers / +3-Year Tracking Error < 90% of Peers",
-        "*5-Year Performance > Benchmark / +5-Year R² > 95%",
-        "5-Year Performance > 50% of Peers",
-        "5-Year Sharpe Ratio > 50% of Peers",
-        "*5-Year Sortino Ratio > 50% of Peers / +5-Year Tracking Error < 90% of Peers",
-        "Expense Ratio < 50% of Peers",
-        "Investment Style aligns with fund objectives"
+        {
+            "Name": "Manager Tenure ≥ 3 years",
+            "Active Metric": "Manager Tenure",
+            "Passive Metric": "Manager Tenure",
+            "Always Include": True
+        },
+        {
+            "Name": "3-Year Performance > Benchmark / 3-Year R² > 95%",
+            "Active Metric": "3-Year Performance",
+            "Passive Metric": "3-Year R²",
+            "Always Include": True
+        },
+        {
+            "Name": "3-Year Performance > 50% of Peers",
+            "Active Metric": "3-Year Performance vs Peers",
+            "Passive Metric": "3-Year Performance vs Peers",
+            "Always Include": True
+        },
+        {
+            "Name": "3-Year Sharpe Ratio > 50% of Peers",
+            "Active Metric": "3-Year Sharpe Ratio",
+            "Passive Metric": "3-Year Sharpe Ratio",
+            "Always Include": True
+        },
+        {
+            "Name": "3-Year Sortino Ratio > 50% of Peers / 3-Year Tracking Error < 90% of Peers",
+            "Active Metric": "3-Year Sortino Ratio",
+            "Passive Metric": "3-Year Tracking Error Rank (5Yr)",
+            "Always Include": True
+        },
+        {
+            "Name": "5-Year Performance > Benchmark / 5-Year R² > 95%",
+            "Active Metric": "5-Year Performance",
+            "Passive Metric": "5-Year R²",
+            "Always Include": True
+        },
+        {
+            "Name": "5-Year Performance > 50% of Peers",
+            "Active Metric": "5-Year Performance vs Peers",
+            "Passive Metric": "5-Year Performance vs Peers",
+            "Always Include": True
+        },
+        {
+            "Name": "5-Year Sharpe Ratio > 50% of Peers",
+            "Active Metric": "5-Year Sharpe Ratio",
+            "Passive Metric": "5-Year Sharpe Ratio",
+            "Always Include": True
+        },
+        {
+            "Name": "5-Year Sortino Ratio > 50% of Peers / 5-Year Tracking Error < 90% of Peers",
+            "Active Metric": "5-Year Sortino Ratio",
+            "Passive Metric": "5-Year Tracking Error Rank (5Yr)",
+            "Always Include": True
+        },
+        {
+            "Name": "Expense Ratio < 50% of Peers",
+            "Active Metric": "Expense Ratio",
+            "Passive Metric": "Expense Ratio",
+            "Always Include": True
+        },
+        {
+            "Name": "Investment Style aligns with fund objectives",
+            "Active Metric": "Investment Style",
+            "Passive Metric": "Investment Style",
+            "Always Include": True
+        }
     ]
 
-    # Save for later use
-    st.session_state["ips_criteria_text"] = IPS_CRITERIA
+    # Save to session state
+    st.session_state["ips_criteria"] = IPS_CRITERIA
 
-    ips_results = []
+    # Display in app for reference
+    st.markdown("### IPS Investment Criteria")
+    for i, c in enumerate(IPS_CRITERIA, start=1):
+        st.markdown(f"**{i}.** {c['Name']}")
 
-    for block in st.session_state.get("fund_blocks", []):
-        fund_name = block["Fund Name"]
-        metrics = block["Metrics"]
-
-        # Determine Active or Passive
-        is_passive = "bitcoin" in fund_name.lower()
-
-        # Map metrics to names for lookup
-        metric_lookup = {m["Metric"]: m["Status"] for m in metrics}
-
-        # Evaluate IPS metrics
-        ips_statuses = []
-
-        for i, crit in enumerate(IPS_CRITERIA):
-            status = "Fail"
-
-            if i == 0:
-                status = metric_lookup.get("Manager Tenure", "Fail")
-
-            elif i == 1:
-                # Active uses "3-Year Performance", Passive uses "3-Year R²"
-                if is_passive:
-                    status = metric_lookup.get("3-Year R²", "Fail")
-                else:
-                    status = metric_lookup.get("3-Year Performance", "Fail")
-
-            elif i == 2:
-                status = metric_lookup.get("3-Year Performance vs Peers", "Fail")
-
-            elif i == 3:
-                status = metric_lookup.get("3-Year Sharpe Ratio", "Fail")
-
-            elif i == 4:
-                if is_passive:
-                    status = metric_lookup.get("3-Year Tracking Error Rank (5Yr)", "Fail")
-                else:
-                    status = metric_lookup.get("3-Year Sortino Ratio", "Fail")
-
-            elif i == 5:
-                if is_passive:
-                    status = metric_lookup.get("5-Year R²", "Fail")
-                else:
-                    status = metric_lookup.get("5-Year Performance", "Fail")
-
-            elif i == 6:
-                status = metric_lookup.get("5-Year Performance vs Peers", "Fail")
-
-            elif i == 7:
-                status = metric_lookup.get("5-Year Sharpe Ratio", "Fail")
-
-            elif i == 8:
-                if is_passive:
-                    status = metric_lookup.get("5-Year Tracking Error Rank (5Yr)", "Fail")
-                else:
-                    status = metric_lookup.get("5-Year Sortino Ratio", "Fail")
-
-            elif i == 9:
-                status = metric_lookup.get("Expense Ratio", "Fail")
-
-            elif i == 10:
-                status = "Pass"  # Always Pass
-
-            if status not in ["Pass", "Review"]:
-                status = "Fail"
-
-            ips_statuses.append(status)
-
-        # Count number of failed metrics (non-"Pass")
-        num_failed = sum(1 for s in ips_statuses if s != "Pass")
-
-        if num_failed <= 4:
-            overall_status = "Passed IPS Screen"
-        elif num_failed == 5:
-            overall_status = "Informal Watch"
-        else:
-            overall_status = "Formal Watch"
-
-        ips_results.append({
-            "Fund Name": fund_name,
-            "Passive": is_passive,
-            "IPS Metric Statuses": ips_statuses,
-            "Failed IPS Metrics": num_failed,
-            "Overall IPS Status": overall_status
-        })
-
-    # Save results
-    st.session_state["ips_results"] = ips_results
-
-    # Display summary table
-    st.write("### IPS Screening Results Summary")
-    summary_df = pd.DataFrame([{
-        "Fund Name": r["Fund Name"],
-        "Passive": r["Passive"],
-        "Fails": r["Failed IPS Metrics"],
-        "Overall IPS Status": r["Overall IPS Status"]
-    } for r in ips_results])
-    st.dataframe(summary_df, use_container_width=True)
