@@ -366,8 +366,7 @@ def run():
             ips_results.append(result)
             table_rows.append({
                 "Metric": ips_criteria[i],
-                "Status": status,
-                "Result": result
+                "Status": status
             })
 
         # Count fails
