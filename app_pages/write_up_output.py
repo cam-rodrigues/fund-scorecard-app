@@ -1,5 +1,5 @@
 import streamlit as st
-from write_up_info import run as process_writeup_info
+from write_up_info.py import run as process_writeup_info
 import pandas as pd
 
 def run():
