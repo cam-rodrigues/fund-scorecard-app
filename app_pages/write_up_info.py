@@ -292,3 +292,76 @@ def run():
     for i, c in enumerate(IPS_CRITERIA, start=1):
         st.markdown(f"**{i}.** {c['Name']}")
 
+    # === Step 4.5: IPS Screening Results Per Fund ===
+    st.subheader("Step 4.5: IPS Screening Evaluation")
+
+    fund_blocks = st.session_state.get("fund_blocks", [])
+    ips_criteria = st.session_state.get("ips_criteria", [])
+    ips_screen_results = []
+
+    for block in fund_blocks:
+        fund_name = block["Fund Name"]
+        fund_metrics = block["Metrics"]
+
+        # Determine Active/Passive
+        is_passive = "bitcoin" in fund_name.lower()
+
+        # Convert fund metrics into dict: {Metric Name → Info}
+        metric_info_lookup = {m["Metric"]: m["Reason"] for m in fund_metrics}
+
+        individual_results = []
+
+        for i, crit in enumerate(ips_criteria):
+            active_key = crit["Active Metric"]
+            passive_key = crit["Passive Metric"]
+
+            selected_metric = passive_key if is_passive else active_key
+            info_val = metric_info_lookup.get(selected_metric, "").strip()
+
+            if i == 10:  # Investment Style always passes
+                result = "Pass"
+            elif not info_val or info_val.lower() in ["", "n/a", "na", "fail"]:
+                result = "Fail"
+            elif info_val.lower().startswith("pass") or "meets" in info_val.lower():
+                result = "Pass"
+            else:
+                result = "Fail"
+
+            individual_results.append({
+                "Metric": crit["Name"],
+                "Used": selected_metric,
+                "Info": info_val,
+                "Result": result
+            })
+
+        # Count fails
+        fail_count = sum(1 for r in individual_results if r["Result"] == "Fail")
+
+        if fail_count <= 4:
+            overall = "Passed IPS Screen"
+        elif fail_count == 5:
+            overall = "Informal Watch"
+        else:
+            overall = "Formal Watch"
+
+        ips_screen_results.append({
+            "Fund Name": fund_name,
+            "Passive": is_passive,
+            "Results": individual_results,
+            "Fail Count": fail_count,
+            "Overall IPS Status": overall
+        })
+
+    # Save for later use
+    st.session_state["ips_screen_results"] = ips_screen_results
+
+    # Display Summary Table
+    st.markdown("### IPS Status Summary")
+    summary_df = pd.DataFrame([{
+        "Fund Name": res["Fund Name"],
+        "Passive": res["Passive"],
+        "Fails": res["Fail Count"],
+        "Overall IPS Status": res["Overall IPS Status"]
+    } for res in ips_screen_results])
+    st.dataframe(summary_df, use_container_width=True)
+
