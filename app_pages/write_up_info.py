@@ -576,3 +576,58 @@ def run():
                 st.success(f"✅ All {matched_count} funds matched the declared Total Options from Page 1.")
             else:
                 st.error(f"❌ Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
+
+#--------------------------------------------------------------------------------------------
+
+    # === Step 6.2: Risk-Adjusted Returns ===
+    st.subheader("Step 6.2: Risk-Adjusted Returns")
+
+    matched_factsheets = st.session_state.get("matched_factsheets", [])
+    risk_adjusted_tables = []
+
+    if not matched_factsheets:
+        st.warning("No matched factsheets found to extract Risk-Adjusted Returns.")
+    else:
+        with pdfplumber.open(uploaded_file) as pdf:
+            for item in matched_factsheets:
+                page_num = item["Page Number"]
+                fund_name = item["Fund Name"]
+                ticker = item["Ticker"]
+
+                page = pdf.pages[page_num - 1]
+                tables = page.extract_tables()
+
+                risk_data = []
+                for table in tables:
+                    if not table or len(table) < 2:
+                        continue
+
+                    header = [cell.strip() if cell else "" for cell in table[0]]
+                    if all(col in header for col in ["1 Yr", "3 Yrs", "5 Yrs", "10 Yrs"]):
+                        for row in table[1:]:
+                            row_title = row[0].strip() if row[0] else ""
+                            if row_title in ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]:
+                                row_data = {
+                                    "Metric": row_title,
+                                    "1 Yr": row[1] if len(row) > 1 else "",
+                                    "3 Yrs": row[2] if len(row) > 2 else "",
+                                    "5 Yrs": row[3] if len(row) > 3 else "",
+                                    "10 Yrs": row[4] if len(row) > 4 else ""
+                                }
+                                risk_data.append(row_data)
+
+                risk_adjusted_tables.append({
+                    "Fund Name": fund_name,
+                    "Ticker": ticker,
+                    "Page Number": page_num,
+                    "Risk Table": risk_data
+                })
+
+        # Save results
+        st.session_state["risk_adjusted_returns"] = risk_adjusted_tables
+
+        # Display
+        for block in risk_adjusted_tables:
+            st.markdown(f"**{block['Fund Name']} ({block['Ticker']}) — Risk-Adjusted Returns**")
+            df = pd.DataFrame(block["Risk Table"])
+            st.dataframe(df, use_container_width=True)
