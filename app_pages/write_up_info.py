@@ -397,16 +397,15 @@ def run():
     # === Step 5: Fund Performance: Current vs. Proposed Comparison Section ===
     st.subheader("Step 5: Navigate to Fund Performance Section")
 
-    # Get the TOC page mapping from session_state
     toc_pages = st.session_state.get("toc_pages", {})
-    fund_perf_pg = toc_pages.get("Fund Performance: Current vs. Proposed Comparison")
+    fund_perf_pg = toc_pages.get("Fund Performance")
 
     if not fund_perf_pg:
-        st.error("Could not find 'Fund Performance: Current vs. Proposed Comparison' section in Table of Contents.")
+        st.error("Could not find 'Fund Performance' section in Table of Contents.")
     else:
-        st.success(f"Found 'Fund Performance: Current vs. Proposed Comparison' starting on page {fund_perf_pg}.")
+        st.success(f"Found 'Fund Performance' section starting on page {fund_perf_pg}.")
 
-        # Extract and preview text from the starting page
+        # Preview first page of Fund Performance section
         with pdfplumber.open(uploaded_file) as pdf:
             if fund_perf_pg <= len(pdf.pages):
                 perf_text = pdf.pages[fund_perf_pg - 1].extract_text()
