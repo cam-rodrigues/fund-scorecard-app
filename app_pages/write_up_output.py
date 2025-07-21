@@ -2,7 +2,7 @@
 
 import streamlit as st
 import pandas as pd
-import write_up_info  # This must exist as fydsync/app_pages/write_up_info.py
+from fydsync/app_pages/write_up_info import write_up_info  # This must exist as fydsync/app_pages/write_up_info.py
 
 def run():
     st.set_page_config(page_title="Write-Up Fund Info Viewer", layout="wide")
