@@ -549,14 +549,17 @@ def run():
         
                     matched_factsheets.append({
                         "Page #": i + 1,
-                        "Investment Option": matched_name,
-                        "Ticker": matched_ticker,
+                        "Parsed Fund Name": fund_name_raw,
+                        "Parsed Ticker": ticker,
+                        "Matched Fund Name": matched_name,
+                        "Matched Ticker": matched_ticker,
                         "Benchmark": benchmark,
                         "Category": category,
                         "Net Assets": net_assets,
                         "Manager Name": manager,
                         "Avg. Market Cap": avg_cap,
                         "Expense Ratio": expense,
+                        "Match Score": best_score,
                         "Matched": "✅" if best_score > 20 else "❌"
                     })
         
@@ -577,8 +580,8 @@ def run():
             else:
                 st.error(f"❌ Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
-#--------------------------------------------------------------------------------------------
-
+#-------------------------------------------------------------------------------------------
+    
     # === Step 6.2: Risk-Adjusted Returns ===
     st.subheader("Step 6.2: Risk-Adjusted Returns")
 
