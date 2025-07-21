@@ -554,7 +554,6 @@ def run():
 
                 matched_factsheets.append({
                     "Page #": i + 1,
-                    "Top Line Text": first_line,
                     "Matched Fund Name": matched_name,
                     "Matched Ticker": matched_ticker,
                     "Benchmark": benchmark,
