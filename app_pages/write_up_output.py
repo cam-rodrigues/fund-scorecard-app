@@ -1,5 +1,8 @@
 import streamlit as st
-import write_up_info  # Make sure write_up_info.py is in the same directory or in PYTHONPATH
+import sys
+import os
+sys.path.append(os.path.abspath("app_pages"))
+import write_up_info
 
 def run():
     st.set_page_config(page_title="Step 7: Write-Up Viewer", layout="wide")
