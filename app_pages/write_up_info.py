@@ -582,64 +582,64 @@ def run():
 
 #-------------------------------------------------------------------------------------------
     
-# === Step 6.2: Risk-Adjusted Returns ===
-st.subheader("Step 6.2: Risk-Adjusted Returns")
-
-if "factsheet_matches" not in st.session_state:
-    st.warning("❌ Factsheet matches not found in session state.")
-else:
-    risk_returns_data = []
-
-    for match in st.session_state["factsheet_matches"]:
-        fund_name = match.get("Fund Name")
-        ticker = match.get("Ticker")
-        page_num = match.get("Page Number")
-        found_table = False
-        table_data = {
-            "Fund Name": fund_name,
-            "Ticker": ticker,
-            "Sharpe Ratio": {},
-            "Information Ratio": {},
-            "Sortino Ratio": {}
-        }
-
-        with pdfplumber.open(uploaded_file) as pdf:
-            if page_num >= len(pdf.pages):
-                continue
-            page = pdf.pages[page_num]
-            text = page.extract_text()
-            lines = text.split("\n") if text else []
-
-            for i, line in enumerate(lines):
-                if "risk-adjusted returns" in line.lower():
-                    # Attempt to capture the next 4–6 lines
-                    table_lines = lines[i+1:i+7]
-                    row_labels = ["Sharpe", "Information", "Sortino"]
-
-                    for row in table_lines:
-                        row = row.strip()
-                        for label in row_labels:
-                            if label.lower() in row.lower():
-                                parts = re.split(r"\s{2,}", row)
-                                if len(parts) >= 5:
-                                    ratio_type = label + " Ratio"
-                                    values = parts[1:5]
-                                    table_data[ratio_type] = {
-                                        "1 Yr": values[0],
-                                        "3 Yrs": values[1],
-                                        "5 Yrs": values[2],
-                                        "10 Yrs": values[3]
-                                    }
-                                    found_table = True
-                    break  # stop after first match on page
-
-        if found_table:
-            risk_returns_data.append(table_data)
+        # === Step 6.2: Risk-Adjusted Returns ===
+        st.subheader("Step 6.2: Risk-Adjusted Returns")
+        
+        if "factsheet_matches" not in st.session_state:
+            st.warning("❌ Factsheet matches not found in session state.")
         else:
-            st.warning(f"⚠️ 'Risk-Adjusted Returns' table not found for {fund_name} ({ticker})")
-
-    if not risk_returns_data:
-        st.error("❌ No Risk-Adjusted Returns data extracted.")
-    else:
-        st.success(f"✅ Extracted Risk-Adjusted Returns for {len(risk_returns_data)} funds.")
-        st.session_state["risk_adjusted_returns"] = risk_returns_data
+            risk_returns_data = []
+        
+            for match in st.session_state["factsheet_matches"]:
+                fund_name = match.get("Fund Name")
+                ticker = match.get("Ticker")
+                page_num = match.get("Page Number")
+                found_table = False
+                table_data = {
+                    "Fund Name": fund_name,
+                    "Ticker": ticker,
+                    "Sharpe Ratio": {},
+                    "Information Ratio": {},
+                    "Sortino Ratio": {}
+                }
+        
+                with pdfplumber.open(uploaded_file) as pdf:
+                    if page_num >= len(pdf.pages):
+                        continue
+                    page = pdf.pages[page_num]
+                    text = page.extract_text()
+                    lines = text.split("\n") if text else []
+        
+                    for i, line in enumerate(lines):
+                        if "risk-adjusted returns" in line.lower():
+                            # Attempt to capture the next 4–6 lines
+                            table_lines = lines[i+1:i+7]
+                            row_labels = ["Sharpe", "Information", "Sortino"]
+        
+                            for row in table_lines:
+                                row = row.strip()
+                                for label in row_labels:
+                                    if label.lower() in row.lower():
+                                        parts = re.split(r"\s{2,}", row)
+                                        if len(parts) >= 5:
+                                            ratio_type = label + " Ratio"
+                                            values = parts[1:5]
+                                            table_data[ratio_type] = {
+                                                "1 Yr": values[0],
+                                                "3 Yrs": values[1],
+                                                "5 Yrs": values[2],
+                                                "10 Yrs": values[3]
+                                            }
+                                            found_table = True
+                            break  # stop after first match on page
+        
+                if found_table:
+                    risk_returns_data.append(table_data)
+                else:
+                    st.warning(f"⚠️ 'Risk-Adjusted Returns' table not found for {fund_name} ({ticker})")
+        
+            if not risk_returns_data:
+                st.error("❌ No Risk-Adjusted Returns data extracted.")
+            else:
+                st.success(f"✅ Extracted Risk-Adjusted Returns for {len(risk_returns_data)} funds.")
+                st.session_state["risk_adjusted_returns"] = risk_returns_data
