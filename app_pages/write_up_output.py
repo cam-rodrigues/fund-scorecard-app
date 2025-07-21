@@ -1,50 +1,60 @@
 import streamlit as st
-import sys
-import os
-sys.path.append(os.path.abspath("app_pages"))
-import write_up_info
+import pandas as pd
 
-def run():
-    st.set_page_config(page_title="Step 7: Write-Up Viewer", layout="wide")
-    st.title("Step 7: View Write-Up Outputs for Selected Fund")
+def run(uploaded_file):
+    st.set_page_config(page_title="Write-Up Outputs", layout="wide")
+    st.title("View Write-Up Outputs for Selected Fund")
 
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="writeup_upload")
-    if not uploaded_file:
+    # Check for necessary data
+    fund_blocks = st.session_state.get("fund_blocks", [])
+    ips_data = st.session_state.get("step8_results", [])
+    factsheet_data = st.session_state.get("fund_factsheets_data", [])
+
+    if not fund_blocks or not ips_data or not factsheet_data:
+        st.warning("Please make sure to run the 'Write-Up Info' tool first to process an MPI PDF.")
         return
 
-    # Run the full processing pipeline
-    write_up_info.run(uploaded_file)
-
-    # Retrieve processed data
-    data = write_up_info.get_summary_data()
-    fund_blocks = data["fund_blocks"]
-    ips_data = data["ips_data"]
-    factsheet_data = data["factsheet_data"]
-
-    # Fund selector
+    # Dropdown to select a fund
     fund_names = [block["Fund Name"] for block in fund_blocks]
-    selected_fund = st.selectbox("Select a Fund", fund_names)
+    selected_fund = st.selectbox("Select a Fund to View Details", fund_names)
 
-    if selected_fund:
-        # Get fund block
-        fund_block = next((f for f in fund_blocks if f["Fund Name"] == selected_fund), None)
-        ips_block = next((i for i in ips_data if i["Fund Name"] == selected_fund), {})
-        facts_block = next((f for f in factsheet_data if f["Matched Fund Name"] == selected_fund), {})
+    st.markdown("---")
 
-        st.subheader(f"Summary for: {selected_fund}")
+    # === Section 1: Fund Scorecard Metrics ===
+    st.subheader("1. Fund Scorecard Metrics")
+    selected_block = next((b for b in fund_blocks if b["Fund Name"] == selected_fund), None)
 
-        # Fund Scorecard Metrics
-        st.markdown("### IPS Metrics (Scorecard)")
-        st.write({k: v for k, v in ips_block.items() if k != "Fund Name"})
+    if selected_block:
+        df_scorecard = pd.DataFrame(selected_block["Metrics"])
+        st.dataframe(df_scorecard, use_container_width=True)
+    else:
+        st.error("No scorecard metrics found for the selected fund.")
 
-        # Fund Factsheet Info
-        st.markdown("### Factsheet Information")
-        st.write({k: v for k, v in facts_block.items() if k not in ["Matched Fund Name", "Match Score", "Matched"]})
+    # === Section 2: IPS Investment Criteria ===
+    st.subheader("2. IPS Investment Criteria & Status")
+    selected_ips = next((i for i in ips_data if i["Fund Name"] == selected_fund), None)
 
-        # Optionally display Scorecard Metrics too
-        st.markdown("### Scorecard Metrics (Raw)")
-        st.write(fund_block)
+    if selected_ips:
+        st.write(f"**Fund Type:** {selected_ips['Fund Type']}")
+        st.write(f"**Overall IPS Status:** `{selected_ips['Overall IPS Status']}`")
+        df_ips = pd.DataFrame(selected_ips["IPS Metrics"])
+        st.dataframe(df_ips, use_container_width=True)
+    else:
+        st.warning("No IPS data found for the selected fund.")
 
-# Required to let Streamlit know this is an app page
-if __name__ == "__main__":
-    run()
+    # === Section 3: Fund Factsheet Information ===
+    st.subheader("3. Fund Factsheet Information")
+    selected_fact = next((f for f in factsheet_data if f["Matched Fund Name"] == selected_fund), None)
+
+    if selected_fact:
+        st.markdown(f"""
+        - **Ticker:** {selected_fact['Matched Ticker']}
+        - **Benchmark:** {selected_fact['Benchmark']}
+        - **Category:** {selected_fact['Category']}
+        - **Net Assets:** {selected_fact['Net Assets']}
+        - **Manager Name:** {selected_fact['Manager Name']}
+        - **Avg. Market Cap:** {selected_fact['Avg. Market Cap']}
+        - **Expense Ratio:** {selected_fact['Expense Ratio']}
+        """)
+    else:
+        st.warning("No factsheet data found for the selected fund.")
