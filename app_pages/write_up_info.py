@@ -567,14 +567,22 @@ def run():
             df_facts = pd.DataFrame(matched_factsheets)
             st.session_state["fund_factsheets_data"] = matched_factsheets
         
-            simplified_df = df_facts[["Matched Fund Name", "Matched Ticker"]]
-            st.dataframe(
-                simplified_df.rename(columns={
-                    "Matched Fund Name": "Fund Name",
-                    "Matched Ticker": "Ticker"
-                }),
-                use_container_width=True
-            )
+            display_df = df_facts[[
+                "Matched Fund Name",
+                "Matched Ticker",
+                "Benchmark",
+                "Category",
+                "Net Assets",
+                "Manager Name",
+                "Avg. Market Cap",
+                "Expense Ratio",
+                "Matched"
+            ]].rename(columns={
+                "Matched Fund Name": "Fund Name",
+                "Matched Ticker": "Ticker"
+            })
+            
+            st.dataframe(display_df, use_container_width=True)
 
         
             matched_count = sum(1 for row in matched_factsheets if row["Matched"] == "✅")
@@ -586,4 +594,3 @@ def run():
                 st.error(f"❌ Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
 #-------------------------------------------------------------------------------------------
-    
