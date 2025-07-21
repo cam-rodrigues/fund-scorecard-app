@@ -152,6 +152,7 @@ nav_button("Proposal Generator", "proposal_generator.py")
 nav_button("Writeup Generator", "writeup_generator.py")
 nav_button("IPS Screening", "ips.py")
 nav_button("IPS Table", "ips_table.py")
+nav_buttom("Writeup Info", "write_up_info.py")
 
 
 # === Page router ===
