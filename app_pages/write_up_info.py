@@ -487,3 +487,67 @@ def run():
             st.error("❌ Mismatch in number of matched funds. Check for missing or misnamed items.")
         else:
             st.success("✔️ All funds successfully matched.")
+
+#-------------------------------------------------------------------------------------------
+
+    # === Step 6: Fund Factsheets Section ===
+    st.subheader("Step 6: Fund Factsheets Section")
+
+    # Retrieve saved TOC and Scorecard info
+    toc_pages = st.session_state.get("toc_pages", {})
+    fund_blocks = st.session_state.get("fund_blocks", [])
+    performance_data = st.session_state.get("fund_performance_data", [])
+
+    factsheet_start = toc_pages.get("Fund Factsheets")
+
+    if not factsheet_start:
+        st.error("❌ 'Fund Factsheets' page number not found in TOC.")
+    else:
+        with pdfplumber.open(uploaded_file) as pdf:
+            matched_factsheets = []
+
+            # Loop through pages starting at the Fund Factsheets section
+            for i in range(factsheet_start - 1, len(pdf.pages)):
+                page = pdf.pages[i]
+                text = page.extract_text()
+                if not text:
+                    continue
+
+                lines = text.split("\n")
+                first_line = lines[0].strip()
+
+                # Match this first line against scorecard names + tickers
+                best_match_score = 0
+                matched_name = ""
+                matched_ticker = ""
+
+                for perf in performance_data:
+                    fund_name = perf["Fund Scorecard Name"]
+                    ticker = perf["Ticker"]
+                    label = f"{fund_name} {ticker}".strip()
+
+                    score = fuzz.token_sort_ratio(first_line.lower(), label.lower())
+                    if score > best_match_score:
+                        best_match_score = score
+                        matched_name = fund_name
+                        matched_ticker = ticker
+
+                matched_factsheets.append({
+                    "Page #": i + 1,
+                    "Top Line Text": first_line,
+                    "Matched Fund Name": matched_name,
+                    "Matched Ticker": matched_ticker,
+                    "Match Score": best_match_score,
+                    "Matched": "✅" if best_match_score >= 60 else "❌"
+                })
+
+        # Save to session_state for later use
+        st.session_state["fund_factsheets_data"] = matched_factsheets
+
+        # Display results
+        df_facts = pd.DataFrame(matched_factsheets)
+        st.dataframe(df_facts)
+
+        matched_count = sum(1 for f in matched_factsheets if f["Matched"] == "✅")
+        total = len(matched_factsheets)
+        st.write(f"✅ Matched {matched_count} of {total} factsheet pages to Scorecard funds.")
