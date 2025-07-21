@@ -510,15 +510,15 @@ def run():
             for i in range(factsheet_start - 1, len(pdf.pages)):
                 page = pdf.pages[i]
 
-                # === NEW: Try to extract header from top of page using extract_words
+                # === Use extract_words to grab header from top of page
                 words = page.extract_words(use_text_flow=True)
                 header_words = [w['text'] for w in words if w['top'] < 100]
                 first_line = " ".join(header_words).strip()
 
                 if not first_line:
-                    continue  # Skip if header couldn't be extracted
+                    continue  # Skip if no header found
 
-                # Match this first line against scorecard names + tickers
+                # Match against Scorecard Name + Ticker
                 best_match_score = 0
                 matched_name = ""
                 matched_ticker = ""
@@ -534,19 +534,43 @@ def run():
                         matched_name = fund_name
                         matched_ticker = ticker
 
+                # Extract metadata fields from text
+                def extract_field(label, text, stop_at=None):
+                    try:
+                        start = text.index(label) + len(label)
+                        rest = text[start:]
+                        if stop_at and stop_at in rest:
+                            return rest[:rest.index(stop_at)].strip()
+                        return rest.strip().split()[0]
+                    except Exception:
+                        return ""
+
+                benchmark = extract_field("Benchmark:", first_line, "Category:")
+                category = extract_field("Category:", first_line, "Net Assets:")
+                net_assets = extract_field("Net Assets:", first_line, "Manager Name:")
+                manager = extract_field("Manager Name:", first_line, "Avg. Market Cap:")
+                avg_cap = extract_field("Avg. Market Cap:", first_line, "Expense Ratio:")
+                expense = extract_field("Expense Ratio:", first_line)
+
                 matched_factsheets.append({
                     "Page #": i + 1,
                     "Top Line Text": first_line,
                     "Matched Fund Name": matched_name,
                     "Matched Ticker": matched_ticker,
+                    "Benchmark": benchmark,
+                    "Category": category,
+                    "Net Assets": net_assets,
+                    "Manager Name": manager,
+                    "Avg. Market Cap": avg_cap,
+                    "Expense Ratio": expense,
                     "Match Score": best_match_score,
                     "Matched": "✅" if best_match_score >= 60 else "❌"
                 })
 
-        # Save to session_state for later use
+        # Save to session_state
         st.session_state["fund_factsheets_data"] = matched_factsheets
 
-        # Display results
+        # Display
         df_facts = pd.DataFrame(matched_factsheets)
         st.dataframe(df_facts)
 
