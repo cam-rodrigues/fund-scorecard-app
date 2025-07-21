@@ -405,27 +405,24 @@ def run():
         st.dataframe(df, use_container_width=True)
         st.write(f"**Overall IPS Status:** `{overall_status}`")
 
-#--------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
 
-    # === Step 5: Fund Performance: Current vs. Proposed Comparison Section ===
-    st.subheader("Step 5: Navigate to Fund Performance Section")
-
+    # === Step 5: Fund Performance Section Navigation ===
+    st.subheader("Step 5: Fund Performance: Current vs. Proposed Comparison")
+    
     toc_pages = st.session_state.get("toc_pages", {})
     fund_perf_pg = toc_pages.get("Fund Performance")
-
+    
     if not fund_perf_pg:
-        st.error("Could not find 'Fund Performance' section in Table of Contents.")
+        st.error("❌ 'Fund Performance' section page not found in TOC.")
     else:
-        st.success(f"Found 'Fund Performance' section starting on page {fund_perf_pg}.")
-
-        # Preview first page of Fund Performance section
         with pdfplumber.open(uploaded_file) as pdf:
-            if fund_perf_pg <= len(pdf.pages):
-                perf_text = pdf.pages[fund_perf_pg - 1].extract_text()
-                st.markdown("#### Preview of Fund Performance Section:")
-                st.text(perf_text)
-            else:
-                st.error("Page number from TOC is out of range in the PDF.")
+            fund_perf_text = pdf.pages[fund_perf_pg - 1].extract_text()
+    
+        if "Fund Performance: Current vs. Proposed Comparison" not in fund_perf_text:
+            st.warning("⚠️ The expected section heading was not found on the starting page. Please double-check manually.")
+        else:
+            st.success("✔️ Found the Fund Performance section heading.")
 
     
     # === Step 5.5: Match Investment Option Names & Extract Tickers ===
