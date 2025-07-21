@@ -567,10 +567,15 @@ def run():
             df_facts = pd.DataFrame(matched_factsheets)
             st.session_state["fund_factsheets_data"] = matched_factsheets
         
+            simplified_df = df_facts[["Matched Fund Name", "Matched Ticker"]]
             st.dataframe(
-                df_facts.drop(columns=["Parsed Fund Name"]),
+                simplified_df.rename(columns={
+                    "Matched Fund Name": "Fund Name",
+                    "Matched Ticker": "Ticker"
+                }),
                 use_container_width=True
             )
+
         
             matched_count = sum(1 for row in matched_factsheets if row["Matched"] == "✅")
             st.write(f"✅ Matched {matched_count} of {len(matched_factsheets)} factsheet pages.")
