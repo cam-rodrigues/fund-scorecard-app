@@ -10,7 +10,7 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from io import BytesIO
 from io import StringIO
 
-#------------------------------------------------------------------------------------------------------------------
+
 
 def run():
     st.title("IPS Write-Up Tool")
@@ -58,13 +58,6 @@ def run():
         prepared_by_match = re.search(r"Prepared By:\s*\n(.+)", text)
         prepared_by = prepared_by_match.group(1).strip() if prepared_by_match else "Not found"
         st.write("**Prepared By:**", prepared_by)
-
-      st.session_state["step2"] = {
-          "quarter": quarter,
-          "total_options": total_options,
-          "prepared_for": prepared_for,
-          "prepared_by": prepared_by
-      }
 
 #------------------------------------------------------------------------------------------------------------------
 
@@ -156,12 +149,7 @@ def run():
             st.markdown(f"**{block['Fund Name']}**")
             for metric in block["Metrics"]:
                 st.write(f"- {metric['Metric']}: **{metric['Status']}** – {metric['Reason']}")
-
-        st.session_state["step5"] = {
-            "fund_blocks": fund_blocks,
-            "metrics_header": metrics_header
-        }
-
+                
 #------------------------------------------------------------------------------------------------------------------
         
         # === Step 7: Double Check ===
@@ -257,8 +245,8 @@ def run():
                 overall_status = "Formal Watch (FW)"
 
             # ✅ ADD THIS BLOCK BELOW
-            # Clear and prepare session state
-            st.session_state["step8_results"] = []
+            if "step8_results" not in st.session_state:
+                st.session_state["step8_results"] = []
             
             st.session_state["step8_results"].append({
                 "Fund Name": fund_name,
@@ -355,7 +343,6 @@ def run():
         df_matches = pd.DataFrame(match_data)
         st.dataframe(df_matches)
 
-        st.session_state["step9_4_matches"] = df_matches
 
 #--------------------------------------------------------------------------------------------------------------
         
@@ -484,8 +471,6 @@ def run():
         df_95 = pd.DataFrame(results)
         st.dataframe(df_95)
 
-        st.session_state["step9_5_fund_info"] = df_95
-
 #--------------------------------------------------------------------------------------------------------------
 
         # === Step 10: Output Combined Table (IPS Summary) ===
@@ -537,8 +522,6 @@ def run():
         
         # Show Table
         summary_df = generate_step10_table(final_fund_blocks, quarter)
-        st.session_state["step10_summary_df"] = summary_df
-
         def color_cells(val):
             if val == "Pass":
                 return "background-color: #c6e7b5; color: black;"
@@ -566,7 +549,10 @@ def run():
 
 #--------------------------------------------------------------------------------------------------------------
 
-         # === Step 11: Output Combined Table (IPS Summary) ===
+
+
+
+         # === Step 10: Output Combined Table (IPS Summary) ===
         st.subheader("Step 11: Excel Table")
 
         def export_step11_excel(summary_df, file_path="Step11_Final_With10.xlsx"):
@@ -650,8 +636,5 @@ def run():
 
         if st.button("Download Excel Output"):
             excel_path = export_step11_excel(summary_df)
-
-        st.session_state["step11_excel_path"] = excel_path
-
             with open(excel_path, "rb") as f:
                 st.download_button("Download Step 11 Excel", data=f, file_name="Step11_IPS_Export.xlsx")
