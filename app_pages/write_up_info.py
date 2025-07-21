@@ -493,9 +493,7 @@ def run():
     # === Step 6: Fund Factsheets Section ===
     st.subheader("Step 6: Fund Factsheets Section")
 
-    # Retrieve saved TOC and Scorecard info
     toc_pages = st.session_state.get("toc_pages", {})
-    fund_blocks = st.session_state.get("fund_blocks", [])
     performance_data = st.session_state.get("fund_performance_data", [])
 
     factsheet_start = toc_pages.get("Fund Factsheets")
@@ -506,35 +504,31 @@ def run():
         with pdfplumber.open(uploaded_file) as pdf:
             matched_factsheets = []
 
-            # Loop through pages starting at the Fund Factsheets section
             for i in range(factsheet_start - 1, len(pdf.pages)):
                 page = pdf.pages[i]
 
-                # === Use extract_words to grab header from top of page
+                # Extract top header using words
                 words = page.extract_words(use_text_flow=True)
                 header_words = [w['text'] for w in words if w['top'] < 100]
                 first_line = " ".join(header_words).strip()
 
                 if not first_line:
-                    continue  # Skip if no header found
+                    continue
 
-                # Match against Scorecard Name + Ticker
+                # Match using Fund Performance names + tickers
                 best_match_score = 0
                 matched_name = ""
                 matched_ticker = ""
 
                 for perf in performance_data:
-                    fund_name = perf["Fund Scorecard Name"]
-                    ticker = perf["Ticker"]
-                    label = f"{fund_name} {ticker}".strip()
-
+                    label = f"{perf['Fund Scorecard Name']} {perf['Ticker']}".strip()
                     score = fuzz.token_sort_ratio(first_line.lower(), label.lower())
                     if score > best_match_score:
                         best_match_score = score
-                        matched_name = fund_name
-                        matched_ticker = ticker
+                        matched_name = perf["Fund Scorecard Name"]
+                        matched_ticker = perf["Ticker"]
 
-                # Extract metadata fields from text
+                # Extract metadata fields
                 def extract_field(label, text, stop_at=None):
                     try:
                         start = text.index(label) + len(label)
@@ -575,4 +569,4 @@ def run():
 
         matched_count = sum(1 for f in matched_factsheets if f["Matched"] == "✅")
         total = len(matched_factsheets)
-        st.write(f"✅ Matched {matched_count} of {total} factsheet pages to Scorecard funds.")
+        st.write(f"✅ Matched {matched_count} of {total} factsheet pages to Fund Performance funds.")
