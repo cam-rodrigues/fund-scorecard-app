@@ -292,7 +292,7 @@ def run():
     for i, c in enumerate(IPS_CRITERIA, start=1):
         st.markdown(f"**{i}.** {c['Name']}")
 
-    # === Step 4.5: IPS Screening Results Per Fund ===
+    # === Step 4.5: IPS Screening Evaluation ===
     st.subheader("Step 4.5: IPS Screening Evaluation")
 
     fund_blocks = st.session_state.get("fund_blocks", [])
@@ -316,16 +316,22 @@ def run():
             passive_key = crit["Passive Metric"]
 
             selected_metric = passive_key if is_passive else active_key
-            info_val = metric_info_lookup.get(selected_metric, "").strip()
+            info_val = metric_info_lookup.get(selected_metric, "").strip().lower()
 
             if i == 10:  # Investment Style always passes
                 result = "Pass"
-            elif not info_val or info_val.lower() in ["", "n/a", "na", "fail"]:
+            elif not info_val or info_val in ["n/a", "na", ""]:
                 result = "Fail"
-            elif info_val.lower().startswith("pass") or "meets" in info_val.lower():
+            elif info_val.startswith("pass"):
                 result = "Pass"
-            else:
+            elif "meets" in info_val or "greater than" in info_val or "above median" in info_val:
+                result = "Pass"
+            elif "below category median" in info_val and "expense" in selected_metric.lower():
+                result = "Pass"
+            elif any(bad in info_val for bad in ["less than 50%", "underperformed", "insufficient", "review"]):
                 result = "Fail"
+            else:
+                result = "Pass"  # Fallback to optimistic
 
             individual_results.append({
                 "Metric": crit["Name"],
@@ -355,7 +361,7 @@ def run():
     # Save for later use
     st.session_state["ips_screen_results"] = ips_screen_results
 
-    # Display Summary Table
+    # === Display Summary Table ===
     st.markdown("### IPS Status Summary")
     summary_df = pd.DataFrame([{
         "Fund Name": res["Fund Name"],
@@ -365,3 +371,14 @@ def run():
     } for res in ips_screen_results])
     st.dataframe(summary_df, use_container_width=True)
 
+    # === Display IPS Metric Tables Per Fund ===
+    st.markdown("### IPS Criteria Details Per Fund")
+
+    for res in ips_screen_results:
+        st.markdown(f"#### {res['Fund Name']} — *{res['Overall IPS Status']}*")
+        table = pd.DataFrame([{
+            "Metric": r["Metric"],
+            "Info": r["Info"],
+            "Result": r["Result"]
+        } for r in res["Results"]])
+        st.dataframe(table, use_container_width=True)
