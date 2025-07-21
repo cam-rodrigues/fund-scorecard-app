@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-def run(uploaded_file):
+def run():
     st.set_page_config(page_title="Write-Up Outputs", layout="wide")
     st.title("View Write-Up Outputs for Selected Fund")
 
