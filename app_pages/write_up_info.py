@@ -585,63 +585,65 @@ def run():
         # === Step 6.2: Risk-Adjusted Returns ===
         st.subheader("Step 6.2: Risk-Adjusted Returns")
 
-        risk_adjusted_data = []
-
-        for fact in factsheet_matches:
-            page = fact["Page"]
-            fund_name = fact["Fund Name"]
-            ticker = fact["Ticker"]
-            text = pdf.pages[page].extract_text()
-            if not text:
-                continue
-
-            lines = text.split("\n")
-            table_start = -1
-
-            for i, line in enumerate(lines):
-                if "Risk-Adjusted Returns" in line:
-                    table_start = i
-                    break
-
-            if table_start == -1:
-                continue
-
-            try:
-                sharpe_row = lines[table_start + 1].split()
-                info_row = lines[table_start + 2].split()
-                sortino_row = lines[table_start + 3].split()
-
-                # Assume format: Title, 1 Yr, 3 Yrs, 5 Yrs, 10 Yrs
-                def parse_row(row):
-                    values = row[1:]
-                    while len(values) < 4:
-                        values.append("N/A")
-                    return values[:4]
-
-                risk_adjusted_data.append({
-                    "Fund Name": fund_name,
-                    "Ticker": ticker,
-                    "Sharpe (1Y)": parse_row(sharpe_row)[0],
-                    "Sharpe (3Y)": parse_row(sharpe_row)[1],
-                    "Sharpe (5Y)": parse_row(sharpe_row)[2],
-                    "Sharpe (10Y)": parse_row(sharpe_row)[3],
-                    "Info (1Y)": parse_row(info_row)[0],
-                    "Info (3Y)": parse_row(info_row)[1],
-                    "Info (5Y)": parse_row(info_row)[2],
-                    "Info (10Y)": parse_row(info_row)[3],
-                    "Sortino (1Y)": parse_row(sortino_row)[0],
-                    "Sortino (3Y)": parse_row(sortino_row)[1],
-                    "Sortino (5Y)": parse_row(sortino_row)[2],
-                    "Sortino (10Y)": parse_row(sortino_row)[3],
-                })
-            except Exception as e:
-                st.warning(f"Could not parse Risk-Adjusted Returns for {fund_name}: {e}")
-
-        df_risk = pd.DataFrame(risk_adjusted_data)
-
-        if not df_risk.empty:
-            st.dataframe(df_risk, use_container_width=True)
-            st.session_state["risk_adjusted_returns"] = df_risk
+        if "factsheet_matches" not in st.session_state:
+            st.error("Factsheet matches not found in session state.")
         else:
-            st.write("No matched factsheets found to extract Risk-Adjusted Returns.")
+            risk_adjusted_data = []
 
+            for fact in st.session_state["factsheet_matches"]:
+                page = fact["Page"]
+                fund_name = fact["Fund Name"]
+                ticker = fact["Ticker"]
+                text = pdf.pages[page].extract_text()
+                if not text:
+                    continue
+
+                lines = text.split("\n")
+                table_start = -1
+
+                for i, line in enumerate(lines):
+                    if "Risk-Adjusted Returns" in line:
+                        table_start = i
+                        break
+
+                if table_start == -1:
+                    continue
+
+                try:
+                    sharpe_row = lines[table_start + 1].split()
+                    info_row = lines[table_start + 2].split()
+                    sortino_row = lines[table_start + 3].split()
+
+                    # Assume format: Title, 1 Yr, 3 Yrs, 5 Yrs, 10 Yrs
+                    def parse_row(row):
+                        values = row[1:]
+                        while len(values) < 4:
+                            values.append("N/A")
+                        return values[:4]
+
+                    risk_adjusted_data.append({
+                        "Fund Name": fund_name,
+                        "Ticker": ticker,
+                        "Sharpe (1Y)": parse_row(sharpe_row)[0],
+                        "Sharpe (3Y)": parse_row(sharpe_row)[1],
+                        "Sharpe (5Y)": parse_row(sharpe_row)[2],
+                        "Sharpe (10Y)": parse_row(sharpe_row)[3],
+                        "Info (1Y)": parse_row(info_row)[0],
+                        "Info (3Y)": parse_row(info_row)[1],
+                        "Info (5Y)": parse_row(info_row)[2],
+                        "Info (10Y)": parse_row(info_row)[3],
+                        "Sortino (1Y)": parse_row(sortino_row)[0],
+                        "Sortino (3Y)": parse_row(sortino_row)[1],
+                        "Sortino (5Y)": parse_row(sortino_row)[2],
+                        "Sortino (10Y)": parse_row(sortino_row)[3],
+                    })
+                except Exception as e:
+                    st.warning(f"Could not parse Risk-Adjusted Returns for {fund_name}: {e}")
+
+            df_risk = pd.DataFrame(risk_adjusted_data)
+
+            if not df_risk.empty:
+                st.dataframe(df_risk, use_container_width=True)
+                st.session_state["risk_adjusted_returns"] = df_risk
+            else:
+                st.write("No Risk-Adjusted Returns data extracted.")
