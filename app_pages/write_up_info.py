@@ -292,93 +292,104 @@ def run():
     for i, c in enumerate(IPS_CRITERIA, start=1):
         st.markdown(f"**{i}.** {c['Name']}")
 
-    # === Step 4.5: IPS Screening Evaluation ===
-    st.subheader("Step 4.5: IPS Screening Evaluation")
+    # === Step 4.5: IPS Investment Criteria Screening ===
+    st.subheader("Step 4.5: IPS Investment Criteria Screening")
+
+    ips_criteria = [
+        "Manager Tenure ≥ 3 years",
+        "3-Year Performance > Benchmark / +3-Year R² > 95%",
+        "3-Year Performance > 50% of Peers",
+        "3-Year Sharpe Ratio > 50% of Peers",
+        "3-Year Sortino Ratio > 50% of Peers / +3-Year Tracking Error < 90% of Peers",
+        "5-Year Performance > Benchmark / +5-Year R² > 95%",
+        "5-Year Performance > 50% of Peers",
+        "5-Year Sharpe Ratio > 50% of Peers",
+        "5-Year Sortino Ratio > 50% of Peers / +5-Year Tracking Error < 90% of Peers",
+        "Expense Ratio < 50% of Peers",
+        "Investment Style aligns with fund objectives"
+    ]
+
+    st.markdown("**IPS Investment Criteria:**")
+    for i, crit in enumerate(ips_criteria, 1):
+        st.markdown(f"{i}. {crit}")
+
+    def map_metric_names(fund_type):
+        if fund_type == "Passive":
+            return [
+                "Manager Tenure",
+                "R² (3Yr)",
+                "Return Rank (3Yr)",
+                "Sharpe Ratio Rank (3Yr)",
+                "Tracking Error Rank (3Yr)",
+                "R² (5Yr)",
+                "Return Rank (5Yr)",
+                "Sharpe Ratio Rank (5Yr)",
+                "Tracking Error Rank (5Yr)",
+                "Expense Ratio Rank",
+                "Investment Style"
+            ]
+        else:
+            return [
+                "Manager Tenure",
+                "Excess Performance (3Yr)",
+                "Return Rank (3Yr)",
+                "Sharpe Ratio Rank (3Yr)",
+                "Sortino Ratio Rank (3Yr)",
+                "Excess Performance (5Yr)",
+                "Return Rank (5Yr)",
+                "Sharpe Ratio Rank (5Yr)",
+                "Sortino Ratio Rank (5Yr)",
+                "Expense Ratio Rank",
+                "Investment Style"
+            ]
+
+    if "step8_results" not in st.session_state:
+        st.session_state["step8_results"] = []
 
     fund_blocks = st.session_state.get("fund_blocks", [])
-    ips_criteria = st.session_state.get("ips_criteria", [])
-    ips_screen_results = []
 
     for block in fund_blocks:
         fund_name = block["Fund Name"]
-        fund_metrics = block["Metrics"]
+        fund_type = "Passive" if "bitcoin" in fund_name.lower() else "Active"
+        expected_metrics = map_metric_names(fund_type)
 
-        # Determine Active/Passive
-        is_passive = "bitcoin" in fund_name.lower()
+        # Build lookup: {Metric → Pass/Review}
+        metric_lookup = {m["Metric"]: m["Status"] for m in block["Metrics"]}
 
-        # Convert fund metrics into dict: {Metric Name → Info}
-        metric_info_lookup = {m["Metric"]: m["Reason"] for m in fund_metrics}
+        # Build full table w/ label, status, and pass/fail
+        table_rows = []
+        ips_results = []
 
-        individual_results = []
-
-        for i, crit in enumerate(ips_criteria):
-            active_key = crit["Active Metric"]
-            passive_key = crit["Passive Metric"]
-
-            selected_metric = passive_key if is_passive else active_key
-            info_val = metric_info_lookup.get(selected_metric, "").strip().lower()
-
-            if i == 10:  # Investment Style always passes
-                result = "Pass"
-            elif not info_val or info_val in ["n/a", "na", ""]:
-                result = "Fail"
-            elif info_val.startswith("pass"):
-                result = "Pass"
-            elif "meets" in info_val or "greater than" in info_val or "above median" in info_val:
-                result = "Pass"
-            elif "below category median" in info_val and "expense" in selected_metric.lower():
-                result = "Pass"
-            elif any(bad in info_val for bad in ["less than 50%", "underperformed", "insufficient", "review"]):
-                result = "Fail"
-            else:
-                result = "Pass"  # Fallback to optimistic
-
-            individual_results.append({
-                "Metric": crit["Name"],
-                "Used": selected_metric,
-                "Info": info_val,
+        for i, label in enumerate(expected_metrics):
+            status = metric_lookup.get(label, "Review")
+            result = "Pass" if (i == 10 or status == "Pass") else "Fail"  # Last one always Pass
+            ips_results.append(result)
+            table_rows.append({
+                "Metric": ips_criteria[i],
+                "Status": status,
                 "Result": result
             })
 
         # Count fails
-        fail_count = sum(1 for r in individual_results if r["Result"] == "Fail")
-
+        fail_count = ips_results.count("Fail")
         if fail_count <= 4:
-            overall = "Passed IPS Screen"
+            overall_status = "Passed IPS Screen"
         elif fail_count == 5:
-            overall = "Informal Watch"
+            overall_status = "Informal Watch (IW)"
         else:
-            overall = "Formal Watch"
+            overall_status = "Formal Watch (FW)"
 
-        ips_screen_results.append({
+        st.session_state["step8_results"].append({
             "Fund Name": fund_name,
-            "Passive": is_passive,
-            "Results": individual_results,
-            "Fail Count": fail_count,
-            "Overall IPS Status": overall
+            "Fund Type": fund_type,
+            "IPS Metrics": table_rows,
+            "Overall IPS Status": overall_status
         })
 
-    # Save for later use
-    st.session_state["ips_screen_results"] = ips_screen_results
+        # Display per-fund table
+        st.markdown(f"### {fund_name}")
+        st.write(f"**Fund Type:** {fund_type}")
+        df = pd.DataFrame(table_rows)
+        st.dataframe(df, use_container_width=True)
+        st.write(f"**Overall IPS Status:** `{overall_status}`")
 
-    # === Display Summary Table ===
-    st.markdown("### IPS Status Summary")
-    summary_df = pd.DataFrame([{
-        "Fund Name": res["Fund Name"],
-        "Passive": res["Passive"],
-        "Fails": res["Fail Count"],
-        "Overall IPS Status": res["Overall IPS Status"]
-    } for res in ips_screen_results])
-    st.dataframe(summary_df, use_container_width=True)
-
-    # === Display IPS Metric Tables Per Fund ===
-    st.markdown("### IPS Criteria Details Per Fund")
-
-    for res in ips_screen_results:
-        st.markdown(f"#### {res['Fund Name']} — *{res['Overall IPS Status']}*")
-        table = pd.DataFrame([{
-            "Metric": r["Metric"],
-            "Info": r["Info"],
-            "Result": r["Result"]
-        } for r in res["Results"]])
-        st.dataframe(table, use_container_width=True)
