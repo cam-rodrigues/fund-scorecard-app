@@ -134,7 +134,7 @@ def run():
     else:
         st.dataframe(metrics_df, use_container_width=True)
 
-    # === Step 3.5: Extract Investment Option Metrics into Separate Tables (Using TOC Range) ===
+    # === Step 3.5: Extract Investment Option Metrics into Separate Tables (TOC-Based Range) ===
     st.subheader("Step 3.5: Individual Investment Option Tables")
 
     fund_blocks = []
@@ -142,11 +142,10 @@ def run():
         r"\s+(Fund Meets Watchlist Criteria\.|Fund has been placed on watchlist for not meeting.+)", re.IGNORECASE)
 
     fund_scorecard_start = toc_pages.get("Fund Scorecard")
-    fund_factsheets_start = toc_pages.get("Fund Factsheets")  # use this as the end
-
+    fund_factsheets_start = toc_pages.get("Fund Factsheets")
     last_page_index = fund_factsheets_start - 2 if fund_factsheets_start else len(pdf.pages) - 1
 
-    for i in range(fund_scorecard_start - 1, last_page_index + 1):  # inclusive of last page
+    for i in range(fund_scorecard_start - 1, last_page_index + 1):
         page = pdf.pages[i]
         text = page.extract_text()
         if not text:
@@ -163,7 +162,7 @@ def run():
                 fund_metrics = []
                 for k in range(j, j + 14):
                     if k >= len(lines): break
-                    metric_line = lines[k]
+                    metric_line = lines[k].strip()
                     match = re.match(r"(.+?)\s+(Pass|Review)\s*[-–]?\s*(.*)", metric_line)
                     if match:
                         metric_name, status, reason = match.groups()
