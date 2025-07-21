@@ -68,3 +68,34 @@ def run():
     st.write(f"Prepared For: **{prepared_for}**")
     st.write(f"Prepared By: **{prepared_by}**")
 
+#--------------------------------------------------------------------------------------------
+    # === Step 2: Table of Contents (Page 2) ===
+    toc_text = pdf.pages[1].extract_text()
+
+    # Pattern to capture section titles and page numbers (e.g., "Fund Scorecard ............................................. 7")
+    toc_entries = re.findall(r"(Fund Performance: Current vs\. Proposed Comparison|Fund Scorecard|Fund Factsheets).*?(\d{1,3})", toc_text)
+
+    # Initialize storage
+    toc_pages = {
+        "Fund Performance": None,
+        "Fund Scorecard": None,
+        "Fund Factsheets": None
+    }
+
+    # Match and save to session_state
+    for title, page in toc_entries:
+        page_num = int(page)
+        if "Fund Performance" in title:
+            toc_pages["Fund Performance"] = page_num
+        elif "Fund Scorecard" in title:
+            toc_pages["Fund Scorecard"] = page_num
+        elif "Fund Factsheets" in title:
+            toc_pages["Fund Factsheets"] = page_num
+
+    st.session_state["toc_pages"] = toc_pages
+
+    # Display
+    st.subheader("Step 2: Table of Contents")
+    st.write(f"Fund Performance: **Page {toc_pages['Fund Performance']}**" if toc_pages["Fund Performance"] else "Fund Performance section not found.")
+    st.write(f"Fund Scorecard: **Page {toc_pages['Fund Scorecard']}**" if toc_pages["Fund Scorecard"] else "Fund Scorecard section not found.")
+    st.write(f"Fund Factsheets: **Page {toc_pages['Fund Factsheets']}**" if toc_pages["Fund Factsheets"] else "Fund Factsheets section not found.")
