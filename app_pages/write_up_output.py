@@ -1,25 +1,24 @@
 import streamlit as st
 import pandas as pd
-import write_up_processor  # Assumes you have process_mpi(uploaded_file) here
+import write_up_processor  # Make sure this module has process_mpi(uploaded_file)
 
 def run():
     st.set_page_config(page_title="Write-Up Outputs", layout="wide")
     st.title("Upload MPI & View Write-Up Outputs")
 
-    # === Upload the file directly in this tab ===
+    # === Upload MPI PDF ===
     uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="writeup_upload")
 
     if not uploaded_file:
         st.warning("Please upload an MPI PDF to continue.")
         return
 
-    # === Save and process ===
+    # === Process only once ===
     if "fund_blocks" not in st.session_state:
-        st.session_state["writeup_upload"] = uploaded_file
         write_up_processor.process_mpi(uploaded_file)
         st.success("✅ File processed. Select a fund below to view results.")
 
-    # === Dropdown to select fund ===
+    # === Load processed data ===
     fund_blocks = st.session_state.get("fund_blocks", [])
     ips_data = st.session_state.get("step8_results", [])
     factsheet_data = st.session_state.get("fund_factsheets_data", [])
@@ -28,6 +27,7 @@ def run():
         st.error("Something went wrong during processing. Try re-uploading the file.")
         return
 
+    # === Fund selection ===
     fund_names = [block["Fund Name"] for block in fund_blocks]
     selected_fund = st.selectbox("Select a Fund", fund_names)
 
