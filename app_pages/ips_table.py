@@ -20,13 +20,22 @@ def run():
         st.stop()
 
     with pdfplumber.open(uploaded_file) as pdf:
+        # Hide early steps from display but still run them
+        with st.container():
+            if "show_debug" not in st.session_state:
+                st.session_state["show_debug"] = False
+
+#------------------------------------------------------------------------------------------------------------------
+        
         # === Step 1: Metadata ===
+    if st.session_state["show_debug"]:
         st.subheader("Step 1: PDF Metadata")
         st.write("**Total Pages:**", len(pdf.pages))
 
 #------------------------------------------------------------------------------------------------------------------
 
         # === Step 2: Page 1 Extraction ===
+    if st.session_state["show_debug"]:
         st.subheader("Step 2: Pg 1")
         page1 = pdf.pages[0]
         text = page1.extract_text()
@@ -69,6 +78,7 @@ def run():
 #------------------------------------------------------------------------------------------------------------------
 
         # === Step 4: Pg 2 - Table of Contents ===
+    if st.session_state["show_debug"]:
         st.subheader("Step 4: Pg 2 - Table of Contents")
         page2 = pdf.pages[1]
         text2 = page2.extract_text()
@@ -92,6 +102,7 @@ def run():
 #------------------------------------------------------------------------------------------------------------------
 
         # === Step 5: Fund Scorecard Section ===
+    if st.session_state["show_debug"]:
         st.subheader("Step 5: Fund Scorecard Section")
 
         metrics_data = []
@@ -165,6 +176,7 @@ def run():
 #------------------------------------------------------------------------------------------------------------------
         
         # === Step 7: Double Check ===
+    if st.session_state["show_debug"]:
         st.subheader("Step 7: Double Check")
 
         num_extracted_funds = len(fund_blocks)
@@ -183,6 +195,7 @@ def run():
 #------------------------------------------------------------------------------------------------------------------
 
         # === Step 8: IPS Investment Criteria Screening ===
+    if st.session_state["show_debug"]:
         st.subheader("Step 8: IPS Investment Criteria Screening")
 
         ips_criteria = [
@@ -277,6 +290,7 @@ def run():
 #------------------------------------------------------------------------------------------------------------------
         
         # === Step 9: Fund Performance: Current vs. Proposed Comparison Section ===
+    if st.session_state["show_debug"]:
         st.subheader("Step 9: Fund Performance: Current vs. Proposed Comparison Section")
 
         if fund_perf_pg == "Not found":
@@ -360,6 +374,7 @@ def run():
 #--------------------------------------------------------------------------------------------------------------
         
         # === Step 9.5: Extract Fund Ticker and Category ===
+    if st.session_state["show_debug"]:
         st.subheader("Step 9.5: Extract Fund Ticker and Category")
         
         scorecard_names = [block["Fund Name"] for block in fund_blocks]
