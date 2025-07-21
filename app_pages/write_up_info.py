@@ -12,7 +12,7 @@ def run():
     if not uploaded_file:
         st.warning("Please upload an MPI PDF to begin.")
         return
-
+#--------------------------------------------------------------------------------------------
     # === Step 1: Page 1 ===
     with pdfplumber.open(uploaded_file) as pdf:
         first_page_text = pdf.pages[0].extract_text()
@@ -41,3 +41,30 @@ def run():
     st.subheader("Step 1: Quarter Detected")
     st.write(f"Detected Date: **{date_str}**")
     st.write(f"Determined Quarter: **{quarter}**")
+
+#--------------------------------------------------------------------------------------------
+    # === Step 1.5: Extract Additional Page 1 Info ===
+
+    # Extract Total Options
+    total_match = re.search(r"Total Options:\s*(\d+)", first_page_text)
+    total_options = int(total_match.group(1)) if total_match else None
+
+    # Extract "Prepared For"
+    prepared_for_match = re.search(r"Prepared For:\s*\n(.*)", first_page_text)
+    prepared_for = prepared_for_match.group(1).strip() if prepared_for_match else "Not found"
+
+    # Extract "Prepared By"
+    prepared_by_match = re.search(r"Prepared By:\s*\n(.*)", first_page_text)
+    prepared_by = prepared_by_match.group(1).strip() if prepared_by_match else "Not found"
+
+    # Save to session state
+    st.session_state["total_options"] = total_options
+    st.session_state["prepared_for"] = prepared_for
+    st.session_state["prepared_by"] = prepared_by
+
+    # Display
+    st.subheader("Step 1.5: Page 1 Summary Info")
+    st.write(f"Total Options: **{total_options}**" if total_options is not None else "Total Options not found.")
+    st.write(f"Prepared For: **{prepared_for}**")
+    st.write(f"Prepared By: **{prepared_by}**")
+
