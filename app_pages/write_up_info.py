@@ -1,7 +1,15 @@
 import streamlit as st
-import pandas as pd
 import pdfplumber
 import re
+from difflib import SequenceMatcher
+from difflib import SequenceMatcher, get_close_matches
+import pandas as pd
+from openpyxl import Workbook
+from openpyxl.styles import PatternFill, Font
+from openpyxl.utils.dataframe import dataframe_to_rows
+from io import BytesIO
+from io import StringIO
+
 
 def run():
     st.set_page_config(page_title="Write-Up Info Tool", layout="wide")
