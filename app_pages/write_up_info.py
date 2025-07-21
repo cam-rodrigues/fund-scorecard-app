@@ -103,110 +103,95 @@ def run():
 
 #--------------------------------------------------------------------------------------------
 
-    # === Step 3: Fund Scorecard Section (Extract & Tabulate Metrics) ===
-    fund_scorecard_start = toc_pages.get("Fund Scorecard")
-    if not fund_scorecard_start:
+    # === Step 3: Fund Scorecard Section (Extract & Tabulate Metrics + Funds) ===
+    fund_scorecard_pg = toc_pages.get("Fund Scorecard")
+    if not fund_scorecard_pg:
         st.error("Fund Scorecard section page number not found in Table of Contents.")
         return
 
-    fund_scorecard_text = pdf.pages[fund_scorecard_start - 1].extract_text()
-
-    # Look for "Criteria Threshold" section and capture the lines below it
-    criteria_match = re.search(r"Criteria Threshold\s*\n((?:.*\n){10,20})", fund_scorecard_text)
+    # === Extract Criteria Threshold (first page of Fund Scorecard section) ===
+    first_scorecard_text = pdf.pages[fund_scorecard_pg - 1].extract_text()
+    criteria_match = re.search(r"Criteria Threshold\s*\n((?:.*\n){10,20})", first_scorecard_text)
     if criteria_match:
         criteria_block = criteria_match.group(1)
-        metrics = [line.strip() for line in criteria_block.strip().split("\n") if line.strip()]
+        metrics_list = [line.strip() for line in criteria_block.strip().split("\n") if line.strip()]
     else:
-        metrics = []
+        metrics_list = []
 
-    # Convert metrics to table
-    if metrics:
-        metrics_df = pd.DataFrame({
-            "Metric #": list(range(1, len(metrics) + 1)),
-            "Fund Scorecard Metric": metrics
-        })
-    else:
-        metrics_df = pd.DataFrame(columns=["Metric #", "Fund Scorecard Metric"])
+    metrics_df = pd.DataFrame({
+        "Metric #": list(range(1, len(metrics_list) + 1)),
+        "Fund Scorecard Metric": metrics_list
+    }) if metrics_list else pd.DataFrame(columns=["Metric #", "Fund Scorecard Metric"])
 
-    # Save to session_state
-    st.session_state["fund_scorecard_metrics"] = metrics
+    # Save Criteria Threshold
+    st.session_state["fund_scorecard_metrics"] = metrics_list
     st.session_state["fund_scorecard_table"] = metrics_df
 
-    # Display
+    # Display Threshold Table
     st.subheader("Step 3: Fund Scorecard Metrics Table")
-    if not metrics:
+    if not metrics_list:
         st.write("No metrics found under 'Criteria Threshold'.")
     else:
         st.dataframe(metrics_df, use_container_width=True)
 
-    # === Step 3.5: Extract Investment Option Metrics and Status ===
+    # === Step 3.5: Extract Investment Option Names + 14 Metric Statuses ===
+    st.subheader("Step 3.5: Investment Option Metrics")
     fund_blocks = []
 
-    # Go through each page starting at the Fund Scorecard section
-    for i in range(fund_scorecard_start - 1, len(pdf.pages)):
+    fund_status_pattern = re.compile(
+        r"\s+(Fund Meets Watchlist Criteria\.|Fund has been placed on watchlist for not meeting.+)", re.IGNORECASE)
+
+    for i in range(fund_scorecard_pg - 1, len(pdf.pages)):
         page = pdf.pages[i]
         text = page.extract_text()
         if not text or "Fund Scorecard" not in text:
-            break  # Stop when we reach a page that’s not part of Fund Scorecard
+            break
 
         lines = text.split("\n")
-        current_fund = None
-        current_metrics = []
+        for j in range(len(lines)):
+            if lines[j].startswith("Manager Tenure") and j > 0:
+                raw_fund_line = lines[j - 1].strip()
+                fund_name = fund_status_pattern.sub("", raw_fund_line).strip()
+                if "criteria threshold" in fund_name.lower():
+                    continue  # skip box title
 
-        for idx, line in enumerate(lines):
-            # Identify the start of a new fund block
-            if "Manager Tenure" in line and idx > 0:
-                name_line = lines[idx - 1].strip()
-                name_clean = re.sub(r"Fund (Meets|has been placed).*", "", name_line).strip()
+                fund_metrics = []
+                for k in range(j, j + 14):
+                    if k >= len(lines): break
+                    metric_line = lines[k]
+                    match = re.match(r"(.+?)\s+(Pass|Review)\s*[-–]?\s*(.*)", metric_line)
+                    if match:
+                        metric_name, status, reason = match.groups()
+                        fund_metrics.append({
+                            "Metric": metric_name.strip(),
+                            "Status": status.strip(),
+                            "Reason": reason.strip()
+                        })
 
-                if current_fund and current_metrics:
+                if len(fund_metrics) == 14:
                     fund_blocks.append({
-                        "Fund Name": current_fund,
-                        "Metrics": current_metrics
+                        "Fund Name": fund_name,
+                        "Metrics": fund_metrics
                     })
 
-                current_fund = name_clean
-                current_metrics = []
-
-            # If we're inside a fund block, look for metrics
-            if current_fund and any(metric_name in line for metric_name in ["Manager Tenure", "Tracking Error Rank", "Sharpe", "Sortino", "Alpha", "Beta", "R²", "Standard Deviation", "Upside", "Downside"]):
-                metric_match = re.match(r"(.+?)\s+(Pass|Review)\s*-\s*(.+)", line)
-                if metric_match:
-                    metric_name = metric_match.group(1).strip()
-                    status = metric_match.group(2).strip()
-                    reason = metric_match.group(3).strip()
-                    current_metrics.append({
-                        "Metric": metric_name,
-                        "Status": status,
-                        "Info": reason
-                    })
-
-        # Append last fund block
-        if current_fund and current_metrics:
-            fund_blocks.append({
-                "Fund Name": current_fund,
-                "Metrics": current_metrics
-            })
-
-    # Flatten into one table
+    # Flatten table
     flat_data = []
     for block in fund_blocks:
         for metric in block["Metrics"]:
             flat_data.append({
                 "Investment Option": block["Fund Name"],
                 "Status": metric["Status"],
-                "Info": metric["Info"]
+                "Info": metric["Reason"]
             })
 
     fund_status_df = pd.DataFrame(flat_data)
 
-    # Save to session state
+    # Save
     st.session_state["fund_blocks"] = fund_blocks
     st.session_state["fund_status_table"] = fund_status_df
 
-    # Display
-    st.subheader("Step 3.5: Investment Option Metrics")
+    # Display flattened table
     if not fund_status_df.empty:
         st.dataframe(fund_status_df, use_container_width=True)
     else:
-        st.write("No fund metric data found.")
+        st.write("No investment option metrics found.")
