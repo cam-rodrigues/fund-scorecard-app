@@ -99,3 +99,32 @@ def run():
     st.write(f"Fund Performance: **Page {toc_pages['Fund Performance']}**" if toc_pages["Fund Performance"] else "Fund Performance section not found.")
     st.write(f"Fund Scorecard: **Page {toc_pages['Fund Scorecard']}**" if toc_pages["Fund Scorecard"] else "Fund Scorecard section not found.")
     st.write(f"Fund Factsheets: **Page {toc_pages['Fund Factsheets']}**" if toc_pages["Fund Factsheets"] else "Fund Factsheets section not found.")
+
+#--------------------------------------------------------------------------------------------
+
+    # === Step 3: Fund Scorecard Section ===
+    fund_scorecard_start = toc_pages.get("Fund Scorecard")
+    if not fund_scorecard_start:
+        st.error("Fund Scorecard section page number not found in Table of Contents.")
+        return
+
+    fund_scorecard_text = pdf.pages[fund_scorecard_start - 1].extract_text()
+
+    # Look for "Criteria Threshold" section and capture the 14 lines below it
+    criteria_match = re.search(r"Criteria Threshold\s*\n((?:.*\n){10,20})", fund_scorecard_text)
+    if criteria_match:
+        criteria_block = criteria_match.group(1)
+        metrics = [line.strip() for line in criteria_block.strip().split("\n") if line.strip()]
+    else:
+        metrics = []
+
+    st.session_state["fund_scorecard_metrics"] = metrics
+
+    # Display
+    st.subheader("Step 3: Fund Scorecard Metrics")
+    if metrics:
+        st.write("Extracted Metrics from 'Criteria Threshold':")
+        for i, m in enumerate(metrics, 1):
+            st.write(f"{i}. {m}")
+    else:
+        st.write("No metrics found under 'Criteria Threshold'.")
