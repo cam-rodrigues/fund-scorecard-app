@@ -461,11 +461,13 @@ def run():
     # Step 3: Fuzzy match each fund name and extract ticker if present
     match_data = []
     for score_name in scorecard_names:
+        score_name_short = " ".join(score_name.lower().split()[:7])
         best_score = 0
         best_line = ""
         best_ticker = ""
         for line in clean_lines:
-            score = SequenceMatcher(None, score_name.lower(), line.lower()).ratio()
+            line_short = " ".join(line.lower().split()[:7])
+            score = SequenceMatcher(None, score_name_short, line_short).ratio()
             if score > best_score:
                 best_score = score
                 ticker_match = re.search(r"\b[A-Z]{5}\b", line)
