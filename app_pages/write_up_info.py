@@ -594,3 +594,13 @@ def run():
                 st.error(f"❌ Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
 #-------------------------------------------------------------------------------------------
+        def get_summary_data():
+            """
+            Return all processed data from session_state in a single dictionary.
+            Used by external modules like write_up_outputs.py.
+            """
+            return {
+                "fund_blocks": st.session_state.get("fund_blocks", []),
+                "ips_data": st.session_state.get("step8_results", []),
+                "factsheet_data": st.session_state.get("fund_factsheets_data", [])
+            }
