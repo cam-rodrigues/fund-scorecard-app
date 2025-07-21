@@ -134,19 +134,23 @@ def run():
     else:
         st.dataframe(metrics_df, use_container_width=True)
 
-    # === Step 3.5: Extract Investment Option Metrics into Separate Tables ===
+    # === Step 3.5: Extract Investment Option Metrics into Separate Tables (Full Section) ===
     st.subheader("Step 3.5: Individual Investment Option Tables")
 
     fund_blocks = []
-
     fund_status_pattern = re.compile(
         r"\s+(Fund Meets Watchlist Criteria\.|Fund has been placed on watchlist for not meeting.+)", re.IGNORECASE)
 
-    for i in range(fund_scorecard_pg - 1, len(pdf.pages)):
+    fund_scorecard_start = toc_pages.get("Fund Scorecard")
+    fund_factsheets_start = toc_pages.get("Fund Factsheets")
+
+    last_scorecard_page = fund_factsheets_start - 1 if fund_factsheets_start else len(pdf.pages)
+
+    for i in range(fund_scorecard_start - 1, last_scorecard_page):
         page = pdf.pages[i]
         text = page.extract_text()
-        if not text or "Fund Scorecard" not in text:
-            break
+        if not text:
+            continue
 
         lines = text.split("\n")
         for j in range(len(lines)):
@@ -154,7 +158,7 @@ def run():
                 raw_fund_line = lines[j - 1].strip()
                 fund_name = fund_status_pattern.sub("", raw_fund_line).strip()
                 if "criteria threshold" in fund_name.lower():
-                    continue  # skip bad block
+                    continue
 
                 fund_metrics = []
                 for k in range(j, j + 14):
@@ -175,7 +179,7 @@ def run():
                         "Metrics": fund_metrics
                     })
 
-    # Save fund_blocks to session_state
+    # Save to session state
     st.session_state["fund_blocks"] = fund_blocks
 
     # Display a separate table per fund
@@ -183,6 +187,7 @@ def run():
         st.markdown(f"### {block['Fund Name']}")
         df = pd.DataFrame(block["Metrics"])
         st.dataframe(df, use_container_width=True)
+
 
     # === Step 3.6: Double Check Fund Count ===
     st.subheader("Step 3.6: Investment Option Count Check")
