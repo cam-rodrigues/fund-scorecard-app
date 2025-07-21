@@ -413,3 +413,43 @@ def run():
                 st.text(perf_text)
             else:
                 st.error("Page number from TOC is out of range in the PDF.")
+
+    # === Step 5.5: Match Fund Names + Tickers from Fund Performance Section ===
+    st.subheader("Step 5.5: Extract Fund Names + Tickers")
+
+    from difflib import get_close_matches
+
+    # Get needed data
+    toc_pages = st.session_state.get("toc_pages", {})
+    fund_perf_pg = toc_pages.get("Fund Performance")
+    fund_blocks = st.session_state.get("fund_blocks", [])
+    fund_names_from_scorecard = [f["Fund Name"] for f in fund_blocks]
+
+    matched_funds = []
+
+    if not fund_perf_pg:
+        st.error("Fund Performance page not found.")
+    else:
+        with pdfplumber.open(uploaded_file) as pdf:
+            for i in range(fund_perf_pg - 1, len(pdf.pages)):
+                page = pdf.pages[i]
+                text = page.extract_text()
+                if not text or "Fund Performance: Current vs. Proposed Comparison" not in text:
+                    break  # exit once we leave the section
+
+              
+        # Save and compare
+        st.session_state["fund_performance_data"] = matched_funds
+        total_expected = len(fund_names_from_scorecard)
+        total_found = len(matched_funds)
+
+        st.subheader("Fund Matching Summary")
+        st.write(f"✅ Matched: {total_found} / {total_expected} funds")
+
+        if total_found != total_expected:
+            st.error("❌ Mismatch between Fund Performance section and Fund Scorecard. Check for missing funds.")
+        else:
+            st.success("✔️ All funds matched between Fund Scorecard and Fund Performance sections.")
+
+        # Show preview of matches
+        st.dataframe(pd.DataFrame(matched_funds), use_container_width=True)
