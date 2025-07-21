@@ -9,19 +9,23 @@ from openpyxl.styles import PatternFill, Font
 from openpyxl.utils.dataframe import dataframe_to_rows
 from io import BytesIO
 from io import StringIO
-
+from rapidfuzz import fuzz
 
 def run():
     st.set_page_config(page_title="Write-Up Info Tool", layout="wide")
     st.title("Write-Up Info Tool")
 
+#--------------------------------------------------------------------------------------------
+    
     # === Step 0: Upload MPI PDF ===
     uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="writeup_upload")
 
     if not uploaded_file:
         st.warning("Please upload an MPI PDF to begin.")
         return
+
 #--------------------------------------------------------------------------------------------
+   
     # === Step 1: Page 1 ===
     with pdfplumber.open(uploaded_file) as pdf:
         first_page_text = pdf.pages[0].extract_text()
@@ -52,6 +56,7 @@ def run():
     st.write(f"Determined Quarter: **{quarter}**")
 
 #--------------------------------------------------------------------------------------------
+  
     # === Step 1.5: Extract Additional Page 1 Info ===
 
     # Extract Total Options
@@ -422,73 +427,66 @@ def run():
             else:
                 st.error("Page number from TOC is out of range in the PDF.")
 
+    
     # === Step 5.5: Match Investment Option Names & Extract Tickers ===
     st.subheader("Step 5.5: Match Investment Option Names Between Sections")
-
+    
     # Pull fund names from Scorecard section
+    fund_blocks = st.session_state.get("fund_blocks", [])
     scorecard_names = [block["Fund Name"] for block in fund_blocks]
-
-    # Step 1: Read all pages in Fund Performance section (until heading changes)
-    perf_lines = []
-    reading = False
-
-    with pdfplumber.open(uploaded_file) as pdf:
-        for i, page in enumerate(pdf.pages):
-            text = page.extract_text()
-            if not text:
-                continue
-            if "Fund Performance: Current vs. Proposed Comparison" in text:
-                reading = True
-            elif reading and any(kw in text for kw in [
-                "Risk Analysis", "Fund Scorecard", "Definitions & Disclosures", "Table of Contents"
-            ]):
-                break
-            if reading:
-                perf_lines.extend(text.split("\n"))
-
-    # Step 2: Clean/filter lines
-    def is_potential_fund_line(line):
-        if not (15 <= len(line) <= 90):
-            return False
-        if any(kw in line.lower() for kw in [
-            "matrix", "disclosure", "calendar year", "page", "style", "returns", "mpt statistics"
-        ]):
-            return False
-        return True
-
-    clean_lines = [line.strip() for line in perf_lines if is_potential_fund_line(line)]
-
-    # Step 3: Fuzzy match each fund name and extract ticker if present
-    match_data = []
-    for score_name in scorecard_names:
-        score_name_short = " ".join(score_name.lower().split()[:7])
-        best_score = 0
-        best_line = ""
-        best_ticker = ""
-        for line in clean_lines:
-            line_short = " ".join(line.lower().split()[:7])
-            score = SequenceMatcher(None, score_name_short, line_short).ratio()
-            if score > best_score:
-                best_score = score
-                ticker_match = re.search(r"\b[A-Z]{5}\b", line)
-                best_ticker = ticker_match.group(0) if ticker_match else ""
-                best_line = re.sub(r"\b[A-Z]{5}\b", "", line).strip()
-        match_data.append({
-            "Fund Scorecard Name": score_name,
-            "Ticker": best_ticker,
-            "Match Score": round(best_score * 100),
-            "Matched": "✅" if best_score >= 60 else "❌"
-        })
-
-    # Save for use later
-    st.session_state["fund_performance_data"] = match_data
-
-    # Summary
-    matched_count = sum(1 for m in match_data if m["Matched"] == "✅")
-    total_count = len(match_data)
-
-    st.write(f"✅ Matched {matched_count} of {total_count} fund names to Performance section.")
-    if matched_count != total_count:
-        st.error("❌ Mismatch in number of matched funds. Check for missing or misnamed items.")
+    
+    toc_pages = st.session_state.get("toc_pages", {})
+    start_page = toc_pages.get("Fund Performance")
+    end_page = toc_pages.get("Fund Scorecard")
+    
+    if not start_page or not end_page:
+        st.error("Missing TOC page numbers for Fund Performance or Fund Scorecard section.")
     else:
-        st.success("✔️ All funds successfully matched.")
+        # Step 1: Gather all lines between Fund Performance and Fund Scorecard pages
+        perf_lines = []
+        with pdfplumber.open(uploaded_file) as pdf:
+            for i in range(start_page - 1, end_page - 1):  # PDF is 0-indexed
+                text = pdf.pages[i].extract_text()
+                if text:
+                    perf_lines.extend(text.split("\n"))
+    
+        # Step 2: Fuzzy match Scorecard names to Performance lines
+        match_data = []
+        for score_name in scorecard_names:
+            best_score = 0
+            best_line = ""
+            best_ticker = ""
+            for line in perf_lines:
+                # Skip lines that are too short or clearly not fund names
+                if len(line.strip()) < 10 or not re.search(r"\b[A-Z]{5}\b", line):
+                    continue
+    
+                similarity = fuzz.token_sort_ratio(score_name.lower(), line.lower())
+                if similarity > best_score:
+                    best_score = similarity
+                    ticker_match = re.search(r"\b[A-Z]{5}\b", line)
+                    best_ticker = ticker_match.group(0) if ticker_match else ""
+                    best_line = line.strip()
+    
+            match_data.append({
+                "Fund Scorecard Name": score_name,
+                "Ticker": best_ticker,
+                "Matched Line": best_line,
+                "Match Score": best_score,
+                "Matched": "✅" if best_score >= 60 else "❌"
+            })
+    
+        # Save results
+        st.session_state["fund_performance_data"] = match_data
+    
+        # Display results
+        df_matches = pd.DataFrame(match_data)
+        st.dataframe(df_matches)
+    
+        matched_count = sum(1 for m in match_data if m["Matched"] == "✅")
+        total_count = len(match_data)
+        st.write(f"✅ Matched {matched_count} of {total_count} fund names to Performance section.")
+        if matched_count != total_count:
+            st.error("❌ Mismatch in number of matched funds. Check for missing or misnamed items.")
+        else:
+            st.success("✔️ All funds successfully matched.")
