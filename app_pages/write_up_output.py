@@ -2,7 +2,7 @@ import streamlit as st
 from app_pages import write_up_info  # This runs and fills session_state
 import pandas as pd
 
-def run():
+def run(uploaded_file):
     st.set_page_config(page_title="Fund Info Lookup", layout="wide")
     st.title("Fund Write-Up Output Viewer")
 
