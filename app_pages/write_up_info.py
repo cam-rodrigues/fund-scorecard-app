@@ -414,42 +414,71 @@ def run():
             else:
                 st.error("Page number from TOC is out of range in the PDF.")
 
-    # === Step 5.5: Match Fund Names + Tickers from Fund Performance Section ===
-    st.subheader("Step 5.5: Extract Fund Names + Tickers")
+    # === Step 5.5: Match Investment Option Names & Extract Tickers ===
+    st.subheader("Step 5.5: Match Investment Option Names Between Sections")
 
-    from difflib import get_close_matches
+    # Pull fund names from Scorecard section
+    scorecard_names = [block["Fund Name"] for block in fund_blocks]
 
-    # Get needed data
-    toc_pages = st.session_state.get("toc_pages", {})
-    fund_perf_pg = toc_pages.get("Fund Performance")
-    fund_blocks = st.session_state.get("fund_blocks", [])
-    fund_names_from_scorecard = [f["Fund Name"] for f in fund_blocks]
+    # Step 1: Read all pages in Fund Performance section (until heading changes)
+    perf_lines = []
+    reading = False
 
-    matched_funds = []
+    with pdfplumber.open(uploaded_file) as pdf:
+        for i, page in enumerate(pdf.pages):
+            text = page.extract_text()
+            if not text:
+                continue
+            if "Fund Performance: Current vs. Proposed Comparison" in text:
+                reading = True
+            elif reading and any(kw in text for kw in [
+                "Risk Analysis", "Fund Scorecard", "Definitions & Disclosures", "Table of Contents"
+            ]):
+                break
+            if reading:
+                perf_lines.extend(text.split("\n"))
 
-    if not fund_perf_pg:
-        st.error("Fund Performance page not found.")
+    # Step 2: Clean/filter lines
+    def is_potential_fund_line(line):
+        if not (15 <= len(line) <= 90):
+            return False
+        if any(kw in line.lower() for kw in [
+            "matrix", "disclosure", "calendar year", "page", "style", "returns", "mpt statistics"
+        ]):
+            return False
+        return True
+
+    clean_lines = [line.strip() for line in perf_lines if is_potential_fund_line(line)]
+
+    # Step 3: Fuzzy match each fund name and extract ticker if present
+    match_data = []
+    for score_name in scorecard_names:
+        best_score = 0
+        best_line = ""
+        best_ticker = ""
+        for line in clean_lines:
+            score = SequenceMatcher(None, score_name.lower(), line.lower()).ratio()
+            if score > best_score:
+                best_score = score
+                ticker_match = re.search(r"\b[A-Z]{5}\b", line)
+                best_ticker = ticker_match.group(0) if ticker_match else ""
+                best_line = re.sub(r"\b[A-Z]{5}\b", "", line).strip()
+        match_data.append({
+            "Fund Scorecard Name": score_name,
+            "Ticker": best_ticker,
+            "Match Score": round(best_score * 100),
+            "Matched": "✅" if best_score >= 60 else "❌"
+        })
+
+    # Save for use later
+    st.session_state["fund_performance_data"] = match_data
+
+    # Summary
+    matched_count = sum(1 for m in match_data if m["Matched"] == "✅")
+    total_count = len(match_data)
+
+    st.write(f"✅ Matched {matched_count} of {total_count} fund names to Performance section.")
+    if matched_count != total_count:
+        st.error("❌ Mismatch in number of matched funds. Check for missing or misnamed items.")
     else:
-        with pdfplumber.open(uploaded_file) as pdf:
-            for i in range(fund_perf_pg - 1, len(pdf.pages)):
-                page = pdf.pages[i]
-                text = page.extract_text()
-                if not text or "Fund Performance: Current vs. Proposed Comparison" not in text:
-                    break  # exit once we leave the section
-
-              
-        # Save and compare
-        st.session_state["fund_performance_data"] = matched_funds
-        total_expected = len(fund_names_from_scorecard)
-        total_found = len(matched_funds)
-
-        st.subheader("Fund Matching Summary")
-        st.write(f"✅ Matched: {total_found} / {total_expected} funds")
-
-        if total_found != total_expected:
-            st.error("❌ Mismatch between Fund Performance section and Fund Scorecard. Check for missing funds.")
-        else:
-            st.success("✔️ All funds matched between Fund Scorecard and Fund Performance sections.")
-
-        # Show preview of matches
-        st.dataframe(pd.DataFrame(matched_funds), use_container_width=True)
+        st.success("✔️ All funds successfully matched.")
