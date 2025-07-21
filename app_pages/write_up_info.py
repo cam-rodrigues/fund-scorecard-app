@@ -495,6 +495,7 @@ def run():
 
     toc_pages = st.session_state.get("toc_pages", {})
     performance_data = st.session_state.get("fund_performance_data", [])
+    total_declared = st.session_state.get("total_options")
 
     factsheet_start = toc_pages.get("Fund Factsheets")
 
@@ -568,5 +569,11 @@ def run():
         st.dataframe(df_facts)
 
         matched_count = sum(1 for f in matched_factsheets if f["Matched"] == "✅")
-        total = len(matched_factsheets)
-        st.write(f"✅ Matched {matched_count} of {total} factsheet pages to Fund Performance funds.")
+        total_pages = len(matched_factsheets)
+
+        st.write(f"✅ Matched {matched_count} of {total_pages} factsheet pages to Fund Performance funds.")
+
+        if matched_count == total_declared:
+            st.success(f"✅ All {matched_count} funds matched the declared Total Options from Page 1.")
+        else:
+            st.error(f"❌ Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
