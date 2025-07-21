@@ -135,6 +135,7 @@ def run():
         st.dataframe(metrics_df, use_container_width=True)
 
     # === Step 3.5: Extract Investment Option Metrics into Separate Tables (Full Section) ===
+    # === Step 3.5: Extract Investment Option Metrics into Separate Tables (Until Section Ends) ===
     st.subheader("Step 3.5: Individual Investment Option Tables")
 
     fund_blocks = []
@@ -142,15 +143,15 @@ def run():
         r"\s+(Fund Meets Watchlist Criteria\.|Fund has been placed on watchlist for not meeting.+)", re.IGNORECASE)
 
     fund_scorecard_start = toc_pages.get("Fund Scorecard")
-    fund_factsheets_start = toc_pages.get("Fund Factsheets")
 
-    last_scorecard_page = fund_factsheets_start - 1 if fund_factsheets_start else len(pdf.pages)
-
-    for i in range(fund_scorecard_start - 1, last_scorecard_page):
+    for i in range(fund_scorecard_start - 1, len(pdf.pages)):
         page = pdf.pages[i]
         text = page.extract_text()
         if not text:
             continue
+
+        if not text.strip().startswith("Fund Scorecard"):
+            break  # Exit if we've left the section
 
         lines = text.split("\n")
         for j in range(len(lines)):
@@ -158,7 +159,7 @@ def run():
                 raw_fund_line = lines[j - 1].strip()
                 fund_name = fund_status_pattern.sub("", raw_fund_line).strip()
                 if "criteria threshold" in fund_name.lower():
-                    continue
+                    continue  # skip box title
 
                 fund_metrics = []
                 for k in range(j, j + 14):
@@ -182,7 +183,7 @@ def run():
     # Save to session state
     st.session_state["fund_blocks"] = fund_blocks
 
-    # Display a separate table per fund
+    # Display each fund as a table
     for block in fund_blocks:
         st.markdown(f"### {block['Fund Name']}")
         df = pd.DataFrame(block["Metrics"])
