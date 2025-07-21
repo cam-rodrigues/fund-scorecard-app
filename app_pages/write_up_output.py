@@ -1,22 +1,34 @@
 import streamlit as st
 import pandas as pd
+import write_up_processor  # Import your processing logic
 
 def run():
     st.set_page_config(page_title="Write-Up Outputs", layout="wide")
-    st.title("View Write-Up Outputs for Selected Fund")
+    st.title("Step 7: View Write-Up Outputs for Selected Fund")
 
-    # Check for necessary data
+    # === Get uploaded file from session_state ===
+    uploaded_file = st.session_state.get("writeup_upload")
+
+    if not uploaded_file:
+        st.warning("Please upload an MPI PDF in the 'Write-Up Info' tab first.")
+        return
+
+    # === Only process the MPI if not already done ===
+    if "fund_blocks" not in st.session_state:
+        write_up_processor.process_mpi(uploaded_file)
+
+    # === Load processed data ===
     fund_blocks = st.session_state.get("fund_blocks", [])
     ips_data = st.session_state.get("step8_results", [])
     factsheet_data = st.session_state.get("fund_factsheets_data", [])
 
     if not fund_blocks or not ips_data or not factsheet_data:
-        st.warning("Please make sure to run the 'Write-Up Info' tool first to process an MPI PDF.")
+        st.error("Unable to load processed data. Please try re-uploading the file.")
         return
 
-    # Dropdown to select a fund
+    # === Dropdown to select fund ===
     fund_names = [block["Fund Name"] for block in fund_blocks]
-    selected_fund = st.selectbox("Select a Fund to View Details", fund_names)
+    selected_fund = st.selectbox("Select a Fund", fund_names)
 
     st.markdown("---")
 
@@ -30,7 +42,7 @@ def run():
     else:
         st.error("No scorecard metrics found for the selected fund.")
 
-    # === Section 2: IPS Investment Criteria ===
+    # === Section 2: IPS Criteria & Status ===
     st.subheader("2. IPS Investment Criteria & Status")
     selected_ips = next((i for i in ips_data if i["Fund Name"] == selected_fund), None)
 
@@ -40,9 +52,9 @@ def run():
         df_ips = pd.DataFrame(selected_ips["IPS Metrics"])
         st.dataframe(df_ips, use_container_width=True)
     else:
-        st.warning("No IPS data found for the selected fund.")
+        st.warning("No IPS screening data found for the selected fund.")
 
-    # === Section 3: Fund Factsheet Information ===
+    # === Section 3: Fund Factsheet Info ===
     st.subheader("3. Fund Factsheet Information")
     selected_fact = next((f for f in factsheet_data if f["Matched Fund Name"] == selected_fund), None)
 
