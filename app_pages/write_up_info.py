@@ -183,3 +183,20 @@ def run():
         st.markdown(f"### {block['Fund Name']}")
         df = pd.DataFrame(block["Metrics"])
         st.dataframe(df, use_container_width=True)
+
+    # === Step 3.6: Double Check Fund Count ===
+    st.subheader("Step 3.6: Investment Option Count Check")
+
+    declared_total = st.session_state.get("total_options")
+    actual_total = len(fund_blocks)
+
+    st.write(f"Declared in Page 1: **{declared_total}**")
+    st.write(f"Found in Fund Scorecard: **{actual_total}**")
+
+    if declared_total is None:
+        st.warning("No declared total found on Page 1 to compare against.")
+    elif declared_total == actual_total:
+        st.success("✅ The number of Investment Options matches the declared total.")
+    else:
+        st.error("❌ Mismatch between declared and actual number of Investment Options.")
+
