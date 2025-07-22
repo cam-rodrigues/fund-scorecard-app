@@ -223,13 +223,15 @@ def run():
     
         return prs
 
-    if st.button("Export Individual Fund Summary to PowerPoint"):
-        ppt = generate_fund_summary_slide(row)
+    if st.button("Export to PowerPoint"):
+        ppt = generate_watchlist_slide(st.session_state["summary_df"], selected_fund)
         output = BytesIO()
         ppt.save(output)
         st.download_button(
             label="Download PowerPoint File",
             data=output.getvalue(),
-            file_name=f"{selected_fund}_Summary.pptx",
+            file_name=f"{selected_fund}_Watchlist.pptx",
             mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        )
+
         )
