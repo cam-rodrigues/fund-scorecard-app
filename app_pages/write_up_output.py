@@ -12,10 +12,10 @@ def run():
         st.warning("Please upload an MPI PDF to continue.")
         return
 
-   if "fund_blocks" not in st.session_state:
-        st.session_state["suppress_criteria_display"] = True
-        write_up_processor.process_mpi(uploaded_file)
-        st.success("File processed.")
+       if "fund_blocks" not in st.session_state:
+            st.session_state["suppress_criteria_display"] = True
+            write_up_processor.process_mpi(uploaded_file)
+            st.success("File processed.")
 
 
     # Load data
