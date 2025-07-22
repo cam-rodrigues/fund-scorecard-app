@@ -233,5 +233,3 @@ def run():
             file_name=f"{selected_fund}_Watchlist.pptx",
             mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
         )
-
-        )
