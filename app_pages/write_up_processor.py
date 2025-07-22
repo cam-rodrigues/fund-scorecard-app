@@ -179,9 +179,9 @@ def process_mpi(uploaded_file):
     if declared_total is None:
         st.warning("No declared total found on Page 1 to compare against.")
     elif declared_total == actual_total:
-        st.success("✅ The number of Investment Options matches the declared total.")
+        st.success("The number of Investment Options matches the declared total.")
     else:
-        st.error("❌ Mismatch between declared and actual number of Investment Options.")
+        st.error("Mismatch between declared and actual number of Investment Options.")
 
 #--------------------------------------------------------------------------------------------
 
@@ -366,9 +366,9 @@ def process_mpi(uploaded_file):
             fund_perf_text = pdf.pages[fund_perf_pg - 1].extract_text()
     
         if "Fund Performance: Current vs. Proposed Comparison" not in fund_perf_text:
-            st.warning("⚠️ The expected section heading was not found on the starting page. Please double-check manually.")
+            st.warning("The expected section heading was not found on the starting page. Double-checking manually.")
         else:
-            st.success("✔️ Found the Fund Performance section heading.")
+            st.success("Found the Fund Performance section heading.")
 
     
     # === Step 5.5: Match Investment Option Names & Extract Tickers ===
