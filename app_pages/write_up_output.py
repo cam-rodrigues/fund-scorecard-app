@@ -51,3 +51,20 @@ def run():
     df_summary = pd.DataFrame(rows)
     st.subheader("IPS Investment Summary Table")
     st.dataframe(df_summary, use_container_width=True)
+
+
+    st.subheader("Fund Factsheet Information")
+    selected_fact = next((f for f in factsheet_data if f["Matched Fund Name"] == selected_fund), None)
+
+    if selected_fact:
+        st.markdown(f"""
+        - **Ticker:** {selected_fact['Matched Ticker']}
+        - **Benchmark:** {selected_fact['Benchmark']}
+        - **Category:** {selected_fact['Category']}
+        - **Net Assets:** {selected_fact['Net Assets']}
+        - **Manager Name:** {selected_fact['Manager Name']}
+        - **Avg. Market Cap:** {selected_fact['Avg. Market Cap']}
+        - **Expense Ratio:** {selected_fact['Expense Ratio']}
+        """)
+    else:
+        st.warning("No factsheet data found for the selected fund.")
