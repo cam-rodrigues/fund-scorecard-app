@@ -64,6 +64,7 @@ def run():
         rows.append(row)
 
     df_summary = pd.DataFrame(rows)
+    st.session_state["summary_df"] = df_summary
     st.subheader("IPS Summary Table (All Funds)")
     st.dataframe(df_summary, use_container_width=True)
 
@@ -191,6 +192,7 @@ def run():
                     p.text = str(val)
     
         return prs
+
     
     ppt = generate_watchlist_slide_template_style(st.session_state["summary_df"], selected_fund)
     output = BytesIO()
