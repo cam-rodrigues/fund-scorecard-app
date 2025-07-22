@@ -6,6 +6,9 @@ from pptx.util import Inches, Pt
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.dml.color import RGBColor
 from io import BytesIO  # ✅ Add this
+from pptx.enum.text import PP_ALIGN
+from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
+    
 
 
 def run():
@@ -111,59 +114,73 @@ def run():
     else:
         st.warning("No factsheet data found for the selected fund.")
 
-    
+        
+
     def generate_fund_summary_slide(row):
         prs = Presentation()
-        slide = prs.slides.add_slide(prs.slide_layouts[5])
+        slide = prs.slides.add_slide(prs.slide_layouts[5])  # blank layout
     
-        # Title
+        # === Title: Investment Watchlist ===
         title = slide.shapes.title
-        title.text = f"Fund Summary – {row['Fund Name']}"
+        title.text = "Investment Watchlist"
     
-        # Table: 1 row of headers + 1 row of data
-        cols = 15  # Category + Time Period + Plan Assets + 11 metrics + IPS Status
+        # === Subheading (Fund Name, bold + underline) ===
+        left = Inches(0.5)
+        top = Inches(1.1)
+        width = Inches(9)
+        height = Inches(0.5)
+        subheading = slide.shapes.add_textbox(left, top, width, height)
+        text_frame = subheading.text_frame
+        p = text_frame.paragraphs[0]
+        run = p.add_run()
+        run.text = row['Fund Name']
+        run.font.bold = True
+        run.font.underline = True
+        run.font.size = Pt(14)
+        p.alignment = PP_ALIGN.LEFT
+    
+        # === Table ===
         rows = 2
-        table = slide.shapes.add_table(rows, cols, Inches(0.3), Inches(1.5), Inches(9), Inches(1)).table
+        cols = 15
+        table_left = Inches(0.3)
+        table_top = Inches(1.8)
+        table_width = Inches(9)
+        table_height = Inches(1.5)
+        table = slide.shapes.add_table(rows, cols, table_left, table_top, table_width, table_height).table
     
-        # Header labels
-        headers = (
-            ["Category", "Time Period", "Plan Assets"] +
-            [str(i) for i in range(1, 12)] +
-            ["IPS Status"]
-        )
-    
-        # Header row
-        for col_idx, header in enumerate(headers):
-            cell = table.cell(0, col_idx)
-            cell.text = header
-            cell.text_frame.paragraphs[0].font.size = Pt(10)
-            cell.text_frame.paragraphs[0].font.bold = True
-    
-        # Data row
+        headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
         values = [
             row.get("Category", "N/A"),
             row.get("Time Period", "N/A"),
             row.get("Plan Assets", "N/A"),
         ] + [row.get(str(i), "N/A") for i in range(1, 12)] + [row.get("IPS Status", "N/A")]
     
+        for col_idx, header in enumerate(headers):
+            cell = table.cell(0, col_idx)
+            cell.text = header
+            p = cell.text_frame.paragraphs[0]
+            p.font.size = Pt(10)
+            p.font.bold = True
+            p.alignment = PP_ALIGN.CENTER
+    
         for col_idx, val in enumerate(values):
             cell = table.cell(1, col_idx)
-            para = cell.text_frame.paragraphs[0]
-            para.font.size = Pt(10)
+            p = cell.text_frame.paragraphs[0]
+            p.font.size = Pt(10)
+            p.alignment = PP_ALIGN.CENTER
     
-            # ✅/❌ logic
             if val == "Pass":
-                para.text = "✔"
-                para.font.color.rgb = RGBColor(0, 176, 80)  # Green
+                p.text = "✔"
+                p.font.color.rgb = RGBColor(0, 176, 80)  # Green
             elif val == "Review":
-                para.text = "✖"
-                para.font.color.rgb = RGBColor(255, 0, 0)    # Red
+                p.text = "✖"
+                p.font.color.rgb = RGBColor(255, 0, 0)    # Red
             else:
-                para.text = val
+                p.text = val
     
         return prs
 
-    if st.button("📤 Export Individual Fund Summary to PowerPoint"):
+    if st.button("Export Individual Fund Summary to PowerPoint"):
         ppt = generate_fund_summary_slide(row)
         output = BytesIO()
         ppt.save(output)
