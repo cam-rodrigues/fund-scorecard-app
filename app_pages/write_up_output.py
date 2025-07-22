@@ -222,14 +222,28 @@ def run():
         bullet2.font.size = Pt(10)
     
         return prs
-
+        
+    # === Store the processed table so we can export it ===
+    if "summary_df" not in st.session_state:
+        st.session_state["summary_df"] = df  # df is the final table showing all funds
+    
+    # === Export PowerPoint for Selected Fund ===
+    st.markdown("---")
+    st.subheader("📤 Export Selected Fund to PowerPoint")
+    
     if st.button("Export to PowerPoint"):
-        ppt = generate_watchlist_slide(st.session_state["summary_df"], selected_fund)
-        output = BytesIO()
-        ppt.save(output)
-        st.download_button(
-            label="Download PowerPoint File",
-            data=output.getvalue(),
-            file_name=f"{selected_fund}_Watchlist.pptx",
-            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-        )
+        selected_fund = st.session_state.get("selected_fund") or fund_dropdown
+        
+        if selected_fund and not st.session_state["summary_df"].empty:
+            ppt = generate_watchlist_slide(st.session_state["summary_df"], selected_fund)
+            output = BytesIO()
+            ppt.save(output)
+    
+            st.download_button(
+                label="Download PowerPoint File",
+                data=output.getvalue(),
+                file_name=f"{selected_fund}_Watchlist.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
+        else:
+            st.warning("Please select a fund and ensure data is loaded.")
