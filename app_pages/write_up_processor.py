@@ -276,9 +276,11 @@ def process_mpi(uploaded_file):
         "Investment Style aligns with fund objectives"
     ]
 
-    st.markdown("**IPS Investment Criteria:**")
-    for i, crit in enumerate(ips_criteria, 1):
-        st.markdown(f"{i}. {crit}")
+   if not st.session_state.get("suppress_criteria_display", False):
+        st.markdown("**IPS Investment Criteria:**")
+        for i, crit in enumerate(ips_criteria, 1):
+            st.markdown(f"{i}. {crit}")
+
 
     def map_metric_names(fund_type):
         if fund_type == "Passive":
