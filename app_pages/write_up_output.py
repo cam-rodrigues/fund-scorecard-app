@@ -17,6 +17,7 @@ def run():
 
     if "fund_blocks" not in st.session_state:
         st.session_state["suppress_criteria_display"] = True
+        st.session_state["suppress_scorecard_table"] = True  # 👈 NEW FLAG
         write_up_processor.process_mpi(uploaded_file)
         st.success("File processed.")
 
