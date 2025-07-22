@@ -115,7 +115,6 @@ def run():
         st.warning("No factsheet data found for the selected fund.")
 
 
-    
     def generate_watchlist_slide_template_style(df, selected_fund):
         prs = Presentation()
         slide = prs.slides.add_slide(prs.slide_layouts[5])
@@ -147,23 +146,26 @@ def run():
         matching_rows = df[df["Fund Name"] == selected_fund]
         rows = len(matching_rows)
         cols = 15
-        table = slide.shapes.add_table(rows + 1, cols, Inches(0.3), Inches(1.1), Inches(9), Inches(0.8 + 0.3 * rows)).table
+        table = slide.shapes.add_table(
+            rows + 1, cols, Inches(0.3), Inches(1.1), Inches(9), Inches(0.8 + 0.3 * rows)
+        ).table
     
         headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
     
-        # Style header row
+        # === Header Row Styling ===
         for i, header in enumerate(headers):
             cell = table.cell(0, i)
             cell.text = header
             cell.fill.solid()
-            cell.fill.fore_color.rgb = RGBColor(47, 84, 150)  # dark blue
+            cell.fill.fore_color.rgb = RGBColor(47, 84, 150)  # Dark blue
             p = cell.text_frame.paragraphs[0]
             p.font.size = Pt(10)
             p.font.bold = True
             p.font.color.rgb = RGBColor(255, 255, 255)
             p.alignment = PP_ALIGN.CENTER
+            cell.text_frame.vertical_anchor = PP_ALIGN.CENTER
     
-        # Style data rows
+        # === Data Rows Styling ===
         for row_idx, (_, r) in enumerate(matching_rows.iterrows(), start=1):
             values = [
                 r.get("Category", ""),
@@ -173,46 +175,30 @@ def run():
     
             for col_idx, val in enumerate(values):
                 cell = table.cell(row_idx, col_idx)
-                cell.fill.solid()
-                cell.fill.fore_color.rgb = RGBColor(220, 230, 241)  # light blue
+                cell.fill.background()  # Clear fill (transparent like template)
                 p = cell.text_frame.paragraphs[0]
                 p.font.size = Pt(10)
                 p.alignment = PP_ALIGN.CENTER
+                cell.text_frame.vertical_anchor = PP_ALIGN.CENTER
     
                 if val == "Pass":
                     p.text = "✔"
-                    p.font.color.rgb = RGBColor(0, 176, 80)
+                    p.font.color.rgb = RGBColor(0, 176, 80)  # Green
                 elif val == "Review":
                     p.text = "✖"
-                    p.font.color.rgb = RGBColor(255, 0, 0)
+                    p.font.color.rgb = RGBColor(255, 0, 0)  # Red
                 else:
                     p.text = str(val)
     
         return prs
-
-        
-    # === Store the processed table so we can export it ===
-    if "summary_df" not in st.session_state:
-        st.session_state["summary_df"] = df_summary  # Use correct table variable name
     
-    # === Export PowerPoint for Selected Fund ===
-    st.markdown("---")
-    st.subheader("Export Selected Fund to PowerPoint")
-
-    if st.button("Export to PowerPoint"):
-        selected_fund = selected_fund  # already defined above in dropdown
-        
-        if selected_fund and not st.session_state["summary_df"].empty:
-            ppt = generate_watchlist_slide(st.session_state["summary_df"], selected_fund)
-            output = BytesIO()
-            ppt.save(output)
-
-            st.download_button(
-                label="Download PowerPoint File",
-                data=output.getvalue(),
-                file_name=f"{selected_fund}_Watchlist.pptx",
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
-        else:
-            st.warning("Please select a fund and ensure data is loaded.")
-
+    ppt = generate_watchlist_slide_template_style(st.session_state["summary_df"], selected_fund)
+    output = BytesIO()
+    ppt.save(output)
+    
+    st.download_button(
+        label="Download PowerPoint File",
+        data=output.getvalue(),
+        file_name=f"{selected_fund}_Watchlist.pptx",
+        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    )
