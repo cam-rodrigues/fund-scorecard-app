@@ -4,6 +4,9 @@ import app_pages.write_up_processor as write_up_processor  # Make sure this modu
 import streamlit as st
 import pandas as pd
 import app_pages.write_up_processor as write_up_processor  # Make sure this module has process_mpi(uploaded_file)
+from pptx import Presentation
+from pptx.util import Inches
+
 
 def run():
     st.set_page_config(page_title="IPS Summary Table", layout="wide")
@@ -107,3 +110,45 @@ def run():
         """)
     else:
         st.warning("No factsheet data found for the selected fund.")
+
+
+
+def generate_fund_summary_slide(row):
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[5])
+    title = slide.shapes.title
+    title.text = f"Fund Summary – {row['Fund Name']}"
+
+    # Create table: 3 columns for label, value, and spacing
+    rows = 15
+    cols = 2
+    table = slide.shapes.add_table(rows, cols, Inches(0.5), Inches(1.5), Inches(9), Inches(5)).table
+
+    labels = [
+        "Ticker", "Category", "Time Period", "Plan Assets"
+    ] + [f"Metric {i}" for i in range(1, 12)] + ["IPS Status"]
+
+    values = [
+        row.get("Ticker", "N/A"),
+        row.get("Category", "N/A"),
+        row.get("Time Period", "N/A"),
+        row.get("Plan Assets", "N/A")
+    ] + [row.get(str(i), "N/A") for i in range(1, 12)] + [row.get("IPS Status", "N/A")]
+
+    for i in range(rows):
+        table.cell(i, 0).text = labels[i]
+        table.cell(i, 1).text = values[i]
+
+    return prs
+
+# === Export PowerPoint Button ===
+if st.button("📤 Export Individual Fund Summary to PowerPoint"):
+    ppt = generate_fund_summary_slide(row)
+    output = BytesIO()
+    ppt.save(output)
+    st.download_button(
+        label="Download PowerPoint File",
+        data=output.getvalue(),
+        file_name=f"{selected_fund}_Summary.pptx",
+        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    )
