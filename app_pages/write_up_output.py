@@ -191,3 +191,14 @@ def run():
                 p.text = val
     
         return prs
+
+    if st.button("Export Individual Fund Summary to PowerPoint"):
+        ppt = generate_fund_summary_slide(row)
+        output = BytesIO()
+        ppt.save(output)
+        st.download_button(
+            label="Download PowerPoint File",
+            data=output.getvalue(),
+            file_name=f"{selected_fund}_Summary.pptx",
+            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        )
