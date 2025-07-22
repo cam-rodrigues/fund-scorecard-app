@@ -25,19 +25,21 @@ def run():
         st.error("Missing processed data.")
         return
 
-    # Build final table
+    # === Section 1: Full Table with All Funds ===
     rows = []
     for result in ips_results:
         fund_name = result["Fund Name"]
         ips_status = result["Overall IPS Status"]
         metric_results = [m["Status"] if m["Status"] in ("Pass", "Review") else "N/A" for m in result["IPS Metrics"]]
-        # Always 11 metrics
         metric_results = metric_results[:11] + ["N/A"] * (11 - len(metric_results))
 
-        # Match category from factsheets
-        category = next((f["Category"] for f in factsheet_data if f["Matched Fund Name"] == fund_name), "N/A")
+        fund_fact = next((f for f in factsheet_data if f["Matched Fund Name"] == fund_name), {})
+        category = fund_fact.get("Category", "N/A")
+        ticker = fund_fact.get("Matched Ticker", "N/A")
 
         row = {
+            "Fund Name": fund_name,
+            "Ticker": ticker,
             "Category": category,
             "Time Period": quarter,
             "Plan Assets": "$"
@@ -49,26 +51,8 @@ def run():
         rows.append(row)
 
     df_summary = pd.DataFrame(rows)
-    st.subheader("IPS Investment Summary Table")
+    st.subheader("IPS Summary Table (All Funds)")
     st.dataframe(df_summary, use_container_width=True)
-
-
-    st.subheader("Fund Factsheet Information")
-    selected_fact = next((f for f in factsheet_data if f["Matched Fund Name"] == selected_fund), None)
-
-    if selected_fact:
-        st.markdown(f"""
-        - **Ticker:** {selected_fact['Matched Ticker']}
-        - **Benchmark:** {selected_fact['Benchmark']}
-        - **Category:** {selected_fact['Category']}
-        - **Net Assets:** {selected_fact['Net Assets']}
-        - **Manager Name:** {selected_fact['Manager Name']}
-        - **Avg. Market Cap:** {selected_fact['Avg. Market Cap']}
-        - **Expense Ratio:** {selected_fact['Expense Ratio']}
-        """)
-    else:
-        st.warning("No factsheet data found for the selected fund.")
-
 
     # === Section 2: View One Fund in Detail ===
     st.subheader("View Individual Fund Summary")
@@ -101,3 +85,18 @@ def run():
 
     df_one = pd.DataFrame([row])
     st.dataframe(df_one, use_container_width=True)
+
+    # === Section 3: Additional Factsheet Info ===
+    st.subheader("Fund Factsheet Information")
+    if selected_facts:
+        st.markdown(f"""
+        - **Ticker:** {selected_facts.get('Matched Ticker', 'N/A')}
+        - **Benchmark:** {selected_facts.get('Benchmark', 'N/A')}
+        - **Category:** {selected_facts.get('Category', 'N/A')}
+        - **Net Assets:** {selected_facts.get('Net Assets', 'N/A')}
+        - **Manager Name:** {selected_facts.get('Manager Name', 'N/A')}
+        - **Avg. Market Cap:** {selected_facts.get('Avg. Market Cap', 'N/A')}
+        - **Expense Ratio:** {selected_facts.get('Expense Ratio', 'N/A')}
+        """)
+    else:
+        st.warning("No factsheet data found for the selected fund.")
