@@ -1,73 +1,53 @@
 import streamlit as st
 import pandas as pd
-import app_pages.write_up_processor as write_up_processor  # Make sure this module has process_mpi(uploaded_file)
+import write_up_processor
 
 def run():
-    st.set_page_config(page_title="Write-Up Outputs", layout="wide")
-    st.title("Upload MPI & View Write-Up Outputs")
+    st.set_page_config(page_title="IPS Summary Table", layout="wide")
+    st.title("Upload MPI & View IPS Summary Table")
 
-    # === Upload MPI PDF ===
     uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="writeup_upload")
 
     if not uploaded_file:
         st.warning("Please upload an MPI PDF to continue.")
         return
 
-    # === Process only once ===
     if "fund_blocks" not in st.session_state:
         write_up_processor.process_mpi(uploaded_file)
-        st.success("✅ File processed. Select a fund below to view results.")
+        st.success("File processed.")
 
-    # === Load processed data ===
-    fund_blocks = st.session_state.get("fund_blocks", [])
-    ips_data = st.session_state.get("step8_results", [])
+    # Load data
+    ips_results = st.session_state.get("step8_results", [])
     factsheet_data = st.session_state.get("fund_factsheets_data", [])
+    quarter = st.session_state.get("report_quarter", "Unknown")
 
-    if not fund_blocks or not ips_data or not factsheet_data:
-        st.error("Something went wrong during processing. Try re-uploading the file.")
+    if not ips_results or not factsheet_data:
+        st.error("Missing processed data.")
         return
 
-    # === Fund selection ===
-    fund_names = [block["Fund Name"] for block in fund_blocks]
-    selected_fund = st.selectbox("Select a Fund", fund_names)
+    # Build final table
+    rows = []
+    for result in ips_results:
+        fund_name = result["Fund Name"]
+        ips_status = result["Overall IPS Status"]
+        metric_results = [m["Status"] if m["Status"] in ("Pass", "Review") else "N/A" for m in result["IPS Metrics"]]
+        # Always 11 metrics
+        metric_results = metric_results[:11] + ["N/A"] * (11 - len(metric_results))
 
-    st.markdown("---")
+        # Match category from factsheets
+        category = next((f["Category"] for f in factsheet_data if f["Matched Fund Name"] == fund_name), "N/A")
 
-    # === Section 1: Fund Scorecard Metrics ===
-    st.subheader("1. Fund Scorecard Metrics")
-    selected_block = next((b for b in fund_blocks if b["Fund Name"] == selected_fund), None)
+        row = {
+            "Category": category,
+            "Time Period": quarter,
+            "Plan Assets": "$"
+        }
+        for i in range(11):
+            row[str(i + 1)] = metric_results[i]
+        row["IPS Status"] = ips_status
 
-    if selected_block:
-        df_scorecard = pd.DataFrame(selected_block["Metrics"])
-        st.dataframe(df_scorecard, use_container_width=True)
-    else:
-        st.error("No scorecard metrics found for the selected fund.")
+        rows.append(row)
 
-    # === Section 2: IPS Criteria & Status ===
-    st.subheader("2. IPS Investment Criteria & Status")
-    selected_ips = next((i for i in ips_data if i["Fund Name"] == selected_fund), None)
-
-    if selected_ips:
-        st.write(f"**Fund Type:** {selected_ips['Fund Type']}")
-        st.write(f"**Overall IPS Status:** `{selected_ips['Overall IPS Status']}`")
-        df_ips = pd.DataFrame(selected_ips["IPS Metrics"])
-        st.dataframe(df_ips, use_container_width=True)
-    else:
-        st.warning("No IPS screening data found for the selected fund.")
-
-    # === Section 3: Fund Factsheet Info ===
-    st.subheader("3. Fund Factsheet Information")
-    selected_fact = next((f for f in factsheet_data if f["Matched Fund Name"] == selected_fund), None)
-
-    if selected_fact:
-        st.markdown(f"""
-        - **Ticker:** {selected_fact['Matched Ticker']}
-        - **Benchmark:** {selected_fact['Benchmark']}
-        - **Category:** {selected_fact['Category']}
-        - **Net Assets:** {selected_fact['Net Assets']}
-        - **Manager Name:** {selected_fact['Manager Name']}
-        - **Avg. Market Cap:** {selected_fact['Avg. Market Cap']}
-        - **Expense Ratio:** {selected_fact['Expense Ratio']}
-        """)
-    else:
-        st.warning("No factsheet data found for the selected fund.")
+    df_summary = pd.DataFrame(rows)
+    st.subheader("IPS Investment Summary Table")
+    st.dataframe(df_summary, use_container_width=True)
