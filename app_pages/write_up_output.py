@@ -121,10 +121,14 @@ def run():
         slide = prs.slides.add_slide(prs.slide_layouts[5])  # blank layout
     
         # === Title: Investment Watchlist ===
-        title = slide.shapes.title
-        title.text = "Investment Watchlist"
+        title_shape = slide.shapes.title
+        title_shape.text = "Investment Watchlist"
+        title_run = title_shape.text_frame.paragraphs[0].runs[0]
+        title_run.font.size = Pt(20)
+        title_run.font.name = "HelveticaNeueLT Std Lt Ext"
+        title_run.font.color.rgb = RGBColor(0, 51, 102)  # Dark blue (Access 1)
     
-        # === Subheading (Fund Name, bold + underline) ===
+        # === Subheading: Fund Name (Cambria, 12pt, bold+underline) ===
         left = Inches(0.5)
         top = Inches(1.1)
         width = Inches(9)
@@ -136,17 +140,23 @@ def run():
         run.text = row['Fund Name']
         run.font.bold = True
         run.font.underline = True
-        run.font.size = Pt(14)
+        run.font.size = Pt(12)
+        run.font.name = "Cambria"
+        run.font.color.rgb = RGBColor(0, 0, 0)
         p.alignment = PP_ALIGN.LEFT
     
         # === Table ===
         rows = 2
         cols = 15
+        col_widths = [1.8, 1.1, 1.1] + [0.4]*11 + [1.0]  # Wider Category, smaller metrics
         table_left = Inches(0.3)
         table_top = Inches(1.8)
-        table_width = Inches(9)
-        table_height = Inches(1.5)
-        table = slide.shapes.add_table(rows, cols, table_left, table_top, table_width, table_height).table
+        table_width = sum(col_widths)
+        table = slide.shapes.add_table(rows, cols, table_left, table_top, Inches(9), Inches(1.5)).table
+    
+        # Set column widths
+        for i, width in enumerate(col_widths):
+            table.columns[i].width = Inches(width)
     
         headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
         values = [
@@ -155,6 +165,7 @@ def run():
             row.get("Plan Assets", "N/A"),
         ] + [row.get(str(i), "N/A") for i in range(1, 12)] + [row.get("IPS Status", "N/A")]
     
+        # Add headers
         for col_idx, header in enumerate(headers):
             cell = table.cell(0, col_idx)
             cell.text = header
@@ -163,6 +174,7 @@ def run():
             p.font.bold = True
             p.alignment = PP_ALIGN.CENTER
     
+        # Add data
         for col_idx, val in enumerate(values):
             cell = table.cell(1, col_idx)
             p = cell.text_frame.paragraphs[0]
@@ -179,14 +191,3 @@ def run():
                 p.text = val
     
         return prs
-
-    if st.button("Export Individual Fund Summary to PowerPoint"):
-        ppt = generate_fund_summary_slide(row)
-        output = BytesIO()
-        ppt.save(output)
-        st.download_button(
-            label="Download PowerPoint File",
-            data=output.getvalue(),
-            file_name=f"{selected_fund}_Summary.pptx",
-            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-        )
