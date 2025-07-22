@@ -17,9 +17,11 @@ def run():
 
     if "fund_blocks" not in st.session_state:
         st.session_state["suppress_criteria_display"] = True
-        st.session_state["suppress_scorecard_table"] = True  # 👈 NEW FLAG
+        st.session_state["suppress_scorecard_table"] = True
+        st.session_state["suppress_matching_confirmation"] = True  # 👈 NEW FLAG
         write_up_processor.process_mpi(uploaded_file)
         st.success("File processed.")
+    
 
     # Load data
     ips_results = st.session_state.get("step8_results", [])
