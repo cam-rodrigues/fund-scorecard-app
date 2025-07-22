@@ -1,11 +1,9 @@
 import streamlit as st
 import pandas as pd
 import app_pages.write_up_processor as write_up_processor  # Make sure this module has process_mpi(uploaded_file)
-import streamlit as st
-import pandas as pd
-import app_pages.write_up_processor as write_up_processor  # Make sure this module has process_mpi(uploaded_file)
 from pptx import Presentation
 from pptx.util import Inches
+from io import BytesIO  # ✅ Add this
 
 
 def run():
