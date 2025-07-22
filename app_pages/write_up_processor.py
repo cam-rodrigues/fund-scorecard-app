@@ -33,7 +33,6 @@ def process_mpi(uploaded_file):
 
     # Save to session state and display
     st.session_state["report_quarter"] = quarter
-    st.subheader("Step 1: Quarter Detected")
     st.write(f"Detected Date: **{date_str}**")
     st.write(f"Determined Quarter: **{quarter}**")
 
