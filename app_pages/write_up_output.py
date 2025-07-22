@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from app_pages.write_up_processor import write_up_processor
+import app_pages.write_up_processor as write_up_processor  # Make sure this module has process_mpi(uploaded_file)
 
 def run():
     st.set_page_config(page_title="IPS Summary Table", layout="wide")
