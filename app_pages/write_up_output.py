@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 import app_pages.write_up_processor as write_up_processor  # Make sure this module has process_mpi(uploaded_file)
+import streamlit as st
+import pandas as pd
+import app_pages.write_up_processor as write_up_processor  # Make sure this module has process_mpi(uploaded_file)
 
 def run():
     st.set_page_config(page_title="IPS Summary Table", layout="wide")
@@ -16,7 +19,6 @@ def run():
         st.session_state["suppress_criteria_display"] = True
         write_up_processor.process_mpi(uploaded_file)
         st.success("File processed.")
-
 
     # Load data
     ips_results = st.session_state.get("step8_results", [])
@@ -75,6 +77,8 @@ def run():
     metric_results = metric_results[:11] + ["N/A"] * (11 - len(metric_results))
 
     row = {
+        "Fund Name": selected_fund,
+        "Ticker": ticker,
         "Category": category,
         "Time Period": quarter,
         "Plan Assets": "$"
