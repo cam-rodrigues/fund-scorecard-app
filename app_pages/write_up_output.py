@@ -68,3 +68,36 @@ def run():
         """)
     else:
         st.warning("No factsheet data found for the selected fund.")
+
+
+    # === Section 2: View One Fund in Detail ===
+    st.subheader("View Individual Fund Summary")
+    fund_names = [res["Fund Name"] for res in ips_results]
+    selected_fund = st.selectbox("Select a Fund", fund_names)
+
+    selected_result = next((r for r in ips_results if r["Fund Name"] == selected_fund), None)
+    selected_facts = next((f for f in factsheet_data if f["Matched Fund Name"] == selected_fund), {})
+
+    if not selected_result:
+        st.error("Selected fund not found.")
+        return
+
+    category = selected_facts.get("Category", "N/A")
+    ticker = selected_facts.get("Matched Ticker", "N/A")
+    ips_status = selected_result["Overall IPS Status"]
+    metric_results = [m["Status"] if m["Status"] in ("Pass", "Review") else "N/A" for m in selected_result["IPS Metrics"]]
+    metric_results = metric_results[:11] + ["N/A"] * (11 - len(metric_results))
+
+    row = {
+        "Fund Name": selected_fund,
+        "Ticker": ticker,
+        "Category": category,
+        "Time Period": quarter,
+        "Plan Assets": "$"
+    }
+    for i in range(11):
+        row[str(i + 1)] = metric_results[i]
+    row["IPS Status"] = ips_status
+
+    df_one = pd.DataFrame([row])
+    st.dataframe(df_one, use_container_width=True)
