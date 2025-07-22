@@ -5,11 +5,7 @@ import pandas as pd
 from rapidfuzz import fuzz
 
 def process_mpi(uploaded_file):
-    st.set_page_config(page_title="Write-Up Info Tool", layout="wide")
-    st.title("Write-Up Info Tool")
-
-#--------------------------------------------------------------------------------------------
-
+    
 #--------------------------------------------------------------------------------------------
    
     # === Step 1: Page 1 ===
