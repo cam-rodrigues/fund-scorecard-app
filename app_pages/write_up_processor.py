@@ -112,14 +112,12 @@ def process_mpi(uploaded_file):
     st.session_state["fund_scorecard_table"] = metrics_df
 
     # Display Threshold Table
-    st.subheader("Step 3: Fund Scorecard Metrics Table")
     if not metrics_list:
         st.write("No metrics found under 'Criteria Threshold'.")
     else:
         st.dataframe(metrics_df, use_container_width=True)
 
     # === Step 3.5: Extract Investment Option Metrics into Separate Tables (Allow Incomplete Funds) ===
-  
 
     fund_blocks = []
     fund_status_pattern = re.compile(
@@ -173,8 +171,7 @@ def process_mpi(uploaded_file):
     st.session_state["fund_blocks"] = fund_blocks
 
 
-    # === Step 3.6: Double Check Fund Count ===
-    st.subheader("Step 3.6: Investment Option Count Check")
+    # === Step 3.6: Double Check Fund Count ==
 
     declared_total = st.session_state.get("total_options")
     actual_total = len(fund_blocks)
@@ -190,7 +187,6 @@ def process_mpi(uploaded_file):
 #--------------------------------------------------------------------------------------------
 
     # === Step 4: IPS Investment Criteria Definitions ===
-   
 
     IPS_CRITERIA = [
         {
@@ -266,7 +262,6 @@ def process_mpi(uploaded_file):
 
     
     # === Step 4.5: IPS Investment Criteria Screening ===
-    
 
     ips_criteria = [
         "Manager Tenure ≥ 3 years",
@@ -361,7 +356,6 @@ def process_mpi(uploaded_file):
 #-------------------------------------------------------------------------------------------
 
     # === Step 5: Fund Performance Section Navigation ===
-   
     
     toc_pages = st.session_state.get("toc_pages", {})
     fund_perf_pg = toc_pages.get("Fund Performance")
@@ -379,7 +373,6 @@ def process_mpi(uploaded_file):
 
     
     # === Step 5.5: Match Investment Option Names & Extract Tickers ===
-    
     
     # Pull fund names from Scorecard section
     fund_blocks = st.session_state.get("fund_blocks", [])
@@ -434,7 +427,6 @@ def process_mpi(uploaded_file):
 #-------------------------------------------------------------------------------------------
 
         # === Step 6: Fund Factsheets Section ===
-        
         
         factsheet_start = st.session_state.get("toc_pages", {}).get("Fund Factsheets")
         total_declared = st.session_state.get("total_options")
