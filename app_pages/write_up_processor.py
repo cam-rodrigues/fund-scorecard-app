@@ -113,8 +113,9 @@ def process_mpi(uploaded_file):
     # Display Threshold Table
     if not metrics_list:
         st.write("No metrics found under 'Criteria Threshold'.")
-    else:
+    elif not st.session_state.get("suppress_scorecard_table", False):
         st.dataframe(metrics_df, use_container_width=True)
+
 
     # === Step 3.5: Extract Investment Option Metrics into Separate Tables (Allow Incomplete Funds) ===
 
