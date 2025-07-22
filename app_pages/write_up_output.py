@@ -225,20 +225,20 @@ def run():
         
     # === Store the processed table so we can export it ===
     if "summary_df" not in st.session_state:
-        st.session_state["summary_df"] = df  # df is the final table showing all funds
+        st.session_state["summary_df"] = df_summary  # Use correct table variable name
     
     # === Export PowerPoint for Selected Fund ===
     st.markdown("---")
-    st.subheader("📤 Export Selected Fund to PowerPoint")
-    
+    st.subheader("Export Selected Fund to PowerPoint")
+
     if st.button("Export to PowerPoint"):
-        selected_fund = st.session_state.get("selected_fund") or fund_dropdown
+        selected_fund = selected_fund  # already defined above in dropdown
         
         if selected_fund and not st.session_state["summary_df"].empty:
             ppt = generate_watchlist_slide(st.session_state["summary_df"], selected_fund)
             output = BytesIO()
             ppt.save(output)
-    
+
             st.download_button(
                 label="Download PowerPoint File",
                 data=output.getvalue(),
@@ -247,3 +247,4 @@ def run():
             )
         else:
             st.warning("Please select a fund and ensure data is loaded.")
+
