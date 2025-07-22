@@ -73,8 +73,6 @@ def run():
     metric_results = metric_results[:11] + ["N/A"] * (11 - len(metric_results))
 
     row = {
-        "Fund Name": selected_fund,
-        "Ticker": ticker,
         "Category": category,
         "Time Period": quarter,
         "Plan Assets": "$"
