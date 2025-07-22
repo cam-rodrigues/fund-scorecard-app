@@ -523,13 +523,16 @@ def process_mpi(uploaded_file):
             st.dataframe(display_df, use_container_width=True)
 
         
+
             matched_count = sum(1 for row in matched_factsheets if row["Matched"] == "✅")
-            st.write(f"✅ Matched {matched_count} of {len(matched_factsheets)} factsheet pages.")
-        
-            if matched_count == total_declared:
-                st.success(f"✅ All {matched_count} funds matched the declared Total Options from Page 1.")
-            else:
-                st.error(f"❌ Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
+            
+            if not st.session_state.get("suppress_matching_confirmation", False):
+                st.write(f"Matched {matched_count} of {len(matched_factsheets)} factsheet pages.")
+            
+                if matched_count == total_declared:
+                    st.success(f"All {matched_count} funds matched the declared Total Options from Page 1.")
+                else:
+                    st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
 #-------------------------------------------------------------------------------------------
     
