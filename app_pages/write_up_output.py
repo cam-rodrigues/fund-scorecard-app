@@ -116,79 +116,110 @@ def run():
 
         
 
-    def generate_fund_summary_slide(row):
+
+    def generate_watchlist_slide(df, selected_fund):
         prs = Presentation()
-        slide = prs.slides.add_slide(prs.slide_layouts[5])  # blank layout
+        slide = prs.slides.add_slide(prs.slide_layouts[5])
     
-        # === Title: Investment Watchlist ===
+        # === Title ===
         title_shape = slide.shapes.title
         title_shape.text = "Investment Watchlist"
         title_run = title_shape.text_frame.paragraphs[0].runs[0]
         title_run.font.size = Pt(20)
         title_run.font.name = "HelveticaNeueLT Std Lt Ext"
-        title_run.font.color.rgb = RGBColor(0, 51, 102)  # Dark blue (Access 1)
+        title_run.font.color.rgb = RGBColor(0, 51, 102)  # Dark blue
     
-        # === Subheading: Fund Name (Cambria, 12pt, bold+underline) ===
-        left = Inches(0.5)
+        # === Subheading ===
         top = Inches(1.1)
-        width = Inches(9)
-        height = Inches(0.5)
-        subheading = slide.shapes.add_textbox(left, top, width, height)
-        text_frame = subheading.text_frame
-        p = text_frame.paragraphs[0]
+        subheading = slide.shapes.add_textbox(Inches(0.5), top, Inches(9), Inches(0.3))
+        tf = subheading.text_frame
+        p = tf.paragraphs[0]
         run = p.add_run()
-        run.text = row['Fund Name']
+        run.text = selected_fund
+        run.font.name = "Cambria"
+        run.font.size = Pt(12)
         run.font.bold = True
         run.font.underline = True
-        run.font.size = Pt(12)
-        run.font.name = "Cambria"
         run.font.color.rgb = RGBColor(0, 0, 0)
-        p.alignment = PP_ALIGN.LEFT
     
-        # === Table ===
-        rows = 2
+        # === Table Data ===
+        matching_rows = df[df["Fund Name"] == selected_fund]
+        rows = len(matching_rows)
         cols = 15
-        col_widths = [1.8, 1.1, 1.1] + [0.4]*11 + [1.0]  # Wider Category, smaller metrics
-        table_left = Inches(0.3)
-        table_top = Inches(1.8)
-        table_width = sum(col_widths)
-        table = slide.shapes.add_table(rows, cols, table_left, table_top, Inches(9), Inches(1.5)).table
+        col_widths = [1.8, 1.2, 1.0] + [0.4]*11 + [0.9]
     
-        # Set column widths
+        table_top = Inches(1.5)
+        table = slide.shapes.add_table(rows + 1, cols, Inches(0.3), table_top, Inches(9), Inches(0.8 + 0.25 * rows)).table
+    
+        headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
+    
+        # Set widths
         for i, width in enumerate(col_widths):
             table.columns[i].width = Inches(width)
     
-        headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
-        values = [
-            row.get("Category", "N/A"),
-            row.get("Time Period", "N/A"),
-            row.get("Plan Assets", "N/A"),
-        ] + [row.get(str(i), "N/A") for i in range(1, 12)] + [row.get("IPS Status", "N/A")]
-    
-        # Add headers
+        # Header
         for col_idx, header in enumerate(headers):
             cell = table.cell(0, col_idx)
             cell.text = header
             p = cell.text_frame.paragraphs[0]
-            p.font.size = Pt(10)
             p.font.bold = True
-            p.alignment = PP_ALIGN.CENTER
-    
-        # Add data
-        for col_idx, val in enumerate(values):
-            cell = table.cell(1, col_idx)
-            p = cell.text_frame.paragraphs[0]
             p.font.size = Pt(10)
             p.alignment = PP_ALIGN.CENTER
     
-            if val == "Pass":
-                p.text = "✔"
-                p.font.color.rgb = RGBColor(0, 176, 80)  # Green
-            elif val == "Review":
-                p.text = "✖"
-                p.font.color.rgb = RGBColor(255, 0, 0)    # Red
-            else:
-                p.text = val
+        # Data rows
+        for row_idx, (_, r) in enumerate(matching_rows.iterrows(), start=1):
+            row_vals = [
+                r.get("Category", ""),
+                r.get("Time Period", ""),
+                r.get("Plan Assets", ""),
+            ] + [r.get(str(i), "") for i in range(1, 12)] + [r.get("IPS Status", "")]
+    
+            for col_idx, val in enumerate(row_vals):
+                cell = table.cell(row_idx, col_idx)
+                p = cell.text_frame.paragraphs[0]
+                p.font.size = Pt(10)
+                p.alignment = PP_ALIGN.CENTER
+    
+                if val == "Pass":
+                    p.text = "✔"
+                    p.font.color.rgb = RGBColor(0, 176, 80)
+                elif val == "Review":
+                    p.text = "✖"
+                    p.font.color.rgb = RGBColor(255, 0, 0)
+                elif col_idx == 14 and val.startswith("FW"):
+                    # IPS Status Badge
+                    shape = slide.shapes.add_shape(
+                        autoshape_type_id=1,  # MSO_SHAPE.OVAL
+                        left=table.columns[col_idx].left + Inches(0.35),
+                        top=table_top + Inches(0.25 * row_idx),
+                        width=Inches(0.6),
+                        height=Inches(0.3),
+                    )
+                    shape.fill.solid()
+                    shape.fill.fore_color.rgb = RGBColor(192, 0, 0)
+                    shape.text = val
+                    tf = shape.text_frame
+                    tf.paragraphs[0].alignment = PP_ALIGN.CENTER
+                    run = tf.paragraphs[0].runs[0]
+                    run.font.size = Pt(10)
+                    run.font.bold = True
+                    run.font.color.rgb = RGBColor(255, 255, 255)
+                else:
+                    p.text = str(val)
+    
+        # === Optional: Footnotes / Commentary (placeholder) ===
+        note_top = table_top + Inches(0.25 * (rows + 1)) + Inches(0.2)
+        note_box = slide.shapes.add_textbox(Inches(0.5), note_top, Inches(8.5), Inches(1))
+        note_frame = note_box.text_frame
+        bullet1 = note_frame.add_paragraph()
+        bullet1.text = f"{selected_fund} underperformed its benchmark due to stock selection."
+        bullet1.level = 0
+        bullet1.font.size = Pt(10)
+    
+        bullet2 = note_frame.add_paragraph()
+        bullet2.text = "The fund’s results were impacted by market volatility and sector exposure."
+        bullet2.level = 0
+        bullet2.font.size = Pt(10)
     
         return prs
 
