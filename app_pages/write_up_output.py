@@ -242,7 +242,6 @@ def generate_watchlist_slide(df, selected_fund):
             tcPr.append(ln)
 
     def format_quarter(raw):
-    def format_quarter(raw):
         import re
         raw = str(raw).strip()
     
