@@ -151,7 +151,7 @@ st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', uns
 nav_button("Proposal Generator", "proposal_generator.py")
 nav_button("IPS Screening", "ips.py")
 nav_button("Write Up Table Output", "write_up_output.py")
-nav_button("Writeup Info", "write_up_info.py")
+nav_button("Writeup Info", "write_up_points.py")
 
 
 # === Page router ===
