@@ -228,7 +228,7 @@ def step4_ips_screen():
 def step5_extract_tickers(pdf):
     """
     Using performance_page and scorecard_page from session_state,
-    scans all pages in between to match each Investment Option
+    scans all pages between them to match each Investment Option
     by its first 7 words and extract the 3–6 char uppercase ticker.
     """
     perf_pg = st.session_state.get("performance_page")
@@ -237,7 +237,7 @@ def step5_extract_tickers(pdf):
     # get the list of fund names from step 3
     names = [b["Fund Name"] for b in st.session_state.get("fund_blocks", [])]
 
-    # prepare a dict with default “not found”
+    # default dict
     tickers = {n: "❌ not found" for n in names}
 
     # scan each page in the performance section
@@ -245,34 +245,30 @@ def step5_extract_tickers(pdf):
         lines = (p.extract_text() or "").splitlines()
         for idx, ln in enumerate(lines):
             for name in names:
-                # match first 7 words of name, case-insensitive
+                # match first 7 words (case-insensitive)
                 prefix = r"\s+".join(re.escape(w) for w in name.split()[:7])
                 if re.match(rf"^{prefix}", ln, re.IGNORECASE):
-                    # extract ticker on same or next line
                     m = re.search(r"\b([A-Z]{3,6})\b", ln)
                     if not m and idx + 1 < len(lines):
                         m = re.search(r"\b([A-Z]{3,6})\b", lines[idx + 1])
                     if m:
                         tickers[name] = m.group(1)
 
-    # display results
+    # display + validate
     st.session_state["tickers"] = tickers
-    st.subheader("Step 5: Extracted Tickers")
+    st.subheader("Step 5: Extracted Tickers")
     for n, t in tickers.items():
         st.write(f"- {n}: {t}")
 
-    # validate count
     total     = len(names)
     found_cnt = sum(1 for v in tickers.values() if v != "❌ not found")
-    st.subheader("Step 5.5: Ticker Count Validation")
+    st.subheader("Step 5.5: Ticker Count Validation")
     st.write(f"- Expected tickers: **{total}**")
     st.write(f"- Found tickers:    **{found_cnt}**")
     if found_cnt == total:
         st.success("✅ All tickers found.")
     else:
         st.error(f"❌ Missing {total - found_cnt} ticker(s).")
-
-
 
 # === Main App ===
 def run():
@@ -288,6 +284,7 @@ def run():
         # Step 2
         if len(pdf.pages) > 1:
             process_toc(pdf.pages[1].extract_text() or "")
+            
 
         # Steps 3 & 4 — run but hide their output
         sc_page    = st.session_state.get("scorecard_page")
@@ -308,3 +305,7 @@ def run():
             step5_process_performance(pdf, perf_page, fund_names)
         else:
             st.warning("Please complete Steps 1–3 (including TOC & Scorecard) first.")
+        if st.session_state.get("performance_page"):
+            step5_extract_tickers(pdf)
+        else:
+            st.warning("Please complete Steps 1–3 first.")
