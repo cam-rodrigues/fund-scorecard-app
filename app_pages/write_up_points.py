@@ -257,21 +257,41 @@ def step5_process_performance(pdf, start_page, fund_names):
 
 # === Main App ===
 def run():
-    st.title("MPI Tool — Steps 1 to 4")
+    st.title("MPI Tool — Steps 1 to 5")
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
+
     with pdfplumber.open(uploaded) as pdf:
+        # Step 1 & 1.5: Page 1 metadata
         process_page1(pdf.pages[0].extract_text() or "")
-        if len(pdf.pages)>1:
+
+        # Step 2: TOC
+        if len(pdf.pages) > 1:
             process_toc(pdf.pages[1].extract_text() or "")
-        sp = st.session_state.get("scorecard_page")
-        to = st.session_state.get("total_options")
-        if sp and to is not None:
-            step3_process_scorecard(pdf, sp, to)
+
+        # Steps 3 & 3.5–3.6: Scorecard extraction and count validation
+        sc_page = st.session_state.get("scorecard_page")
+        total_opts = st.session_state.get("total_options")
+        if sc_page and total_opts is not None:
+            step3_process_scorecard(pdf, sc_page, total_opts)
             step4_ips_screen()
         else:
             st.warning("Please complete Steps 1–3 first.")
+            return
+
+        # Step 5 & 5.5: Performance tickers
+        perf_page = st.session_state.get("performance_page")
+        fund_names = [b["Fund Name"] for b in st.session_state.get("fund_blocks", [])]
+        if perf_page and fund_names:
+            step5_process_performance(pdf, perf_page, fund_names)
+        else:
+            st.warning("Please complete Steps 1–3 (including TOC and Scorecard) to extract tickers.")
+
+# To launch:
+# if __name__ == "__main__":
+#     run()
+
 
 # if __name__=="__main__":
 #     run()
