@@ -230,15 +230,19 @@ def generate_watchlist_slide(df, selected_fund):
     def set_cell_border(cell, border_color=RGBColor(0, 0, 0)):
         tc = cell._tc
         tcPr = tc.get_or_add_tcPr()
+        r, g, b = border_color[0], border_color[1], border_color[2]
+        hex_color = "%02X%02X%02X" % (r, g, b)
+    
         for line in ["a:lnL", "a:lnR", "a:lnT", "a:lnB"]:
             ln = OxmlElement(line)
             ln.set("w", "12700")  # 1pt border width
             solidFill = OxmlElement("a:solidFill")
             srgbClr = OxmlElement("a:srgbClr")
-            srgbClr.set("val", "%02X%02X%02X" % (border_color.red, border_color.green, border_color.blue))
+            srgbClr.set("val", hex_color)
             solidFill.append(srgbClr)
             ln.append(solidFill)
             tcPr.append(ln)
+
 
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[5])
