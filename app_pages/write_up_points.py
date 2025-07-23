@@ -26,10 +26,13 @@ def process_page1(text):
         st.success(f"Quarter detected: {quarter}")
     else:
         st.error("Quarter not found on page 1.")
+
     opts = re.search(r"Total Options:\s*(\d+)", text or "")
     st.session_state["total_options"] = int(opts.group(1)) if opts else None
+
     pf = re.search(r"Prepared For:\s*\n(.*)", text or "")
     st.session_state["prepared_for"] = pf.group(1).strip() if pf else None
+
     pb = re.search(r"Prepared By:\s*\n(.*)", text or "")
     st.session_state["prepared_by"] = pb.group(1).strip() if pb else None
 
@@ -62,6 +65,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
             pages.append(txt)
         else:
             break
+
     lines = "\n".join(pages).splitlines()
 
     # Skip "Criteria Threshold"
@@ -108,8 +112,8 @@ def step3_process_scorecard(pdf, start_page, declared_total):
                 # Manager tenure bullet
                 st.write(f"- This manager/team has been managing this product for {info}.")
             else:
-                # Other metrics bullet
-                st.write(f"- {metric}: {info}")
+                # Other metrics bullet: show only the descriptive sentence
+                st.write(f"- {info}")
 
     # Step 3.6: Count validation
     st.subheader("Step 3.6: Investment Option Count")
