@@ -4,174 +4,158 @@ import pdfplumber
 import pandas as pd
 
 # === Utility: Extract Quarter from Date String ===
-def extract_quarter_label(date_text):
-    match = re.search(r'(\d{1,2})/(\d{1,2})/(20\d{2})', date_text)
-    if not match:
+def extract_quarter_label(text):
+    m = re.search(r'(\d{1,2})/(\d{1,2})/(20\d{2})', text)
+    if not m:
         return None
-    month, day, year = int(match.group(1)), int(match.group(2)), match.group(3)
+    month, day, year = int(m.group(1)), int(m.group(2)), m.group(3)
     if month == 3 and day == 31:
         return f"1st QTR, {year}"
-    elif month == 6:
+    if month == 6:
         return f"2nd QTR, {year}"
-    elif month == 9 and day == 30:
+    if month == 9 and day == 30:
         return f"3rd QTR, {year}"
-    elif month == 12 and day == 31:
+    if month == 12 and day == 31:
         return f"4th QTR, {year}"
+    return f"Unknown ({m.group(0)})"
+
+# === Step 1 & 1.5: Page 1 Extraction ===
+def process_page1(text):
+    # Quarter
+    q = extract_quarter_label(text or "")
+    if q:
+        st.session_state.quarter = q
+        st.success(f"Quarter detected: {q}")
     else:
-        return f"Unknown Quarter ({match.group(0)})"
+        st.error("Quarter not found on page 1.")
 
-# === Step 1: Extract Quarter ===
-def step1_extract_quarter(first_page_text):
-    quarter_label = extract_quarter_label(first_page_text or "")
-    if quarter_label:
-        st.session_state["quarter_label"] = quarter_label
-        st.success(f"Detected Quarter: {quarter_label}")
-    else:
-        st.error("Could not determine the reporting quarter from the first page.")
+    # Total Options, Prepared For, Prepared By
+    opts = re.search(r"Total Options:\s*(\d+)", text or "")
+    st.session_state.total_options = int(opts.group(1)) if opts else None
 
-# === Step 1.5: Extract Page 1 Metadata ===
-def step1_5_metadata(first_page_text):
-    options_match = re.search(r"Total Options:\s*(\d+)", first_page_text or "")
-    total_options = int(options_match.group(1)) if options_match else None
-    prepared_for_match = re.search(r"Prepared For:\s*\n(.*)", first_page_text or "")
-    prepared_by_match = re.search(r"Prepared By:\s*\n(.*)", first_page_text or "")
-    prepared_for = prepared_for_match.group(1).strip() if prepared_for_match else None
-    prepared_by = prepared_by_match.group(1).strip() if prepared_by_match else None
+    pf = re.search(r"Prepared For:\s*\n(.*)", text or "")
+    st.session_state.prepared_for = pf.group(1).strip() if pf else None
 
-    st.session_state["total_options"] = total_options
-    st.session_state["prepared_for"] = prepared_for
-    st.session_state["prepared_by"] = prepared_by
+    pb = re.search(r"Prepared By:\s*\n(.*)", text or "")
+    st.session_state.prepared_by = pb.group(1).strip() if pb else None
 
-    st.subheader("Extracted Info from Page 1")
-    st.write(f"**Total Options:** {total_options if total_options is not None else 'Not found'}")
-    st.write(f"**Prepared For:** {prepared_for or 'Not found'}")
-    st.write(f"**Prepared By:** {prepared_by or 'Not found'}")
+    st.subheader("Page 1 Metadata")
+    st.write(f"- Total Options: {st.session_state.total_options}")
+    st.write(f"- Prepared For: {st.session_state.prepared_for}")
+    st.write(f"- Prepared By: {st.session_state.prepared_by}")
 
-# === Step 2: Extract TOC Pages ===
-def step2_extract_toc(page2_text):
+# === Step 2: TOC Extraction ===
+def process_toc(text):
     patterns = {
         "performance_page": r"Fund Performance: Current vs\. Proposed Comparison\s+(\d+)",
         "scorecard_page":   r"Fund Scorecard\s+(\d+)",
         "factsheets_page":  r"Fund Factsheets\s+(\d+)"
     }
-    st.subheader("Extracted Section Start Pages")
-    for key, pattern in patterns.items():
-        match = re.search(pattern, page2_text)
-        page_number = int(match.group(1)) if match else None
-        st.session_state[key] = page_number
-        st.write(f"**{key.replace('_', ' ').title()}:** {page_number or 'Not found'}")
+    st.subheader("Table of Contents Pages")
+    for key, pat in patterns.items():
+        m = re.search(pat, text or "")
+        num = int(m.group(1)) if m else None
+        st.session_state[key] = num
+        st.write(f"- {key.replace('_',' ').title()}: {num}")
 
-# === Step 3: Extract Fund Scorecard + Steps 3.5–3.7 ===
-def step3_scorecard_section(pdf, scorecard_start, declared_total):
-    # Gather all scorecard pages
-    scorecard_pages = []
-    for page in pdf.pages[scorecard_start - 1:]:
-        text = page.extract_text() or ""
-        if "Fund Scorecard" in text:
-            scorecard_pages.append(text)
+# === Step 3 & 3.5–3.7: Scorecard Metrics & Numbers ===
+def process_scorecard(pdf, start_page, declared_total):
+    # collect pages
+    pages = []
+    for p in pdf.pages[start_page-1:]:
+        txt = p.extract_text() or ""
+        if "Fund Scorecard" in txt:
+            pages.append(txt)
         else:
             break
+    text = "\n".join(pages)
+    lines = text.splitlines()
 
-    full_text = "\n".join(scorecard_pages)
-    lines = full_text.splitlines()
-
-    # Skip "Criteria Threshold" section
-    idx = next((i for i, line in enumerate(lines) if "Criteria Threshold" in line), None)
+    # skip criteria box
+    idx = next((i for i,l in enumerate(lines) if "Criteria Threshold" in l), None)
     if idx is not None:
-        lines = lines[idx + 1:]
+        lines = lines[idx+1:]
 
-    # Extract each fund block of 14 metrics
-    fund_blocks = []
-    current_fund = None
-    current_metrics = []
-    capturing = False
-
-    for i, line in enumerate(lines):
-        if "Manager Tenure" in line:
-            # The fund name is the line above
-            title = lines[i - 1].strip()
+    # parse blocks
+    blocks = []
+    current, metrics, capturing = None, [], False
+    for i,l in enumerate(lines):
+        if "Manager Tenure" in l:
+            title = lines[i-1].strip()
             name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", title).strip()
-            if current_fund and current_metrics:
-                fund_blocks.append({"Fund Name": current_fund, "Metrics": current_metrics})
-            current_fund = name
-            current_metrics = []
-            capturing = True
+            if current and metrics:
+                blocks.append({"Fund Name": current, "Metrics": metrics})
+            current, metrics, capturing = name, [], True
         elif capturing:
-            if not line.strip() or "Fund Scorecard" in line:
+            if not l.strip() or "Fund Scorecard" in l:
                 continue
-            if len(current_metrics) >= 14:
+            if len(metrics)>=14:
                 capturing = False
                 continue
-            m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
+            m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", l.strip())
             if m:
-                metric, status, info = m.groups()
-                current_metrics.append({"Metric": metric, "Status": status, "Info": info})
-    # Append the last fund
-    if current_fund and current_metrics:
-        fund_blocks.append({"Fund Name": current_fund, "Metrics": current_metrics})
+                met, stat, info = m.groups()
+                metrics.append({"Metric": met, "Status": stat, "Info": info})
+    if current and metrics:
+        blocks.append({"Fund Name": current, "Metrics": metrics})
 
-    st.session_state["fund_blocks"] = fund_blocks
+    st.session_state.fund_blocks = blocks
 
-    # Instead of tables, extract and display only the "Info" from each metric
-    st.subheader("Step 3.5: Extracted Metric Info")
-    for block in fund_blocks:
-        st.markdown(f"### {block['Fund Name']}")
-        infos = [m["Info"] for m in block["Metrics"]]
-        for info in infos:
-            st.write(f"- {info}")
+    # show only Info lines
+    st.subheader("Step 3.5: Metric Info")
+    for b in blocks:
+        st.markdown(f"**{b['Fund Name']}**")
+        for m in b["Metrics"]:
+            st.write(f"- {m['Info']}")
 
-    # Step 3.6: Validate count
-    st.subheader("Step 3.6: Validate Investment Option Count")
-    extracted_count = len(fund_blocks)
-    st.write(f"**Declared (Page 1):** {declared_total}  |  **Extracted:** {extracted_count}")
-    if extracted_count == declared_total:
-        st.success("✅ Counts match.")
+    # Step 3.6: count
+    st.subheader("Step 3.6: Count Validation")
+    cnt = len(blocks)
+    st.write(f"- Declared: {declared_total}, Extracted: {cnt}")
+    if cnt==declared_total:
+        st.success("Counts match.")
     else:
-        st.error(f"❌ Count mismatch: expected {declared_total}, found {extracted_count}.")
+        st.error("Count mismatch.")
 
-    # Step 3.7: Extract numbers from metric info
-    st.subheader("Step 3.7: Numbers Found in Metric Details")
-    for block in fund_blocks:
-        st.markdown(f"#### {block['Fund Name']} — Numbers")
-        nums = []
-        for m in block["Metrics"]:
-            nums.extend(re.findall(r"[-+]?\d*\.\d+|\d+", m["Info"]))
-        st.write(", ".join(nums) if nums else "No numbers found.")
+    # Step 3.7: numbers
+    st.subheader("Step 3.7: Numbers Extracted")
+    for b in blocks:
+        nums=[]
+        for m in b["Metrics"]:
+            nums+=re.findall(r"[-+]?\d*\.\d+|\d+", m["Info"])
+        st.markdown(f"**{b['Fund Name']}**: " + (", ".join(nums) if nums else "No numbers"))
 
-# === Master Run Function ===
+# === Main ===
 def run():
-    st.set_page_config(page_title="MPI Tool (Steps 1–3.7)", layout="wide")
-    st.title("MPI Processing Tool — Steps 1 to 3.7")
-
+    st.title("MPI Tool (Steps 1–3.7)")
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
 
     with pdfplumber.open(uploaded) as pdf:
-        # Step 1 & 1.5 (Page 1)
-        first_text = pdf.pages[0].extract_text() or ""
-        with st.expander("Page 1 Text"):
-            st.text(first_text)
-        step1_extract_quarter(first_text)
-        step1_5_metadata(first_text)
+        # Step 1 & 1.5
+        page1 = pdf.pages[0].extract_text() or ""
+        with st.expander("Page 1 Text"):
+            st.text(page1)
+        process_page1(page1)
 
-        # Step 2 (TOC on Page 2)
-        if len(pdf.pages) > 1:
-            toc_text = pdf.pages[1].extract_text() or ""
-            with st.expander("Page 2 (TOC)"):
-                st.text(toc_text)
-            step2_extract_toc(toc_text)
+        # Step 2
+        if len(pdf.pages)>1:
+            toc = pdf.pages[1].extract_text() or ""
+            with st.expander("Page 2 (TOC)"):
+                st.text(toc)
+            process_toc(toc)
         else:
-            st.warning("PDF has no second page for TOC.")
+            st.warning("No TOC page.")
 
-        # Step 3
-        sc_page = st.session_state.get("scorecard_page")
-        total_opts = st.session_state.get("total_options")
-        if sc_page and total_opts is not None:
-            step3_scorecard_section(pdf, sc_page, total_opts)
+        # Step 3
+        sp = st.session_state.get("scorecard_page")
+        to = st.session_state.get("total_options")
+        if sp and to is not None:
+            process_scorecard(pdf, sp, to)
         else:
-            st.warning("Missing TOC-extracted scorecard page or total options; please complete Steps 1–2.")
+            st.warning("Run Steps 1–2 first.")
 
-# Uncomment to run directly with Streamlit
-# if __name__ == "__main__":
+# To run in Streamlit:
+# if __name__=="__main__":
 #     run()
