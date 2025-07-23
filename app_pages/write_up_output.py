@@ -214,18 +214,16 @@ def generate_watchlist_slide(df, selected_fund):
 
     return prs
 
-        
-    # === Store the processed table so we can export it ===
+
+
+    # Inside run() — DO NOT INDENT FURTHER
     if "summary_df" not in st.session_state:
-        st.session_state["summary_df"] = df_summary  # Use correct table variable name
-    
-    # === Export PowerPoint for Selected Fund ===
+        st.session_state["summary_df"] = df_summary
+
     st.markdown("---")
     st.subheader("Export Selected Fund to PowerPoint")
 
     if st.button("Export to PowerPoint"):
-        selected_fund = selected_fund  # already defined above in dropdown
-        
         if selected_fund and not st.session_state["summary_df"].empty:
             ppt = generate_watchlist_slide(st.session_state["summary_df"], selected_fund)
             output = BytesIO()
