@@ -18,7 +18,7 @@ def extract_quarter_label(text):
         return f"4th QTR, {year}"
     return f"Unknown ({m.group(0)})"
 
-# === Step 1 & 1.5: Page 1 Extraction ===
+# === Step 1 & 1.5: Page 1 Extraction ===
 def process_page1(text):
     quarter = extract_quarter_label(text)
     if quarter:
@@ -41,7 +41,7 @@ def process_page1(text):
     st.write(f"- Prepared For: {st.session_state['prepared_for']}")
     st.write(f"- Prepared By: {st.session_state['prepared_by']}")
 
-# === Step 2: TOC Extraction ===
+# === Step 2: TOC Extraction ===
 def process_toc(text):
     patterns = {
         "performance_page": r"Fund Performance: Current vs\. Proposed Comparison\s+(\d+)",
@@ -55,7 +55,7 @@ def process_toc(text):
         st.session_state[key] = num
         st.write(f"- {key.replace('_',' ').title()}: {num}")
 
-# === Step 3: Extract & Display Key Numbers + Count Validation ===
+# === Step 3: Extract & Display Key Numbers + Count Validation ===
 def step3_process_scorecard(pdf, start_page, declared_total):
     # Collect "Fund Scorecard" pages
     pages = []
@@ -76,7 +76,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     fund_blocks = []
     curr_name = None
     curr_metrics = []
-    capturing = False
+    capture = False
 
     for i, line in enumerate(lines):
         if "Manager Tenure" in line:
@@ -84,12 +84,12 @@ def step3_process_scorecard(pdf, start_page, declared_total):
             name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", title).strip()
             if curr_name and curr_metrics:
                 fund_blocks.append({"Fund Name": curr_name, "Metrics": curr_metrics})
-            curr_name, curr_metrics, capturing = name, [], True
-        elif capturing:
+            curr_name, curr_metrics, capture = name, [], True
+        elif capture:
             if not line.strip() or "Fund Scorecard" in line:
                 continue
             if len(curr_metrics) >= 14:
-                capturing = False
+                capture = False
                 continue
             m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
             if m:
@@ -100,23 +100,36 @@ def step3_process_scorecard(pdf, start_page, declared_total):
 
     st.session_state["fund_blocks"] = fund_blocks
 
-    # Step 3.5: Show key numbers and performance phrases
-    st.subheader("Step 3.5: Key Numbers & Performance Notes")
+    # Step 3.5: Show key numbers and performance notes
+    st.subheader("Step 3.5: Key Numbers & Notes")
     for b in fund_blocks:
         st.markdown(f"### {b['Fund Name']}")
         for m in b["Metrics"]:
             info = m["Info"]
-            # extract numbers (years, percentages, ranks)
+            # extract numbers (years, %, ranks)
             nums = re.findall(r"[-+]?\d*\.\d+%?|\d+%?", info)
             nums_str = ", ".join(nums) if nums else "—"
-            # find performance keywords
-            perf_note = ""
-            perf_match = re.search(r"\b(outperform|underperform)\w*\b.*?(\d+\.?\d+%?)", info, flags=re.IGNORECASE)
-            if perf_match:
-                perf_note = perf_match.group(0)
-            st.write(f"- **{m['Metric']}**: {nums_str}" + (f"; {perf_note}" if perf_note else ""))
+            # performance keywords
+            perf_match = re.search(
+                r"\b(outperform|underperform)\b.*?(\d+\.?\d+%?)",
+                info, flags=re.IGNORECASE
+            )
+            perf_note = perf_match.group(0) if perf_match else ""
+            # manager tenure phrases
+            tenure_notes = []
+            for phrase in ["within its Peer Group", "Percentile rank", "Rank", "as calculated against its benchmark"]:
+                if phrase.lower() in info.lower():
+                    tenure_notes.append(phrase)
+            tenure_str = "; ".join(tenure_notes)
 
-    # Step 3.6: count validation
+            line = f"- **{m['Metric']}**: {nums_str}"
+            if perf_note:
+                line += f"; {perf_note}"
+            if m["Metric"] == "Manager Tenure" and tenure_str:
+                line += f"; {tenure_str}"
+            st.write(line)
+
+    # Step 3.6: Count validation
     st.subheader("Step 3.6: Investment Option Count")
     count = len(fund_blocks)
     st.write(f"- Declared: **{declared_total}**")
@@ -157,6 +170,6 @@ def run():
         else:
             st.warning("Please complete Steps 1–2 first.")
 
-# Uncomment to run with Streamlit
+# To run with Streamlit:
 # if __name__ == "__main__":
 #     run()
