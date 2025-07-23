@@ -225,64 +225,52 @@ def step4_ips_screen():
 
 
 # === Step 5: Fund Performance Section Extraction (with fallback) ===
-def step5_process_performance(pdf, start_page, fund_names):
-    # figure out where the section ends
-    end_page = st.session_state.get("factsheets_page") or (len(pdf.pages) + 1)
+def step5_process_performance(pdf, perf_page, fund_names):
+    """
+    Scans all pages of the "Fund Performance: Current vs. Proposed Comparison"
+    section, extracts tickers and performance lines, and matches them back to fund_names.
+    """
+    # 1) Gather all performance pages into one text blob
+    pages = []
+    for p in range(perf_page, len(pdf.pages)):
+        text = pdf.pages[p].extract_text() or ""
+        # stop when we reach the next section header
+        if "Fund Scorecard" in text:
+            break
+        pages.append(text)
+    perf_text = "\n".join(pages)
 
-    # gather all lines and the raw text
-    all_lines = []
-    perf_text = ""
-    for p in pdf.pages[start_page-1 : end_page-1]:
-        txt = p.extract_text() or ""
-        perf_text += txt + "\n"
-        all_lines.extend(txt.splitlines())
+    # 2) Split into lines and try to pull out "Name   TICKR" pairs
+    lines = perf_text.split("\n")
+    matches = {}
+    for ln in lines:
+        # first pass: Name + 1–5 letter ticker at end of line
+        m = re.match(r"(.+?)\s+([A-Z]{1,5})$", ln.strip())
+        if m:
+            name, tk = m.groups()
+            matches[name.strip()] = tk
+    # fallback: grab ANY 1–5 uppercase word on the page
+    if not matches:
+        all_tks = re.findall(r"\b([A-Z]{1,5})\b", perf_text)
+        for tk in set(all_tks):
+            # you may want to associate with a nearby name—but this at least gets you the universe of tickers
+            matches[tk] = tk
 
-    # first pass: normalized line→ticker
-    mapping = {}
-    for ln in all_lines:
-        m = re.match(r"(.+?)\s+([A-Z]{5})$", ln.strip())
-        if not m:
-            continue
-        raw_name, ticker = m.groups()
-        norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
-        mapping[norm] = ticker
-
-    # try matching each fund by normalized prefix
-    tickers = {}
-    for name in fund_names:
-        norm_expected = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
-        found = next((t for raw, t in mapping.items() if raw.startswith(norm_expected)), None)
-        tickers[name] = found
-
-    # if too few, fallback to ordered scrape
-    total = len(fund_names)
-    found_count = sum(1 for t in tickers.values() if t)
-    if found_count < total:
-        # extract all unique 5‑letter tickers in order
-        all_tks = re.findall(r'\b([A-Z]{5})\b', perf_text)
-        seen = []
-        for tk in all_tks:
-            if tk not in seen:
-                seen.append(tk)
-        # zip against fund_names
-        tickers = { name: seen[i] if i < len(seen) else None
-                    for i,name in enumerate(fund_names) }
-
-    # store & display
-    st.session_state["tickers"] = tickers
-    st.subheader("Step 5: Extracted Tickers")
-    for n, t in tickers.items():
-        st.write(f"- {n}: {t or '❌ not found'}")
-
-    # validation
-    st.subheader("Step 5.5: Ticker Count Validation")
-    found_count = sum(1 for t in tickers.values() if t)
-    st.write(f"- Expected tickers: **{total}**")
-    st.write(f"- Found tickers:    **{found_count}**")
-    if found_count == total:
-        st.success("✅ All tickers found.")
+    # 3) Report back to Streamlit
+    found = []
+    missing = []
+    for fn in fund_names:
+        tk = matches.get(fn)
+        if tk:
+            found.append(f"{fn} → {tk}")
+        else:
+            missing.append(fn)
+    st.subheader("Step 5: Performance & Ticker Extraction")
+    st.write("\n".join(found) or "_No tickers found_")
+    if missing:
+        st.error(f"❌ Missing {len(missing)} ticker(s):\n" + "\n".join(missing))
     else:
-        st.error(f"❌ Missing {total - found_count} ticker(s).")
+        st.success("✅ All tickers matched!")
 
 
 # === Main App ===
@@ -320,7 +308,4 @@ def run():
             step5_process_performance(pdf, perf_page, fund_names)
         else:
             st.warning("Please complete Steps 1–3 (including TOC & Scorecard) first.")
-        if st.session_state.get("performance_page"):
-            step5_extract_tickers(pdf)
-        else:
-            st.warning("Please complete Steps 1–3 first.")
+
