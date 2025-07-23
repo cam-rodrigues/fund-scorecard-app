@@ -169,3 +169,35 @@ def run():
             step3_scorecard_section(pdf, scorecard_page, declared_total)
         else:
             st.warning("Missing scorecard page number or total options. Run previous steps first.")
+
+
+# === Step 4: IPS Investment Criteria Screening ===
+def step4_display_ips_criteria():
+    st.header("Step 4: IPS Investment Criteria Screening")
+
+    ips_criteria = [
+        "Manager Tenure ≥ 3 years",
+        "*3-Year Performance > Benchmark / +3-Year R² > 95%",
+        "3-Year Performance > 50% of Peers",
+        "3-Year Sharpe Ratio > 50% of Peers",
+        "*3-Year Sortino Ratio > 50% of Peers / +3-Year Tracking Error < 90% of Peers",
+        "*5-Year Performance > Benchmark / +5-Year R² > 95%",
+        "5-Year Performance > 50% of Peers",
+        "5-Year Sharpe Ratio > 50% of Peers",
+        "*5-Year Sortino Ratio > 50% of Peers / +5-Year Tracking Error < 90% of Peers",
+        "Expense Ratio < 50% of Peers",
+        "Investment Style aligns with fund objectives"
+    ]
+
+    st.markdown("### IPS Investment Criteria")
+    for i, crit in enumerate(ips_criteria, 1):
+        st.write(f"{i}. {crit}")
+
+    st.markdown("""
+    **Note:**  
+    - Metrics marked with `*` are used for **Active** funds.  
+    - Metrics marked with `+` are used for **Passive** funds.  
+    - All other metrics apply to **both** Active and Passive funds.
+    """)
+
+    st.session_state["ips_criteria"] = ips_criteria
