@@ -9,7 +9,7 @@ from io import BytesIO
 from pptx.enum.text import PP_ALIGN
 from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
 from pptx.oxml.xmlchemy import OxmlElement
-from pptx.enum.table import WD_ALIGN_VERTICAL  # ✅ Correct
+from pptx.enum.text import MSO_VERTICAL_ANCHOR
 
 
 def run():
@@ -225,7 +225,7 @@ def generate_watchlist_slide(df, selected_fund):
     from pptx.enum.text import PP_ALIGN
     from pptx.dml.color import RGBColor
     from pptx.oxml.xmlchemy import OxmlElement
-    from pptx.enum.table import WD_ALIGN_VERTICAL 
+    from pptx.enum.text import MSO_VERTICAL_ANCHOR
 
     def set_cell_border(cell, border_color=RGBColor(0, 0, 0)):
         tc = cell._tc
@@ -288,7 +288,7 @@ def generate_watchlist_slide(df, selected_fund):
         cell.fill.solid()
         cell.fill.fore_color.rgb = RGBColor(255, 255, 255)  # force white
 
-        cell.text_frame.vertical_anchor = WD_ALIGN_VERTICAL.CENTER
+        cell.text_frame.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
         
         p = cell.text_frame.paragraphs[0]
         p.font.name = "Cambria"
