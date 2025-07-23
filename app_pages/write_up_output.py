@@ -294,21 +294,23 @@ def generate_watchlist_slide(df, selected_fund):
                 p.text = "✖"
                 p.font.color.rgb = RGBColor(255, 0, 0)  # Red
             elif col_idx == 14:
-                # Clear text for IPS badge
                 p.text = ""
-
+            
                 badge_text = "FW" if str(val).upper().startswith("FW") else "IW"
+                badge_left = Inches(0.3) + sum(Inches(w) for w in col_widths[:col_idx]) + Inches(0.15)
+                badge_top = table_top + Inches(0.25 * row_idx)
+            
                 shape = slide.shapes.add_shape(
                     MSO_SHAPE.OVAL,
-                    left=table.columns[col_idx].left + Inches(0.15),
-                    top=table_top + Inches(0.25 * row_idx),
+                    left=badge_left,
+                    top=badge_top,
                     width=Inches(0.6),
                     height=Inches(0.3),
                 )
                 shape.fill.solid()
                 shape.fill.fore_color.rgb = RGBColor(192, 0, 0)
                 shape.line.color.rgb = RGBColor(255, 255, 255)
-
+            
                 tf = shape.text_frame
                 tf.clear()
                 para = tf.paragraphs[0]
@@ -318,8 +320,7 @@ def generate_watchlist_slide(df, selected_fund):
                 run.font.bold = True
                 run.font.size = Pt(10)
                 run.font.color.rgb = RGBColor(255, 255, 255)
-            else:
-                p.text = str(val)
+
 
     return prs
 
