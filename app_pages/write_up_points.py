@@ -212,65 +212,46 @@ def step4_ips_screen():
             sym = "✅" if statuses.get(m,False) else "❌"
             st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
 
-# === Step 5: Fund Performance Section Extraction (with fallback) ===
+# === Step 5: Fund Performance Section Extraction (exact name match) ===
 def step5_process_performance(pdf, start_page, fund_names):
-    # figure out where the section ends
+    # Determine end of the Perf section from TOC
     end_page = st.session_state.get("factsheets_page") or (len(pdf.pages) + 1)
 
-    # gather all lines and the raw text
+    # Gather all lines from pages [start_page-1 .. end_page-2]
     all_lines = []
-    perf_text = ""
     for p in pdf.pages[start_page-1 : end_page-1]:
         txt = p.extract_text() or ""
-        perf_text += txt + "\n"
         all_lines.extend(txt.splitlines())
 
-    # first pass: normalized line→ticker
-    mapping = {}
-    for ln in all_lines:
-        m = re.match(r"(.+?)\s+([A-Z]{5})$", ln.strip())
-        if not m:
-            continue
-        raw_name, ticker = m.groups()
-        norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
-        mapping[norm] = ticker
-
-    # try matching each fund by normalized prefix
     tickers = {}
     for name in fund_names:
-        norm_expected = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
-        found = next((t for raw, t in mapping.items() if raw.startswith(norm_expected)), None)
+        # Build a regex that matches the fund name at the start (allowing for minor spacing) 
+        # then captures the next 4–5 uppercase letters as the ticker.
+        pat = re.compile(rf"^\s*{re.escape(name)}\s+([A-Z]{{4,5}})\b")
+        found = None
+        for ln in all_lines:
+            m = pat.match(ln)
+            if m:
+                found = m.group(1)
+                break
         tickers[name] = found
 
-    # if too few, fallback to ordered scrape
-    total = len(fund_names)
-    found_count = sum(1 for t in tickers.values() if t)
-    if found_count < total:
-        # extract all unique 5‑letter tickers in order
-        all_tks = re.findall(r'\b([A-Z]{5})\b', perf_text)
-        seen = []
-        for tk in all_tks:
-            if tk not in seen:
-                seen.append(tk)
-        # zip against fund_names
-        tickers = { name: seen[i] if i < len(seen) else None
-                    for i,name in enumerate(fund_names) }
-
-    # store & display
+    # Save & Display
     st.session_state["tickers"] = tickers
     st.subheader("Step 5: Extracted Tickers")
     for n, t in tickers.items():
         st.write(f"- {n}: {t or '❌ not found'}")
 
-    # validation
+    # Validation
+    total     = len(fund_names)
+    found_cnt = sum(1 for t in tickers.values() if t)
     st.subheader("Step 5.5: Ticker Count Validation")
-    found_count = sum(1 for t in tickers.values() if t)
     st.write(f"- Expected tickers: **{total}**")
-    st.write(f"- Found tickers:    **{found_count}**")
-    if found_count == total:
+    st.write(f"- Found tickers:    **{found_cnt}**")
+    if found_cnt == total:
         st.success("✅ All tickers found.")
     else:
-        st.error(f"❌ Missing {total - found_count} ticker(s).")
+        st.error(f"❌ Missing {total - found_cnt} ticker(s).")
 
 # === Main App ===
 def run():
