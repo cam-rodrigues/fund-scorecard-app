@@ -60,3 +60,43 @@ def run():
     else:
         st.error("Could not determine the reporting quarter from the first page.")
 
+# === Step 1.5: Extract Total Options, Client Name, Prepared By ===
+
+def run():
+    st.set_page_config(page_title="Step 1.5: MPI Metadata", layout="wide")
+    st.title("Step 1.5: Extract Metadata from Page 1")
+
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="upload_step15")
+    if not uploaded_file:
+        st.stop()
+
+    with pdfplumber.open(uploaded_file) as pdf:
+        first_page_text = pdf.pages[0].extract_text()
+
+    # Display first page text (optional)
+    with st.expander("First Page Text Preview"):
+        st.text(first_page_text)
+
+    # Extract Total Options
+    options_match = re.search(r"Total Options:\s*(\d+)", first_page_text or "")
+    total_options = int(options_match.group(1)) if options_match else None
+
+    # Extract "Prepared For"
+    prepared_for_match = re.search(r"Prepared For:\s*\n(.*)", first_page_text or "")
+    prepared_for = prepared_for_match.group(1).strip() if prepared_for_match else None
+
+    # Extract "Prepared By"
+    prepared_by_match = re.search(r"Prepared By:\s*\n(.*)", first_page_text or "")
+    prepared_by = prepared_by_match.group(1).strip() if prepared_by_match else None
+
+    # Save to session state
+    st.session_state["total_options"] = total_options
+    st.session_state["prepared_for"] = prepared_for
+    st.session_state["prepared_by"] = prepared_by
+
+    # Display results
+    st.subheader("Extracted Info")
+    st.write(f"**Total Options:** {total_options if total_options is not None else 'Not found'}")
+    st.write(f"**Prepared For:** {prepared_for or 'Not found'}")
+    st.write(f"**Prepared By:** {prepared_by or 'Not found'}")
+
