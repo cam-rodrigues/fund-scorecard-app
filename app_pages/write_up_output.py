@@ -10,7 +10,7 @@ from pptx.enum.text import PP_ALIGN
 from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
 from pptx.oxml.xmlchemy import OxmlElement
 from pptx.enum.text import MSO_VERTICAL_ANCHOR
-
+from pptx.util import Inches
 
 def run():
     st.set_page_config(page_title="IPS Summary Table", layout="wide")
@@ -225,6 +225,7 @@ def generate_watchlist_slide(df, selected_fund):
     from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     from pptx.dml.color import RGBColor
     from pptx.oxml.xmlchemy import OxmlElement
+    from pptx.util import Inches
 
     def set_cell_border(cell, border_color=RGBColor(0, 0, 0)):
         tc = cell._tc
@@ -258,13 +259,16 @@ def generate_watchlist_slide(df, selected_fund):
     blank_slide_layout = prs.slide_layouts[6]  # Layout 6 is typically a blank slide
     slide = prs.slides.add_slide(blank_slide_layout)
 
-    # Add Procyon logo in upper-left corner
+    # Add Procyon logo in upper-right corner
     logo_path = "assets/procyon_logo.png"
-    logo_left = Inches(0.3)
+    logo_width = Inches(1.25)  # Smaller, proportionate size
+    
+    # Position it ~9.0 inches from left (slide is ~10" wide), minus logo width
+    logo_left = Inches(9.0 - 1.25)
     logo_top = Inches(0.2)
-    logo_width = Inches(1.5)  # Adjust width if needed
     
     slide.shapes.add_picture(logo_path, logo_left, logo_top, width=logo_width)
+
 
 
     # Manually add left-aligned title textbox to match subheading
