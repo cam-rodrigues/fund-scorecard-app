@@ -26,13 +26,10 @@ def process_page1(text):
         st.success(f"Detected Quarter: {quarter}")
     else:
         st.error("Could not detect quarter on page 1.")
-
     opts = re.search(r"Total Options:\s*(\d+)", text or "")
     st.session_state["total_options"] = int(opts.group(1)) if opts else None
-
     pf = re.search(r"Prepared For:\s*\n(.*)", text or "")
     st.session_state["prepared_for"] = pf.group(1).strip() if pf else None
-
     pb = re.search(r"Prepared By:\s*\n(.*)", text or "")
     st.session_state["prepared_by"] = pb.group(1).strip() if pb else None
 
@@ -76,7 +73,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     fund_blocks = []
     curr_name = None
     curr_metrics = []
-    capture = False
+    capturing = False
 
     for i, line in enumerate(lines):
         if "Manager Tenure" in line:
@@ -84,12 +81,12 @@ def step3_process_scorecard(pdf, start_page, declared_total):
             name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", title).strip()
             if curr_name and curr_metrics:
                 fund_blocks.append({"Fund Name": curr_name, "Metrics": curr_metrics})
-            curr_name, curr_metrics, capture = name, [], True
-        elif capture:
+            curr_name, curr_metrics, capturing = name, [], True
+        elif capturing:
             if not line.strip() or "Fund Scorecard" in line:
                 continue
             if len(curr_metrics) >= 14:
-                capture = False
+                capturing = False
                 continue
             m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
             if m:
@@ -107,7 +104,11 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         for m in b["Metrics"]:
             metric = m["Metric"]
             info = m["Info"].strip()
-            st.write(f"- **{metric}**: {info}")
+            if metric == "Manager Tenure":
+                # show manager tenure explicitly
+                st.write(f"- **Manager Tenure**: {info}")
+            else:
+                st.write(f"- **{metric}**: {info}")
 
     # Step 3.6: Count validation
     st.subheader("Step 3.6: Investment Option Count")
