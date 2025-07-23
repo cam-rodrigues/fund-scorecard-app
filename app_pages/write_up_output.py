@@ -255,7 +255,8 @@ def generate_watchlist_slide(df, selected_fund):
         return raw  # fallback if it doesn't match
 
     prs = Presentation()
-    slide = prs.slides.add_slide(prs.slide_layouts[5])
+    blank_slide_layout = prs.slide_layouts[6]  # Layout 6 is typically a blank slide
+    slide = prs.slides.add_slide(blank_slide_layout)
 
     # Manually add left-aligned title textbox to match subheading
     title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(9), Inches(0.5))
