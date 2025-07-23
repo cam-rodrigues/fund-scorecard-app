@@ -288,7 +288,7 @@ def generate_watchlist_slide(df, selected_fund):
         cell.fill.fore_color.rgb = RGBColor(255, 255, 255)  # force white
         p = cell.text_frame.paragraphs[0]
         p.font.name = "Cambria"
-        p.font.size = Pt(10)
+        p.font.size = Pt(12)
         p.font.bold = True
         p.font.color.rgb = RGBColor(0, 0, 0)
         p.alignment = PP_ALIGN.CENTER
@@ -306,7 +306,7 @@ def generate_watchlist_slide(df, selected_fund):
             cell.fill.solid()
             cell.fill.fore_color.rgb = RGBColor(255, 255, 255)  # force white
             p = cell.text_frame.paragraphs[0]
-            p.font.size = Pt(10)
+            p.font.size = Pt(12)
             p.font.name = "Cambria"
             p.font.color.rgb = RGBColor(0, 0, 0)
             p.alignment = PP_ALIGN.CENTER
