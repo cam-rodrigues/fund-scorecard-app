@@ -1,6 +1,7 @@
 import re
 import streamlit as st
 import pdfplumber
+import pandas as pd
 
 # === Step 0 ===
 def run():
@@ -144,73 +145,23 @@ def run():
     st.write(f"**Fund Scorecard Page:** {results['scorecard_page'] or 'Not found'}")
     st.write(f"**Fund Factsheets Page:** {results['factsheets_page'] or 'Not found'}")
 
-# === Step 3: Extract Criteria Threshold Metrics from Fund Scorecard Section ===
-import re
-import streamlit as st
-import pdfplumber
-
-def run():
-    st.set_page_config(page_title="Step 3: Fund Scorecard Metrics", layout="wide")
-    st.title("Step 3: Extract Scorecard Metrics from 'Fund Scorecard' Section")
-
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="upload_step3")
-    if not uploaded_file:
-        st.stop()
-
-    scorecard_page_num = st.session_state.get("scorecard_page")
-    if not scorecard_page_num:
-        st.error("Scorecard page number not found. Please run Step 2 first.")
-        st.stop()
-
-    with pdfplumber.open(uploaded_file) as pdf:
-        if scorecard_page_num >= len(pdf.pages):
-            st.error(f"Page {scorecard_page_num} not found in PDF.")
-            st.stop()
-
-        scorecard_text = pdf.pages[scorecard_page_num - 1].extract_text()
-
-    # Display raw page text for inspection
-    with st.expander(f"Fund Scorecard Page {scorecard_page_num} Preview"):
-        st.text(scorecard_text)
-
-    # Find the Criteria Threshold section
-    criteria_section = []
-    if "Criteria Threshold" in scorecard_text:
-        lines = scorecard_text.splitlines()
-        start_index = next((i for i, line in enumerate(lines) if "Criteria Threshold" in line), None)
-        if start_index is not None:
-            for line in lines[start_index + 1:]:
-                # Stop if we hit a blank line or next section
-                if line.strip() == "" or re.match(r"^\s*Ticker\s+|^\s*Fund Name", line, re.IGNORECASE):
-                    break
-                criteria_section.append(line.strip())
-
-    # Save and display
-    st.session_state["scorecard_metrics"] = criteria_section
-
-    st.subheader("Extracted Scorecard Metrics (from 'Criteria Threshold')")
-    if criteria_section:
-        for i, metric in enumerate(criteria_section, 1):
-            st.write(f"{i}. {metric}")
-    else:
-        st.warning("Could not extract scorecard metrics from this page.")
-
-
-# === Step 3.5: Extract Investment Option Metrics as Tables ===
+# === Step 3: Extract Fund Scorecard Metrics & Validate Count ===
 import re
 import streamlit as st
 import pdfplumber
 import pandas as pd
 
 def run():
-    st.set_page_config(page_title="Step 3.5: Extract Fund Metrics", layout="wide")
-    st.title("Step 3.5: Extract Metric Tables for Each Investment Option")
+    st.set_page_config(page_title="Step 3: Fund Scorecard Full", layout="wide")
+    st.title("Step 3: Fund Scorecard Extraction and Validation")
 
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="upload_step35")
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="upload_step3_combined")
     if not uploaded_file:
         st.stop()
 
     scorecard_page_num = st.session_state.get("scorecard_page")
+    declared_total = st.session_state.get("total_options")
+
     if not scorecard_page_num:
         st.error("Scorecard page number not found. Please run Step 2 first.")
         st.stop()
@@ -218,16 +169,21 @@ def run():
     with pdfplumber.open(uploaded_file) as pdf:
         scorecard_pages = []
         for page in pdf.pages[scorecard_page_num - 1:]:
-            page_text = page.extract_text()
-            if "Fund Scorecard" in (page_text or ""):
-                scorecard_pages.append(page_text)
+            text = page.extract_text()
+            if "Fund Scorecard" in (text or ""):
+                scorecard_pages.append(text)
             else:
                 break
 
     full_scorecard_text = "\n".join(scorecard_pages)
     lines = full_scorecard_text.splitlines()
 
-    # Extract all fund blocks
+    # === Skip Criteria Threshold ===
+    criteria_index = next((i for i, line in enumerate(lines) if "Criteria Threshold" in line), None)
+    if criteria_index is not None:
+        lines = lines[criteria_index + 1:]  # Skip past Criteria Threshold box
+
+    # === Extract Investment Options ===
     fund_blocks = []
     current_fund = None
     current_metrics = []
@@ -267,37 +223,22 @@ def run():
             "Metrics": current_metrics
         })
 
-    # Save to session state
+    # === Save + Display Results ===
     st.session_state["fund_blocks"] = fund_blocks
 
-    # Display all tables
     st.subheader("Extracted Metric Tables by Investment Option")
     for block in fund_blocks:
         st.markdown(f"### {block['Fund Name']}")
         df = pd.DataFrame(block["Metrics"])
         st.table(df)
 
-# === Step 3.6: Double Check Investment Option Count ===
-import streamlit as st
-
-def run():
-    st.set_page_config(page_title="Step 3.6: Verify Option Count", layout="wide")
-    st.title("Step 3.6: Double Check Investment Option Count")
-
-    fund_blocks = st.session_state.get("fund_blocks")
-    total_options = st.session_state.get("total_options")
-
-    if fund_blocks is None or total_options is None:
-        st.warning("Please complete Step 1.5 and Step 3.5 before running this check.")
-        st.stop()
-
+    # === Compare Count to Declared Total ===
+    st.subheader("Step 3.6: Validate Investment Option Count")
     extracted_count = len(fund_blocks)
+    st.write(f"**Declared in Page 1:** {declared_total}")
+    st.write(f"**Extracted from Scorecard:** {extracted_count}")
 
-    st.subheader("Comparison Result")
-    st.write(f"**Declared in Page 1:** {total_options}")
-    st.write(f"**Extracted from Fund Scorecard:** {extracted_count}")
-
-    if extracted_count == total_options:
+    if declared_total == extracted_count:
         st.success("✅ Count matches: All investment options were successfully extracted.")
     else:
-        st.error(f"❌ Count mismatch: Expected {total_options}, but found {extracted_count}.")
+        st.error(f"❌ Count mismatch: Expected {declared_total}, but found {extracted_count}.")
