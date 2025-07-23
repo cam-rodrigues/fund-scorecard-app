@@ -241,6 +241,15 @@ def generate_watchlist_slide(df, selected_fund):
             ln.append(solidFill)
             tcPr.append(ln)
 
+    def format_quarter(raw):
+        import re
+        match = re.match(r"Q([1-4]):\s*\d{1,2}/\d{1,2}/(\d{4})", raw)
+        if not match:
+            return raw
+        qtr, year = match.groups()
+        suffix = {"1": "1st", "2": "2nd", "3": "3rd", "4": "4th"}.get(qtr, qtr + "th")
+        return f"{suffix} QTR {year}"
+
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[5])
 
@@ -274,10 +283,18 @@ def generate_watchlist_slide(df, selected_fund):
     table_height = Inches(0.25 * (rows + 1))
 
     table = slide.shapes.add_table(rows + 1, cols, table_left, table_top, table_width, table_height).table
-    
-    
+
+    for i, width in enumerate(col_widths):
+        table.columns[i].width = Inches(width)
+
+    # Set consistent row heights
+    for i in range(1, len(table.rows)):  # skip header row
+        table.rows[i].height = Inches(0.3)
+    if rows > 0 and len(table.rows) > 1:
+        table.rows[-1].height = Inches(0.35)
+
     headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
-    
+
     for col_idx, header in enumerate(headers):
         cell = table.cell(0, col_idx)
         cell.text = header
@@ -300,7 +317,7 @@ def generate_watchlist_slide(df, selected_fund):
     for row_idx, (_, r) in enumerate(matching_rows.iterrows(), start=1):
         row_vals = [
             r.get("Category", ""),
-            r.get("Time Period", ""),
+            format_quarter(r.get("Time Period", "")),
             r.get("Plan Assets", ""),
         ] + [r.get(str(i), "") for i in range(1, 12)] + [r.get("IPS Status", "")]
 
@@ -373,7 +390,6 @@ def generate_watchlist_slide(df, selected_fund):
                 p.text = str(val)
 
     return prs
-
 
 
 # === Streamlit App ===
