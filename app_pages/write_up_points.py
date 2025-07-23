@@ -2,21 +2,19 @@ import re
 import streamlit as st
 import pdfplumber
 
-# === Utility: Extract Quarter from Date String ===
-def extract_quarter_label(text):
-    m = re.search(r'(\d{1,2})/(\d{1,2})/(20\d{2})', text or "")
-    if not m:
-        return None
-    month, day, year = int(m.group(1)), int(m.group(2)), m.group(3)
-    if month == 3 and day == 31:
-        return f"1st QTR, {year}"
-    if month == 6:
-        return f"2nd QTR, {year}"
-    if month == 9 and day == 30:
-        return f"3rd QTR, {year}"
-    if month == 12 and day == 31:
-        return f"4th QTR, {year}"
-    return f"Unknown ({m.group(0)})"
+# === Utility: Extract & Label Report Date ===
+def extract_report_date(text):
+    # find all mm/dd/yyyy dates
+    dates = re.findall(r'(\d{1,2})/(\d{1,2})/(20\d{2})', text or "")
+    for month, day, year in dates:
+        m, d, y = int(month), int(day), year
+        # quarter‐end logic
+        if (m, d) in [(3,31), (6,30), (9,30), (12,31)]:
+            q = { (3,31): "1st", (6,30): "2nd", (9,30): "3rd", (12,31): "4th" }[(m,d)]
+            return f"{q} QTR, {y}"
+        # otherwise first date
+        return f"As of {month_name[m]} {d}, {y}"
+    return None
 
 # === Step 1 & 1.5 ===
 def process_page1(text):
