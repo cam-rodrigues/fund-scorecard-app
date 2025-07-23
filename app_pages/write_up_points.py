@@ -10,11 +10,11 @@ def extract_quarter_label(text):
     month, day, year = int(m.group(1)), int(m.group(2)), m.group(3)
     if month == 3 and day == 31:
         return f"1st QTR, {year}"
-    if month == 6:
+    elif month == 6:
         return f"2nd QTR, {year}"
-    if month == 9 and day == 30:
+    elif month == 9 and day == 30:
         return f"3rd QTR, {year}"
-    if month == 12 and day == 31:
+    elif month == 12 and day == 31:
         return f"4th QTR, {year}"
     return f"Unknown ({m.group(0)})"
 
@@ -54,7 +54,7 @@ def process_toc(text):
 
 # === Step 3: Scorecard Extraction & Key Bullets + Count Validation ===
 def step3_process_scorecard(pdf, start_page, declared_total):
-    # Collect all "Fund Scorecard" pages
+    # collect all "Fund Scorecard" pages
     pages = []
     for p in pdf.pages[start_page-1:]:
         txt = p.extract_text() or ""
@@ -64,12 +64,12 @@ def step3_process_scorecard(pdf, start_page, declared_total):
             break
     lines = "\n".join(pages).splitlines()
 
-    # Skip "Criteria Threshold"
+    # skip "Criteria Threshold"
     idx = next((i for i,l in enumerate(lines) if "Criteria Threshold" in l), None)
     if idx is not None:
         lines = lines[idx+1:]
 
-    # Parse each fund block
+    # parse each fund block
     fund_blocks = []
     curr_name = None
     curr_metrics = []
@@ -104,17 +104,8 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         for m in b["Metrics"]:
             metric = m["Metric"]
             info = m["Info"].strip()
-
-            if metric == "Manager Tenure":
-                # Display tenure raw
-                st.write(f"- **Manager Tenure**: {info}")
-                continue
-
-            # Clean info: remove metric name repetition
-            clean = re.sub(rf".*{re.escape(metric)}.*?(?=\d)", "", info)
-            clean = clean.lstrip(" is: ").lstrip(" is ").lstrip(": ")
-
-            st.write(f"- **{metric}**: {clean}")
+            # Always show metric name and its info
+            st.write(f"- **{metric}**: {info}")
 
     # Step 3.6: Count validation
     st.subheader("Step 3.6: Investment Option Count")
