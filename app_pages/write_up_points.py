@@ -212,18 +212,20 @@ def step4_ips_screen():
             sym = "✅" if statuses.get(m,False) else "❌"
             st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
 
-# === Step 5: Fund Performance Section Extraction ===
+# === Step 5: Fund Performance Section Extraction (with fallback) ===
 def step5_process_performance(pdf, start_page, fund_names):
-    # determine end of Perf section from TOC (or end of doc)
+    # figure out where the section ends
     end_page = st.session_state.get("factsheets_page") or (len(pdf.pages) + 1)
 
-    # collect every line from pages [start_page-1 .. end_page-2]
+    # gather all lines and the raw text
     all_lines = []
+    perf_text = ""
     for p in pdf.pages[start_page-1 : end_page-1]:
         txt = p.extract_text() or ""
+        perf_text += txt + "\n"
         all_lines.extend(txt.splitlines())
 
-    # build normalized line → ticker mapping
+    # first pass: normalized line→ticker
     mapping = {}
     for ln in all_lines:
         m = re.match(r"(.+?)\s+([A-Z]{5})$", ln.strip())
@@ -233,26 +235,35 @@ def step5_process_performance(pdf, start_page, fund_names):
         norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
         mapping[norm] = ticker
 
-    # match each fund by normalized prefix
+    # try matching each fund by normalized prefix
     tickers = {}
     for name in fund_names:
         norm_expected = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
-        found = None
-        for raw_norm, tick in mapping.items():
-            if raw_norm.startswith(norm_expected):
-                found = tick
-                break
+        found = next((t for raw, t in mapping.items() if raw.startswith(norm_expected)), None)
         tickers[name] = found
 
-    # save & display results
+    # if too few, fallback to ordered scrape
+    total = len(fund_names)
+    found_count = sum(1 for t in tickers.values() if t)
+    if found_count < total:
+        # extract all unique 5‑letter tickers in order
+        all_tks = re.findall(r'\b([A-Z]{5})\b', perf_text)
+        seen = []
+        for tk in all_tks:
+            if tk not in seen:
+                seen.append(tk)
+        # zip against fund_names
+        tickers = { name: seen[i] if i < len(seen) else None
+                    for i,name in enumerate(fund_names) }
+
+    # store & display
     st.session_state["tickers"] = tickers
-    st.subheader("Step 5: Extracted Tickers")
+    st.subheader("Step 5: Extracted Tickers")
     for n, t in tickers.items():
         st.write(f"- {n}: {t or '❌ not found'}")
 
-    # Step 5.5: validation
-    st.subheader("Step 5.5: Ticker Count Validation")
-    total = len(fund_names)
+    # validation
+    st.subheader("Step 5.5: Ticker Count Validation")
     found_count = sum(1 for t in tickers.values() if t)
     st.write(f"- Expected tickers: **{total}**")
     st.write(f"- Found tickers:    **{found_count}**")
@@ -260,7 +271,6 @@ def step5_process_performance(pdf, start_page, fund_names):
         st.success("✅ All tickers found.")
     else:
         st.error(f"❌ Missing {total - found_count} ticker(s).")
-
 
 # === Main App ===
 def run():
