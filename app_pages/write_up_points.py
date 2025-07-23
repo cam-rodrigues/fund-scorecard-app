@@ -5,18 +5,18 @@ from calendar import month_name
 
 # === Utility: Extract & Label Report Date ===
 def extract_report_date(text):
-    # find all mm/dd/yyyy dates
+    # find the first quarter‐end or any mm/dd/yyyy
     dates = re.findall(r'(\d{1,2})/(\d{1,2})/(20\d{2})', text or "")
     for month, day, year in dates:
-        m, d, y = int(month), int(day), year
-        # quarter‐end logic
+        m, d = int(month), int(day)
+        # quarter‐end mapping
         if (m, d) in [(3,31), (6,30), (9,30), (12,31)]:
             q = { (3,31): "1st", (6,30): "2nd", (9,30): "3rd", (12,31): "4th" }[(m,d)]
-            return f"{q} QTR, {y}"
-        # otherwise first date
-        return f"As of {month_name[m]} {d}, {y}"
+            return f"{q} QTR, {year}"
+        # fallback: human‐readable
+        return f"As of {month_name[m]} {d}, {year}"
     return None
-
+    
 # === Step 1 & 1.5 ===
 def process_page1(text):
     quarter = extract_quarter_label(text)
