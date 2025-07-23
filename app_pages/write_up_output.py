@@ -343,8 +343,8 @@ def generate_watchlist_slide(df, selected_fund):
                     MSO_SHAPE.OVAL,
                     left=badge_left,
                     top=badge_top,
-                    width=Inches(0.6),
-                    height=Inches(0.3),
+                    width=Inches(0.5),
+                    height=Inches(0.25),
                 )
                 shape.fill.solid()
                 shape.fill.fore_color.rgb = badge_color
