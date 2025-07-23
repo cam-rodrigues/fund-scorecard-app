@@ -226,16 +226,14 @@ def generate_watchlist_slide(df, selected_fund):
     from pptx.dml.color import RGBColor
     from pptx.oxml.xmlchemy import OxmlElement
 
-    # Helper to apply black border to a table cell
     def set_cell_border(cell, border_color=RGBColor(0, 0, 0)):
         tc = cell._tc
         tcPr = tc.get_or_add_tcPr()
         r, g, b = border_color[0], border_color[1], border_color[2]
         hex_color = "%02X%02X%02X" % (r, g, b)
-    
         for line in ["a:lnL", "a:lnR", "a:lnT", "a:lnB"]:
             ln = OxmlElement(line)
-            ln.set("w", "12700")  # 1pt border width
+            ln.set("w", "12700")
             solidFill = OxmlElement("a:solidFill")
             srgbClr = OxmlElement("a:srgbClr")
             srgbClr.set("val", hex_color)
@@ -243,11 +241,9 @@ def generate_watchlist_slide(df, selected_fund):
             ln.append(solidFill)
             tcPr.append(ln)
 
-
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[5])
 
-    # === Title ===
     title_shape = slide.shapes.title
     title_shape.text = "Investment Watchlist"
     title_run = title_shape.text_frame.paragraphs[0].runs[0]
@@ -255,7 +251,6 @@ def generate_watchlist_slide(df, selected_fund):
     title_run.font.name = "HelveticaNeueLT Std Lt Ext"
     title_run.font.color.rgb = RGBColor(0, 51, 102)
 
-    # === Subheading ===
     top = Inches(1.1)
     subheading = slide.shapes.add_textbox(Inches(0.5), top, Inches(9), Inches(0.3))
     tf = subheading.text_frame
@@ -268,7 +263,6 @@ def generate_watchlist_slide(df, selected_fund):
     run.font.underline = True
     run.font.color.rgb = RGBColor(0, 0, 0)
 
-    # === Table Setup ===
     matching_rows = df[df["Fund Name"] == selected_fund]
     rows = len(matching_rows)
     cols = 15
@@ -276,21 +270,22 @@ def generate_watchlist_slide(df, selected_fund):
 
     table_top = Inches(1.5)
     table_left = Inches(0.3)
-    table_height = Inches(0.25 * (rows + 1))
     table_width = Inches(9)
+    table_height = Inches(0.25 * (rows + 1))
 
     table = slide.shapes.add_table(rows + 1, cols, table_left, table_top, table_width, table_height).table
-
-    headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
 
     for i, width in enumerate(col_widths):
         table.columns[i].width = Inches(width)
 
-    # === Header Row ===
+    headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
+
     for col_idx, header in enumerate(headers):
         cell = table.cell(0, col_idx)
         cell.text = header
         set_cell_border(cell)
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = RGBColor(255, 255, 255)  # force white
         p = cell.text_frame.paragraphs[0]
         p.font.name = "Cambria"
         p.font.size = Pt(10)
@@ -298,7 +293,6 @@ def generate_watchlist_slide(df, selected_fund):
         p.font.color.rgb = RGBColor(0, 0, 0)
         p.alignment = PP_ALIGN.CENTER
 
-    # === Data Rows ===
     for row_idx, (_, r) in enumerate(matching_rows.iterrows(), start=1):
         row_vals = [
             r.get("Category", ""),
@@ -309,24 +303,24 @@ def generate_watchlist_slide(df, selected_fund):
         for col_idx, val in enumerate(row_vals):
             cell = table.cell(row_idx, col_idx)
             set_cell_border(cell)
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = RGBColor(255, 255, 255)  # force white
             p = cell.text_frame.paragraphs[0]
             p.font.size = Pt(10)
             p.font.name = "Cambria"
             p.font.color.rgb = RGBColor(0, 0, 0)
             p.alignment = PP_ALIGN.CENTER
 
-            # Metric Icons
             if val == "Pass" and col_idx != 14:
                 p.text = "✔"
                 p.font.color.rgb = RGBColor(0, 176, 80)
             elif val == "Review" and col_idx != 14:
                 p.text = "✖"
-                p.font.color.rgb = RGBColor(255, 0, 0)
+                p.font.color.rgb = RGBColor(192, 0, 0)
             elif col_idx == 14:
                 p.text = ""
                 val_str = str(val).strip().lower()
 
-                # Badge Mapping
                 if val_str == "formal warning":
                     badge_text = "FW"
                     badge_color = RGBColor(192, 0, 0)
@@ -340,9 +334,8 @@ def generate_watchlist_slide(df, selected_fund):
                     badge_color = RGBColor(0, 176, 80)
                     font_color = RGBColor(255, 255, 255)
                 else:
-                    continue  # Unknown or missing status — no badge
+                    continue
 
-                # Badge Position
                 badge_left = table_left + sum(Inches(w) for w in col_widths[:col_idx]) + Inches(0.15)
                 badge_top = table_top + Inches(0.25 * row_idx)
 
