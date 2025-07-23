@@ -12,15 +12,6 @@ from pptx.oxml.xmlchemy import OxmlElement
 from pptx.enum.text import MSO_VERTICAL_ANCHOR
 from pptx.util import Inches
 
-def bps_difference(fund_ret, benchmark_ret):
-    try:
-        fund_val = float(fund_ret.strip('%'))
-        bench_val = float(benchmark_ret.strip('%'))
-        diff = (fund_val - bench_val) * 100  # convert to bps
-        return int(round(diff)), fund_val, bench_val
-    except:
-        return None, None, None
-
 def run():
     st.set_page_config(page_title="IPS Summary Table", layout="wide")
     st.title("Write Up Output")
@@ -421,25 +412,6 @@ def generate_watchlist_slide(df, selected_fund):
                 run.font.color.rgb = font_color
             else:
                 p.text = str(val)
-
-    selected_block = next((b for b in st.session_state["fund_blocks"] if b["Fund Name"] == selected_fund), None)
-    if selected_block:
-        fund_ret = selected_block.get("QTD Fund Return")
-        bench_ret = selected_block.get("QTD Benchmark Return")
-    
-        if fund_ret and bench_ret:
-            bps_diff, f_val, b_val = bps_difference(fund_ret, bench_ret)
-            if bps_diff is not None:
-                perf = "overperformed" if bps_diff > 0 else "underperformed"
-                quarter = st.session_state.get("report_quarter", "this quarter")
-                bullet = f"{selected_fund} {perf} its benchmark in {quarter} by {abs(bps_diff)} bps ({f_val:.2f}% vs. {b_val:.2f}%)."
-    
-                # Add bullet to slide
-                txBox = slide.shapes.add_textbox(Inches(0.5), Inches(6.5), Inches(8.5), Inches(1))
-                tf = txBox.text_frame
-                p = tf.add_paragraph()
-                p.text = bullet
-                p.font.size = Pt(12)
 
     return prs
 
