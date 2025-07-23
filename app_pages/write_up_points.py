@@ -106,19 +106,19 @@ def step3_scorecard_section(pdf, scorecard_start, declared_total):
             if m:
                 metric, status, info = m.groups()
                 current_metrics.append({"Metric": metric, "Status": status, "Info": info})
-
     # Append the last fund
     if current_fund and current_metrics:
         fund_blocks.append({"Fund Name": current_fund, "Metrics": current_metrics})
 
     st.session_state["fund_blocks"] = fund_blocks
 
-    # Display metric tables per fund
-    st.subheader("Step 3.5: Extracted Metric Tables")
+    # Instead of tables, extract and display only the "Info" from each metric
+    st.subheader("Step 3.5: Extracted Metric Info")
     for block in fund_blocks:
         st.markdown(f"### {block['Fund Name']}")
-        df = pd.DataFrame(block["Metrics"])
-        st.table(df)
+        infos = [m["Info"] for m in block["Metrics"]]
+        for info in infos:
+            st.write(f"- {info}")
 
     # Step 3.6: Validate count
     st.subheader("Step 3.6: Validate Investment Option Count")
@@ -130,9 +130,9 @@ def step3_scorecard_section(pdf, scorecard_start, declared_total):
         st.error(f"❌ Count mismatch: expected {declared_total}, found {extracted_count}.")
 
     # Step 3.7: Extract numbers from metric info
-    st.subheader("Step 3.7: Numbers Found in Metrics")
+    st.subheader("Step 3.7: Numbers Found in Metric Details")
     for block in fund_blocks:
-        st.markdown(f"#### {block['Fund Name']} — Extracted Numbers")
+        st.markdown(f"#### {block['Fund Name']} — Numbers")
         nums = []
         for m in block["Metrics"]:
             nums.extend(re.findall(r"[-+]?\d*\.\d+|\d+", m["Info"]))
@@ -164,7 +164,7 @@ def run():
         else:
             st.warning("PDF has no second page for TOC.")
 
-        # Step 3 (Scorecard)
+        # Step 3
         sc_page = st.session_state.get("scorecard_page")
         total_opts = st.session_state.get("total_options")
         if sc_page and total_opts is not None:
@@ -172,6 +172,6 @@ def run():
         else:
             st.warning("Missing TOC-extracted scorecard page or total options; please complete Steps 1–2.")
 
-# To run with Streamlit:
+# Uncomment to run directly with Streamlit
 # if __name__ == "__main__":
 #     run()
