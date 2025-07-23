@@ -114,101 +114,106 @@ def run():
     else:
         st.warning("No factsheet data found for the selected fund.")
 
-        
+        # === Section 4: Powerpoint ===
 
+def generate_watchlist_slide(df, selected_fund):
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[5])
 
-    def generate_watchlist_slide(df, selected_fund):
-        prs = Presentation()
-        slide = prs.slides.add_slide(prs.slide_layouts[5])
-    
-        # === Title ===
-        title_shape = slide.shapes.title
-        title_shape.text = "Investment Watchlist"
-        title_run = title_shape.text_frame.paragraphs[0].runs[0]
-        title_run.font.size = Pt(20)
-        title_run.font.name = "HelveticaNeueLT Std Lt Ext"
-        title_run.font.color.rgb = RGBColor(0, 51, 102)  # Dark blue
-    
-        # === Subheading ===
-        top = Inches(1.1)
-        subheading = slide.shapes.add_textbox(Inches(0.5), top, Inches(9), Inches(0.3))
-        tf = subheading.text_frame
-        p = tf.paragraphs[0]
-        run = p.add_run()
-        run.text = selected_fund
-        run.font.name = "Cambria"
-        run.font.size = Pt(12)
-        run.font.bold = True
-        run.font.underline = True
-        run.font.color.rgb = RGBColor(0, 0, 0)
-    
-        # === Table Data ===
-        matching_rows = df[df["Fund Name"] == selected_fund]
-        rows = len(matching_rows)
-        cols = 15
-        col_widths = [1.8, 1.2, 1.0] + [0.4]*11 + [0.9]
-    
-        table_top = Inches(1.5)
-        table = slide.shapes.add_table(rows + 1, cols, Inches(0.3), table_top, Inches(9), Inches(0.8 + 0.25 * rows)).table
-    
-        headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
-    
-        # Set widths
-        for i, width in enumerate(col_widths):
-            table.columns[i].width = Inches(width)
-    
-        # Header
-        for col_idx, header in enumerate(headers):
-            cell = table.cell(0, col_idx)
-            cell.text = header
+    # === Title ===
+    title_shape = slide.shapes.title
+    title_shape.text = "Investment Watchlist"
+    title_run = title_shape.text_frame.paragraphs[0].runs[0]
+    title_run.font.size = Pt(20)
+    title_run.font.name = "HelveticaNeueLT Std Lt Ext"
+    title_run.font.color.rgb = RGBColor(0, 51, 102)
+
+    # === Subheading ===
+    top = Inches(1.1)
+    subheading = slide.shapes.add_textbox(Inches(0.5), top, Inches(9), Inches(0.3))
+    tf = subheading.text_frame
+    p = tf.paragraphs[0]
+    run = p.add_run()
+    run.text = selected_fund
+    run.font.name = "Cambria"
+    run.font.size = Pt(12)
+    run.font.bold = True
+    run.font.underline = True
+    run.font.color.rgb = RGBColor(0, 0, 0)
+
+    # === Table Data ===
+    matching_rows = df[df["Fund Name"] == selected_fund]
+    rows = len(matching_rows)
+    cols = 15
+    col_widths = [1.8, 1.2, 1.0] + [0.4]*11 + [0.9]
+
+    table_top = Inches(1.5)
+    table = slide.shapes.add_table(rows + 1, cols, Inches(0.3), table_top, Inches(9), Inches(0.25 * (rows + 1))).table
+    headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
+
+    # Set column widths
+    for i, width in enumerate(col_widths):
+        table.columns[i].width = Inches(width)
+
+    # Header row
+    for col_idx, header in enumerate(headers):
+        cell = table.cell(0, col_idx)
+        cell.text = header
+        p = cell.text_frame.paragraphs[0]
+        p.font.size = Pt(10)
+        p.font.bold = True
+        p.alignment = PP_ALIGN.CENTER
+
+    # Data rows
+    for row_idx, (_, r) in enumerate(matching_rows.iterrows(), start=1):
+        row_vals = [
+            r.get("Category", ""),
+            r.get("Time Period", ""),
+            r.get("Plan Assets", ""),
+        ] + [r.get(str(i), "") for i in range(1, 12)] + [r.get("IPS Status", "")]
+
+        for col_idx, val in enumerate(row_vals):
+            cell = table.cell(row_idx, col_idx)
             p = cell.text_frame.paragraphs[0]
-            p.font.bold = True
             p.font.size = Pt(10)
             p.alignment = PP_ALIGN.CENTER
-    
-        # Data rows
-        for row_idx, (_, r) in enumerate(matching_rows.iterrows(), start=1):
-            row_vals = [
-                r.get("Category", ""),
-                r.get("Time Period", ""),
-                r.get("Plan Assets", ""),
-            ] + [r.get(str(i), "") for i in range(1, 12)] + [r.get("IPS Status", "")]
-    
-            for col_idx, val in enumerate(row_vals):
-                cell = table.cell(row_idx, col_idx)
-                p = cell.text_frame.paragraphs[0]
-                p.font.size = Pt(10)
-                p.alignment = PP_ALIGN.CENTER
-    
-                if val == "Pass":
-                    p.text = "✔"
-                    p.font.color.rgb = RGBColor(0, 176, 80)
-                elif val == "Review":
-                    p.text = "✖"
-                    p.font.color.rgb = RGBColor(255, 0, 0)
-                elif col_idx == 14 and val.startswith("FW"):
-                    # IPS Status Badge
-                    shape = slide.shapes.add_shape(
-                        autoshape_type_id=1,  # MSO_SHAPE.OVAL
-                        left=table.columns[col_idx].left + Inches(0.35),
-                        top=table_top + Inches(0.25 * row_idx),
-                        width=Inches(0.6),
-                        height=Inches(0.3),
-                    )
-                    shape.fill.solid()
-                    shape.fill.fore_color.rgb = RGBColor(192, 0, 0)
-                    shape.text = val
-                    tf = shape.text_frame
-                    tf.paragraphs[0].alignment = PP_ALIGN.CENTER
-                    run = tf.paragraphs[0].runs[0]
-                    run.font.size = Pt(10)
-                    run.font.bold = True
-                    run.font.color.rgb = RGBColor(255, 255, 255)
-                else:
-                    p.text = str(val)
 
-    
-        return prs
+            if val == "Pass":
+                p.text = "✔"
+                p.font.color.rgb = RGBColor(0, 176, 80)  # Green
+            elif val == "Review":
+                p.text = "✖"
+                p.font.color.rgb = RGBColor(255, 0, 0)  # Red
+            elif col_idx == 14 and isinstance(val, str) and val.startswith("FW"):
+                # Remove default text
+                p.text = ""
+
+                # IPS Status Badge
+                shape = slide.shapes.add_shape(
+                    MSO_SHAPE.OVAL,
+                    left=table.columns[col_idx].left + Inches(0.15),
+                    top=table_top + Inches(0.25 * row_idx),
+                    width=Inches(0.6),
+                    height=Inches(0.3),
+                )
+                shape.fill.solid()
+                shape.fill.fore_color.rgb = RGBColor(192, 0, 0)  # Red
+                shape.line.color.rgb = RGBColor(255, 255, 255)
+
+                tf = shape.text_frame
+                tf.clear()
+                para = tf.paragraphs[0]
+                para.alignment = PP_ALIGN.CENTER
+                run = para.add_run()
+                run.text = val
+                run.font.bold = True
+                run.font.size = Pt(10)
+                run.font.color.rgb = RGBColor(255, 255, 255)
+            else:
+                p.text = str(val)
+
+    return prs
+
         
     # === Store the processed table so we can export it ===
     if "summary_df" not in st.session_state:
