@@ -19,6 +19,7 @@ def extract_report_date(text):
     
 # === Step 1 & 1.5: Page 1 Extraction ===
 def process_page1(text):
+    # Report date (quarter‐end or fallback)
     report_date = extract_report_date(text)
     if report_date:
         st.session_state["report_date"] = report_date
@@ -26,19 +27,27 @@ def process_page1(text):
     else:
         st.error("Could not detect report date on page 1.")
 
+    # Total Options
     m = re.search(r"Total Options:\s*(\d+)", text or "")
     st.session_state["total_options"] = int(m.group(1)) if m else None
 
+    # Prepared For
     m = re.search(r"Prepared For:\s*\n(.*)", text or "")
     st.session_state["prepared_for"] = m.group(1).strip() if m else None
 
-    m = re.search(r"Prepared By:\s*\n(.*)", text or "")
-    st.session_state["prepared_by"] = m.group(1).strip() if m else None
+    # Prepared By (fallback to Procyon Partners, LLC)
+    m = re.search(r"Prepared By:\s*(.*)", text or "")
+    pb = m.group(1).strip() if m else ""
+    if not pb or "mpi stylus" in pb.lower():
+        pb = "Procyon Partners, LLC"
+    st.session_state["prepared_by"] = pb
 
+    # Display
     st.subheader("Page 1 Metadata")
     st.write(f"- Total Options: {st.session_state['total_options']}")
     st.write(f"- Prepared For: {st.session_state['prepared_for']}")
     st.write(f"- Prepared By: {st.session_state['prepared_by']}")
+
 
 # === Step 2 ===
 def process_toc(text):
