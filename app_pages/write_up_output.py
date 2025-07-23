@@ -232,10 +232,10 @@ def generate_watchlist_slide(df, selected_fund):
         tcPr = tc.get_or_add_tcPr()
         for line in ["a:lnL", "a:lnR", "a:lnT", "a:lnB"]:
             ln = OxmlElement(line)
-            ln.set("w", "12700")  # 1pt border
+            ln.set("w", "12700")  # 1pt border width
             solidFill = OxmlElement("a:solidFill")
             srgbClr = OxmlElement("a:srgbClr")
-            srgbClr.set("val", border_color.rgbHex)
+            srgbClr.set("val", "%02X%02X%02X" % (border_color.red, border_color.green, border_color.blue))
             solidFill.append(srgbClr)
             ln.append(solidFill)
             tcPr.append(ln)
@@ -268,7 +268,7 @@ def generate_watchlist_slide(df, selected_fund):
     matching_rows = df[df["Fund Name"] == selected_fund]
     rows = len(matching_rows)
     cols = 15
-    col_widths = [1.8, 1.2, 1.0] + [0.4]*11 + [0.9]
+    col_widths = [1.8, 1.2, 1.0] + [0.4] * 11 + [0.9]
 
     table_top = Inches(1.5)
     table_left = Inches(0.3)
@@ -311,7 +311,7 @@ def generate_watchlist_slide(df, selected_fund):
             p.font.color.rgb = RGBColor(0, 0, 0)
             p.alignment = PP_ALIGN.CENTER
 
-            # Metric icons
+            # Metric Icons
             if val == "Pass" and col_idx != 14:
                 p.text = "✔"
                 p.font.color.rgb = RGBColor(0, 176, 80)
@@ -322,7 +322,7 @@ def generate_watchlist_slide(df, selected_fund):
                 p.text = ""
                 val_str = str(val).strip().lower()
 
-                # === Badge Mapping ===
+                # Badge Mapping
                 if val_str == "formal warning":
                     badge_text = "FW"
                     badge_color = RGBColor(192, 0, 0)
@@ -336,9 +336,9 @@ def generate_watchlist_slide(df, selected_fund):
                     badge_color = RGBColor(0, 176, 80)
                     font_color = RGBColor(255, 255, 255)
                 else:
-                    continue  # no badge
+                    continue  # Unknown or missing status — no badge
 
-                # Positioning badge manually
+                # Badge Position
                 badge_left = table_left + sum(Inches(w) for w in col_widths[:col_idx]) + Inches(0.15)
                 badge_top = table_top + Inches(0.25 * row_idx)
 
@@ -366,6 +366,7 @@ def generate_watchlist_slide(df, selected_fund):
                 p.text = str(val)
 
     return prs
+
 
 # === Streamlit App ===
 def run():
