@@ -3,37 +3,6 @@ import pdfplumber
 import re
 import pandas as pd
 from rapidfuzz import fuzz
-import re
-
-def extract_fund_returns_from_mpi(pdf, fund_blocks):
-    for block in fund_blocks:
-        fund_name = block["Fund Name"]
-        fund_return = None
-        benchmark_return = None
-
-        for page in pdf.pages:
-            text = page.extract_text()
-            if not text or fund_name not in text:
-                continue
-
-            lines = text.split("\n")
-            for i, line in enumerate(lines):
-                if fund_name in line:
-                    for j in range(i, min(i + 10, len(lines))):
-                        if "QTD" in lines[j] and "%" in lines[j]:
-                            percent_matches = re.findall(r"-?\d+\.\d+%", lines[j])
-                            if len(percent_matches) >= 1:
-                                fund_return = percent_matches[0]
-                            if len(percent_matches) >= 2:
-                                benchmark_return = percent_matches[1]
-                            break
-                    break
-
-        block["QTD Fund Return"] = fund_return
-        block["QTD Benchmark Return"] = benchmark_return
-
-    return fund_blocks
-
 
 def process_mpi(uploaded_file):
     
@@ -197,8 +166,6 @@ def process_mpi(uploaded_file):
                     "Fund Name": fund_name,
                     "Metrics": fund_metrics
                 })
-    
-    fund_blocks = extract_fund_returns_from_mpi(pdf, fund_blocks)
 
     # Save to session state
     st.session_state["fund_blocks"] = fund_blocks
