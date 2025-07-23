@@ -287,10 +287,60 @@ def step5_process_performance(pdf, start_page, fund_names):
     else:
         st.error(f"❌ Missing {total - found_count} ticker(s).")
 
+# === Step 5.6: QTD Extraction ===
+def step5_6_extract_qtd(pdf, start_page, fund_names):
+    # figure out where the section ends
+    end_page = st.session_state.get("factsheets_page") or (len(pdf.pages) + 1)
+
+    # 1) gather all lines of text
+    all_lines = []
+    for p in pdf.pages[start_page-1 : end_page-1]:
+        txt = p.extract_text() or ""
+        all_lines.extend(txt.splitlines())
+
+    # 2) find the header row and determine the QTD column index
+    header = next((ln for ln in all_lines if "QTD" in ln and "YTD" in ln), "")
+    headers = header.split()
+    try:
+        qtd_idx = headers.index("QTD")
+    except ValueError:
+        qtd_idx = 0  # fallback to first percentage if header not found
+
+    # 3) extract QTD for each fund and its benchmark
+    qtds   = {}
+    benchs = {}
+    for name in fund_names:
+        # find the first line containing the fund name
+        fund_line = next((ln for ln in all_lines if name in ln), "")
+        # pull all “-12.34%” style tokens
+        fund_pcts = re.findall(r"-?\d+\.\d+%", fund_line)
+        qtds[name] = fund_pcts[qtd_idx] if len(fund_pcts) > qtd_idx else None
+
+        # look for the next “Benchmark” line immediately after
+        bench_line = ""
+        if fund_line:
+            idx = all_lines.index(fund_line)
+            for ln in all_lines[idx+1 : idx+6]:  # search a few lines down
+                if ln.strip().startswith("Benchmark"):
+                    bench_line = ln
+                    break
+        bench_pcts = re.findall(r"-?\d+\.\d+%", bench_line)
+        benchs[name] = bench_pcts[qtd_idx] if len(bench_pcts) > qtd_idx else None
+
+    # 4) store & display
+    st.session_state["qtd"]        = qtds
+    st.session_state["qtd_bench"]  = benchs
+
+    st.subheader("Step 5.6: QTD Extraction")
+    for name in fund_names:
+        q = qtds.get(name)      or "❌ not found"
+        b = benchs.get(name)    or "❌ not found"
+        st.write(f"- {name}: **{q}** vs Benchmark **{b}**")
+
 
 # === Main App ===
 def run():
-    st.title("MPI Tool — Steps 1 to 5")
+    st.title("MPI Tool — Steps 1 to 5.6")
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
@@ -302,25 +352,30 @@ def run():
         # Step 2
         if len(pdf.pages) > 1:
             process_toc(pdf.pages[1].extract_text() or "")
-            
-
-        # Steps 3 & 4 — run but hide their output
-        sc_page    = st.session_state.get("scorecard_page")
-        total_opts = st.session_state.get("total_options")
-        if sc_page and total_opts is not None:
-            with st.expander("Step 3 (scorecard) – hidden", expanded=False):
-                step3_process_scorecard(pdf, sc_page, total_opts)
-            with st.expander("Step 4 (IPS screening) – hidden", expanded=False):
-                step4_ips_screen()
         else:
             st.warning("Please complete Steps 1–2 first before running Steps 3–4.")
             return
 
+        # Steps 3 & 4 — run but hide their output
+        sc_page    = st.session_state.get("scorecard_page")
+        total_opts = st.session_state.get("total_options")
+        if sc_page is None or total_opts is None:
+            st.warning("Please complete Steps 1–2 first before running Steps 3–4.")
+            return
+
+        with st.expander("Step 3 (scorecard) – hidden", expanded=False):
+            step3_process_scorecard(pdf, sc_page, total_opts)
+        with st.expander("Step 4 (IPS screening) – hidden", expanded=False):
+            step4_ips_screen()
+
         # Step 5 & 5.5
         perf_page  = st.session_state.get("performance_page")
-        fund_names = [b["Fund Name"] for b in st.session_state["fund_blocks"]]
-        if perf_page and fund_names:
-            step5_process_performance(pdf, perf_page, fund_names)
-        else:
+        fund_names = [b["Fund Name"] for b in st.session_state.get("fund_blocks", [])]
+        if not perf_page or not fund_names:
             st.warning("Please complete Steps 1–3 (including TOC & Scorecard) first.")
+            return
+
+        step5_process_performance(pdf, perf_page, fund_names)
+        # === Step 5.6: QTD Extraction ===
+        step5_6_extract_qtd(pdf, perf_page, fund_names)
 
