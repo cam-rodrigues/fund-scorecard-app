@@ -212,47 +212,65 @@ def step4_ips_screen():
             sym = "✅" if statuses.get(m,False) else "❌"
             st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
 
-# === Step 5: Fund Performance Section Extraction (exact name match) ===
+# === Step 5: Fund Performance Section Extraction (word‑based) ===
+from collections import defaultdict
+
 def step5_process_performance(pdf, start_page, fund_names):
-    # Determine end of the Perf section from TOC
     end_page = st.session_state.get("factsheets_page") or (len(pdf.pages) + 1)
 
-    # Gather all lines from pages [start_page-1 .. end_page-2]
-    all_lines = []
+    # 1) Gather all words in the Performance section
+    all_rows = []
     for p in pdf.pages[start_page-1 : end_page-1]:
-        txt = p.extract_text() or ""
-        all_lines.extend(txt.splitlines())
+        words = p.extract_words(x_tolerance=3, y_tolerance=3)
+        # cluster words by their y‐coordinate (rounded)
+        rows = defaultdict(list)
+        for w in words:
+            y_group = int(round(w['top'] / 3))  # bucket every ~3px
+            rows[y_group].append(w)
+        # for each cluster, sort by x0 and join
+        for grp in rows.values():
+            grp_sorted = sorted(grp, key=lambda w: w['x0'])
+            texts = [w['text'] for w in grp_sorted]
+            # find first 4–5 uppercase token
+            for idx, tok in enumerate(texts):
+                if re.fullmatch(r"[A-Z]{4,5}", tok):
+                    name_str  = " ".join(texts[:idx]).strip()
+                    ticker    = tok
+                    all_rows.append((name_str, ticker))
+                    break
 
+    # 2) Build a lookup: normalized row_name → ticker
+    lookup = {}
+    for raw_name, ticker in all_rows:
+        norm = re.sub(r"[^A-Za-z0-9 ]+", "", raw_name).lower().strip()
+        lookup[norm] = ticker
+
+    # 3) Match each fund_name by prefix
     tickers = {}
-    for name in fund_names:
-        # Build a regex that matches the fund name at the start (allowing for minor spacing) 
-        # then captures the next 4–5 uppercase letters as the ticker.
-        pat = re.compile(rf"^\s*{re.escape(name)}\s+([A-Z]{{4,5}})\b")
-        found = None
-        for ln in all_lines:
-            m = pat.match(ln)
-            if m:
-                found = m.group(1)
+    for fname in fund_names:
+        norm_f = re.sub(r"[^A-Za-z0-9 ]+", "", fname).lower().strip()
+        found  = None
+        for row_norm, tk in lookup.items():
+            if row_norm.startswith(" ".join(norm_f.split()[:7])):
+                found = tk
                 break
-        tickers[name] = found
+        tickers[fname] = found
 
-    # Save & Display
+    # 4) Display and validate
     st.session_state["tickers"] = tickers
     st.subheader("Step 5: Extracted Tickers")
     for n, t in tickers.items():
         st.write(f"- {n}: {t or '❌ not found'}")
 
-    # Validation
+    st.subheader("Step 5.5: Ticker Count Validation")
     total     = len(fund_names)
     found_cnt = sum(1 for t in tickers.values() if t)
-    st.subheader("Step 5.5: Ticker Count Validation")
     st.write(f"- Expected tickers: **{total}**")
     st.write(f"- Found tickers:    **{found_cnt}**")
     if found_cnt == total:
         st.success("✅ All tickers found.")
     else:
         st.error(f"❌ Missing {total - found_cnt} ticker(s).")
-
 
 # === Main App ===
 def run():
