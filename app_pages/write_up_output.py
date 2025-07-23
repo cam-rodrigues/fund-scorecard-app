@@ -287,12 +287,6 @@ def generate_watchlist_slide(df, selected_fund):
     for i, width in enumerate(col_widths):
         table.columns[i].width = Inches(width)
 
-    # Set consistent row heights
-    for i in range(1, len(table.rows)):  # skip header row
-        table.rows[i].height = Inches(0.3)
-    if rows > 0 and len(table.rows) > 1:
-        table.rows[-1].height = Inches(0.35)
-
     headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
 
     for col_idx, header in enumerate(headers):
