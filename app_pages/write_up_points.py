@@ -113,16 +113,102 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         st.error(f"❌ Mismatch: expected {declared_total}, found {count}.")
 
 
-# === Step 4: Classify Active vs Passive ===
-def classify_funds():
-    fund_blocks = st.session_state.get("fund_blocks", [])
-    st.subheader("Step 4: Active vs Passive Classification")
-    for block in fund_blocks:
-        name = block["Fund Name"]
-        fund_type = "Passive" if "bitcoin" in name.lower() else "Active"
-        block["Type"] = fund_type
-        st.write(f"- {name}: {fund_type}")
-    st.session_state["fund_blocks"] = fund_blocks
+# === Step 4: IPS Investment Criteria Screening ===
+def step4_ips_screen():
+    IPS = [
+        "Manager Tenure",
+        "3yr_perf_or_r2",
+        "3yr_perf_vs_peers",
+        "3yr_sharpe_vs_peers",
+        "3yr_sortino_or_te",
+        "5yr_perf_or_r2",
+        "5yr_perf_vs_peers",
+        "5yr_sharpe_vs_peers",
+        "5yr_sortino_or_te",
+        "expense_vs_peers",
+        "investment_style"
+    ]
+    results = []
+    for b in st.session_state["fund_blocks"]:
+        name = b["Fund Name"]
+        is_passive = "bitcoin" in name.lower()
+        data = {m: False for m in IPS}
+        data["investment_style"] = True
+
+        # parse each metric
+        for m in b["Metrics"]:
+            info = m["Info"]
+            val = info
+            if m["Metric"] == "Manager Tenure":
+                yrs = float(re.search(r"(\d+\.?\d*)", val).group(1))
+                data["Manager Tenure".lower().replace(" ", "_")] = (yrs >= 3)
+                data["Manager Tenure"] = (yrs >= 3)
+            if m["Metric"].startswith("Excess Performance (3Yr)"):
+                data["3yr_perf_or_r2"] = (not val.lower().startswith("underperformed"))
+            if m["Metric"].startswith("R-Squared (3Yr)"):
+                pct = float(re.search(r"(\d+\.\d+)%", val).group(1))
+                if is_passive:
+                    data["3yr_perf_or_r2"] = (pct >= 95)
+            if m["Metric"].startswith("Excess Performance (5Yr)"):
+                data["5yr_perf_or_r2"] = (not val.lower().startswith("underperformed"))
+            if m["Metric"].startswith("R-Squared (5Yr)"):
+                pct = float(re.search(r"(\d+\.\d+)%", val).group(1))
+                if is_passive:
+                    data["5yr_perf_or_r2"] = (pct >= 95)
+            if "Peer Return Rank (3Yr)" in m["Metric"]:
+                rank = int(re.search(r"(\d+)", val).group(1))
+                data["3yr_perf_vs_peers"] = (rank <= 50)
+            if "Sharpe Ratio Rank (3Yr)" in m["Metric"]:
+                rank = int(re.search(r"(\d+)", val).group(1))
+                data["3yr_sharpe_vs_peers"] = (rank <= 50)
+            if m["Metric"].startswith("Sortino Ratio Rank (3Yr)"):
+                rank = int(re.search(r"(\d+)", val).group(1))
+                if not is_passive:
+                    data["3yr_sortino_or_te"] = (rank <= 50)
+            if m["Metric"].startswith("Tracking Error Rank (3Yr)"):
+                rank = int(re.search(r"(\d+)", val).group(1))
+                if is_passive:
+                    data["3yr_sortino_or_te"] = (rank < 90)
+            if "Peer Return Rank (5Yr)" in m["Metric"]:
+                rank = int(re.search(r"(\d+)", val).group(1))
+                data["5yr_perf_vs_peers"] = (rank <= 50)
+            if "Sharpe Ratio Rank (5Yr)" in m["Metric"]:
+                rank = int(re.search(r"(\d+)", val).group(1))
+                data["5yr_sharpe_vs_peers"] = (rank <= 50)
+            if m["Metric"].startswith("Sortino Ratio Rank (5Yr)"):
+                rank = int(re.search(r"(\d+)", val).group(1))
+                if not is_passive:
+                    data["5yr_sortino_or_te"] = (rank <= 50)
+            if m["Metric"].startswith("Tracking Error Rank (5Yr)"):
+                rank = int(re.search(r"(\d+)", val).group(1))
+                if is_passive:
+                    data["5yr_sortino_or_te"] = (rank < 90)
+            if "Expense Ratio Rank" in m["Metric"]:
+                rank = int(re.search(r"(\d+)", val).group(1))
+                data["expense_vs_peers"] = (rank <= 50)
+
+        # count fails
+        fails = sum(1 for k in IPS if not data.get(k, False))
+        if fails <= 4:
+            status = "Passed IPS Screen"
+        elif fails == 5:
+            status = "Informal Watch (IW)"
+        else:
+            status = "Formal Watch (FW)"
+
+        results.append({
+            "Fund Name": name,
+            "Active/Passive": "Passive" if is_passive else "Active",
+            "Fail Count": fails,
+            "Status": status,
+            **data
+        })
+
+    st.session_state["ips_results"] = results
+
+    st.subheader("Step 4: IPS Screening Results")
+    for r in results:
+        st.write(f"- **{r['Fund Name']}** ({r['Active/Passive']}): {r['Status']} ({r['Fail Count']} fails)")
 
 # === Main Streamlit App ===
 def run():
@@ -148,11 +234,10 @@ def run():
         to = st.session_state.get("total_options")
         if sp and to is not None:
             step3_process_scorecard(pdf, sp, to)
-            # Step 4
-            classify_funds()
+            step4_ips_screen()
         else:
             st.warning("Please complete Steps 1–2 first.")
 
-# Uncomment to run with Streamlit
+# To run with Streamlit:
 # if __name__ == "__main__":
 #     run()
