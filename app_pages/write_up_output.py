@@ -242,13 +242,18 @@ def generate_watchlist_slide(df, selected_fund):
             tcPr.append(ln)
 
     def format_quarter(raw):
+    def format_quarter(raw):
         import re
-        match = re.match(r"Q([1-4]):\s*\d{1,2}/\d{1,2}/(\d{4})", raw)
-        if not match:
-            return raw
-        qtr, year = match.groups()
-        suffix = {"1": "1st", "2": "2nd", "3": "3rd", "4": "4th"}.get(qtr, qtr + "th")
-        return f"{suffix} QTR {year}"
+        raw = str(raw).strip()
+    
+        # Patterns like "Q1: 3/31/2025" or "Q1, 2025"
+        match = re.search(r"Q([1-4])[,:\s-]*(\d{4})?", raw, re.IGNORECASE)
+        if match:
+            qtr, year = match.groups()
+            suffix = {"1": "1st", "2": "2nd", "3": "3rd", "4": "4th"}[qtr]
+            return f"{suffix} QTR {year}" if year else f"{suffix} QTR"
+    
+        return raw  # fallback if it doesn't match
 
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[5])
