@@ -143,3 +143,54 @@ def run():
     st.write(f"**Fund Performance Page:** {results['performance_page'] or 'Not found'}")
     st.write(f"**Fund Scorecard Page:** {results['scorecard_page'] or 'Not found'}")
     st.write(f"**Fund Factsheets Page:** {results['factsheets_page'] or 'Not found'}")
+
+# === Step 3: Extract Criteria Threshold Metrics from Fund Scorecard Section ===
+import re
+import streamlit as st
+import pdfplumber
+
+def run():
+    st.set_page_config(page_title="Step 3: Fund Scorecard Metrics", layout="wide")
+    st.title("Step 3: Extract Scorecard Metrics from 'Fund Scorecard' Section")
+
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="upload_step3")
+    if not uploaded_file:
+        st.stop()
+
+    scorecard_page_num = st.session_state.get("scorecard_page")
+    if not scorecard_page_num:
+        st.error("Scorecard page number not found. Please run Step 2 first.")
+        st.stop()
+
+    with pdfplumber.open(uploaded_file) as pdf:
+        if scorecard_page_num >= len(pdf.pages):
+            st.error(f"Page {scorecard_page_num} not found in PDF.")
+            st.stop()
+
+        scorecard_text = pdf.pages[scorecard_page_num - 1].extract_text()
+
+    # Display raw page text for inspection
+    with st.expander(f"Fund Scorecard Page {scorecard_page_num} Preview"):
+        st.text(scorecard_text)
+
+    # Find the Criteria Threshold section
+    criteria_section = []
+    if "Criteria Threshold" in scorecard_text:
+        lines = scorecard_text.splitlines()
+        start_index = next((i for i, line in enumerate(lines) if "Criteria Threshold" in line), None)
+        if start_index is not None:
+            for line in lines[start_index + 1:]:
+                # Stop if we hit a blank line or next section
+                if line.strip() == "" or re.match(r"^\s*Ticker\s+|^\s*Fund Name", line, re.IGNORECASE):
+                    break
+                criteria_section.append(line.strip())
+
+    # Save and display
+    st.session_state["scorecard_metrics"] = criteria_section
+
+    st.subheader("Extracted Scorecard Metrics (from 'Criteria Threshold')")
+    if criteria_section:
+        for i, metric in enumerate(criteria_section, 1):
+            st.write(f"{i}. {metric}")
+    else:
+        st.warning("Could not extract scorecard metrics from this page.")
