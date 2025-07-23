@@ -287,61 +287,60 @@ def step5_process_performance(pdf, start_page, fund_names):
     else:
         st.error(f"❌ Missing {total - found_count} ticker(s).")
 
-# === Step 5.6: QTD Extraction (ticker‑driven scan) ===
-def step5_6_extract_qtd(pdf, start_page, fund_names):
-    # 1) figure out where the perf section ends
-    end_page = st.session_state.get("factsheets_page") or (len(pdf.pages) + 1)
+# === Step 6: Fund Factsheet Extraction ===
+def step6_process_factsheets(pdf, start_page, fund_names):
+    # 1) where do factsheets start?
+    fs_page = st.session_state.get("factsheets_page")
+    if not fs_page:
+        st.error("Factsheets page not found in TOC.")
+        return
 
-    # 2) build one big text blob for all perf pages
-    perf_text = "\n".join(
-        page.extract_text() or ""
-        for page in pdf.pages[start_page-1 : end_page-1]
-    )
-
-    # 3) grab your ticker map from Step 5
+    # 2) prepare storage
+    factsheet_data = {}
     tickers = st.session_state.get("tickers", {})
 
-    qtds, benchs = {}, {}
-    for name in fund_names:
-        tk = tickers.get(name)
-        if not tk:
-            qtds[name] = None
-            benchs[name] = None
+    # 3) loop each fund → its page
+    for idx, name in enumerate(fund_names):
+        page_num = fs_page + idx
+        if page_num > len(pdf.pages):
+            factsheet_data[name] = {f: None for f in 
+                ["Ticker","Benchmark","Category","Net Assets","Manager","Avg Market Cap","Expense Ratio"]}
             continue
 
-        # 4) find the line that starts with your ticker
-        #    (assumes each fund row begins with the ticker)
-        line_match = re.search(rf"^{re.escape(tk)}\b.*", perf_text, flags=re.MULTILINE)
-        if not line_match:
-            qtds[name] = None
-            benchs[name] = None
-            continue
+        text = pdf.pages[page_num-1].extract_text() or ""
 
-        line = line_match.group(0)
+        # 4) regex pulls
+        get = lambda pat: (re.search(pat, text, re.IGNORECASE) or [None,None])[1]
+        benchmark    = get(r"Benchmark[:\s]*([^\n]+)")
+        category     = get(r"Category[:\s]*([^\n]+)")
+        net_assets   = get(r"Net Assets[:\s]*([\$\d,\.]+)")
+        manager      = get(r"Manager(?: Name)?[:\s]*([^\n]+)")
+        avg_mktcap   = get(r"(?:Avg Market Cap|Average Market Cap)[:\s]*([^\n]+)")
+        expense_rat  = get(r"Expense Ratio[:\s]*([^\n]+)")
 
-        # 5) pull out all “-12.34%” on that line → first one is QTD
-        pcts = re.findall(r"-?\d+\.\d+%", line)
-        qtds[name] = pcts[0] if pcts else None
+        factsheet_data[name] = {
+            "Ticker":         tickers.get(name),
+            "Benchmark":      benchmark.strip()    if benchmark    else None,
+            "Category":       category.strip()     if category     else None,
+            "Net Assets":     net_assets.strip()   if net_assets   else None,
+            "Manager":        manager.strip()      if manager      else None,
+            "Avg Market Cap": avg_mktcap.strip()   if avg_mktcap   else None,
+            "Expense Ratio":  expense_rat.strip()  if expense_rat  else None,
+        }
 
-        # 6) from the text immediately after this line, grab the next “Benchmark … xx.xx%”
-        snippet = perf_text[line_match.end(): line_match.end() + 300]
-        bm_match = re.search(r"Benchmark.*?(-?\d+\.\d+%)", snippet, flags=re.IGNORECASE)
-        benchs[name] = bm_match.group(1) if bm_match else None
-
-    # 7) save to session and display
-    st.session_state["qtd"]       = qtds
-    st.session_state["qtd_bench"] = benchs
-
-    st.subheader("Step 5.6: QTD Extraction")
-    for name in fund_names:
-        q = qtds.get(name)    or "❌ not found"
-        b = benchs.get(name)  or "❌ not found"
-        st.write(f"- {name}: **{q}** vs Benchmark **{b}**")
+    # 5) save & display
+    st.session_state["factsheet_data"] = factsheet_data
+    st.subheader("Step 6: Fund Factsheets")
+    for name, info in factsheet_data.items():
+        st.markdown(f"### {name} ({info['Ticker'] or '❌ not found'})")
+        for field in ["Benchmark","Category","Net Assets","Manager","Avg Market Cap","Expense Ratio"]:
+            val = info.get(field) or "❌ not found"
+            st.write(f"- **{field}:** {val}")
 
 
 # === Main App ===
 def run():
-    st.title("MPI Tool — Steps 1 to 5.6")
+    st.title("MPI Tool — Steps 1 to 6")
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
@@ -377,6 +376,27 @@ def run():
             return
 
         step5_process_performance(pdf, perf_page, fund_names)
-        # === Step 5.6: QTD Extraction ===
-        step5_6_extract_qtd(pdf, perf_page, fund_names)
+
+        # Step 6: Fund Factsheets
+        fs_page = st.session_state.get("factsheets_page")
+        if fs_page and fund_names:
+            step6_process_factsheets(pdf, fs_page, fund_names)
+        else:
+            st.warning("Please complete Steps 1–5 first before running Step 6.")
+
+        # Step 5 & 5.5
+        perf_page  = st.session_state.get("performance_page")
+        fund_names = [b["Fund Name"] for b in st.session_state.get("fund_blocks", [])]
+        if not perf_page or not fund_names:
+            st.warning("Please complete Steps 1–3 (including TOC & Scorecard) first.")
+            return
+
+        step5_process_performance(pdf, perf_page, fund_names)
+
+    # …after step5_6_extract_qtd…
+    fs_page  = st.session_state.get("factsheets_page")
+    if fs_page and fund_names:
+        step6_process_factsheets(pdf, fs_page, fund_names)
+    else:
+        st.warning("Please complete Steps 1–5 first before running Step 6.")
 
