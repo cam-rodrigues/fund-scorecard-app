@@ -172,79 +172,108 @@ def run():
 
 
 # === Step 4: IPS Investment Criteria Screening ===
-def step4_display_ips_criteria():
-    st.header("Step 4: IPS Investment Criteria Screening")
+import streamlit as st
+import pandas as pd
 
-    ips_criteria = [
-        "Manager Tenure ≥ 3 years",
-        "*3-Year Performance > Benchmark / +3-Year R² > 95%",
-        "3-Year Performance > 50% of Peers",
-        "3-Year Sharpe Ratio > 50% of Peers",
-        "*3-Year Sortino Ratio > 50% of Peers / +3-Year Tracking Error < 90% of Peers",
-        "*5-Year Performance > Benchmark / +5-Year R² > 95%",
-        "5-Year Performance > 50% of Peers",
-        "5-Year Sharpe Ratio > 50% of Peers",
-        "*5-Year Sortino Ratio > 50% of Peers / +5-Year Tracking Error < 90% of Peers",
-        "Expense Ratio < 50% of Peers",
-        "Investment Style aligns with fund objectives"
-    ]
-
-    st.markdown("### IPS Investment Criteria")
-    for i, crit in enumerate(ips_criteria, 1):
-        st.write(f"{i}. {crit}")
-
-    st.markdown("""
-    **Note:**  
-    - Metrics marked with `*` are used for **Active** funds.  
-    - Metrics marked with `+` are used for **Passive** funds.  
-    - All other metrics apply to **both** Active and Passive funds.
-    """)
-
-    st.session_state["ips_criteria"] = ips_criteria
-
-
-# === Step 4.5: IPS Screening Evaluation ===
-def step4_5_ips_evaluation():
-    st.header("Step 4.5: IPS Screening Evaluation")
+def run():
+    st.set_page_config(page_title="Step 4: IPS Investment Criteria", layout="wide")
+    st.title("Step 4: IPS Investment Criteria Screening")
 
     fund_blocks = st.session_state.get("fund_blocks")
     if not fund_blocks:
-        st.warning("Please run Step 3 first to extract fund scorecard data.")
+        st.error("Fund Scorecard data not found. Please run Step 3 first.")
         return
 
-    # IPS metrics: index in fund_metrics corresponds to each rule
-    IPS_METRICS_INDEX = {
-        0: "Manager Tenure ≥ 3 years",
-        1: "*3-Year Performance > Benchmark / +3-Year R² > 95%",
-        2: "3-Year Performance > 50% of Peers",
-        3: "3-Year Sharpe Ratio > 50% of Peers",
-        4: "*3-Year Sortino Ratio > 50% of Peers / +3-Year Tracking Error < 90% of Peers",
-        5: "*5-Year Performance > Benchmark / +5-Year R² > 95%",
-        6: "5-Year Performance > 50% of Peers",
-        7: "5-Year Sharpe Ratio > 50% of Peers",
-        8: "*5-Year Sortino Ratio > 50% of Peers / +5-Year Tracking Error < 90% of Peers",
-        9: "Expense Ratio < 50% of Peers",
-        10: "Investment Style aligns with fund objectives"
-    }
+    IPS_METRICS = [
+        "Manager Tenure",
+        "3-Year Performance",
+        "3-Year Performance (Peers)",
+        "3-Year Sharpe Ratio",
+        "3-Year Sortino Ratio",
+        "5-Year Performance",
+        "5-Year Performance (Peers)",
+        "5-Year Sharpe Ratio",
+        "5-Year Sortino Ratio",
+        "Expense Ratio",
+        "Investment Style"
+    ]
 
     results = []
 
     for block in fund_blocks:
         fund_name = block["Fund Name"]
-        fund_type = "Passive" if "bitcoin" in fund_name.lower() else "Active"
+        is_passive = "bitcoin" in fund_name.lower()
         metrics = block["Metrics"]
-        ips_eval = []
+
+        # Initialize status for each IPS metric
+        ips_result = []
         fail_count = 0
 
-        for i in range(11):
-            label = IPS_METRICS_INDEX[i]
+        for idx, ips_metric in enumerate(IPS_METRICS):
+            passed = False
+            reason = ""
 
-            if i == 10:
-                # Always Pass Investment Style alignment
-                status = "Pass"
+            if ips_metric == "Investment Style":
+                passed = True
+                reason = "Always passes"
             else:
-                metric_info = metrics[i]["Info"] if i < len(metrics) else ""
+                for m in metrics:
+                    mname = m["Metric"].lower()
+                    minfo = m["Info"]
+                    if ips_metric == "3-Year Performance":
+                        if (not is_passive and "3-Year Performance" in m["Metric"]) or (is_passive and "3-Year R²" in m["Metric"]):
+                            passed = "Pass" in m["Status"]
+                            reason = minfo
+                            break
+                    elif ips_metric == "3-Year Sortino Ratio":
+                        if (not is_passive and "Sortino" in mname) or (is_passive and "Tracking Error" in mname):
+                            passed = "Pass" in m["Status"]
+                            reason = minfo
+                            break
+                    elif ips_metric == "5-Year Performance":
+                        if (not is_passive and "5-Year Performance" in m["Metric"]) or (is_passive and "5-Year R²" in m["Metric"]):
+                            passed = "Pass" in m["Status"]
+                            reason = minfo
+                            break
+                    elif ips_metric == "5-Year Sortino Ratio":
+                        if (not is_passive and "5-Year Sortino" in mname) or (is_passive and "5-Year Tracking" in mname):
+                            passed = "Pass" in m["Status"]
+                            reason = minfo
+                            break
+                    elif ips_metric.lower() in mname:
+                        passed = "Pass" in m["Status"]
+                        reason = minfo
+                        break
 
-                if i in [1, 4, 5, 8]:  # dual metric logic
-                    if fund_type == "Activ_
+            ips_result.append({
+                "IPS Metric": ips_metric,
+                "Status": "Pass" if passed else "Fail",
+                "Reason": reason
+            })
 
+            if not passed:
+                fail_count += 1
+
+        # Determine overall status
+        if fail_count <= 4:
+            status = "Passed IPS Screen"
+        elif fail_count == 5:
+            status = "Informal Watch (IW)"
+        else:
+            status = "Formal Watch (FW)"
+
+        results.append({
+            "Fund Name": fund_name,
+            "IPS Metrics": ips_result,
+            "Overall IPS Status": status
+        })
+
+    st.session_state["step4_results"] = results
+
+    # === Display Results ===
+    st.subheader("IPS Screening Results")
+    for fund in results:
+        st.markdown(f"### {fund['Fund Name']}")
+        st.write(f"**Status:** {fund['Overall IPS Status']}")
+        df = pd.DataFrame(fund["IPS Metrics"])
+        st.table(df)
