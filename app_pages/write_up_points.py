@@ -26,13 +26,10 @@ def process_page1(text):
         st.success(f"Quarter detected: {quarter}")
     else:
         st.error("Quarter not found on page 1.")
-
     opts = re.search(r"Total Options:\s*(\d+)", text or "")
     st.session_state["total_options"] = int(opts.group(1)) if opts else None
-
     pf = re.search(r"Prepared For:\s*\n(.*)", text or "")
     st.session_state["prepared_for"] = pf.group(1).strip() if pf else None
-
     pb = re.search(r"Prepared By:\s*\n(.*)", text or "")
     st.session_state["prepared_by"] = pb.group(1).strip() if pb else None
 
@@ -44,9 +41,9 @@ def process_page1(text):
 # === Step 2: TOC Extraction ===
 def process_toc(text):
     patterns = {
-        "performance_page":  r"Fund Performance: Current vs\. Proposed Comparison\s+(\d+)",
-        "scorecard_page":    r"Fund Scorecard\s+(\d+)",
-        "factsheets_page":   r"Fund Factsheets\s+(\d+)"
+        "performance_page": r"Fund Performance: Current vs\. Proposed Comparison\s+(\d+)",
+        "scorecard_page":   r"Fund Scorecard\s+(\d+)",
+        "factsheets_page":  r"Fund Factsheets\s+(\d+)"
     }
     st.subheader("Table of Contents Pages")
     for key, pat in patterns.items():
@@ -55,9 +52,9 @@ def process_toc(text):
         st.session_state[key] = num
         st.write(f"- {key.replace('_',' ').title()}: {num}")
 
-# === Step 3: Extract & Display Key Numbers + Notes + Count Validation ===
+# === Step 3: Scorecard Extraction & Key Bullets + Count Validation ===
 def step3_process_scorecard(pdf, start_page, declared_total):
-    # collect all scorecard pages
+    # collect all "Fund Scorecard" pages
     pages = []
     for p in pdf.pages[start_page-1:]:
         txt = p.extract_text() or ""
@@ -76,7 +73,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     fund_blocks = []
     curr_name = None
     curr_metrics = []
-    capture = False
+    capturing = False
 
     for i, line in enumerate(lines):
         if "Manager Tenure" in line:
@@ -84,12 +81,12 @@ def step3_process_scorecard(pdf, start_page, declared_total):
             name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", title).strip()
             if curr_name and curr_metrics:
                 fund_blocks.append({"Fund Name": curr_name, "Metrics": curr_metrics})
-            curr_name, curr_metrics, capture = name, [], True
-        elif capture:
+            curr_name, curr_metrics, capturing = name, [], True
+        elif capturing:
             if not line.strip() or "Fund Scorecard" in line:
                 continue
             if len(curr_metrics) >= 14:
-                capture = False
+                capturing = False
                 continue
             m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
             if m:
@@ -100,14 +97,15 @@ def step3_process_scorecard(pdf, start_page, declared_total):
 
     st.session_state["fund_blocks"] = fund_blocks
 
-    # Step 3.5: Show key numbers, performance, and tenure notes
+    # Step 3.5: Key numbers, performance, and tenure bullets
     st.subheader("Step 3.5: Key Numbers & Notes")
-    PHRASES = {
-        "within its peer group":        "within its Peer Group",
-        "percentile rank":              "Percentile rank",
-        "rank":                         "Rank",
-        "as calculated against its benchmark": "as calculated against its benchmark"
-    }
+    perf_pattern = re.compile(r"\b(outperformed|underperformed)\b.*?(\d+\.?\d+%?)?", re.IGNORECASE)
+    tenure_phrases = [
+        "within its Peer Group",
+        "Percentile rank",
+        "Rank",
+        "as calculated against its benchmark"
+    ]
 
     for b in fund_blocks:
         st.markdown(f"### {b['Fund Name']}")
@@ -116,16 +114,20 @@ def step3_process_scorecard(pdf, start_page, declared_total):
             # extract numbers
             nums = re.findall(r"[-+]?\d*\.\d+%?|\d+%?", info)
             nums_str = ", ".join(nums) if nums else "—"
-            # performance keyword
-            perf = re.search(r"(outperform\w*|underperform\w*).*?(\d+\.?\d+%?)", info, re.IGNORECASE)
-            perf_note = perf.group(0) if perf else ""
-            # tenure phrases
-            tenure_notes = [canon for key, canon in PHRASES.items() if key in info.lower()]
-
+            # find performance matches
+            perf_matches = perf_pattern.findall(info)
+            perf_notes = "; ".join(" ".join(match).strip() for match in perf_matches)
+            # find tenure phrases if Manager Tenure
+            tenure_notes = []
+            if m["Metric"] == "Manager Tenure":
+                for phrase in tenure_phrases:
+                    if phrase.lower() in info.lower():
+                        tenure_notes.append(phrase)
+            # build bullet
             bullet = f"- **{m['Metric']}**: {nums_str}"
-            if perf_note:
-                bullet += f"; {perf_note}"
-            if m["Metric"] == "Manager Tenure" and tenure_notes:
+            if perf_notes:
+                bullet += f"; {perf_notes}"
+            if tenure_notes:
                 bullet += "; " + "; ".join(tenure_notes)
             st.write(bullet)
 
@@ -170,6 +172,6 @@ def run():
         else:
             st.warning("Please complete Steps 1–2 first.")
 
-# Uncomment to run with Streamlit
+# To run with Streamlit:
 # if __name__ == "__main__":
 #     run()
