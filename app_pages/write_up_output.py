@@ -8,7 +8,8 @@ from pptx.dml.color import RGBColor
 from io import BytesIO  # ✅ Add this
 from pptx.enum.text import PP_ALIGN
 from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
-    
+from pptx.oxml.xmlchemy import OxmlElement
+
 
 
 def run():
@@ -114,7 +115,6 @@ def run():
     else:
         st.warning("No factsheet data found for the selected fund.")
 
-        # === Section 4: Powerpoint ===
 
 def run():
     st.set_page_config(page_title="IPS Summary Table", layout="wide")
@@ -218,13 +218,27 @@ def run():
     else:
         st.warning("No factsheet data found for the selected fund.")
 
-
 def generate_watchlist_slide(df, selected_fund):
     from pptx import Presentation
     from pptx.util import Inches, Pt
     from pptx.enum.shapes import MSO_SHAPE
     from pptx.enum.text import PP_ALIGN
     from pptx.dml.color import RGBColor
+    from pptx.oxml.xmlchemy import OxmlElement
+
+    # Helper to apply black border to a table cell
+    def set_cell_border(cell, border_color=RGBColor(0, 0, 0)):
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        for line in ["a:lnL", "a:lnR", "a:lnT", "a:lnB"]:
+            ln = OxmlElement(line)
+            ln.set("w", "12700")  # 1pt border
+            solidFill = OxmlElement("a:solidFill")
+            srgbClr = OxmlElement("a:srgbClr")
+            srgbClr.set("val", border_color.rgbHex)
+            solidFill.append(srgbClr)
+            ln.append(solidFill)
+            tcPr.append(ln)
 
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[5])
@@ -250,7 +264,7 @@ def generate_watchlist_slide(df, selected_fund):
     run.font.underline = True
     run.font.color.rgb = RGBColor(0, 0, 0)
 
-    # === Table Data ===
+    # === Table Setup ===
     matching_rows = df[df["Fund Name"] == selected_fund]
     rows = len(matching_rows)
     cols = 15
@@ -262,17 +276,17 @@ def generate_watchlist_slide(df, selected_fund):
     table_width = Inches(9)
 
     table = slide.shapes.add_table(rows + 1, cols, table_left, table_top, table_width, table_height).table
-    table.style = 'Table Grid'  # Apply PowerPoint grid border style
+
     headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
 
     for i, width in enumerate(col_widths):
         table.columns[i].width = Inches(width)
 
-    # Header row
+    # === Header Row ===
     for col_idx, header in enumerate(headers):
         cell = table.cell(0, col_idx)
         cell.text = header
-        cell.fill.background()
+        set_cell_border(cell)
         p = cell.text_frame.paragraphs[0]
         p.font.name = "Cambria"
         p.font.size = Pt(10)
@@ -280,7 +294,7 @@ def generate_watchlist_slide(df, selected_fund):
         p.font.color.rgb = RGBColor(0, 0, 0)
         p.alignment = PP_ALIGN.CENTER
 
-    # Data rows
+    # === Data Rows ===
     for row_idx, (_, r) in enumerate(matching_rows.iterrows(), start=1):
         row_vals = [
             r.get("Category", ""),
@@ -290,13 +304,14 @@ def generate_watchlist_slide(df, selected_fund):
 
         for col_idx, val in enumerate(row_vals):
             cell = table.cell(row_idx, col_idx)
-            cell.fill.background()
+            set_cell_border(cell)
             p = cell.text_frame.paragraphs[0]
             p.font.size = Pt(10)
             p.font.name = "Cambria"
             p.font.color.rgb = RGBColor(0, 0, 0)
             p.alignment = PP_ALIGN.CENTER
 
+            # Metric icons
             if val == "Pass" and col_idx != 14:
                 p.text = "✔"
                 p.font.color.rgb = RGBColor(0, 176, 80)
@@ -307,22 +322,23 @@ def generate_watchlist_slide(df, selected_fund):
                 p.text = ""
                 val_str = str(val).strip().lower()
 
-                # === Map display text to badge ===
+                # === Badge Mapping ===
                 if val_str == "formal warning":
                     badge_text = "FW"
-                    badge_color = RGBColor(192, 0, 0)     # Red
+                    badge_color = RGBColor(192, 0, 0)
                     font_color = RGBColor(255, 255, 255)
                 elif val_str == "informal warning":
                     badge_text = "IW"
-                    badge_color = RGBColor(255, 165, 0)   # Orange
+                    badge_color = RGBColor(255, 165, 0)
                     font_color = RGBColor(255, 255, 255)
                 elif val_str == "passed ips screen":
                     badge_text = "✔"
-                    badge_color = RGBColor(0, 176, 80)    # Green
+                    badge_color = RGBColor(0, 176, 80)
                     font_color = RGBColor(255, 255, 255)
                 else:
                     continue  # no badge
 
+                # Positioning badge manually
                 badge_left = table_left + sum(Inches(w) for w in col_widths[:col_idx]) + Inches(0.15)
                 badge_top = table_top + Inches(0.25 * row_idx)
 
