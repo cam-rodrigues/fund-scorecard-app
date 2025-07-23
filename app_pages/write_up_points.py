@@ -112,26 +112,34 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     else:
         st.error(f"❌ Mismatch: expected {declared_total}, found {count}.")
 
+
+# === Step 4: Classify Active vs Passive ===
+def classify_funds():
+    fund_blocks = st.session_state.get("fund_blocks", [])
+    st.subheader("Step 4: Active vs Passive Classification")
+    for block in fund_blocks:
+        name = block["Fund Name"]
+        fund_type = "Passive" if "bitcoin" in name.lower() else "Active"
+        block["Type"] = fund_type
+        st.write(f"- {name}: {fund_type}")
+    st.session_state["fund_blocks"] = fund_blocks
+
 # === Main Streamlit App ===
 def run():
-    st.title("MPI Tool — Steps 1 to 3.6")
+    st.title("MPI Tool — Steps 1 to 4")
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
 
     with pdfplumber.open(uploaded) as pdf:
         # Step 1 & 1.5
-        p1 = pdf.pages[0].extract_text() or ""
-        with st.expander("Page 1 Text"):
-            st.text(p1)
-        process_page1(p1)
+        page1_text = pdf.pages[0].extract_text() or ""
+        process_page1(page1_text)
 
         # Step 2
         if len(pdf.pages) > 1:
-            toc = pdf.pages[1].extract_text() or ""
-            with st.expander("Page 2 (TOC)"):
-                st.text(toc)
-            process_toc(toc)
+            toc_text = pdf.pages[1].extract_text() or ""
+            process_toc(toc_text)
         else:
             st.warning("No TOC page found.")
 
@@ -140,6 +148,8 @@ def run():
         to = st.session_state.get("total_options")
         if sp and to is not None:
             step3_process_scorecard(pdf, sp, to)
+            # Step 4
+            classify_funds()
         else:
             st.warning("Please complete Steps 1–2 first.")
 
