@@ -288,7 +288,7 @@ def generate_watchlist_slide(df, selected_fund):
         cell.fill.solid()
         cell.fill.fore_color.rgb = RGBColor(255, 255, 255)  # force white
 
-        cell.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
+        cell.text_frame.vertical_anchor = WD_ALIGN_VERTICAL.CENTER
         
         p = cell.text_frame.paragraphs[0]
         p.font.name = "Cambria"
