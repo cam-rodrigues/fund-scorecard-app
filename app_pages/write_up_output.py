@@ -259,15 +259,18 @@ def generate_watchlist_slide(df, selected_fund):
     blank_slide_layout = prs.slide_layouts[6]  # Layout 6 is typically a blank slide
     slide = prs.slides.add_slide(blank_slide_layout)
 
-    # Add Procyon logo in upper-right corner
+
+    # Add Procyon logo in upper-right corner with padding and larger size
     logo_path = "assets/procyon_logo.png"
-    logo_width = Inches(1.25)  # Smaller, proportionate size
+    logo_width = Inches(1.75)  # Larger size
+    logo_top = Inches(0.1)     # Padding from top
+    right_padding = Inches(0.3)  # Padding from right
     
-    # Position it ~9.0 inches from left (slide is ~10" wide), minus logo width
-    logo_left = Inches(9.0 - 1.25)
-    logo_top = Inches(0.2)
+    # Standard 10" slide width - logo width - right padding
+    logo_left = Inches(10) - logo_width - right_padding
     
     slide.shapes.add_picture(logo_path, logo_left, logo_top, width=logo_width)
+
 
 
 
