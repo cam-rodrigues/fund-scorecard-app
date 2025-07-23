@@ -9,7 +9,7 @@ from io import BytesIO
 from pptx.enum.text import PP_ALIGN
 from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
 from pptx.oxml.xmlchemy import OxmlElement
-
+from pptx.enum.table import MSO_VERTICAL_ANCHOR
 
 
 def run():
@@ -286,6 +286,9 @@ def generate_watchlist_slide(df, selected_fund):
         set_cell_border(cell)
         cell.fill.solid()
         cell.fill.fore_color.rgb = RGBColor(255, 255, 255)  # force white
+
+        ell.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
+        
         p = cell.text_frame.paragraphs[0]
         p.font.name = "Cambria"
         p.font.size = Pt(12)
