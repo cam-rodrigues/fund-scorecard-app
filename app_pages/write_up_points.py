@@ -18,7 +18,7 @@ def extract_quarter_label(text):
         return f"4th QTR, {year}"
     return f"Unknown ({m.group(0)})"
 
-# === Step 1 & 1.5: Page 1 Extraction ===
+# === Step 1 & 1.5: Page 1 Extraction ===
 def process_page1(text):
     quarter = extract_quarter_label(text)
     if quarter:
@@ -41,7 +41,7 @@ def process_page1(text):
     st.write(f"- Prepared For: {st.session_state['prepared_for']}")
     st.write(f"- Prepared By: {st.session_state['prepared_by']}")
 
-# === Step 2: TOC Extraction ===
+# === Step 2: TOC Extraction ===
 def process_toc(text):
     patterns = {
         "performance_page": r"Fund Performance: Current vs\. Proposed Comparison\s+(\d+)",
@@ -55,7 +55,7 @@ def process_toc(text):
         st.session_state[key] = num
         st.write(f"- {key.replace('_',' ').title()}: {num}")
 
-# === Step 3: Extract & Display Key Numbers + Count Validation ===
+# === Step 3: Extract & Display Key Numbers + Count Validation ===
 def step3_process_scorecard(pdf, start_page, declared_total):
     # Collect "Fund Scorecard" pages
     pages = []
@@ -100,7 +100,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
 
     st.session_state["fund_blocks"] = fund_blocks
 
-    # Step 3.5: Show key numbers and performance notes
+    # Step 3.5: Show key numbers and performance notes
     st.subheader("Step 3.5: Key Numbers & Notes")
     for b in fund_blocks:
         st.markdown(f"### {b['Fund Name']}")
@@ -115,12 +115,12 @@ def step3_process_scorecard(pdf, start_page, declared_total):
                 info, flags=re.IGNORECASE
             )
             perf_note = perf_match.group(0) if perf_match else ""
-            # manager tenure phrases
-            tenure_notes = []
+            # tenure phrases
+            tenure_phrases = []
             for phrase in ["within its Peer Group", "Percentile rank", "Rank", "as calculated against its benchmark"]:
                 if phrase.lower() in info.lower():
-                    tenure_notes.append(phrase)
-            tenure_str = "; ".join(tenure_notes)
+                    tenure_phrases.append(phrase)
+            tenure_str = "; ".join(tenure_phrases)
 
             line = f"- **{m['Metric']}**: {nums_str}"
             if perf_note:
@@ -129,7 +129,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
                 line += f"; {tenure_str}"
             st.write(line)
 
-    # Step 3.6: Count validation
+    # Step 3.6: Count validation
     st.subheader("Step 3.6: Investment Option Count")
     count = len(fund_blocks)
     st.write(f"- Declared: **{declared_total}**")
