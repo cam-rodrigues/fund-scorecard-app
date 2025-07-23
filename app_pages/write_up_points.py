@@ -287,110 +287,98 @@ def step5_process_performance(pdf, start_page, fund_names):
     else:
         st.error(f"❌ Missing {total - found_count} ticker(s).")
 
-    # === Step 6: Fund Factsheets Section ===
-        
-        factsheet_start = st.session_state.get("toc_pages", {}).get("Fund Factsheets")
+            # === Step 6: Fund Factsheets Section ===
+        toc_pages      = st.session_state.get("toc_pages", {})
         total_declared = st.session_state.get("total_options")
         performance_data = st.session_state.get("fund_performance_data", [])
-        
-        if not factsheet_start:
-            st.error("❌ 'Fund Factsheets' page number not found in TOC.")
-        else:
-            with pdfplumber.open(uploaded_file) as pdf:
-                matched_factsheets = []
-        
-                for i in range(factsheet_start - 1, len(pdf.pages)):
-                    page = pdf.pages[i]
-                    words = page.extract_words(use_text_flow=True)
-                    header_words = [w['text'] for w in words if w['top'] < 100]
-        
-                    first_line = " ".join(header_words).strip()
-                    if not first_line or "Benchmark:" not in first_line or "Expense Ratio:" not in first_line:
-                        continue
-        
-                    ticker_match = re.search(r"\b([A-Z]{5})\b", first_line)
-                    ticker = ticker_match.group(1) if ticker_match else ""
-        
-                    fund_name_raw = first_line.split(ticker)[0].strip() if ticker else ""
-        
-                    best_score = 0
-                    matched_name = ""
-                    matched_ticker = ""
-        
-                    for item in performance_data:
-                        ref_name = f"{item['Fund Scorecard Name']} {item['Ticker']}".strip()
-                        score = fuzz.token_sort_ratio(f"{fund_name_raw} {ticker}".lower(), ref_name.lower())
-                        if score > best_score:
-                            best_score = score
-                            matched_name = item["Fund Scorecard Name"]
-                            matched_ticker = item["Ticker"]
-        
-                    # === Extract fields ===
-                    def extract_field(label, text, stop_at=None):
-                        try:
-                            start = text.index(label) + len(label)
-                            rest = text[start:]
-                            if stop_at and stop_at in rest:
-                                return rest[:rest.index(stop_at)].strip()
-                            return rest.split()[0]
-                        except Exception:
-                            return ""
-        
-                    benchmark = extract_field("Benchmark:", first_line, "Category:")
-                    category = extract_field("Category:", first_line, "Net Assets:")
-                    net_assets = extract_field("Net Assets:", first_line, "Manager Name:")
-                    manager = extract_field("Manager Name:", first_line, "Avg. Market Cap:")
-                    avg_cap = extract_field("Avg. Market Cap:", first_line, "Expense Ratio:")
-                    expense = extract_field("Expense Ratio:", first_line)
-        
-                    matched_factsheets.append({
-                        "Page #": i + 1,
-                        "Parsed Fund Name": fund_name_raw,
-                        "Parsed Ticker": ticker,
-                        "Matched Fund Name": matched_name,
-                        "Matched Ticker": matched_ticker,
-                        "Benchmark": benchmark,
-                        "Category": category,
-                        "Net Assets": net_assets,
-                        "Manager Name": manager,
-                        "Avg. Market Cap": avg_cap,
-                        "Expense Ratio": expense,
-                        "Match Score": best_score,
-                        "Matched": "✅" if best_score > 20 else "❌"
-                    })
-        
-            # Remove "first_line" / "Top Line" from display
-            df_facts = pd.DataFrame(matched_factsheets)
-            st.session_state["fund_factsheets_data"] = matched_factsheets
-        
-            display_df = df_facts[[
-                "Matched Fund Name",
-                "Matched Ticker",
-                "Benchmark",
-                "Category",
-                "Net Assets",
-                "Manager Name",
-                "Avg. Market Cap",
-                "Expense Ratio",
-                "Matched"
-            ]].rename(columns={
-                "Matched Fund Name": "Fund Name",
-                "Matched Ticker": "Ticker"
+
+        # 1) try to auto‑detect the factsheet TOC entry
+        fact_keys = [k for k in toc_pages.keys() if "fact" in k.lower()]
+        if not fact_keys:
+            st.error(
+                "❌ Could not find a ‘Fund Factsheets’ entry in your TOC.\n"
+                f"Available TOC entries: {', '.join(toc_pages.keys())}"
+            )
+            return
+        factsheet_start = toc_pages[fact_keys[0]]
+
+        # 2) now scan pages from that start
+        matched_factsheets = []
+        for i in range(factsheet_start - 1, len(pdf.pages)):
+            page = pdf.pages[i]
+            words = page.extract_words(use_text_flow=True)
+            header_words = [w["text"] for w in words if w["top"] < 100]
+            first_line = " ".join(header_words).strip()
+
+            # skip until we see the key fields
+            if not first_line or "Benchmark:" not in first_line or "Expense Ratio:" not in first_line:
+                continue
+
+            # parse ticker & raw name
+            ticker_match  = re.search(r"\b([A-Z]{1,5})\b", first_line)
+            ticker        = ticker_match.group(1) if ticker_match else ""
+            fund_name_raw = first_line.split(ticker)[0].strip() if ticker else ""
+
+            # fuzzy‑match back to your performance_data
+            best_score, matched_name, matched_ticker = 0, "", ""
+            for item in performance_data:
+                ref = f"{item['Fund Scorecard Name']} {item['Ticker']}".strip().lower()
+                score = fuzz.token_sort_ratio(f"{fund_name_raw} {ticker}".lower(), ref)
+                if score > best_score:
+                    best_score, matched_name, matched_ticker = score, item["Fund Scorecard Name"], item["Ticker"]
+
+            # helper to extract between labels
+            def extract_field(label, text, stop_at=None):
+                try:
+                    start = text.index(label) + len(label)
+                    rest  = text[start:]
+                    if stop_at and stop_at in rest:
+                        return rest[:rest.index(stop_at)].strip()
+                    return rest.split()[0]
+                except ValueError:
+                    return ""
+
+            benchmark = extract_field("Benchmark:",    first_line, "Category:")
+            category  = extract_field("Category:",     first_line, "Net Assets:")
+            net_assets= extract_field("Net Assets:",   first_line, "Manager Name:")
+            manager   = extract_field("Manager Name:", first_line, "Avg. Market Cap:")
+            avg_cap   = extract_field("Avg. Market Cap:", first_line, "Expense Ratio:")
+            expense   = extract_field("Expense Ratio:", first_line)
+
+            matched_factsheets.append({
+                "Page #":           i+1,
+                "Parsed Fund Name": fund_name_raw,
+                "Parsed Ticker":    ticker,
+                "Matched Fund Name":matched_name,
+                "Matched Ticker":   matched_ticker,
+                "Benchmark":        benchmark,
+                "Category":         category,
+                "Net Assets":       net_assets,
+                "Manager Name":     manager,
+                "Avg. Market Cap":  avg_cap,
+                "Expense Ratio":    expense,
+                "Match Score":      best_score,
+                "Matched":          "✅" if best_score > 20 else "❌"
             })
-            
-            st.dataframe(display_df, use_container_width=True)
 
-    
-            matched_count = sum(1 for row in matched_factsheets if row["Matched"] == "✅")
-            
-            if not st.session_state.get("suppress_matching_confirmation", False):
-                st.write(f"Matched {matched_count} of {len(matched_factsheets)} factsheet pages.")
-            
-                if matched_count == total_declared:
-                    st.success(f"All {matched_count} funds matched the declared Total Options from Page 1.")
-                else:
-                    st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
+        # 3) stash & show
+        df_facts = pd.DataFrame(matched_factsheets)
+        st.session_state["fund_factsheets_data"] = matched_factsheets
 
+        display_df = df_facts[[
+            "Matched Fund Name","Matched Ticker",
+            "Benchmark","Category","Net Assets",
+            "Manager Name","Avg. Market Cap","Expense Ratio","Matched"
+        ]].rename(columns={"Matched Fund Name":"Fund Name","Matched Ticker":"Ticker"})
+        
+        st.dataframe(display_df, use_container_width=True)
+
+        matched_count = sum(1 for r in matched_factsheets if r["Matched"]=="✅")
+        st.write(f"Matched {matched_count} of {len(matched_factsheets)} factsheet pages.")
+        if matched_count == total_declared:
+            st.success(f"All {matched_count} funds matched the declared Total Options from Page 1.")
+        else:
+            st.error(f"Page 1 declared {total_declared}, but only matched {matched_count}.")
 
 
 # === Main App ===
