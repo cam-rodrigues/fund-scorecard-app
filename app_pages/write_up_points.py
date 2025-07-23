@@ -218,42 +218,45 @@ def step4_ips_screen():
 
 # === Step 5: Fund Performance Section Extraction ===
 def step5_process_performance(pdf, start_page, fund_names):
-    tickers = {}
-    # 1) collect all "Fund Performance" pages
-    pages = []
-    for p in pdf.pages[start_page-1:]:
-        txt = p.extract_text() or ""
-        if "Fund Performance: Current vs. Proposed Comparison" in txt:
-            pages.append(txt)
-        else:
-            break
-    lines = "\n".join(pages).splitlines()
+    # Determine end of Perf section from TOC
+    end_page = st.session_state.get("factsheets_page") or (len(pdf.pages) + 1)
+    # Collect every line from all pages in the Performance section
+    all_lines = []
+    for p in pdf.pages[start_page-1 : end_page-1]:
+        text = p.extract_text() or ""
+        all_lines.extend(text.splitlines())
 
-    # 2) for each fund, match by first 7 words and pull the 5‑letter ticker
+    tickers = {}
     for name in fund_names:
+        # match by first up to 7 words of the fund name
         prefix = " ".join(name.split()[:7])
-        for ln in lines:
+        found_ticker = None
+        for ln in all_lines:
             if ln.startswith(prefix):
                 m = re.search(r"\b([A-Z]{5})\b", ln)
-                tickers[name] = m.group(1) if m else None
+                if m:
+                    found_ticker = m.group(1)
                 break
+        tickers[name] = found_ticker
 
-    # 3) save + display
     st.session_state["tickers"] = tickers
+
+    # Display results
     st.subheader("Step 5: Extracted Tickers")
     for n, t in tickers.items():
         st.write(f"- {n}: {t or '❌ not found'}")
 
-    # 4) Step 5.5: Validation
+    # Validation
     st.subheader("Step 5.5: Ticker Count Validation")
-    found = len([t for t in tickers.values() if t])
     total = len(fund_names)
+    found = len([t for t in tickers.values() if t])
     st.write(f"- Expected tickers: **{total}**")
     st.write(f"- Found tickers:    **{found}**")
     if found == total:
         st.success("✅ All tickers found.")
     else:
         st.error(f"❌ Missing {total - found} ticker(s).")
+
 
 # === Main App ===
 def run():
