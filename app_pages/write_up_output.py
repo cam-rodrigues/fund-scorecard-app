@@ -263,8 +263,8 @@ def generate_watchlist_slide(df, selected_fund):
     # Add Procyon logo in upper-right corner with padding and larger size
     logo_path = "assets/procyon_logo.png"
     logo_width = Inches(1.75)  # Larger size
-    logo_top = Inches(0.1)     # Padding from top
-    right_padding = Inches(0.3)  # Padding from right
+    logo_top = Inches(0.5)     # Padding from top
+    right_padding = Inches(0.5)  # Padding from right
     
     # Standard 10" slide width - logo width - right padding
     logo_left = Inches(10) - logo_width - right_padding
