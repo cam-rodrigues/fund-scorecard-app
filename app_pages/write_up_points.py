@@ -10,11 +10,11 @@ def extract_quarter_label(text):
     month, day, year = int(m.group(1)), int(m.group(2)), m.group(3)
     if month == 3 and day == 31:
         return f"1st QTR, {year}"
-    elif month == 6:
+    if month == 6:
         return f"2nd QTR, {year}"
-    elif month == 9 and day == 30:
+    if month == 9 and day == 30:
         return f"3rd QTR, {year}"
-    elif month == 12 and day == 31:
+    if month == 12 and day == 31:
         return f"4th QTR, {year}"
     return f"Unknown ({m.group(0)})"
 
@@ -23,9 +23,9 @@ def process_page1(text):
     quarter = extract_quarter_label(text)
     if quarter:
         st.session_state["quarter_label"] = quarter
-        st.success(f"Quarter detected: {quarter}")
+        st.success(f"Detected Quarter: {quarter}")
     else:
-        st.error("Quarter not found on page 1.")
+        st.error("Could not detect quarter on page 1.")
     opts = re.search(r"Total Options:\s*(\d+)", text or "")
     st.session_state["total_options"] = int(opts.group(1)) if opts else None
     pf = re.search(r"Prepared For:\s*\n(.*)", text or "")
@@ -54,7 +54,7 @@ def process_toc(text):
 
 # === Step 3: Scorecard Extraction & Key Bullets + Count Validation ===
 def step3_process_scorecard(pdf, start_page, declared_total):
-    # collect all "Fund Scorecard" pages
+    # Collect all "Fund Scorecard" pages
     pages = []
     for p in pdf.pages[start_page-1:]:
         txt = p.extract_text() or ""
@@ -64,12 +64,12 @@ def step3_process_scorecard(pdf, start_page, declared_total):
             break
     lines = "\n".join(pages).splitlines()
 
-    # skip "Criteria Threshold"
+    # Skip "Criteria Threshold"
     idx = next((i for i,l in enumerate(lines) if "Criteria Threshold" in l), None)
     if idx is not None:
         lines = lines[idx+1:]
 
-    # parse each fund block
+    # Parse each fund block
     fund_blocks = []
     curr_name = None
     curr_metrics = []
@@ -98,44 +98,25 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     st.session_state["fund_blocks"] = fund_blocks
 
     # Step 3.5: Key Bullets
-    st.subheader("Step 3.5: Key Details for Each Metric")
-    perf_pattern = re.compile(r"\b(outperformed|underperformed)\b.*?(\d+\.?\d+%?)?", re.IGNORECASE)
-    tenure_phrases = [
-        "within its Peer Group",
-        "Percentile rank",
-        "Rank",
-        "as calculated against its benchmark"
-    ]
-
+    st.subheader("Step 3.5: Key Details per Metric")
     for b in fund_blocks:
         st.markdown(f"### {b['Fund Name']}")
         for m in b["Metrics"]:
             metric = m["Metric"]
             info = m["Info"].strip()
-            # Manager Tenure bullet
+
             if metric == "Manager Tenure":
-                years = re.search(r"([-+]?\d*\.\d+|\d+)", info)
-                yrs = years.group(1) if years else info
-                st.write(f"- This manager/team has been managing this product for {yrs} years.")
+                # Display tenure raw
+                st.write(f"- **Manager Tenure**: {info}")
                 continue
 
-            # extract numbers
-            nums = re.findall(r"[-+]?\d*\.\d+%?|\d+%?", info)
-            nums_str = ", ".join(nums) if nums else "—"
-            # performance matches
-            perf_matches = perf_pattern.findall(info)
-            perf_notes = "; ".join(" ".join(match).strip() for match in perf_matches)
-            # build bullet: metric name suppressed
-            bullet = f"- {nums_str}"
-            if perf_notes:
-                bullet += f"; {perf_notes}"
-            # include any tenure phrases if present in any metric
-            for phrase in tenure_phrases:
-                if phrase.lower() in info.lower():
-                    bullet += f"; {phrase}"
-            st.write(bullet)
+            # Clean info: remove metric name repetition
+            clean = re.sub(rf".*{re.escape(metric)}.*?(?=\d)", "", info)
+            clean = clean.lstrip(" is: ").lstrip(" is ").lstrip(": ")
 
-    # Step 3.6: count validation
+            st.write(f"- **{metric}**: {clean}")
+
+    # Step 3.6: Count validation
     st.subheader("Step 3.6: Investment Option Count")
     count = len(fund_blocks)
     st.write(f"- Declared: **{declared_total}**")
@@ -175,3 +156,7 @@ def run():
             step3_process_scorecard(pdf, sp, to)
         else:
             st.warning("Please complete Steps 1–2 first.")
+
+# Uncomment to run with Streamlit
+# if __name__ == "__main__":
+#     run()
