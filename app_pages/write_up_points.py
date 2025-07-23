@@ -42,17 +42,23 @@ def process_page1(text):
 
 # === Step 2 ===
 def process_toc(text):
-    patterns = {
-        "performance_page": r"Fund Performance: Current vs\. Proposed Comparison\s+(\d+)",
-        "scorecard_page":   r"Fund Scorecard\s+(\d+)",
-        "factsheets_page":  r"Fund Factsheets\s+(\d+)"
-    }
+    # grab first occurrence of each
+    perf = re.search(r"Fund Performance[^\d]*(\d+)", text or "")
+    sc   = re.search(r"Fund Scorecard\s+(\d+)", text or "")
+    fs   = re.search(r"Fund Factsheets\s+(\d+)", text or "")
+
     st.subheader("Table of Contents Pages")
-    for key, pat in patterns.items():
-        m = re.search(pat, text or "")
-        num = int(m.group(1)) if m else None
-        st.session_state[key] = num
-        st.write(f"- {key.replace('_',' ').title()}: {num}")
+    perf_page = int(perf.group(1)) if perf else None
+    sc_page   = int(sc.group(1))   if sc   else None
+    fs_page   = int(fs.group(1))   if fs   else None
+
+    st.write(f"- Performance Page: {perf_page}")
+    st.write(f"- Scorecard Page:   {sc_page}")
+    st.write(f"- Factsheets Page:  {fs_page}")
+
+    st.session_state["performance_page"]   = perf_page
+    st.session_state["scorecard_page"]     = sc_page
+    st.session_state["factsheets_page"]    = fs_page
 
 # === Step 3 ===
 def step3_process_scorecard(pdf, start_page, declared_total):
