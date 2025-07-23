@@ -323,7 +323,4 @@ def run():
             step5_process_performance(pdf, perf_page, fund_names)
         else:
             st.warning("Please complete Steps 1–3 (including TOC & Scorecard) first.")
-        if st.session_state.get("performance_page"):
-            step5_extract_tickers(pdf)
-        else:
-            st.warning("Please complete Steps 1–3 first.")
+
