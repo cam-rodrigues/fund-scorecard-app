@@ -222,10 +222,9 @@ def generate_watchlist_slide(df, selected_fund):
     from pptx import Presentation
     from pptx.util import Inches, Pt
     from pptx.enum.shapes import MSO_SHAPE
-    from pptx.enum.text import PP_ALIGN
+    from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     from pptx.dml.color import RGBColor
     from pptx.oxml.xmlchemy import OxmlElement
-    from pptx.enum.text import MSO_VERTICAL_ANCHOR
 
     def set_cell_border(cell, border_color=RGBColor(0, 0, 0)):
         tc = cell._tc
@@ -286,11 +285,14 @@ def generate_watchlist_slide(df, selected_fund):
         cell.text = header
         set_cell_border(cell)
         cell.fill.solid()
-        cell.fill.fore_color.rgb = RGBColor(255, 255, 255)  # force white
+        cell.fill.fore_color.rgb = RGBColor(255, 255, 255)
 
-        cell.text_frame.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
-        
-        p = cell.text_frame.paragraphs[0]
+        text_frame = cell.text_frame
+        text_frame.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
+        text_frame.margin_top = 0
+        text_frame.margin_bottom = 0
+
+        p = text_frame.paragraphs[0]
         p.font.name = "Cambria"
         p.font.size = Pt(12)
         p.font.bold = True
@@ -308,8 +310,14 @@ def generate_watchlist_slide(df, selected_fund):
             cell = table.cell(row_idx, col_idx)
             set_cell_border(cell)
             cell.fill.solid()
-            cell.fill.fore_color.rgb = RGBColor(255, 255, 255)  # force white
-            p = cell.text_frame.paragraphs[0]
+            cell.fill.fore_color.rgb = RGBColor(255, 255, 255)
+
+            text_frame = cell.text_frame
+            text_frame.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
+            text_frame.margin_top = 0
+            text_frame.margin_bottom = 0
+
+            p = text_frame.paragraphs[0]
             p.font.size = Pt(12)
             p.font.name = "Cambria"
             p.font.color.rgb = RGBColor(0, 0, 0)
@@ -340,15 +348,15 @@ def generate_watchlist_slide(df, selected_fund):
                 else:
                     continue
 
-                badge_left = table_left + sum(Inches(w) for w in col_widths[:col_idx]) + Inches(0.15)
-                badge_top = table_top + Inches(0.25 * row_idx) + Inches(.27)
+                badge_left = table_left + sum(Inches(w) for w in col_widths[:col_idx]) + Inches(0.18)
+                badge_top = table_top + Inches(0.25 * row_idx) + Inches(0.02)
 
                 shape = slide.shapes.add_shape(
                     MSO_SHAPE.OVAL,
                     left=badge_left,
                     top=badge_top,
                     width=Inches(0.5),
-                    height=Inches(0.2),
+                    height=Inches(0.25),
                 )
                 shape.fill.solid()
                 shape.fill.fore_color.rgb = badge_color
@@ -361,12 +369,13 @@ def generate_watchlist_slide(df, selected_fund):
                 run = para.add_run()
                 run.text = badge_text
                 run.font.bold = True
-                run.font.size = Pt(12 if badge_text == "✔" else 10)
+                run.font.size = Pt(12 if badge_text == "✔" else 11)
                 run.font.color.rgb = font_color
             else:
                 p.text = str(val)
 
     return prs
+
 
 
 # === Streamlit App ===
