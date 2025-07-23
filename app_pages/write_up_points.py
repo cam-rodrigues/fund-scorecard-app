@@ -287,44 +287,57 @@ def step5_process_performance(pdf, start_page, fund_names):
     else:
         st.error(f"❌ Missing {total - found_count} ticker(s).")
 
-# === Step 5.6: QTD Extraction (regex over full perf_text) ===
+# === Step 5.6: QTD Extraction (ticker‑driven scan) ===
 def step5_6_extract_qtd(pdf, start_page, fund_names):
-    # figure out where the section ends
+    # 1) figure out where the perf section ends
     end_page = st.session_state.get("factsheets_page") or (len(pdf.pages) + 1)
 
-    # build one big text blob for the entire performance section
+    # 2) build one big text blob for all perf pages
     perf_text = "\n".join(
-        p.extract_text() or "" 
-        for p in pdf.pages[start_page-1 : end_page-1]
+        page.extract_text() or ""
+        for page in pdf.pages[start_page-1 : end_page-1]
     )
+
+    # 3) grab your ticker map from Step 5
+    tickers = st.session_state.get("tickers", {})
 
     qtds, benchs = {}, {}
     for name in fund_names:
-        # 1) fund’s own QTD – look for "Name   [optional ticker]   12.34%"
-        fund_re = re.compile(
-            rf"{re.escape(name)}\s+(?:[A-Z]{{1,5}}\s+)?(-?\d+\.\d+%)",
-            re.IGNORECASE
-        )
-        m = fund_re.search(perf_text)
-        qtds[name] = m.group(1) if m else None
-
-        # 2) benchmark – from right after fund match, grab next “Benchmark … xx.xx%”
-        if m:
-            snippet = perf_text[m.end(): m.end()+300]  # look a bit forward
-            bm = re.search(r"Benchmark.*?(-?\d+\.\d+%)", snippet, re.IGNORECASE)
-            benchs[name] = bm.group(1) if bm else None
-        else:
+        tk = tickers.get(name)
+        if not tk:
+            qtds[name] = None
             benchs[name] = None
+            continue
 
-    # store & display
-    st.session_state["qtd"]        = qtds
-    st.session_state["qtd_bench"]  = benchs
+        # 4) find the line that starts with your ticker
+        #    (assumes each fund row begins with the ticker)
+        line_match = re.search(rf"^{re.escape(tk)}\b.*", perf_text, flags=re.MULTILINE)
+        if not line_match:
+            qtds[name] = None
+            benchs[name] = None
+            continue
 
-    st.subheader("Step 5.6: QTD Extraction")
+        line = line_match.group(0)
+
+        # 5) pull out all “-12.34%” on that line → first one is QTD
+        pcts = re.findall(r"-?\d+\.\d+%", line)
+        qtds[name] = pcts[0] if pcts else None
+
+        # 6) from the text immediately after this line, grab the next “Benchmark … xx.xx%”
+        snippet = perf_text[line_match.end(): line_match.end() + 300]
+        bm_match = re.search(r"Benchmark.*?(-?\d+\.\d+%)", snippet, flags=re.IGNORECASE)
+        benchs[name] = bm_match.group(1) if bm_match else None
+
+    # 7) save to session and display
+    st.session_state["qtd"]       = qtds
+    st.session_state["qtd_bench"] = benchs
+
+    st.subheader("Step 5.6: QTD Extraction")
     for name in fund_names:
-        q = qtds.get(name)     or "❌ not found"
-        b = benchs.get(name)   or "❌ not found"
+        q = qtds.get(name)    or "❌ not found"
+        b = benchs.get(name)  or "❌ not found"
         st.write(f"- {name}: **{q}** vs Benchmark **{b}**")
+
 
 # === Main App ===
 def run():
