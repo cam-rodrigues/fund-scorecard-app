@@ -43,7 +43,7 @@ def step1_5_metadata(first_page_text):
     st.session_state["prepared_by"] = prepared_by
 
     st.subheader("Extracted Info")
-    st.write(f"**Total Options:** {total_options if total_options else 'Not found'}")
+    st.write(f"**Total Options:** {total_options if total_options is not None else 'Not found'}")
     st.write(f"**Prepared For:** {prepared_for or 'Not found'}")
     st.write(f"**Prepared By:** {prepared_by or 'Not found'}")
 
@@ -61,8 +61,9 @@ def step2_extract_toc(page2_text):
         st.session_state[key] = page_number
         st.write(f"**{key.replace('_', ' ').title()}:** {page_number or 'Not found'}")
 
-# === Step 3: Extract Fund Scorecard Section & Validate Count ===
+# === Step 3: Extract Fund Scorecard Section & Validate Count & Numbers ===
 def step3_scorecard_section(pdf, scorecard_start, declared_total):
+    # Gather scorecard pages
     scorecard_pages = []
     for page in pdf.pages[scorecard_start - 1:]:
         text = page.extract_text()
@@ -71,13 +72,13 @@ def step3_scorecard_section(pdf, scorecard_start, declared_total):
         else:
             break
 
-    full_scorecard_text = "\n".join(scorecard_pages)
-    lines = full_scorecard_text.splitlines()
+    full_text = "\n".join(scorecard_pages)
+    lines = full_text.splitlines()
 
     # Skip "Criteria Threshold"
-    criteria_index = next((i for i, line in enumerate(lines) if "Criteria Threshold" in line), None)
-    if criteria_index is not None:
-        lines = lines[criteria_index + 1:]
+    idx = next((i for i, line in enumerate(lines) if "Criteria Threshold" in line), None)
+    if idx is not None:
+        lines = lines[idx + 1:]
 
     # Extract fund blocks
     fund_blocks = []
@@ -87,101 +88,62 @@ def step3_scorecard_section(pdf, scorecard_start, declared_total):
 
     for i, line in enumerate(lines):
         if "Manager Tenure" in line:
-            fund_line = lines[i - 1].strip()
-            fund_name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", fund_line).strip()
+            # Title line for fund
+            title = lines[i - 1].strip()
+            name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", title).strip()
             if current_fund and current_metrics:
-                fund_blocks.append({
-                    "Fund Name": current_fund,
-                    "Metrics": current_metrics
-                })
-            current_fund = fund_name
+                fund_blocks.append({"Fund Name": current_fund, "Metrics": current_metrics})
+            current_fund = name
             current_metrics = []
             capture = True
         elif capture:
-            if line.strip() == "" or "Fund Scorecard" in line:
+            if not line.strip() or "Fund Scorecard" in line:
                 continue
             if len(current_metrics) >= 14:
                 capture = False
                 continue
-            metric_match = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
-            if metric_match:
-                metric_name, status, reason = metric_match.groups()
-                current_metrics.append({
-                    "Metric": metric_name.strip(),
-                    "Status": status.strip(),
-                    "Info": reason.strip()
-                })
-
+            m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
+            if m:
+                metric, status, info = m.groups()
+                current_metrics.append({"Metric": metric, "Status": status, "Info": info})
+    # Append last block
     if current_fund and current_metrics:
-        fund_blocks.append({
-            "Fund Name": current_fund,
-            "Metrics": current_metrics
-        })
+        fund_blocks.append({"Fund Name": current_fund, "Metrics": current_metrics})
 
     st.session_state["fund_blocks"] = fund_blocks
 
+    # Display tables
     st.subheader("Extracted Metric Tables by Investment Option")
-    for block in fund_blocks:
-        st.markdown(f"### {block['Fund Name']}")
-        df = pd.DataFrame(block["Metrics"])
+    for b in fund_blocks:
+        st.markdown(f"### {b['Fund Name']}")
+        df = pd.DataFrame(b["Metrics"])
         st.table(df)
 
     # Step 3.6: Validate Count
     st.subheader("Step 3.6: Validate Investment Option Count")
-    extracted_count = len(fund_blocks)
-    st.write(f"**Declared in Page 1:** {declared_total}")
-    st.write(f"**Extracted from Scorecard:** {extracted_count}")
-    if declared_total == extracted_count:
-        st.success("✅ Count matches: All investment options were successfully extracted.")
+    count = len(fund_blocks)
+    st.write(f"**Declared:** {declared_total}, **Extracted:** {count}")
+    if count == declared_total:
+        st.success("✅ Counts match.")
     else:
-        st.error(f"❌ Count mismatch: Expected {declared_total}, but found {extracted_count}.")
+        st.error(f"❌ Mismatch: expected {declared_total}, found {count}.")
 
-# === Master Run Function ===
-def run():
-    st.set_page_config(page_title="MPI Tool", layout="wide")
-    st.title("Upload and Process MPI PDF")
-
-    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="upload_main")
-    if not uploaded_file:
-        st.stop()
-
-    with pdfplumber.open(uploaded_file) as pdf:
-        # === Step 1 & 1.5 ===
-        first_page_text = pdf.pages[0].extract_text()
-        with st.expander("Page 1 Text"):
-            st.text(first_page_text)
-        step1_extract_quarter(first_page_text)
-        step1_5_metadata(first_page_text)
-
-        # === Step 2 ===
-        if len(pdf.pages) >= 2:
-            page2_text = pdf.pages[1].extract_text()
-            with st.expander("Page 2 (TOC) Text"):
-                st.text(page2_text)
-            step2_extract_toc(page2_text)
-        else:
-            st.warning("PDF does not contain a second page for TOC.")
-
-        # === Step 3, 3.5, 3.6 ===
-        scorecard_page = st.session_state.get("scorecard_page")
-        declared_total = st.session_state.get("total_options")
-        if scorecard_page and declared_total:
-            step3_scorecard_section(pdf, scorecard_page, declared_total)
-        else:
-            st.warning("Missing scorecard page number or total options. Run previous steps first.")
-
+    # Step 3.7: Extract Numbers
+    st.subheader("Step 3.7: Numbers Found in Metric Details")
+    for b in fund_blocks:
+        st.markdown(f"### {b['Fund Name']} - Extracted Numbers")
+        nums = []
+        for m in b["Metrics"]:
+            nums.extend(re.findall(r"[-+]?\d*\.\d+|\d+", m["Info"]))
+        st.write(", ".join(nums) if nums else "No numbers found.")
 
 # === Step 4: IPS Investment Criteria Screening ===
-import streamlit as st
-import pandas as pd
-
-def run():
-    st.set_page_config(page_title="Step 4: IPS Investment Criteria", layout="wide")
-    st.title("Step 4: IPS Investment Criteria Screening")
+def step4_display_ips_and_evaluate():
+    st.header("Step 4: IPS Investment Criteria Screening")
 
     fund_blocks = st.session_state.get("fund_blocks")
     if not fund_blocks:
-        st.error("Fund Scorecard data not found. Please run Step 3 first.")
+        st.error("Run Step 3 first.")
         return
 
     IPS_METRICS = [
@@ -199,81 +161,100 @@ def run():
     ]
 
     results = []
+    for b in fund_blocks:
+        name = b["Fund Name"]
+        passive = "bitcoin" in name.lower()
+        evals = []
+        fails = 0
 
-    for block in fund_blocks:
-        fund_name = block["Fund Name"]
-        is_passive = "bitcoin" in fund_name.lower()
-        metrics = block["Metrics"]
-
-        # Initialize status for each IPS metric
-        ips_result = []
-        fail_count = 0
-
-        for idx, ips_metric in enumerate(IPS_METRICS):
+        for metric in IPS_METRICS:
             passed = False
             reason = ""
-
-            if ips_metric == "Investment Style":
+            if metric == "Investment Style":
                 passed = True
-                reason = "Always passes"
+                reason = "Always Pass"
             else:
-                for m in metrics:
-                    mname = m["Metric"].lower()
-                    minfo = m["Info"]
-                    if ips_metric == "3-Year Performance":
-                        if (not is_passive and "3-Year Performance" in m["Metric"]) or (is_passive and "3-Year R²" in m["Metric"]):
-                            passed = "Pass" in m["Status"]
-                            reason = minfo
+                for m in b["Metrics"]:
+                    mn, stt, info = m["Metric"], m["Status"], m["Info"]
+                    low = mn.lower()
+                    if metric == "3-Year Performance":
+                        if (not passive and "3-year performance" in low) or (passive and "r²" in low):
+                            passed = (stt == "Pass")
+                            reason = info
                             break
-                    elif ips_metric == "3-Year Sortino Ratio":
-                        if (not is_passive and "Sortino" in mname) or (is_passive and "Tracking Error" in mname):
-                            passed = "Pass" in m["Status"]
-                            reason = minfo
+                    elif metric == "3-Year Sortino Ratio":
+                        if (not passive and "sortino" in low) or (passive and "tracking error" in low):
+                            passed = (stt == "Pass")
+                            reason = info
                             break
-                    elif ips_metric == "5-Year Performance":
-                        if (not is_passive and "5-Year Performance" in m["Metric"]) or (is_passive and "5-Year R²" in m["Metric"]):
-                            passed = "Pass" in m["Status"]
-                            reason = minfo
+                    elif metric == "5-Year Performance":
+                        if (not passive and "5-year performance" in low) or (passive and "r²" in low):
+                            passed = (stt == "Pass")
+                            reason = info
                             break
-                    elif ips_metric == "5-Year Sortino Ratio":
-                        if (not is_passive and "5-Year Sortino" in mname) or (is_passive and "5-Year Tracking" in mname):
-                            passed = "Pass" in m["Status"]
-                            reason = minfo
+                    elif metric == "5-Year Sortino Ratio":
+                        if (not passive and "5-year sortino" in low) or (passive and "tracking error" in low):
+                            passed = (stt == "Pass")
+                            reason = info
                             break
-                    elif ips_metric.lower() in mname:
-                        passed = "Pass" in m["Status"]
-                        reason = minfo
+                    elif metric.lower() in low:
+                        passed = (stt == "Pass")
+                        reason = info
                         break
-
-            ips_result.append({
-                "IPS Metric": ips_metric,
-                "Status": "Pass" if passed else "Fail",
-                "Reason": reason
-            })
-
+            evals.append({"IPS Metric": metric, "Status": "Pass" if passed else "Fail", "Reason": reason})
             if not passed:
-                fail_count += 1
+                fails += 1
 
-        # Determine overall status
-        if fail_count <= 4:
-            status = "Passed IPS Screen"
-        elif fail_count == 5:
-            status = "Informal Watch (IW)"
+        if fails <= 4:
+            overall = "Passed IPS Screen"
+        elif fails == 5:
+            overall = "Informal Watch (IW)"
         else:
-            status = "Formal Watch (FW)"
+            overall = "Formal Watch (FW)"
 
-        results.append({
-            "Fund Name": fund_name,
-            "IPS Metrics": ips_result,
-            "Overall IPS Status": status
-        })
+        results.append({"Fund Name": name, "Overall IPS Status": overall, "IPS Metrics": evals})
 
-    st.session_state["step4_results"] = results
+    st.session_state["ips_results"] = results
 
-    # === Display Results ===
     st.subheader("IPS Screening Results")
-    for fund in results:
-        st.markdown(f"### {fund['Fund Name']}")
-        st.write(f"**Status:** {fund['Overall IPS Status']}")
-        df = pd.DataFrame(fund["IPS Metrics"])
-        st.table(df)
+    for r in results:
+        st.markdown(f"### {r['Fund Name']}")
+        st.write(f"**Status:** {r['Overall IPS Status']}")
+        st.table(pd.DataFrame(r["IPS Metrics"]))
+
+# === Master Run Function ===
+def run():
+    st.set_page_config(page_title="MPI Tool", layout="wide")
+    st.title("MPI Processing Tool")
+
+    uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
+    if not uploaded:
+        return
+
+    with pdfplumber.open(uploaded) as pdf:
+        # Step 1 & 1.5
+        first = pdf.pages[0].extract_text()
+        with st.expander("Page 1 Text"):
+            st.text(first)
+        step1_extract_quarter(first)
+        step1_5_metadata(first)
+
+        # Step 2
+        if len(pdf.pages) > 1:
+            toc = pdf.pages[1].extract_text()
+            with st.expander("Page 2 (TOC)"):
+                st.text(toc)
+            step2_extract_toc(toc)
+
+        # Step 3
+        sp = st.session_state.get("scorecard_page")
+        to = st.session_state.get("total_options")
+        if sp and to is not None:
+            step3_scorecard_section(pdf, sp, to)
+
+        # Step 4 & 4.5
+        step4_display_ips_and_evaluate()
+
+# Uncomment to run directly with Streamlit
+# if __name__ == "__main__":
+#     run()
