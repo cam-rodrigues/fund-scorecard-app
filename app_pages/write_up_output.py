@@ -309,25 +309,25 @@ def generate_watchlist_slide(df, selected_fund):
     return prs
 
 
-    # === Export PowerPoint ===
-    if "summary_df" not in st.session_state:
-        st.session_state["summary_df"] = df_summary
+# === Export PowerPoint ===
+if "summary_df" not in st.session_state:
+    st.session_state["summary_df"] = df_summary
 
-    st.markdown("---")
-    st.subheader("Export Selected Fund to PowerPoint")
+st.markdown("---")
+st.subheader("Export Selected Fund to PowerPoint")
 
-    if st.button("Export to PowerPoint"):
-        if selected_fund and not st.session_state["summary_df"].empty:
-            ppt = generate_watchlist_slide(st.session_state["summary_df"], selected_fund)
-            output = BytesIO()
-            ppt.save(output)
+if st.button("Export to PowerPoint"):
+    if selected_fund and not st.session_state["summary_df"].empty:
+        ppt = generate_watchlist_slide(st.session_state["summary_df"], selected_fund)
+        output = BytesIO()
+        ppt.save(output)
 
-            st.download_button(
-                label="Download PowerPoint File",
-                data=output.getvalue(),
-                file_name=f"{selected_fund}_Watchlist.pptx",
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
-        else:
-            st.warning("Please select a fund and ensure data is loaded.")
+        st.download_button(
+            label="Download PowerPoint File",
+            data=output.getvalue(),
+            file_name=f"{selected_fund}_Watchlist.pptx",
+            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        )
+    else:
+        st.warning("Please select a fund and ensure data is loaded.")
 
