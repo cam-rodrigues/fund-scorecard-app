@@ -216,46 +216,58 @@ def step4_ips_screen():
             sym = "✅" if statuses.get(m,False) else "❌"
             st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
 
-# === Step 5: Fund Performance Section Extraction ===
+# === Step 5: Fund Performance Section Extraction (robust) ===
 def step5_process_performance(pdf, start_page, fund_names):
-    # Determine end of Perf section from TOC
+    # find end of the Perf section from TOC (or end of doc)
     end_page = st.session_state.get("factsheets_page") or (len(pdf.pages) + 1)
-    # Collect every line from all pages in the Performance section
+
+    # 1) collect every line from pages [start_page-1 .. end_page-2]
     all_lines = []
     for p in pdf.pages[start_page-1 : end_page-1]:
-        text = p.extract_text() or ""
-        all_lines.extend(text.splitlines())
+        txt = p.extract_text() or ""
+        all_lines.extend(txt.splitlines())
 
+    # 2) build a mapping: normalized fund-name-line -> ticker
+    mapping = {}
+    for ln in all_lines:
+        # look for lines ending in a 5-letter all-caps token
+        m = re.match(r"(.+?)\s+([A-Z]{5})$", ln.strip())
+        if not m:
+            continue
+        raw_name, ticker = m.groups()
+        # normalize: remove punctuation, lowercase
+        norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
+        mapping[norm] = ticker
+
+    # 3) for each fund in your scorecard, find the best match
     tickers = {}
     for name in fund_names:
-        # match by first up to 7 words of the fund name
-        prefix = " ".join(name.split()[:7])
-        found_ticker = None
-        for ln in all_lines:
-            if ln.startswith(prefix):
-                m = re.search(r"\b([A-Z]{5})\b", ln)
-                if m:
-                    found_ticker = m.group(1)
+        # normalize the expected name the same way
+        norm_expected = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
+        found = None
+        for raw_norm, tick in mapping.items():
+            if raw_norm.startswith(norm_expected):
+                found = tick
                 break
-        tickers[name] = found_ticker
+        tickers[name] = found
 
+    # 4) save + display
     st.session_state["tickers"] = tickers
-
-    # Display results
     st.subheader("Step 5: Extracted Tickers")
     for n, t in tickers.items():
         st.write(f"- {n}: {t or '❌ not found'}")
 
-    # Validation
+    # 5) validate count
     st.subheader("Step 5.5: Ticker Count Validation")
     total = len(fund_names)
-    found = len([t for t in tickers.values() if t])
+    found_count = sum(1 for t in tickers.values() if t)
     st.write(f"- Expected tickers: **{total}**")
-    st.write(f"- Found tickers:    **{found}**")
-    if found == total:
+    st.write(f"- Found tickers:    **{found_count}**")
+    if found_count == total:
         st.success("✅ All tickers found.")
     else:
-        st.error(f"❌ Missing {total - found} ticker(s).")
+        st.error(f"❌ Missing {total - found_count} ticker(s).")
+
 
 
 # === Main App ===
