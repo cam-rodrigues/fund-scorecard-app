@@ -46,7 +46,7 @@ def process_page1(text):
     st.subheader("Page 1 Metadata")
     st.write(f"- Total Options: {st.session_state['total_options']}")
     st.write(f"- Prepared For: {st.session_state['prepared_for']}")
-    st.write(f"- Prepared By: {st.session_state['prepared_by']}")
+    st.write(f"- Prepared By: Procyon Partners, LLC")
 
 
 # === Step 2 ===
