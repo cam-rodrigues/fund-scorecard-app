@@ -237,10 +237,10 @@ def step5_process_performance(pdf, start_page, fund_names):
         perf_text += txt + "\n"
         all_lines.extend(txt.splitlines())
 
-    # first pass: normalized line→ticker
+    # first pass: normalized line → ticker (1–5 uppercase letters)
     mapping = {}
     for ln in all_lines:
-        m = re.match(r"(.+?)\s+([A-Z]{5})$", ln.strip())
+        m = re.match(r"(.+?)\s+([A-Z]{1,5})$", ln.strip())
         if not m:
             continue
         raw_name, ticker = m.groups()
@@ -251,22 +251,25 @@ def step5_process_performance(pdf, start_page, fund_names):
     tickers = {}
     for name in fund_names:
         norm_expected = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
-        found = next((t for raw, t in mapping.items() if raw.startswith(norm_expected)), None)
+        found = next(
+            (t for raw, t in mapping.items() if raw.startswith(norm_expected)),
+            None
+        )
         tickers[name] = found
 
-    # if too few, fallback to ordered scrape
+    # if too few, fallback to ordered scrape of every 1–5 letter code
     total = len(fund_names)
     found_count = sum(1 for t in tickers.values() if t)
     if found_count < total:
-        # extract all unique 5‑letter tickers in order
-        all_tks = re.findall(r'\b([A-Z]{5})\b', perf_text)
+        all_tks = re.findall(r'\b([A-Z]{1,5})\b', perf_text)
         seen = []
         for tk in all_tks:
             if tk not in seen:
                 seen.append(tk)
-        # zip against fund_names
-        tickers = { name: seen[i] if i < len(seen) else None
-                    for i,name in enumerate(fund_names) }
+        tickers = {
+            name: (seen[i] if i < len(seen) else None)
+            for i, name in enumerate(fund_names)
+        }
 
     # store & display
     st.session_state["tickers"] = tickers
