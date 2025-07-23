@@ -277,3 +277,27 @@ def run():
         df = pd.DataFrame(block["Metrics"])
         st.table(df)
 
+# === Step 3.6: Double Check Investment Option Count ===
+import streamlit as st
+
+def run():
+    st.set_page_config(page_title="Step 3.6: Verify Option Count", layout="wide")
+    st.title("Step 3.6: Double Check Investment Option Count")
+
+    fund_blocks = st.session_state.get("fund_blocks")
+    total_options = st.session_state.get("total_options")
+
+    if fund_blocks is None or total_options is None:
+        st.warning("Please complete Step 1.5 and Step 3.5 before running this check.")
+        st.stop()
+
+    extracted_count = len(fund_blocks)
+
+    st.subheader("Comparison Result")
+    st.write(f"**Declared in Page 1:** {total_options}")
+    st.write(f"**Extracted from Fund Scorecard:** {extracted_count}")
+
+    if extracted_count == total_options:
+        st.success("✅ Count matches: All investment options were successfully extracted.")
+    else:
+        st.error(f"❌ Count mismatch: Expected {total_options}, but found {extracted_count}.")
