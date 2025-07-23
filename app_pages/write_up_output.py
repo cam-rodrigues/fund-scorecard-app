@@ -220,6 +220,12 @@ def run():
 
 
 def generate_watchlist_slide(df, selected_fund):
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+    from pptx.enum.shapes import MSO_SHAPE
+    from pptx.enum.text import PP_ALIGN
+    from pptx.dml.color import RGBColor
+
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[5])
 
@@ -251,7 +257,11 @@ def generate_watchlist_slide(df, selected_fund):
     col_widths = [1.8, 1.2, 1.0] + [0.4]*11 + [0.9]
 
     table_top = Inches(1.5)
-    table = slide.shapes.add_table(rows + 1, cols, Inches(0.3), table_top, Inches(9), Inches(0.25 * (rows + 1))).table
+    table_left = Inches(0.3)
+    table_height = Inches(0.25 * (rows + 1))
+    table_width = Inches(9)
+
+    table = slide.shapes.add_table(rows + 1, cols, table_left, table_top, table_width, table_height).table
     headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
 
     # Set column widths
@@ -262,13 +272,13 @@ def generate_watchlist_slide(df, selected_fund):
     for col_idx, header in enumerate(headers):
         cell = table.cell(0, col_idx)
         cell.text = header
-        cell.fill.background()  # Transparent background
+        cell.fill.background()
         p = cell.text_frame.paragraphs[0]
         p.font.name = "Cambria"
         p.font.size = Pt(10)
         p.font.bold = True
-        p.alignment = PP_ALIGN.CENTER
         p.font.color.rgb = RGBColor(0, 0, 0)
+        p.alignment = PP_ALIGN.CENTER
 
     # Data rows
     for row_idx, (_, r) in enumerate(matching_rows.iterrows(), start=1):
@@ -284,22 +294,39 @@ def generate_watchlist_slide(df, selected_fund):
             p = cell.text_frame.paragraphs[0]
             p.font.size = Pt(10)
             p.font.name = "Cambria"
-            p.alignment = PP_ALIGN.CENTER
             p.font.color.rgb = RGBColor(0, 0, 0)
+            p.alignment = PP_ALIGN.CENTER
 
-            if val == "Pass":
+            if val == "Pass" and col_idx != 14:
                 p.text = "✔"
-                p.font.color.rgb = RGBColor(0, 176, 80)  # Green
-            elif val == "Review":
+                p.font.color.rgb = RGBColor(0, 176, 80)
+            elif val == "Review" and col_idx != 14:
                 p.text = "✖"
-                p.font.color.rgb = RGBColor(255, 0, 0)  # Red
+                p.font.color.rgb = RGBColor(255, 0, 0)
             elif col_idx == 14:
-                p.text = ""
-            
-                badge_text = "FW" if str(val).upper().startswith("FW") else "IW"
-                badge_left = Inches(0.3) + sum(Inches(w) for w in col_widths[:col_idx]) + Inches(0.15)
+                p.text = ""  # Clear cell text
+                val_str = str(val).strip().upper()
+
+                # === Badge Logic ===
+                if val_str.startswith("FW"):
+                    badge_text = "FW"
+                    badge_color = RGBColor(192, 0, 0)      # Red
+                    font_color = RGBColor(255, 255, 255)
+                elif val_str.startswith("IW"):
+                    badge_text = "IW"
+                    badge_color = RGBColor(255, 165, 0)    # Orange
+                    font_color = RGBColor(255, 255, 255)
+                elif val_str == "PASS":
+                    badge_text = "✔"
+                    badge_color = RGBColor(0, 176, 80)     # Green
+                    font_color = RGBColor(255, 255, 255)
+                else:
+                    continue  # No badge for unknown status
+
+                # === Calculate badge position manually ===
+                badge_left = table_left + sum(Inches(w) for w in col_widths[:col_idx]) + Inches(0.15)
                 badge_top = table_top + Inches(0.25 * row_idx)
-            
+
                 shape = slide.shapes.add_shape(
                     MSO_SHAPE.OVAL,
                     left=badge_left,
@@ -308,9 +335,9 @@ def generate_watchlist_slide(df, selected_fund):
                     height=Inches(0.3),
                 )
                 shape.fill.solid()
-                shape.fill.fore_color.rgb = RGBColor(192, 0, 0)
+                shape.fill.fore_color.rgb = badge_color
                 shape.line.color.rgb = RGBColor(255, 255, 255)
-            
+
                 tf = shape.text_frame
                 tf.clear()
                 para = tf.paragraphs[0]
@@ -318,9 +345,10 @@ def generate_watchlist_slide(df, selected_fund):
                 run = para.add_run()
                 run.text = badge_text
                 run.font.bold = True
-                run.font.size = Pt(10)
-                run.font.color.rgb = RGBColor(255, 255, 255)
-
+                run.font.size = Pt(12 if badge_text == "✔" else 10)
+                run.font.color.rgb = font_color
+            else:
+                p.text = str(val)
 
     return prs
 
