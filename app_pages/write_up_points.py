@@ -65,6 +65,24 @@ def process_toc(text):
         st.write(f"- {key.replace('_',' ').title()}: {page}")
         st.session_state[key] = page
 
+    # sometimes the TOC label is slightly different, so we use a couple patterns
+    perf = re.search(r"Fund Performance[^\d]*(\d{1,3})", text or "")
+    sc   = re.search(r"Fund Scorecard\s+(\d{1,3})", text or "")
+    fs   = re.search(r"Fund Factsheets\s+(\d{1,3})", text or "")
+
+    perf_page = int(perf.group(1)) if perf else None
+    sc_page   = int(sc.group(1))   if sc   else None
+    fs_page   = int(fs.group(1))   if fs   else None
+
+    st.subheader("Table of Contents Pages")
+    st.write(f"- Performance Page: {perf_page}")
+    st.write(f"- Scorecard Page:   {sc_page}")
+    st.write(f"- Factsheets Page:  {fs_page}")
+
+    st.session_state["performance_page"] = perf_page
+    st.session_state["scorecard_page"]   = sc_page
+    st.session_state["factsheets_page"]  = fs_page
+
 # === Step 3 ===
 def step3_process_scorecard(pdf, start_page, declared_total):
     pages = []
@@ -212,66 +230,52 @@ def step4_ips_screen():
             sym = "✅" if statuses.get(m,False) else "❌"
             st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
 
-# === Step 5: Fund Performance Section Extraction (word‑based) ===
-from collections import defaultdict
+# === Step 5: Extract Tickers from the "Fund Performance" Section ===
+def step5_extract_tickers(pdf):
+    """
+    Starting at performance_page, read until we hit 'Fund Performance:' again or Factsheets.
+    Match each fund name (first 7 words) to its 3–6‑char all‑caps ticker on the same or next line.
+    """
+    perf_pg = st.session_state.get("performance_page")
+    end_pg  = st.session_state.get("scorecard_page") or (len(pdf.pages)+1)  # stop before scorecard
 
-def step5_process_performance(pdf, start_page, fund_names):
-    end_page = st.session_state.get("factsheets_page") or (len(pdf.pages) + 1)
+    # assume you have already built st.session_state["fund_blocks"] in Step 3
+    names = [b["Fund Name"] for b in st.session_state["fund_blocks"]]
 
-    # 1) Gather all words in the Performance section
-    all_rows = []
-    for p in pdf.pages[start_page-1 : end_page-1]:
-        words = p.extract_words(x_tolerance=3, y_tolerance=3)
-        # cluster words by their y‐coordinate (rounded)
-        rows = defaultdict(list)
-        for w in words:
-            y_group = int(round(w['top'] / 3))  # bucket every ~3px
-            rows[y_group].append(w)
-        # for each cluster, sort by x0 and join
-        for grp in rows.values():
-            grp_sorted = sorted(grp, key=lambda w: w['x0'])
-            texts = [w['text'] for w in grp_sorted]
-            # find first 4–5 uppercase token
-            for idx, tok in enumerate(texts):
-                if re.fullmatch(r"[A-Z]{4,5}", tok):
-                    name_str  = " ".join(texts[:idx]).strip()
-                    ticker    = tok
-                    all_rows.append((name_str, ticker))
-                    break
+    # precompute first-7-words patterns
+    patterns = []
+    for nm in names:
+        first7 = r"\s+".join(re.escape(w) for w in nm.split()[:7])
+        patterns.append(re.compile(rf"^{first7}", re.IGNORECASE))
 
-    # 2) Build a lookup: normalized row_name → ticker
-    lookup = {}
-    for raw_name, ticker in all_rows:
-        norm = re.sub(r"[^A-Za-z0-9 ]+", "", raw_name).lower().strip()
-        lookup[norm] = ticker
-
-    # 3) Match each fund_name by prefix
     tickers = {}
-    for fname in fund_names:
-        norm_f = re.sub(r"[^A-Za-z0-9 ]+", "", fname).lower().strip()
-        found  = None
-        for row_norm, tk in lookup.items():
-            if row_norm.startswith(" ".join(norm_f.split()[:7])):
-                found = tk
-                break
-        tickers[fname] = found
 
-    # 4) Display and validate
-    st.session_state["tickers"] = tickers
+    for p in pdf.pages[perf_pg-1 : end_pg-1]:
+        lines = p.extract_text().splitlines()
+        for i, line in enumerate(lines):
+            # try matching fund name
+            for idx, pat in enumerate(patterns):
+                if pat.search(line):
+                    # try grab 3-6 uppercase ticker
+                    m = re.search(r"\b([A-Z]{3,6})\b", line)
+                    if not m and i+1 < len(lines):
+                        m = re.search(r"\b([A-Z]{3,6})\b", lines[i+1])
+                    tickers[names[idx]] = m.group(1) if m else "❌ not found"
+    # validate count
+    expected = len(names)
+    found    = sum(1 for v in tickers.values() if v != "❌ not found")
+
     st.subheader("Step 5: Extracted Tickers")
-    for n, t in tickers.items():
-        st.write(f"- {n}: {t or '❌ not found'}")
+    for nm in names:
+        st.write(f"- {nm}: {tickers.get(nm,'❌ not found')}")
 
     st.subheader("Step 5.5: Ticker Count Validation")
-    total     = len(fund_names)
-    found_cnt = sum(1 for t in tickers.values() if t)
-    st.write(f"- Expected tickers: **{total}**")
-    st.write(f"- Found tickers:    **{found_cnt}**")
-    if found_cnt == total:
+    st.write(f"- Expected tickers: **{expected}**")
+    st.write(f"- Found tickers:    **{found}**")
+    if found == expected:
         st.success("✅ All tickers found.")
     else:
-        st.error(f"❌ Missing {total - found_cnt} ticker(s).")
-
+        st.error(f"❌ Missing {expected-found} ticker(s).")
 # === Main App ===
 def run():
     st.title("MPI Tool — Steps 1 to 5")
