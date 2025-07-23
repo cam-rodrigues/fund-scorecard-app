@@ -17,14 +17,14 @@ def extract_report_date(text):
         return f"As of {month_name[m]} {d}, {year}"
     return None
     
-# === Step 1 & 1.5 ===
+# === Step 1 & 1.5: Page 1 Extraction ===
 def process_page1(text):
-    quarter = extract_quarter_label(text)
-    if quarter:
-        st.session_state["quarter_label"] = quarter
-        st.success(f"Detected Quarter: {quarter}")
+    report_date = extract_report_date(text)
+    if report_date:
+        st.session_state["report_date"] = report_date
+        st.success(f"Report Date: {report_date}")
     else:
-        st.error("Could not detect quarter on page 1.")
+        st.error("Could not detect report date on page 1.")
 
     m = re.search(r"Total Options:\s*(\d+)", text or "")
     st.session_state["total_options"] = int(m.group(1)) if m else None
