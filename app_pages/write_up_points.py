@@ -51,21 +51,12 @@ def process_page1(text):
 
 # === Step 2: Table of Contents Extraction ===
 def process_toc(text):
-    # match either the legacy or new performance heading, plus scorecard & factsheets
-    patterns = {
-        "performance_page": r"Fund Performance(?: by Asset Class|: Current vs\. Proposed Comparison)\s+(\d+)",
-        "scorecard_page":   r"Fund Scorecard\s+(\d+)",
-        "factsheets_page":  r"Fund Factsheets\s+(\d+)"
-    }
-
-    st.subheader("Table of Contents Pages")
-    for key, pat in patterns.items():
-        m = re.search(pat, text or "")
-        page = int(m.group(1)) if m else None
-        st.write(f"- {key.replace('_',' ').title()}: {page}")
-        st.session_state[key] = page
-
-    # sometimes the TOC label is slightly different, so we use a couple patterns
+    """
+    Parses the TOC page text to find the start pages for:
+      – Fund Performance
+      – Fund Scorecard
+      – Fund Factsheets
+    """
     perf = re.search(r"Fund Performance[^\d]*(\d{1,3})", text or "")
     sc   = re.search(r"Fund Scorecard\s+(\d{1,3})", text or "")
     fs   = re.search(r"Fund Factsheets\s+(\d{1,3})", text or "")
@@ -82,6 +73,8 @@ def process_toc(text):
     st.session_state["performance_page"] = perf_page
     st.session_state["scorecard_page"]   = sc_page
     st.session_state["factsheets_page"]  = fs_page
+
+
 
 # === Step 3 ===
 def step3_process_scorecard(pdf, start_page, declared_total):
@@ -230,52 +223,57 @@ def step4_ips_screen():
             sym = "✅" if statuses.get(m,False) else "❌"
             st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
 
-# === Step 5: Extract Tickers from the "Fund Performance" Section ===
+
+# === Step 5: Extract Tickers from Fund Performance Section ===
 def step5_extract_tickers(pdf):
     """
-    Starting at performance_page, read until we hit 'Fund Performance:' again or Factsheets.
-    Match each fund name (first 7 words) to its 3–6‑char all‑caps ticker on the same or next line.
+    Using performance_page and scorecard_page from session_state,
+    scans all pages in between to match each Investment Option
+    by its first 7 words and extract the 3–6 char uppercase ticker.
     """
     perf_pg = st.session_state.get("performance_page")
-    end_pg  = st.session_state.get("scorecard_page") or (len(pdf.pages)+1)  # stop before scorecard
+    end_pg  = st.session_state.get("scorecard_page") or (len(pdf.pages) + 1)
 
-    # assume you have already built st.session_state["fund_blocks"] in Step 3
-    names = [b["Fund Name"] for b in st.session_state["fund_blocks"]]
+    # get the list of fund names from step 3
+    names = [b["Fund Name"] for b in st.session_state.get("fund_blocks", [])]
 
-    # precompute first-7-words patterns
-    patterns = []
-    for nm in names:
-        first7 = r"\s+".join(re.escape(w) for w in nm.split()[:7])
-        patterns.append(re.compile(rf"^{first7}", re.IGNORECASE))
+    # prepare a dict with default “not found”
+    tickers = {n: "❌ not found" for n in names}
 
-    tickers = {}
+    # scan each page in the performance section
+    for p in pdf.pages[perf_pg - 1 : end_pg - 1]:
+        lines = (p.extract_text() or "").splitlines()
+        for idx, ln in enumerate(lines):
+            for name in names:
+                # match first 7 words of name, case-insensitive
+                prefix = r"\s+".join(re.escape(w) for w in name.split()[:7])
+                if re.match(rf"^{prefix}", ln, re.IGNORECASE):
+                    # extract ticker on same or next line
+                    m = re.search(r"\b([A-Z]{3,6})\b", ln)
+                    if not m and idx + 1 < len(lines):
+                        m = re.search(r"\b([A-Z]{3,6})\b", lines[idx + 1])
+                    if m:
+                        tickers[name] = m.group(1)
 
-    for p in pdf.pages[perf_pg-1 : end_pg-1]:
-        lines = p.extract_text().splitlines()
-        for i, line in enumerate(lines):
-            # try matching fund name
-            for idx, pat in enumerate(patterns):
-                if pat.search(line):
-                    # try grab 3-6 uppercase ticker
-                    m = re.search(r"\b([A-Z]{3,6})\b", line)
-                    if not m and i+1 < len(lines):
-                        m = re.search(r"\b([A-Z]{3,6})\b", lines[i+1])
-                    tickers[names[idx]] = m.group(1) if m else "❌ not found"
-    # validate count
-    expected = len(names)
-    found    = sum(1 for v in tickers.values() if v != "❌ not found")
-
+    # display results
+    st.session_state["tickers"] = tickers
     st.subheader("Step 5: Extracted Tickers")
-    for nm in names:
-        st.write(f"- {nm}: {tickers.get(nm,'❌ not found')}")
+    for n, t in tickers.items():
+        st.write(f"- {n}: {t}")
 
+    # validate count
+    total     = len(names)
+    found_cnt = sum(1 for v in tickers.values() if v != "❌ not found")
     st.subheader("Step 5.5: Ticker Count Validation")
-    st.write(f"- Expected tickers: **{expected}**")
-    st.write(f"- Found tickers:    **{found}**")
-    if found == expected:
+    st.write(f"- Expected tickers: **{total}**")
+    st.write(f"- Found tickers:    **{found_cnt}**")
+    if found_cnt == total:
         st.success("✅ All tickers found.")
     else:
-        st.error(f"❌ Missing {expected-found} ticker(s).")
+        st.error(f"❌ Missing {total - found_cnt} ticker(s).")
+
+
+
 # === Main App ===
 def run():
     st.title("MPI Tool — Steps 1 to 5")
@@ -295,9 +293,9 @@ def run():
         sc_page    = st.session_state.get("scorecard_page")
         total_opts = st.session_state.get("total_options")
         if sc_page and total_opts is not None:
-            with st.expander("⚙️ Step 3 (scorecard) – hidden", expanded=False):
+            with st.expander("Step 3 (scorecard) – hidden", expanded=False):
                 step3_process_scorecard(pdf, sc_page, total_opts)
-            with st.expander("⚙️ Step 4 (IPS screening) – hidden", expanded=False):
+            with st.expander("Step 4 (IPS screening) – hidden", expanded=False):
                 step4_ips_screen()
         else:
             st.warning("Please complete Steps 1–2 first before running Steps 3–4.")
