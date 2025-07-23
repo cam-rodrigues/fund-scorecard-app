@@ -49,25 +49,21 @@ def process_page1(text):
     st.write(f"- Prepared By: Procyon Partners, LLC")
 
 
-# === Step 2 ===
+# === Step 2: Table of Contents Extraction ===
 def process_toc(text):
-    # grab first occurrence of each
-    perf = re.search(r"Fund Performance[^\d]*(\d+)", text or "")
-    sc   = re.search(r"Fund Scorecard\s+(\d+)", text or "")
-    fs   = re.search(r"Fund Factsheets\s+(\d+)", text or "")
+    # match either the legacy or new performance heading, plus scorecard & factsheets
+    patterns = {
+        "performance_page": r"Fund Performance(?: by Asset Class|: Current vs\. Proposed Comparison)\s+(\d+)",
+        "scorecard_page":   r"Fund Scorecard\s+(\d+)",
+        "factsheets_page":  r"Fund Factsheets\s+(\d+)"
+    }
 
     st.subheader("Table of Contents Pages")
-    perf_page = int(perf.group(1)) if perf else None
-    sc_page   = int(sc.group(1))   if sc   else None
-    fs_page   = int(fs.group(1))   if fs   else None
-
-    st.write(f"- Performance Page: {perf_page}")
-    st.write(f"- Scorecard Page:   {sc_page}")
-    st.write(f"- Factsheets Page:  {fs_page}")
-
-    st.session_state["performance_page"]   = perf_page
-    st.session_state["scorecard_page"]     = sc_page
-    st.session_state["factsheets_page"]    = fs_page
+    for key, pat in patterns.items():
+        m = re.search(pat, text or "")
+        page = int(m.group(1)) if m else None
+        st.write(f"- {key.replace('_',' ').title()}: {page}")
+        st.session_state[key] = page
 
 # === Step 3 ===
 def step3_process_scorecard(pdf, start_page, declared_total):
@@ -216,33 +212,30 @@ def step4_ips_screen():
             sym = "✅" if statuses.get(m,False) else "❌"
             st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
 
-# === Step 5: Fund Performance Section Extraction (robust) ===
+# === Step 5: Fund Performance Section Extraction ===
 def step5_process_performance(pdf, start_page, fund_names):
-    # find end of the Perf section from TOC (or end of doc)
+    # determine end of Perf section from TOC (or end of doc)
     end_page = st.session_state.get("factsheets_page") or (len(pdf.pages) + 1)
 
-    # 1) collect every line from pages [start_page-1 .. end_page-2]
+    # collect every line from pages [start_page-1 .. end_page-2]
     all_lines = []
     for p in pdf.pages[start_page-1 : end_page-1]:
         txt = p.extract_text() or ""
         all_lines.extend(txt.splitlines())
 
-    # 2) build a mapping: normalized fund-name-line -> ticker
+    # build normalized line → ticker mapping
     mapping = {}
     for ln in all_lines:
-        # look for lines ending in a 5-letter all-caps token
         m = re.match(r"(.+?)\s+([A-Z]{5})$", ln.strip())
         if not m:
             continue
         raw_name, ticker = m.groups()
-        # normalize: remove punctuation, lowercase
         norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
         mapping[norm] = ticker
 
-    # 3) for each fund in your scorecard, find the best match
+    # match each fund by normalized prefix
     tickers = {}
     for name in fund_names:
-        # normalize the expected name the same way
         norm_expected = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
         found = None
         for raw_norm, tick in mapping.items():
@@ -251,14 +244,14 @@ def step5_process_performance(pdf, start_page, fund_names):
                 break
         tickers[name] = found
 
-    # 4) save + display
+    # save & display results
     st.session_state["tickers"] = tickers
-    st.subheader("Step 5: Extracted Tickers")
+    st.subheader("Step 5: Extracted Tickers")
     for n, t in tickers.items():
         st.write(f"- {n}: {t or '❌ not found'}")
 
-    # 5) validate count
-    st.subheader("Step 5.5: Ticker Count Validation")
+    # Step 5.5: validation
+    st.subheader("Step 5.5: Ticker Count Validation")
     total = len(fund_names)
     found_count = sum(1 for t in tickers.values() if t)
     st.write(f"- Expected tickers: **{total}**")
@@ -267,7 +260,6 @@ def step5_process_performance(pdf, start_page, fund_names):
         st.success("✅ All tickers found.")
     else:
         st.error(f"❌ Missing {total - found_count} ticker(s).")
-
 
 
 # === Main App ===
