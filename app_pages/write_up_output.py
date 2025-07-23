@@ -274,9 +274,9 @@ def generate_watchlist_slide(df, selected_fund):
 
 
 
-    # Manually add left-aligned title textbox to match subheading
-    title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(9), Inches(0.5))
-    title_box.line.fill.background()  # ✅ Removes the border/outline of the textbox
+    # Manually add left-aligned title textbox to match logo padding
+    title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.5), Inches(6), Inches(0.5))  # left and top = 0.5"
+    title_box.line.fill.background()  # remove outline
     
     tf = title_box.text_frame
     tf.clear()
@@ -287,6 +287,7 @@ def generate_watchlist_slide(df, selected_fund):
     run.font.name = "HelveticaNeueLT Std Lt Ext"
     run.font.color.rgb = RGBColor(0, 51, 102)
     p.alignment = PP_ALIGN.LEFT
+
 
 
     top = Inches(1.1)
