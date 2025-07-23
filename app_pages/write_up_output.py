@@ -348,7 +348,7 @@ def generate_watchlist_slide(df, selected_fund):
                 else:
                     continue
 
-                badge_left = table_left + sum(Inches(w) for w in col_widths[:col_idx]) + Inches(0.22)
+                badge_left = table_left + sum(Inches(w) for w in col_widths[:col_idx]) + Inches(0.3)
                 badge_top = table_top + Inches(0.25 * row_idx) + Inches(0.06)
 
                 shape = slide.shapes.add_shape(
