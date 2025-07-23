@@ -65,34 +65,32 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     lines = "\n".join(pages).splitlines()
 
     # skip "Criteria Threshold"
-    idx = next((i for i,l in enumerate(lines) if "Criteria Threshold" in l), None)
+    idx = next((i for i, l in enumerate(lines) if "Criteria Threshold" in l), None)
     if idx is not None:
         lines = lines[idx+1:]
 
-    # parse each fund block
+    # parse each fund block by detecting the Manager Tenure metric
     fund_blocks = []
     curr_name = None
     curr_metrics = []
-    capture = False
 
     for i, line in enumerate(lines):
-        if "Manager Tenure" in line:
-            title = lines[i-1].strip()
-            name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", title).strip()
-            if curr_name and curr_metrics:
+        m = re.match(r"^(Manager Tenure|.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
+        if not m:
+            continue
+        metric, _, info = m.groups()
+        if metric == "Manager Tenure":
+            # start new fund block
+            if curr_name:
                 fund_blocks.append({"Fund Name": curr_name, "Metrics": curr_metrics})
-            curr_name, curr_metrics, capture = name, [], True
-        elif capture:
-            if not line.strip() or "Fund Scorecard" in line:
-                continue
-            if len(curr_metrics) >= 14:
-                capture = False
-                continue
-            m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
-            if m:
-                metric, _, info = m.groups()
-                curr_metrics.append({"Metric": metric, "Info": info})
-    if curr_name and curr_metrics:
+            # the fund name is in the previous non-empty line
+            prev = lines[i-1].strip()
+            curr_name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", prev).strip()
+            curr_metrics = []
+        # add this metric
+        curr_metrics.append({"Metric": metric, "Info": info})
+    # append last block
+    if curr_name:
         fund_blocks.append({"Fund Name": curr_name, "Metrics": curr_metrics})
 
     st.session_state["fund_blocks"] = fund_blocks
@@ -102,10 +100,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     for b in fund_blocks:
         st.markdown(f"### {b['Fund Name']}")
         for m in b["Metrics"]:
-            metric = m["Metric"]
-            info = m["Info"].strip()
-            # Always show metric name and its info
-            st.write(f"- **{metric}**: {info}")
+            st.write(f"- **{m['Metric']}**: {m['Info'].strip()}")
 
     # Step 3.6: Count validation
     st.subheader("Step 3.6: Investment Option Count")
