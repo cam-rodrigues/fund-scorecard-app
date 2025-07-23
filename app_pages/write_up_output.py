@@ -262,9 +262,9 @@ def generate_watchlist_slide(df, selected_fund):
     table_width = Inches(9)
 
     table = slide.shapes.add_table(rows + 1, cols, table_left, table_top, table_width, table_height).table
+    table.style = 'Table Grid'  # Apply PowerPoint grid border style
     headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
 
-    # Set column widths
     for i, width in enumerate(col_widths):
         table.columns[i].width = Inches(width)
 
@@ -304,26 +304,25 @@ def generate_watchlist_slide(df, selected_fund):
                 p.text = "✖"
                 p.font.color.rgb = RGBColor(255, 0, 0)
             elif col_idx == 14:
-                p.text = ""  # Clear cell text
-                val_str = str(val).strip().upper()
+                p.text = ""
+                val_str = str(val).strip().lower()
 
-                # === Badge Logic ===
-                if val_str.startswith("FW"):
+                # === Map display text to badge ===
+                if val_str == "formal warning":
                     badge_text = "FW"
-                    badge_color = RGBColor(192, 0, 0)      # Red
+                    badge_color = RGBColor(192, 0, 0)     # Red
                     font_color = RGBColor(255, 255, 255)
-                elif val_str.startswith("IW"):
+                elif val_str == "informal warning":
                     badge_text = "IW"
-                    badge_color = RGBColor(255, 165, 0)    # Orange
+                    badge_color = RGBColor(255, 165, 0)   # Orange
                     font_color = RGBColor(255, 255, 255)
-                elif val_str == "PASS":
+                elif val_str == "passed ips screen":
                     badge_text = "✔"
-                    badge_color = RGBColor(0, 176, 80)     # Green
+                    badge_color = RGBColor(0, 176, 80)    # Green
                     font_color = RGBColor(255, 255, 255)
                 else:
-                    continue  # No badge for unknown status
+                    continue  # no badge
 
-                # === Calculate badge position manually ===
                 badge_left = table_left + sum(Inches(w) for w in col_widths[:col_idx]) + Inches(0.15)
                 badge_top = table_top + Inches(0.25 * row_idx)
 
