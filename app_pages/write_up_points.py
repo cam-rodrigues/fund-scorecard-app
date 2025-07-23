@@ -201,3 +201,50 @@ def step4_display_ips_criteria():
     """)
 
     st.session_state["ips_criteria"] = ips_criteria
+
+
+# === Step 4.5: IPS Screening Evaluation ===
+def step4_5_ips_evaluation():
+    st.header("Step 4.5: IPS Screening Evaluation")
+
+    fund_blocks = st.session_state.get("fund_blocks")
+    if not fund_blocks:
+        st.warning("Please run Step 3 first to extract fund scorecard data.")
+        return
+
+    # IPS metrics: index in fund_metrics corresponds to each rule
+    IPS_METRICS_INDEX = {
+        0: "Manager Tenure ≥ 3 years",
+        1: "*3-Year Performance > Benchmark / +3-Year R² > 95%",
+        2: "3-Year Performance > 50% of Peers",
+        3: "3-Year Sharpe Ratio > 50% of Peers",
+        4: "*3-Year Sortino Ratio > 50% of Peers / +3-Year Tracking Error < 90% of Peers",
+        5: "*5-Year Performance > Benchmark / +5-Year R² > 95%",
+        6: "5-Year Performance > 50% of Peers",
+        7: "5-Year Sharpe Ratio > 50% of Peers",
+        8: "*5-Year Sortino Ratio > 50% of Peers / +5-Year Tracking Error < 90% of Peers",
+        9: "Expense Ratio < 50% of Peers",
+        10: "Investment Style aligns with fund objectives"
+    }
+
+    results = []
+
+    for block in fund_blocks:
+        fund_name = block["Fund Name"]
+        fund_type = "Passive" if "bitcoin" in fund_name.lower() else "Active"
+        metrics = block["Metrics"]
+        ips_eval = []
+        fail_count = 0
+
+        for i in range(11):
+            label = IPS_METRICS_INDEX[i]
+
+            if i == 10:
+                # Always Pass Investment Style alignment
+                status = "Pass"
+            else:
+                metric_info = metrics[i]["Info"] if i < len(metrics) else ""
+
+                if i in [1, 4, 5, 8]:  # dual metric logic
+                    if fund_type == "Activ_
+
