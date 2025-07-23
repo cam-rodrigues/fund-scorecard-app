@@ -26,13 +26,10 @@ def process_page1(text):
         st.success(f"Quarter detected: {quarter}")
     else:
         st.error("Quarter not found on page 1.")
-
     opts = re.search(r"Total Options:\s*(\d+)", text or "")
     st.session_state["total_options"] = int(opts.group(1)) if opts else None
-
     pf = re.search(r"Prepared For:\s*\n(.*)", text or "")
     st.session_state["prepared_for"] = pf.group(1).strip() if pf else None
-
     pb = re.search(r"Prepared By:\s*\n(.*)", text or "")
     st.session_state["prepared_by"] = pb.group(1).strip() if pb else None
 
@@ -57,40 +54,39 @@ def process_toc(text):
 
 # === Step 3: Scorecard Extraction & Key Bullets + Count Validation ===
 def step3_process_scorecard(pdf, start_page, declared_total):
-    # Collect all "Fund Scorecard" pages
+    # collect all "Fund Scorecard" pages
     pages = []
-    for p in pdf.pages[start_page - 1:]:
+    for p in pdf.pages[start_page-1:]:
         txt = p.extract_text() or ""
         if "Fund Scorecard" in txt:
             pages.append(txt)
         else:
             break
-
     lines = "\n".join(pages).splitlines()
 
-    # Skip "Criteria Threshold"
-    idx = next((i for i, l in enumerate(lines) if "Criteria Threshold" in l), None)
+    # skip "Criteria Threshold"
+    idx = next((i for i,l in enumerate(lines) if "Criteria Threshold" in l), None)
     if idx is not None:
-        lines = lines[idx + 1:]
+        lines = lines[idx+1:]
 
-    # Parse each fund block
+    # parse each fund block
     fund_blocks = []
     curr_name = None
     curr_metrics = []
-    capture = False
+    capturing = False
 
     for i, line in enumerate(lines):
         if "Manager Tenure" in line:
-            title = lines[i - 1].strip()
+            title = lines[i-1].strip()
             name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", title).strip()
             if curr_name and curr_metrics:
                 fund_blocks.append({"Fund Name": curr_name, "Metrics": curr_metrics})
-            curr_name, curr_metrics, capture = name, [], True
-        elif capture:
+            curr_name, curr_metrics, capturing = name, [], True
+        elif capturing:
             if not line.strip() or "Fund Scorecard" in line:
                 continue
             if len(curr_metrics) >= 14:
-                capture = False
+                capturing = False
                 continue
             m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
             if m:
@@ -101,21 +97,41 @@ def step3_process_scorecard(pdf, start_page, declared_total):
 
     st.session_state["fund_blocks"] = fund_blocks
 
-    # Step 3.5: Key Bullets
-    st.subheader("Step 3.5: Key Details for Each Metric")
+    # Step 3.5: Key numbers, performance, and tenure bullets
+    st.subheader("Step 3.5: Key Numbers & Notes")
+    perf_pattern = re.compile(r"\b(outperformed|underperformed)\b.*?(\d+\.?\d+%?)?", re.IGNORECASE)
+    tenure_phrases = [
+        "within its Peer Group",
+        "Percentile rank",
+        "Rank",
+        "as calculated against its benchmark"
+    ]
+
     for b in fund_blocks:
         st.markdown(f"### {b['Fund Name']}")
         for m in b["Metrics"]:
-            metric = m["Metric"]
-            info = m["Info"].strip()
-            if metric == "Manager Tenure":
-                # Manager tenure bullet
-                st.write(f"- This manager/team has been managing this product for {info}.")
-            else:
-                # Other metrics bullet: show only the descriptive sentence
-                st.write(f"- {info}")
+            info = m["Info"]
+            # extract numbers
+            nums = re.findall(r"[-+]?\d*\.\d+%?|\d+%?", info)
+            nums_str = ", ".join(nums) if nums else "—"
+            # find performance matches
+            perf_matches = perf_pattern.findall(info)
+            perf_notes = "; ".join(" ".join(match).strip() for match in perf_matches)
+            # find tenure phrases if Manager Tenure
+            tenure_notes = []
+            if m["Metric"] == "Manager Tenure":
+                for phrase in tenure_phrases:
+                    if phrase.lower() in info.lower():
+                        tenure_notes.append(phrase)
+            # build bullet
+            bullet = f"- **{m['Metric']}**: {nums_str}"
+            if perf_notes:
+                bullet += f"; {perf_notes}"
+            if tenure_notes:
+                bullet += "; " + "; ".join(tenure_notes)
+            st.write(bullet)
 
-    # Step 3.6: Count validation
+    # Step 3.6: count validation
     st.subheader("Step 3.6: Investment Option Count")
     count = len(fund_blocks)
     st.write(f"- Declared: **{declared_total}**")
