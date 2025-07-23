@@ -257,8 +257,18 @@ def generate_watchlist_slide(df, selected_fund):
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[5])
 
-    title_shape = slide.shapes.title
-    title_shape.text = "Investment Watchlist"
+    # Manually add left-aligned title textbox to match subheading
+    title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(9), Inches(0.5))
+    tf = title_box.text_frame
+    tf.clear()
+    p = tf.paragraphs[0]
+    run = p.add_run()
+    run.text = "Investment Watchlist"
+    run.font.size = Pt(20)
+    run.font.name = "HelveticaNeueLT Std Lt Ext"
+    run.font.color.rgb = RGBColor(0, 51, 102)
+    p.alignment = PP_ALIGN.LEFT  # ensure left alignment
+
     title_run = title_shape.text_frame.paragraphs[0].runs[0]
     title_run.font.size = Pt(20)
     title_run.font.name = "HelveticaNeueLT Std Lt Ext"
