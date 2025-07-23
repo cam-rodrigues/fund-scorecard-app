@@ -258,6 +258,15 @@ def generate_watchlist_slide(df, selected_fund):
     blank_slide_layout = prs.slide_layouts[6]  # Layout 6 is typically a blank slide
     slide = prs.slides.add_slide(blank_slide_layout)
 
+    # Add Procyon logo in upper-left corner
+    logo_path = "assets/procyon_logo.png"
+    logo_left = Inches(0.3)
+    logo_top = Inches(0.2)
+    logo_width = Inches(1.5)  # Adjust width if needed
+    
+    slide.shapes.add_picture(logo_path, logo_left, logo_top, width=logo_width)
+
+
     # Manually add left-aligned title textbox to match subheading
     title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(9), Inches(0.5))
     title_box.line.fill.background()  # ✅ Removes the border/outline of the textbox
