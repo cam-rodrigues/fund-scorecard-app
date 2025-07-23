@@ -305,7 +305,7 @@ def generate_watchlist_slide(df, selected_fund):
     matching_rows = df[df["Fund Name"] == selected_fund]
     rows = len(matching_rows)
     cols = 15
-    col_widths = [1.2, 1.2, 1.2] + [0.4] * 11 + [1.2]
+    col_widths = [1.2, 1.2, 1.2] + [0.4] * 11 + [1]
 
     table_top = Inches(1.5)
     table_left = Inches(0.3)
