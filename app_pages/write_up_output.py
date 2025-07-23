@@ -1,11 +1,11 @@
 import streamlit as st
 import pandas as pd
-import app_pages.write_up_processor as write_up_processor  # Make sure this module has process_mpi(uploaded_file)
+import app_pages.write_up_processor as write_up_processor  
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.dml.color import RGBColor
-from io import BytesIO  # ✅ Add this
+from io import BytesIO 
 from pptx.enum.text import PP_ALIGN
 from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
 from pptx.oxml.xmlchemy import OxmlElement
@@ -25,7 +25,7 @@ def run():
     if "fund_blocks" not in st.session_state:
         st.session_state["suppress_criteria_display"] = True
         st.session_state["suppress_scorecard_table"] = True
-        st.session_state["suppress_matching_confirmation"] = True  # 👈 NEW FLAG
+        st.session_state["suppress_matching_confirmation"] = True  
         write_up_processor.process_mpi(uploaded_file)
         st.success("File processed.")
     
@@ -129,7 +129,7 @@ def run():
     if "fund_blocks" not in st.session_state:
         st.session_state["suppress_criteria_display"] = True
         st.session_state["suppress_scorecard_table"] = True
-        st.session_state["suppress_matching_confirmation"] = True  # 👈 NEW FLAG
+        st.session_state["suppress_matching_confirmation"] = True  
         write_up_processor.process_mpi(uploaded_file)
         st.success("File processed.")
 
