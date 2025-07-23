@@ -10,11 +10,11 @@ def extract_quarter_label(text):
     month, day, year = int(m.group(1)), int(m.group(2)), m.group(3)
     if month == 3 and day == 31:
         return f"1st QTR, {year}"
-    if month == 6:
+    elif month == 6:
         return f"2nd QTR, {year}"
-    if month == 9 and day == 30:
+    elif month == 9 and day == 30:
         return f"3rd QTR, {year}"
-    if month == 12 and day == 31:
+    elif month == 12 and day == 31:
         return f"4th QTR, {year}"
     return f"Unknown ({m.group(0)})"
 
@@ -57,8 +57,9 @@ def process_toc(text):
 
 # === Step 3: Scorecard Extraction & Key Bullets + Count Validation ===
 def step3_process_scorecard(pdf, start_page, declared_total):
+    # collect all "Fund Scorecard" pages
     pages = []
-    for p in pdf.pages[start_page-1:]:
+    for p in pdf.pages[start_page - 1:]:
         txt = p.extract_text() or ""
         if "Fund Scorecard" in txt:
             pages.append(txt)
@@ -66,48 +67,54 @@ def step3_process_scorecard(pdf, start_page, declared_total):
             break
     lines = "\n".join(pages).splitlines()
 
-    # skip "Criteria Threshold" block
-    idx = next((i for i,l in enumerate(lines) if "Criteria Threshold" in l), None)
+    # skip "Criteria Threshold"
+    idx = next((i for i, l in enumerate(lines) if "Criteria Threshold" in l), None)
     if idx is not None:
-        lines = lines[idx+1:]
+        lines = lines[idx + 1:]
 
     fund_blocks = []
     curr_name = None
     curr_metrics = []
-    capturing = False
 
+    # iterate lines, match any metric line
     for i, line in enumerate(lines):
-        if "Manager Tenure" in line:
-            # start of a new fund block
-            prev = lines[i-1].strip()
+        m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
+        if not m:
+            continue
+
+        metric, _, info = m.groups()
+        # Manager Tenure starts a new block
+        if metric == "Manager Tenure":
+            # save previous fund
+            if curr_name and curr_metrics:
+                fund_blocks.append({"Fund Name": curr_name, "Metrics": curr_metrics})
+            # determine fund name from previous non-empty line
+            prev = ""
+            for j in range(i - 1, -1, -1):
+                if lines[j].strip():
+                    prev = lines[j].strip()
+                    break
             curr_name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", prev).strip()
             curr_metrics = []
-            capturing = True
-        elif capturing:
-            if not line.strip() or "Fund Scorecard" in line:
-                continue
-            # once we have 14 metrics, we end capture
-            if len(curr_metrics) >= 14:
-                fund_blocks.append({"Fund Name": curr_name, "Metrics": curr_metrics})
-                capturing = False
-                continue
-            m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
-            if m:
-                metric, _, info = m.groups()
-                curr_metrics.append({"Metric": metric, "Info": info})
-    # capture last block if needed
+
+        # append this metric
+        if curr_name:
+            curr_metrics.append({"Metric": metric, "Info": info})
+
+    # append last block
     if curr_name and curr_metrics:
         fund_blocks.append({"Fund Name": curr_name, "Metrics": curr_metrics})
 
     st.session_state["fund_blocks"] = fund_blocks
 
-    # display
+    # display key bullets
     st.subheader("Step 3.5: Key Details per Metric")
     for b in fund_blocks:
         st.markdown(f"### {b['Fund Name']}")
         for m in b["Metrics"]:
             st.write(f"- **{m['Metric']}**: {m['Info'].strip()}")
 
+    # count validation
     st.subheader("Step 3.6: Investment Option Count")
     count = len(fund_blocks)
     st.write(f"- Declared: **{declared_total}**")
@@ -119,7 +126,6 @@ def step3_process_scorecard(pdf, start_page, declared_total):
 
 # === Step 4: IPS Investment Criteria Screening ===
 def step4_ips_screen():
-    st.subheader("Step 4: IPS Investment Criteria Screening")
     IPS = [
         "Manager Tenure",
         "3-Year Performance",
@@ -136,123 +142,114 @@ def step4_ips_screen():
         "Investment Style"
     ]
 
-    results = []
+    st.subheader("Step 4: IPS Investment Criteria Screening")
     for b in st.session_state["fund_blocks"]:
         name = b["Fund Name"]
         is_passive = "bitcoin" in name.lower()
         statuses, reasons = {}, {}
 
-        # default
+        # default Investment Style
         statuses["Investment Style"] = True
-        reasons["Investment Style"] = "Assumed aligns"
+        reasons["Investment Style"] = "Assumed aligns with objectives"
 
         for m in b["Metrics"]:
             metric, info = m["Metric"], m["Info"]
-            # Manager Tenure
+
+            # Manager Tenure ≥ 3 years
             if metric == "Manager Tenure":
-                m_yrs = re.search(r"(\d+\.?\d*)", info)
-                yrs = float(m_yrs.group(1)) if m_yrs else 0
+                yrs = float(re.search(r"(\d+\.?\d*)", info).group(1))
                 ok = yrs >= 3
                 statuses["Manager Tenure"] = ok
                 reasons["Manager Tenure"] = f"{yrs}yrs {'≥3' if ok else '<3'}"
 
-            # Excess Performance / R²
+            # 3-Year Performance > 0
             if metric.startswith("Excess Performance (3Yr)"):
-                m_val = re.search(r"([-+]?\d*\.\d+)%", info)
-                perf = float(m_val.group(1)) if m_val else 0
+                perf = float(re.search(r"([-+]?\d*\.\d+)%", info).group(1))
                 statuses["3-Year Performance"] = perf > 0
-                reasons["3-Year Performance"] = f"{perf}% {'out' if perf>0 else 'under'}"
+                reasons["3-Year Performance"] = f"{perf}% {'outperformed' if perf>0 else 'underperformed'} benchmark"
+
+            # 3-Year R² for Passive
             if metric.startswith("R-Squared (3Yr)"):
-                m_val = re.search(r"(\d+\.\d+)%", info)
-                pct = float(m_val.group(1)) if m_val else 0
+                pct = float(re.search(r"(\d+\.\d+)%", info).group(1))
                 if is_passive:
                     ok = pct >= 95
                     statuses["3-Year R²"] = ok
                     reasons["3-Year R²"] = f"{pct}% {'≥95' if ok else '<95'}"
 
-            # Peer Return Rank (3Yr)
+            # 3-Year vs Peers
             if "Peer Return Rank (3Yr)" in metric:
-                m_val = re.search(r"(\d+)", info)
-                rank = int(m_val.group(1)) if m_val else 100
+                rank = int(re.search(r"(\d+)", info).group(1))
                 ok = rank <= 50
                 statuses["3-Year vs Peers"] = ok
                 reasons["3-Year vs Peers"] = f"Rank {rank}{'≤50' if ok else '>50'}"
 
-            # Sharpe Ratio Rank (3Yr)
+            # 3-Year Sharpe vs Peers
             if "Sharpe Ratio Rank (3Yr)" in metric:
-                m_val = re.search(r"(\d+)", info)
-                rank = int(m_val.group(1)) if m_val else 100
+                rank = int(re.search(r"(\d+)", info).group(1))
                 ok = rank <= 50
                 statuses["3-Year Sharpe vs Peers"] = ok
                 reasons["3-Year Sharpe vs Peers"] = f"Rank {rank}{'≤50' if ok else '>50'}"
 
-            # Sortino / Tracking Error (3Yr)
+            # 3-Year Sortino / Tracking Error
             if "Sortino Ratio Rank (3Yr)" in metric and not is_passive:
-                m_val = re.search(r"(\d+)", info)
-                rank = int(m_val.group(1)) if m_val else 100
+                rank = int(re.search(r"(\d+)", info).group(1))
                 ok = rank <= 50
                 statuses["3-Year Sortino / Tracking Error"] = ok
                 reasons["3-Year Sortino / Tracking Error"] = f"Rank {rank}{'≤50' if ok else '>50'}"
             if "Tracking Error Rank (3Yr)" in metric and is_passive:
-                m_val = re.search(r"(\d+)", info)
-                rank = int(m_val.group(1)) if m_val else 100
+                rank = int(re.search(r"(\d+)", info).group(1))
                 ok = rank < 90
                 statuses["3-Year Sortino / Tracking Error"] = ok
                 reasons["3-Year Sortino / Tracking Error"] = f"Rank {rank}{'<90' if ok else '≥90'}"
 
-            # Excess Performance (5Yr)
+            # 5-Year Performance
             if metric.startswith("Excess Performance (5Yr)"):
-                m_val = re.search(r"([-+]?\d*\.\d+)%", info)
-                perf = float(m_val.group(1)) if m_val else 0
+                perf = float(re.search(r"([-+]?\d*\.\d+)%", info).group(1))
                 statuses["5-Year Performance"] = perf > 0
-                reasons["5-Year Performance"] = f"{perf}% {'out' if perf>0 else 'under'}"
+                reasons["5-Year Performance"] = f"{perf}% {'outperformed' if perf>0 else 'underperformed'} benchmark"
+
+            # 5-Year R² for Passive
             if metric.startswith("R-Squared (5Yr)"):
-                m_val = re.search(r"(\d+\.\d+)%", info)
-                pct = float(m_val.group(1)) if m_val else 0
+                pct = float(re.search(r"(\d+\.\d+)%", info).group(1))
                 if is_passive:
                     ok = pct >= 95
                     statuses["5-Year R²"] = ok
                     reasons["5-Year R²"] = f"{pct}% {'≥95' if ok else '<95'}"
 
-            # Peer Return Rank (5Yr)
+            # 5-Year vs Peers
             if "Peer Return Rank (5Yr)" in metric:
-                m_val = re.search(r"(\d+)", info)
-                rank = int(m_val.group(1)) if m_val else 100
+                rank = int(re.search(r"(\d+)", info).group(1))
                 ok = rank <= 50
                 statuses["5-Year vs Peers"] = ok
                 reasons["5-Year vs Peers"] = f"Rank {rank}{'≤50' if ok else '>50'}"
 
-            # Sharpe Ratio Rank (5Yr)
+            # 5-Year Sharpe vs Peers
             if "Sharpe Ratio Rank (5Yr)" in metric:
-                m_val = re.search(r"(\d+)", info)
-                rank = int(m_val.group(1)) if m_val else 100
+                rank = int(re.search(r"(\d+)", info).group(1))
                 ok = rank <= 50
                 statuses["5-Year Sharpe vs Peers"] = ok
                 reasons["5-Year Sharpe vs Peers"] = f"Rank {rank}{'≤50' if ok else '>50'}"
 
-            # Sortino / Tracking Error (5Yr)
+            # 5-Year Sortino / Tracking Error
             if "Sortino Ratio Rank (5Yr)" in metric and not is_passive:
-                m_val = re.search(r"(\d+)", info)
-                rank = int(m_val.group(1)) if m_val else 100
+                rank = int(re.search(r"(\d+)", info).group(1))
                 ok = rank <= 50
                 statuses["5-Year Sortino / Tracking Error"] = ok
                 reasons["5-Year Sortino / Tracking Error"] = f"Rank {rank}{'≤50' if ok else '>50'}"
             if "Tracking Error Rank (5Yr)" in metric and is_passive:
-                m_val = re.search(r"(\d+)", info)
-                rank = int(m_val.group(1)) if m_val else 100
+                rank = int(re.search(r"(\d+)", info).group(1))
                 ok = rank < 90
                 statuses["5-Year Sortino / Tracking Error"] = ok
                 reasons["5-Year Sortino / Tracking Error"] = f"Rank {rank}{'<90' if ok else '≥90'}"
 
-            # Expense Ratio Rank
+            # Expense vs Peers
             if "Expense Ratio Rank" in metric:
-                m_val = re.search(r"(\d+)", info)
-                rank = int(m_val.group(1)) if m_val else 100
+                rank = int(re.search(r"(\d+)", info).group(1))
                 ok = rank <= 50
                 statuses["Expense vs Peers"] = ok
                 reasons["Expense vs Peers"] = f"Rank {rank}{'≤50' if ok else '>50'}"
 
-        # count fails
+        # count fails among the 11 (excluding Investment Style)
         fail_count = sum(1 for k,v in statuses.items() if k!="Investment Style" and not v)
         if fail_count <= 4:
             overall = "Passed IPS Screen"
@@ -261,36 +258,35 @@ def step4_ips_screen():
         else:
             overall = "Formal Watch (FW)"
 
-        results.append((name, "Passive" if is_passive else "Active", overall, fail_count, statuses, reasons))
-
-    # Display
-    for name, ftype, status, fails, sts, rsn in results:
-        st.markdown(f"### {name} ({ftype})")
-        st.write(f"**Overall:** {status} ({fails} fails)")
-        for m in IPS:
-            ok = sts.get(m, False)
+        # display each fund
+        st.markdown(f"### {name} ({'Passive' if is_passive else 'Active'})")
+        st.write(f"**Overall:** {overall} ({fail_count} fails)")
+        for metric in IPS:
+            ok = statuses.get(metric, False)
             symbol = "✅" if ok else "❌"
-            reason = rsn.get(m, "—")
-            st.write(f"- {symbol} **{m}**: {reason}")
+            reason = reasons.get(metric, "—")
+            st.write(f"- {symbol} **{metric}**: {reason}")
 
 # === Main Streamlit App ===
 def run():
-    st.title("MPI Tool — Steps 1 to 4")
+    st.title("MPI Tool — Steps 1 to 4")
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
 
     with pdfplumber.open(uploaded) as pdf:
+        # Steps 1 & 2
         process_page1(pdf.pages[0].extract_text() or "")
         if len(pdf.pages) > 1:
             process_toc(pdf.pages[1].extract_text() or "")
+        # Steps 3 & 4
         sp = st.session_state.get("scorecard_page")
         to = st.session_state.get("total_options")
         if sp and to is not None:
             step3_process_scorecard(pdf, sp, to)
             step4_ips_screen()
         else:
-            st.warning("Please complete Steps 1–3 first.")
+            st.warning("Please complete Steps 1–3 first.")
 
 # if __name__ == "__main__":
 #     run()
