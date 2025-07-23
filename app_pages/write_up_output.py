@@ -13,7 +13,7 @@ from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
 
 def run():
     st.set_page_config(page_title="IPS Summary Table", layout="wide")
-    st.title("Upload MPI & View IPS Summary Table")
+    st.title("Write Up Output")
 
     uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="writeup_upload")
 
@@ -219,12 +219,11 @@ def run():
         st.warning("No factsheet data found for the selected fund.")
 
 
-# === PowerPoint Generator: Dataset-style ===
 def generate_watchlist_slide(df, selected_fund):
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[5])
 
-    # Title
+    # === Title ===
     title_shape = slide.shapes.title
     title_shape.text = "Investment Watchlist"
     title_run = title_shape.text_frame.paragraphs[0].runs[0]
@@ -232,8 +231,8 @@ def generate_watchlist_slide(df, selected_fund):
     title_run.font.name = "HelveticaNeueLT Std Lt Ext"
     title_run.font.color.rgb = RGBColor(0, 51, 102)
 
-    # Subheading
-    top = Inches(1.0)
+    # === Subheading ===
+    top = Inches(1.1)
     subheading = slide.shapes.add_textbox(Inches(0.5), top, Inches(9), Inches(0.3))
     tf = subheading.text_frame
     p = tf.paragraphs[0]
@@ -245,64 +244,82 @@ def generate_watchlist_slide(df, selected_fund):
     run.font.underline = True
     run.font.color.rgb = RGBColor(0, 0, 0)
 
-    # Data
+    # === Table Data ===
     matching_rows = df[df["Fund Name"] == selected_fund]
-    if matching_rows.empty:
-        return prs
+    rows = len(matching_rows)
+    cols = 15
+    col_widths = [1.8, 1.2, 1.0] + [0.4]*11 + [0.9]
 
-    r = matching_rows.iloc[0]
-    category = r["Category"]
-    time_period = r["Time Period"]
-    plan_assets = r["Plan Assets"]
-    ips_status = r["IPS Status"]
-    metrics = [r[str(i)] for i in range(1, 12)]
+    table_top = Inches(1.5)
+    table = slide.shapes.add_table(rows + 1, cols, Inches(0.3), table_top, Inches(9), Inches(0.25 * (rows + 1))).table
+    headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
 
-    # Format as monospace text
-    header = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
-    header_str = "{:<12} {:<12} {:<12}".format(*header[:3]) + "  " + "  ".join([f"{h:>2}" for h in header[3:-1]]) + "   " + header[-1]
-    metric_str = "{:<12} {:<12} {:<12}".format(category, time_period, plan_assets)
+    # Set column widths
+    for i, width in enumerate(col_widths):
+        table.columns[i].width = Inches(width)
 
-    for m in metrics:
-        if m == "Pass":
-            metric_str += "   ✔"
-        elif m == "Review":
-            metric_str += "   ✖"
-        else:
-            metric_str += "   -"
-    metric_str += "   "  # space for IPS badge
+    # Header row
+    for col_idx, header in enumerate(headers):
+        cell = table.cell(0, col_idx)
+        cell.text = header
+        cell.fill.background()  # Transparent background
+        p = cell.text_frame.paragraphs[0]
+        p.font.name = "Cambria"
+        p.font.size = Pt(10)
+        p.font.bold = True
+        p.alignment = PP_ALIGN.CENTER
+        p.font.color.rgb = RGBColor(0, 0, 0)
 
-    textbox = slide.shapes.add_textbox(Inches(0.5), Inches(1.5), Inches(9), Inches(2))
-    tf = textbox.text_frame
-    tf.word_wrap = True
-    tf.clear()
+    # Data rows
+    for row_idx, (_, r) in enumerate(matching_rows.iterrows(), start=1):
+        row_vals = [
+            r.get("Category", ""),
+            r.get("Time Period", ""),
+            r.get("Plan Assets", ""),
+        ] + [r.get(str(i), "") for i in range(1, 12)] + [r.get("IPS Status", "")]
 
-    for line in [header_str, metric_str]:
-        para = tf.add_paragraph()
-        para.text = line
-        para.font.name = "Courier New"
-        para.font.size = Pt(11)
-        para.space_after = Pt(5)
+        for col_idx, val in enumerate(row_vals):
+            cell = table.cell(row_idx, col_idx)
+            cell.fill.background()
+            p = cell.text_frame.paragraphs[0]
+            p.font.size = Pt(10)
+            p.font.name = "Cambria"
+            p.alignment = PP_ALIGN.CENTER
+            p.font.color.rgb = RGBColor(0, 0, 0)
 
-    # Badge for IPS Status
-    badge = slide.shapes.add_shape(
-        MSO_SHAPE.OVAL,
-        left=Inches(8.1),
-        top=Inches(1.75),
-        width=Inches(0.6),
-        height=Inches(0.3),
-    )
-    badge.fill.solid()
-    badge.fill.fore_color.rgb = RGBColor(192, 0, 0)
-    badge.line.color.rgb = RGBColor(255, 255, 255)
-    badge_tf = badge.text_frame
-    badge_tf.clear()
-    badge_para = badge_tf.paragraphs[0]
-    badge_para.alignment = PP_ALIGN.CENTER
-    badge_run = badge_para.add_run()
-    badge_run.text = ips_status
-    badge_run.font.size = Pt(10)
-    badge_run.font.bold = True
-    badge_run.font.color.rgb = RGBColor(255, 255, 255)
+            if val == "Pass":
+                p.text = "✔"
+                p.font.color.rgb = RGBColor(0, 176, 80)  # Green
+            elif val == "Review":
+                p.text = "✖"
+                p.font.color.rgb = RGBColor(255, 0, 0)  # Red
+            elif col_idx == 14:
+                # Clear text for IPS badge
+                p.text = ""
+
+                badge_text = "FW" if str(val).upper().startswith("FW") else "IW"
+                shape = slide.shapes.add_shape(
+                    MSO_SHAPE.OVAL,
+                    left=table.columns[col_idx].left + Inches(0.15),
+                    top=table_top + Inches(0.25 * row_idx),
+                    width=Inches(0.6),
+                    height=Inches(0.3),
+                )
+                shape.fill.solid()
+                shape.fill.fore_color.rgb = RGBColor(192, 0, 0)
+                shape.line.color.rgb = RGBColor(255, 255, 255)
+
+                tf = shape.text_frame
+                tf.clear()
+                para = tf.paragraphs[0]
+                para.alignment = PP_ALIGN.CENTER
+                run = para.add_run()
+                run.text = badge_text
+                run.font.bold = True
+                run.font.size = Pt(10)
+                run.font.color.rgb = RGBColor(255, 255, 255)
+            else:
+                p.text = str(val)
 
     return prs
 
