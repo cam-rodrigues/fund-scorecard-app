@@ -194,3 +194,86 @@ def run():
             st.write(f"{i}. {metric}")
     else:
         st.warning("Could not extract scorecard metrics from this page.")
+
+
+# === Step 3.5: Extract Investment Option Metrics as Tables ===
+import re
+import streamlit as st
+import pdfplumber
+import pandas as pd
+
+def run():
+    st.set_page_config(page_title="Step 3.5: Extract Fund Metrics", layout="wide")
+    st.title("Step 3.5: Extract Metric Tables for Each Investment Option")
+
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="upload_step35")
+    if not uploaded_file:
+        st.stop()
+
+    scorecard_page_num = st.session_state.get("scorecard_page")
+    if not scorecard_page_num:
+        st.error("Scorecard page number not found. Please run Step 2 first.")
+        st.stop()
+
+    with pdfplumber.open(uploaded_file) as pdf:
+        scorecard_pages = []
+        for page in pdf.pages[scorecard_page_num - 1:]:
+            page_text = page.extract_text()
+            if "Fund Scorecard" in (page_text or ""):
+                scorecard_pages.append(page_text)
+            else:
+                break
+
+    full_scorecard_text = "\n".join(scorecard_pages)
+    lines = full_scorecard_text.splitlines()
+
+    # Extract all fund blocks
+    fund_blocks = []
+    current_fund = None
+    current_metrics = []
+    capture = False
+
+    for i, line in enumerate(lines):
+        if "Manager Tenure" in line:
+            # Line before this is likely the Investment Option title
+            fund_line = lines[i - 1].strip()
+            fund_name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", fund_line).strip()
+            if current_fund and current_metrics:
+                fund_blocks.append({
+                    "Fund Name": current_fund,
+                    "Metrics": current_metrics
+                })
+            current_fund = fund_name
+            current_metrics = []
+            capture = True
+        elif capture:
+            if line.strip() == "" or "Fund Scorecard" in line or "Prepared For" in line:
+                continue
+            if len(current_metrics) >= 14:
+                capture = False
+                continue
+            metric_match = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
+            if metric_match:
+                metric_name, status, reason = metric_match.groups()
+                current_metrics.append({
+                    "Metric": metric_name.strip(),
+                    "Status": status.strip(),
+                    "Info": reason.strip()
+                })
+
+    if current_fund and current_metrics:
+        fund_blocks.append({
+            "Fund Name": current_fund,
+            "Metrics": current_metrics
+        })
+
+    # Save to session state
+    st.session_state["fund_blocks"] = fund_blocks
+
+    # Display all tables
+    st.subheader("Extracted Metric Tables by Investment Option")
+    for block in fund_blocks:
+        st.markdown(f"### {block['Fund Name']}")
+        df = pd.DataFrame(block["Metrics"])
+        st.table(df)
+
