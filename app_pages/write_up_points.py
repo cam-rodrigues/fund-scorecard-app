@@ -253,6 +253,7 @@ def step5_process_performance(pdf, start_page, fund_names):
     else:
         st.error(f"❌ Missing {total - found_cnt} ticker(s).")
 
+
 # === Main App ===
 def run():
     st.title("MPI Tool — Steps 1 to 5")
@@ -261,35 +262,29 @@ def run():
         return
 
     with pdfplumber.open(uploaded) as pdf:
-        # Step 1 & 1.5: Page 1 metadata
+        # Step 1 & 1.5
         process_page1(pdf.pages[0].extract_text() or "")
 
-        # Step 2: TOC
+        # Step 2
         if len(pdf.pages) > 1:
             process_toc(pdf.pages[1].extract_text() or "")
 
-        # Steps 3 & 3.5–3.6: Scorecard extraction and count validation
-        sc_page = st.session_state.get("scorecard_page")
+        # Steps 3 & 4 — run but hide their output
+        sc_page    = st.session_state.get("scorecard_page")
         total_opts = st.session_state.get("total_options")
         if sc_page and total_opts is not None:
-            step3_process_scorecard(pdf, sc_page, total_opts)
-            step4_ips_screen()
+            with st.expander("⚙️ Step 3 (scorecard) – hidden", expanded=False):
+                step3_process_scorecard(pdf, sc_page, total_opts)
+            with st.expander("⚙️ Step 4 (IPS screening) – hidden", expanded=False):
+                step4_ips_screen()
         else:
-            st.warning("Please complete Steps 1–3 first.")
+            st.warning("Please complete Steps 1–2 first before running Steps 3–4.")
             return
 
-        # Step 5 & 5.5: Performance tickers
-        perf_page = st.session_state.get("performance_page")
-        fund_names = [b["Fund Name"] for b in st.session_state.get("fund_blocks", [])]
+        # Step 5 & 5.5
+        perf_page  = st.session_state.get("performance_page")
+        fund_names = [b["Fund Name"] for b in st.session_state["fund_blocks"]]
         if perf_page and fund_names:
             step5_process_performance(pdf, perf_page, fund_names)
         else:
-            st.warning("Please complete Steps 1–3 (including TOC and Scorecard) to extract tickers.")
-
-# To launch:
-# if __name__ == "__main__":
-#     run()
-
-
-# if __name__=="__main__":
-#     run()
+            st.warning("Please complete Steps 1–3 (including TOC & Scorecard) first.")
