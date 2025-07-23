@@ -255,14 +255,6 @@ def step5_process_performance(pdf, start_page, fund_names):
     else:
         st.error(f"❌ Missing {total - found} ticker(s).")
 
-# … in your main run() after step3_process_scorecard:
-perf_page = st.session_state.get("performance_page")
-fund_names = [b["Fund Name"] for b in st.session_state.get("fund_blocks", [])]
-if perf_page and fund_names:
-    step5_process_performance(pdf, perf_page, fund_names)
-else:
-    st.warning("Please complete Steps 1–3 first (including TOC and Scorecard).")
-
 # === Main App ===
 def run():
     st.title("MPI Tool — Steps 1 to 4")
