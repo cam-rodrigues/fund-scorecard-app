@@ -344,7 +344,7 @@ def generate_watchlist_slide(df, selected_fund):
                     left=badge_left,
                     top=badge_top,
                     width=Inches(0.5),
-                    height=Inches(0.25),
+                    height=Inches(0.2),
                 )
                 shape.fill.solid()
                 shape.fill.fore_color.rgb = badge_color
