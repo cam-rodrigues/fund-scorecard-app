@@ -267,12 +267,7 @@ def generate_watchlist_slide(df, selected_fund):
     run.font.size = Pt(20)
     run.font.name = "HelveticaNeueLT Std Lt Ext"
     run.font.color.rgb = RGBColor(0, 51, 102)
-    p.alignment = PP_ALIGN.LEFT  # ensure left alignment
-
-    title_run = title_shape.text_frame.paragraphs[0].runs[0]
-    title_run.font.size = Pt(20)
-    title_run.font.name = "HelveticaNeueLT Std Lt Ext"
-    title_run.font.color.rgb = RGBColor(0, 51, 102)
+    p.alignment = PP_ALIGN.LEFT
 
     top = Inches(1.1)
     subheading = slide.shapes.add_textbox(Inches(0.5), top, Inches(9), Inches(0.3))
