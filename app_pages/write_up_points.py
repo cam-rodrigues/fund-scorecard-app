@@ -100,3 +100,46 @@ def run():
     st.write(f"**Prepared For:** {prepared_for or 'Not found'}")
     st.write(f"**Prepared By:** {prepared_by or 'Not found'}")
 
+# === Step 2: Extract TOC Page Numbers ===
+
+def run():
+    st.set_page_config(page_title="Step 2: Extract TOC", layout="wide")
+    st.title("Step 2: Extract TOC Section Page Numbers")
+
+    uploaded_file = st.file_uploader("Upload MPI PDF", type=["pdf"], key="upload_step2")
+    if not uploaded_file:
+        st.stop()
+
+    with pdfplumber.open(uploaded_file) as pdf:
+        if len(pdf.pages) < 2:
+            st.error("PDF does not contain a second page.")
+            st.stop()
+
+        page2_text = pdf.pages[1].extract_text()
+
+    # Display raw TOC text
+    with st.expander("Page 2 (TOC) Text Preview"):
+        st.text(page2_text)
+
+    # Patterns to match
+    patterns = {
+        "performance_page": r"Fund Performance: Current vs\. Proposed Comparison\s+(\d+)",
+        "scorecard_page": r"Fund Scorecard\s+(\d+)",
+        "factsheets_page": r"Fund Factsheets\s+(\d+)"
+    }
+
+    results = {}
+    for key, pattern in patterns.items():
+        match = re.search(pattern, page2_text)
+        if match:
+            results[key] = int(match.group(1))
+            st.session_state[key] = results[key]
+        else:
+            results[key] = None
+            st.session_state[key] = None
+
+    # Display results
+    st.subheader("Extracted Section Start Pages")
+    st.write(f"**Fund Performance Page:** {results['performance_page'] or 'Not found'}")
+    st.write(f"**Fund Scorecard Page:** {results['scorecard_page'] or 'Not found'}")
+    st.write(f"**Fund Factsheets Page:** {results['factsheets_page'] or 'Not found'}")
