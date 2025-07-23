@@ -206,20 +206,7 @@ def run():
                     run.font.color.rgb = RGBColor(255, 255, 255)
                 else:
                     p.text = str(val)
-    
-        # === Optional: Footnotes / Commentary (placeholder) ===
-        note_top = table_top + Inches(0.25 * (rows + 1)) + Inches(0.2)
-        note_box = slide.shapes.add_textbox(Inches(0.5), note_top, Inches(8.5), Inches(1))
-        note_frame = note_box.text_frame
-        bullet1 = note_frame.add_paragraph()
-        bullet1.text = f"{selected_fund} underperformed its benchmark due to stock selection."
-        bullet1.level = 0
-        bullet1.font.size = Pt(10)
-    
-        bullet2 = note_frame.add_paragraph()
-        bullet2.text = "The fund’s results were impacted by market volatility and sector exposure."
-        bullet2.level = 0
-        bullet2.font.size = Pt(10)
+
     
         return prs
         
