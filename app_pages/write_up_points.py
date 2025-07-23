@@ -216,6 +216,53 @@ def step4_ips_screen():
             sym = "✅" if statuses.get(m,False) else "❌"
             st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
 
+# === Step 5: Fund Performance Section Extraction ===
+def step5_process_performance(pdf, start_page, fund_names):
+    tickers = {}
+    # 1) collect all "Fund Performance" pages
+    pages = []
+    for p in pdf.pages[start_page-1:]:
+        txt = p.extract_text() or ""
+        if "Fund Performance: Current vs. Proposed Comparison" in txt:
+            pages.append(txt)
+        else:
+            break
+    lines = "\n".join(pages).splitlines()
+
+    # 2) for each fund, match by first 7 words and pull the 5‑letter ticker
+    for name in fund_names:
+        prefix = " ".join(name.split()[:7])
+        for ln in lines:
+            if ln.startswith(prefix):
+                m = re.search(r"\b([A-Z]{5})\b", ln)
+                tickers[name] = m.group(1) if m else None
+                break
+
+    # 3) save + display
+    st.session_state["tickers"] = tickers
+    st.subheader("Step 5: Extracted Tickers")
+    for n, t in tickers.items():
+        st.write(f"- {n}: {t or '❌ not found'}")
+
+    # 4) Step 5.5: Validation
+    st.subheader("Step 5.5: Ticker Count Validation")
+    found = len([t for t in tickers.values() if t])
+    total = len(fund_names)
+    st.write(f"- Expected tickers: **{total}**")
+    st.write(f"- Found tickers:    **{found}**")
+    if found == total:
+        st.success("✅ All tickers found.")
+    else:
+        st.error(f"❌ Missing {total - found} ticker(s).")
+
+# … in your main run() after step3_process_scorecard:
+perf_page = st.session_state.get("performance_page")
+fund_names = [b["Fund Name"] for b in st.session_state.get("fund_blocks", [])]
+if perf_page and fund_names:
+    step5_process_performance(pdf, perf_page, fund_names)
+else:
+    st.warning("Please complete Steps 1–3 first (including TOC and Scorecard).")
+
 # === Main App ===
 def run():
     st.title("MPI Tool — Steps 1 to 4")
