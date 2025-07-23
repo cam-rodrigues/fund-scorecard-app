@@ -274,7 +274,18 @@ def generate_watchlist_slide(df, selected_fund):
     table_height = Inches(0.25 * (rows + 1))
 
     table = slide.shapes.add_table(rows + 1, cols, table_left, table_top, table_width, table_height).table
-    table.rows[-1].height = Inches(0.35)  # or any height you prefer
+    
+    # Set column widths
+    for i, width in enumerate(col_widths):
+        table.columns[i].width = Inches(width)
+    
+    # OPTIONAL: Increase all data row heights slightly
+    for i in range(1, len(table.rows)):
+        table.rows[i].height = Inches(0.3)
+    
+    # SAFE: Make last row slightly taller if any data rows exist
+    if rows > 0:
+        table.rows[-1].height = Inches(0.35)
 
 
     for i, width in enumerate(col_widths):
