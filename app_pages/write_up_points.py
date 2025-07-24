@@ -460,7 +460,7 @@ def step7_extract_returns(pdf):
             score = fuzz.token_sort_ratio(f"{name} {tk}".lower(), fund_line.lower())
             ticker_ok = tk.upper() == (ticker or "").upper()
 
-            # Dynamically detect and fill returns
+            # Dynamically detect and fill returns for retirement funds or missing benchmarks
             if score > 70 or ticker_ok:
                 if not item["QTD"]:             item["QTD"] = QTD_
                 if not item["1Yr"]:             item["1Yr"] = ONE_YR
