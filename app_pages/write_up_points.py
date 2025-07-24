@@ -459,6 +459,7 @@ def step7_extract_returns(pdf):
             score = fuzz.token_sort_ratio(f"{name} {tk}".lower(), fund_line.lower())
             ticker_ok = tk.upper() == (ticker or "").upper()
 
+            # Handle cases where benchmark might be missing
             if score > 70 or ticker_ok:
                 if not item["QTD"]:             item["QTD"] = QTD_
                 if not item["1Yr"]:             item["1Yr"] = ONE_YR
@@ -492,6 +493,7 @@ def step7_extract_returns(pdf):
             st.warning(f"⚠️ Could not fully fill: {item['Fund Scorecard Name']} ({item['Ticker']})")
 
     st.dataframe(df[display_cols], use_container_width=True)
+
 
 
 # === Main App ===
