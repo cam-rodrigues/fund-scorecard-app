@@ -533,6 +533,9 @@ def step8_extract_annualized_returns(pdf):
         cy_text += txt + "\n"
         all_lines.extend(txt.splitlines())
 
+    # Debugging: Show raw text to understand the structure
+    st.text(cy_text[:1000])  # Display first 1000 characters to examine the text structure
+
     # Get the fund names and tickers already extracted from previous steps
     fund_names_and_tickers = st.session_state.get("fund_performance_data", [])
 
@@ -567,6 +570,7 @@ def step8_extract_annualized_returns(pdf):
 
     # Optionally, save the extracted data in session state for further use
     st.session_state["fund_calendar_year_data"] = fund_data
+
 
 
 # === Main App ===
