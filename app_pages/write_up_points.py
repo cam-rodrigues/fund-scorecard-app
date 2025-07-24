@@ -414,9 +414,37 @@ def step7_extract_returns(pdf):
         return
 
     # 3) Pattern for exactly 8 space-separated floats
-    num_re = re.compile(r'^-?\d+\.\d+\s+-?\d+\.\d+\s+-?\d+\.\d+\s+'
-                        r'-?\d+\.\d+\s+-?\d+\.\d+\s+-?\d+\.\d+\s+'
-                        r'-?\d+\.\d+\s+-?\d+\.\d+$')
+    for line in lines[hdr_idx+1:]:
+        parts = re.split(r'\t+', line.strip())
+        if len(parts) < 12:
+            continue
+
+        fund_name_raw = parts[0].strip().rstrip(".")
+        ticker = parts[1].strip()
+
+        try:
+            fund_qtd, fund_1yr, fund_3yr, fund_5yr, fund_10yr = map(float, parts[2:7])
+            bench_qtd, bench_1yr, bench_3yr, bench_5yr, bench_10yr = map(float, parts[7:12])
+        except ValueError:
+            continue
+
+        for item in perf_data:
+            ref_name = item["Fund Scorecard Name"]
+            ref_ticker = item["Ticker"]
+            score = fuzz.token_sort_ratio(f"{ref_name} {ref_ticker}".lower(), f"{fund_name_raw} {ticker}".lower())
+            if score > 80:
+                item["QTD"] = str(fund_qtd)
+                item["1Yr"] = str(fund_1yr)
+                item["3Yr"] = str(fund_3yr)
+                item["5Yr"] = str(fund_5yr)
+                item["10Yr"] = str(fund_10yr)
+                item["Benchmark QTD"] = str(bench_qtd)
+                item["Benchmark 1Yr"] = str(bench_1yr)
+                item["Benchmark 3Yr"] = str(bench_3yr)
+                item["Benchmark 5Yr"] = str(bench_5yr)
+                item["Benchmark 10Yr"] = str(bench_10yr)
+                break
+
 
     i = hdr_idx + 1
     while i < len(lines):
