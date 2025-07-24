@@ -515,6 +515,10 @@ def step7_extract_returns(pdf):
 
     st.dataframe(df[display_cols], use_container_width=True)
 
+import re
+import streamlit as st
+import pandas as pd
+
 # === Step 8: Fund Performance - Calendar Year Annualized Returns ===
 def step8_extract_annualized_returns(pdf):
     st.subheader("Step 8: Fund Performance - Calendar Year Annualized Returns")
@@ -538,12 +542,21 @@ def step8_extract_annualized_returns(pdf):
     is_fund_section = False
     for line in all_lines:
         # Check if the line contains fund data (based on the pattern in the document)
-        m = re.match(r"^(?P<fund_name>[\w\s]+)\s+(?P<returns_2015>-?\d+\.\d+)\s+(?P<returns_2016>-?\d+\.\d+)\s+(?P<returns_2017>-?\d+\.\d+)\s+(?P<returns_2018>-?\d+\.\d+)\s+(?P<returns_2019>-?\d+\.\d+)\s+(?P<returns_2020>-?\d+\.\d+)\s+(?P<returns_2021>-?\d+\.\d+)\s+(?P<returns_2022>-?\d+\.\d+)\s+(?P<returns_2023>-?\d+\.\d+)\s+(?P<returns_2024>-?\d+\.\d+)", line.strip())
-        
+        m = re.match(r"^(?P<fund_name>[\w\s]+)\s+(?P<returns_2015>-?\d+\.\d+)\s+(?P<returns_2016>-?\d+\.\d+)\s+(?P<returns_2017>-?\d+\.\d+)\s+(?P<returns_2018>-?\d+\.\d+)\s+(?P<returns_2019>-?\d+\.\d+)\s+(?P<returns_2020>-?\d+\.\d+)\s+(?P<returns_2021>-?\d+\.\d+)\s+(?P<returns_2022>-?\d+\.\d+)\s+(?P<returns_2023>-?\d+\.\d+)\s+(?P<returns_2024>-?\d+\.\d+)\s+(?P<benchmark_name>[\w\s]+)?\s+(?P<benchmark_returns>-?\d+\.\d+)", line.strip())
+
         if m:
             fund_name = m.group("fund_name")
             returns = {year: m.group(f"returns_{year}") for year in range(2015, 2025)}
-            fund_data.append({"Fund Name": fund_name, **returns})
+            benchmark_name = m.group("benchmark_name")
+            benchmark_returns = m.group("benchmark_returns")
+
+            # Add fund and benchmark data
+            fund_data.append({
+                "Fund Name": fund_name,
+                "Benchmark": benchmark_name,
+                **returns,
+                "Benchmark Returns": benchmark_returns
+            })
             is_fund_section = True
         
         # If the section ends, break out of the loop
