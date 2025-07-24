@@ -308,7 +308,6 @@ def extract_field(text: str, label: str, stop_at: str = None) -> str:
         step6_process_factsheets(pdf, fund_names)
 
 # === Step 6: Fund Factsheets ===
-this one works. once you have this updated in your memory as the code that works ill give you the next step - def step6_process_factsheets(pdf, fund_names):
     st.subheader("Step 6: Fund Factsheets Section")
     factsheet_start = st.session_state.get("factsheets_page")
     total_declared = st.session_state.get("total_options")
