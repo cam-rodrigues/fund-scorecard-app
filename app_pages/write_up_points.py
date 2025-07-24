@@ -515,69 +515,63 @@ def step7_extract_returns(pdf):
 
     st.dataframe(df[display_cols], use_container_width=True)
 
-import re
-import streamlit as st
-import pandas as pd
 
-# === Step 8: Fund Performance - Calendar Year Annualized Returns ===
-def step8_extract_annualized_returns(pdf):
-    st.subheader("Step 8: Fund Performance - Calendar Year Annualized Returns")
+# === Step 8: Fund Performance Calendar Year Annualized Returns ===
+def step8_extract_calendar_year(pdf):
+    st.subheader("Step 8: Fund Performance Calendar Year Annualized Returns")
 
-    # Ensure the page number for the Fund Performance Calendar Year section is available
-    cy_page = st.session_state.get("calendar_year_page")
-    if cy_page is None:
-        st.error("❌ Could not find 'Fund Performance: Calendar Year' section in the TOC.")
+    # Retrieve the page number from the session state
+    calendar_year_page = st.session_state.get('calendar_year_page')
+    
+    if not calendar_year_page:
+        st.error("❌ Could not find 'Fund Performance: Calendar Year' page number.")
         return
 
-    # Extract text from the Fund Performance: Calendar Year page and the next page
-    all_lines = []
-    cy_text = ""
-    for p in pdf.pages[cy_page-1:cy_page+1]:  # Extracting the calendar year data from the page
-        txt = p.extract_text() or ""
-        cy_text += txt + "\n"
-        all_lines.extend(txt.splitlines())
+    # Extract text from the Fund Performance: Calendar Year page
+    page = pdf.pages[calendar_year_page - 1]  # Adjust because pdfplumber pages are 0-indexed
+    text = page.extract_text() or ""
 
-    # Debugging: Show raw text to understand the structure (you can remove or comment this out later)
-    st.text(cy_text[:1000])  # Display first 1000 characters to examine the text structure
+    # Look for the "Fund Performance: Calendar Year" section
+    if "Fund Performance: Calendar Year" not in text:
+        st.error("❌ Could not find the Fund Performance: Calendar Year section.")
+        return
 
-    # Get the fund names and tickers already extracted
-    fund_names_and_tickers = st.session_state.get("fund_performance_data", [])
-
-    # Parsing the data for each fund's calendar year performance
+    # Split the text into lines and parse for fund names, years, and returns
+    lines = text.splitlines()
     fund_data = []
-    for line in all_lines:
-        # Match fund name and its annualized returns for each year (2015-2024) along with the benchmark
-        m = re.match(r"^(?P<fund_name>[\w\s]+)\s+(?P<returns_2015>-?\d+\.\d+)\s+(?P<returns_2016>-?\d+\.\d+)\s+(?P<returns_2017>-?\d+\.\d+)\s+(?P<returns_2018>-?\d+\.\d+)\s+(?P<returns_2019>-?\d+\.\d+)\s+(?P<returns_2020>-?\d+\.\d+)\s+(?P<returns_2021>-?\d+\.\d+)\s+(?P<returns_2022>-?\d+\.\d+)\s+(?P<returns_2023>-?\d+\.\d+)\s+(?P<returns_2024>-?\d+\.\d+)\s+(?P<benchmark_name>[\w\s]+)?\s+(?P<benchmark_returns>-?\d+\.\d+)", line.strip())
 
-        if m:
-            fund_name = m.group("fund_name")
-            returns = {year: m.group(f"returns_{year}") for year in range(2015, 2025)}
-            benchmark_name = m.group("benchmark_name")
-            benchmark_returns = m.group("benchmark_returns")
-
-            # Check if the fund name matches any of the fund names from previously extracted data
-            matched_fund = next((fund for fund in fund_names_and_tickers if fund_name.lower() in fund["Fund Scorecard Name"].lower()), None)
-
-            if matched_fund:
-                # If a match is found, add both fund data and returns data, along with benchmark
-                fund_data.append({
-                    "Fund Name": fund_name,
-                    "Ticker": matched_fund["Ticker"],
-                    "Benchmark": benchmark_name,
-                    **returns,
-                    "Benchmark Returns": benchmark_returns
-                })
-
+    for line in lines:
+        # Assuming a format like:
+        # Fund Name   | Ticker   | 2020 | 2021 | 2022 | ... | Benchmark QTD | Benchmark 2020 | Benchmark 2021 |
+        # Match a line with fund and its years (ignoring extra spaces)
+        match = re.match(r"([A-Za-z\s\.]+)\s+([A-Z]{4,6})\s+([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s+", line)
+        if match:
+            fund_name = match.group(1).strip()
+            ticker = match.group(2).strip()
+            returns = [match.group(i) for i in range(3, 6)]  # Get the returns for 2020, 2021, and 2022
+            benchmark = returns[0:3]  # Assuming benchmark data is next to the fund returns
+            fund_data.append({
+                "Fund Name": fund_name,
+                "Ticker": ticker,
+                "2020": returns[0],
+                "2021": returns[1],
+                "2022": returns[2],
+                "Benchmark 2020": benchmark[0],
+                "Benchmark 2021": benchmark[1],
+                "Benchmark 2022": benchmark[2]
+            })
+    
     if not fund_data:
-        st.error("❌ No fund performance data found in the 'Fund Performance: Calendar Year' section.")
+        st.error("❌ Could not find any fund performance data.")
         return
 
-    # Display the extracted fund performance data in a table
+    # Display the results in a nice format
+    st.write("### Annualized Returns for Each Fund and Benchmark")
     df = pd.DataFrame(fund_data)
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df)
 
-    # Optionally, save the extracted data in session state for further use
-    st.session_state["fund_calendar_year_data"] = fund_data
+    # Store the extracted data for future steps
+    st.session_state['calendar_year_fund_data'] = fund_data
 
 
 # === Main App ===
