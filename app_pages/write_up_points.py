@@ -391,104 +391,6 @@ def step6_process_factsheets(pdf, fund_names):
         else:
             st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
-# === Step 7: QTD, 3Yr, 5yr Annualized Returns ===
-import re
-import pandas as pd
-import streamlit as st
-from rapidfuzz import fuzz
-
-def step7_extract_returns(pdf):
-    st.subheader("Step 7: QTD / 3YR / 5YR Returns")
-
-    perf_page     = st.session_state.get("performance_page")
-    factsheet_pg  = st.session_state.get("factsheets_page") or (len(pdf.pages)+1)
-    perf_data     = st.session_state.get("fund_performance_data", [])
-
-    if perf_page is None or not perf_data:
-        st.error("❌ Run Step 5 first to populate performance data.")
-        return
-
-    # 1) Slurp all text from the “Current vs. Proposed Comparison” section
-    lines = []
-    for p in pdf.pages[perf_page-1 : factsheet_pg-1]:
-        text = p.extract_text() or ""
-        lines += [l.strip() for l in text.splitlines() if l.strip()]
-
-    # 2) Locate the header row — in your PDF it's the line:
-    #    "QTD YTD 1 Yr 3 Yr 5 Yr 10 Yr Return Date Net Gross"
-    hdr_idx = next((i for i,l in enumerate(lines)
-                    if "QTD" in l and "3 Yr" in l and "5 Yr" in l), None)
-    if hdr_idx is None:
-        st.error("❌ Could not find the returns header (QTD/3 Yr/5 Yr).")
-        return
-
-    # 3) Numeric rows have exactly 8 space-separated floats, e.g.:
-    #    "-0.66 -0.66 4.27 7.46 18.57 10.37 0.23 0.23"
-    num_re = re.compile(r'^-?\d+\.\d+\s+-?\d+\.\d+\s+-?\d+\.\d+\s+'
-                        r'-?\d+\.\d+\s+-?\d+\.\d+\s+-?\d+\.\d+\s+'
-                        r'-?\d+\.\d+\s+-?\d+\.\d+$')
-
-    i = hdr_idx + 1
-    while i < len(lines):
-        row = lines[i]
-        if num_re.match(row):
-            parts    = re.split(r'\s+', row)
-            # from the spec: parts = [QTD, YTD, 1Yr, 3Yr, 5Yr, 10Yr, RetDate, Net]
-            QTD_     = parts[0]
-            THREE_YR = parts[3]
-            FIVE_YR  = parts[4]
-
-            # next line is the fund’s name+ticker line — e.g.:
-            #   "Vanguard Windsor II Admiral VWNAX 8.15 05/14/2001"
-            fund_line  = lines[i+1]
-
-            # skip over the rank‐line (i+2)
-            # the *benchmark* line comes at i+3, e.g.:
-            #   "Russell 1000 Value Index 2.14 2.14 7.18 6.64 16.15 8.79"
-            bench_line = lines[i+3]
-            bparts     = re.split(r'\s+', bench_line)
-            # benchmark tail is last 6 values: [QTD, YTD, 1Yr, 3Yr, 5Yr, 10Yr]
-            bvals      = bparts[-6:]
-            bQTD       = bvals[0]
-            b3YR       = bvals[3]
-            b5YR       = bvals[4]
-
-            # 4) Match that fund_line back to your perf_data list
-            for item in perf_data:
-                name = item["Fund Scorecard Name"]
-                tk   = item["Ticker"]
-                # use fuzzy match on name+ticker in fund_line
-                score = fuzz.token_sort_ratio(f"{name} {tk}".lower(),
-                                              fund_line.lower())
-                if score > 80:
-                    item["QTD"]             = QTD_
-                    item["3Yr"]            = THREE_YR
-                    item["5Yr"]            = FIVE_YR
-                    item["Benchmark QTD"]  = bQTD
-                    item["Benchmark 3Yr"] = b3YR
-                    item["Benchmark 5Yr"] = b5YR
-                    break
-
-            i += 4  # jump past benchmark line
-        else:
-            i += 1
-
-    # 5) Store & display
-    st.session_state["fund_performance_data"] = perf_data
-    df = pd.DataFrame(perf_data)
-
-    display_cols = [
-        "Fund Scorecard Name", "Ticker",
-        "QTD", "3Yr", "5Yr",
-        "Benchmark QTD", "Benchmark 3Yr", "Benchmark 5Yr"
-    ]
-    missing = [c for c in display_cols if c not in df.columns]
-    if missing:
-        st.error(f"Expected columns {display_cols}, but missing {missing}.")
-        return
-
-    st.dataframe(df[display_cols], use_container_width=True)
-
 
 # === Main App ===
 def run():
@@ -535,9 +437,6 @@ def run():
             names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
             step6_process_factsheets(pdf, names)
             
-        # Step 7
-        with st.expander("Step 7: Extract Annualized Returns", expanded=False):
-            step7_extract_returns(pdf)
 
 if __name__ == "__main__":
     run()
