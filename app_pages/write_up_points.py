@@ -538,26 +538,20 @@ def step8_extract_annualized_returns(pdf):
         cy_text += txt + "\n"
         all_lines.extend(txt.splitlines())
 
+    # Debugging: Show raw text to understand the structure (you can remove or comment this out later)
+    st.text(cy_text[:1000])  # Display first 1000 characters to examine the text structure
+
     # Parsing the data for each fund's calendar year performance
     fund_data = []
     is_fund_section = False
     for line in all_lines:
         # Check if the line contains fund data (based on the pattern in the document)
-        m = re.match(r"^(?P<fund_name>[\w\s]+)\s+(?P<returns_2015>-?\d+\.\d+)\s+(?P<returns_2016>-?\d+\.\d+)\s+(?P<returns_2017>-?\d+\.\d+)\s+(?P<returns_2018>-?\d+\.\d+)\s+(?P<returns_2019>-?\d+\.\d+)\s+(?P<returns_2020>-?\d+\.\d+)\s+(?P<returns_2021>-?\d+\.\d+)\s+(?P<returns_2022>-?\d+\.\d+)\s+(?P<returns_2023>-?\d+\.\d+)\s+(?P<returns_2024>-?\d+\.\d+)\s+(?P<benchmark_name>[\w\s]+)?\s+(?P<benchmark_returns>-?\d+\.\d+)", line.strip())
-
+        m = re.match(r"^(?P<fund_name>[\w\s]+)\s+(?P<returns_2015>-?\d+\.\d+)\s+(?P<returns_2016>-?\d+\.\d+)\s+(?P<returns_2017>-?\d+\.\d+)\s+(?P<returns_2018>-?\d+\.\d+)\s+(?P<returns_2019>-?\d+\.\d+)\s+(?P<returns_2020>-?\d+\.\d+)\s+(?P<returns_2021>-?\d+\.\d+)\s+(?P<returns_2022>-?\d+\.\d+)\s+(?P<returns_2023>-?\d+\.\d+)\s+(?P<returns_2024>-?\d+\.\d+)", line.strip())
+        
         if m:
             fund_name = m.group("fund_name")
             returns = {year: m.group(f"returns_{year}") for year in range(2015, 2025)}
-            benchmark_name = m.group("benchmark_name")
-            benchmark_returns = m.group("benchmark_returns")
-
-            # Add fund and benchmark data
-            fund_data.append({
-                "Fund Name": fund_name,
-                "Benchmark": benchmark_name,
-                **returns,
-                "Benchmark Returns": benchmark_returns
-            })
+            fund_data.append({"Fund Name": fund_name, **returns})
             is_fund_section = True
         
         # If the section ends, break out of the loop
@@ -568,12 +562,43 @@ def step8_extract_annualized_returns(pdf):
         st.error("❌ No fund performance data found in the 'Fund Performance: Calendar Year' section.")
         return
 
-    # Display the extracted fund performance data in a table
-    df = pd.DataFrame(fund_data)
+    # === Step 9: Extract Benchmark Returns ===
+    benchmark_data = []
+    is_benchmark_section = False
+    for line in all_lines:
+        # Check if the line contains benchmark data
+        m = re.match(r"^(?P<benchmark_name>[\w\s]+)\s+(?P<returns_2015>-?\d+\.\d+)\s+(?P<returns_2016>-?\d+\.\d+)\s+(?P<returns_2017>-?\d+\.\d+)\s+(?P<returns_2018>-?\d+\.\d+)\s+(?P<returns_2019>-?\d+\.\d+)\s+(?P<returns_2020>-?\d+\.\d+)\s+(?P<returns_2021>-?\d+\.\d+)\s+(?P<returns_2022>-?\d+\.\d+)\s+(?P<returns_2023>-?\d+\.\d+)\s+(?P<returns_2024>-?\d+\.\d+)", line.strip())
+        
+        if m:
+            benchmark_name = m.group("benchmark_name")
+            returns = {year: m.group(f"returns_{year}") for year in range(2015, 2025)}
+            benchmark_data.append({"Benchmark Name": benchmark_name, **returns})
+            is_benchmark_section = True
+        
+        # If the section ends, break out of the loop
+        if is_benchmark_section and line.strip() == "":
+            break
+
+    if not benchmark_data:
+        st.error("❌ No benchmark performance data found in the 'Fund Performance: Calendar Year' section.")
+        return
+
+    # Combine Fund Data and Benchmark Data into a final DataFrame
+    final_data = []
+    for fund in fund_data:
+        fund_name = fund["Fund Name"]
+        matching_benchmark = next((b for b in benchmark_data if b["Benchmark Name"] in fund_name), None)
+
+        if matching_benchmark:
+            benchmark_returns = {f"Benchmark {year}": matching_benchmark[f"returns_{year}"] for year in range(2015, 2025)}
+            final_data.append({**fund, **benchmark_returns})
+
+    # Display the extracted fund performance and benchmark data in a table
+    df = pd.DataFrame(final_data)
     st.dataframe(df, use_container_width=True)
 
     # Optionally, save the extracted data in session state for further use
-    st.session_state["fund_calendar_year_data"] = fund_data
+    st.session_state["fund_calendar_year_data"] = final_data
 
 # === Main App ===
 def run():
