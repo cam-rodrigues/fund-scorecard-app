@@ -456,10 +456,14 @@ def step7_extract_returns(pdf):
 
             name = item.get("Fund Scorecard Name", "")
             tk = item.get("Ticker", "")
-            score = fuzz.token_sort_ratio(f"{name} {tk}".lower(), fund_line.lower())
+            clean_fund_line = re.sub(r'[^a-zA-Z0-9\s]', '', fund_line).lower()
+            clean_name = re.sub(r'[^a-zA-Z0-9\s]', '', f"{name} {tk}").lower()
+            
+            score = fuzz.token_sort_ratio(clean_name, clean_fund_line)
             ticker_ok = tk.upper() == (ticker or "").upper()
-
-            if score > 80 or ticker_ok:
+            
+            if score > 70 or ticker_ok:
+                # Fill in values only if still missing
                 if not item["QTD"]:             item["QTD"] = QTD_
                 if not item["1Yr"]:             item["1Yr"] = ONE_YR
                 if not item["3Yr"]:             item["3Yr"] = THREE_YR
@@ -472,8 +476,6 @@ def step7_extract_returns(pdf):
                 if b10YR and not item["Benchmark 10Yr"]: item["Benchmark 10Yr"] = b10YR
                 matched_count += 1
                 break
-
-        i += 1
 
     # === Display results ===
     st.session_state["fund_performance_data"] = perf_data
