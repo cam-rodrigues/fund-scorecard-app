@@ -399,20 +399,18 @@ def step7_extract_returns(pdf):
         st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    # Read every page from perf_page to end
+    # Read all pages from perf_page onward
     lines = []
     for p in pdf.pages[perf_page - 1:]:
         text = p.extract_text() or ""
         lines += [l.strip() for l in text.splitlines() if l.strip()]
 
-    # Find header row that signals start of returns
-    hdr_idx = next((i for i, l in enumerate(lines)
-                    if "QTD" in l and "3 Yr" in l and "5 Yr" in l), None)
+    # Find the header line
+    hdr_idx = next((i for i, l in enumerate(lines) if "QTD" in l and "3 Yr" in l and "5 Yr" in l), None)
     if hdr_idx is None:
         st.error("❌ Could not find returns header.")
         return
 
-    # Ensure all return columns exist
     return_fields = [
         "QTD", "1Yr", "3Yr", "5Yr", "10Yr",
         "Benchmark QTD", "Benchmark 1Yr", "Benchmark 3Yr", "Benchmark 5Yr", "Benchmark 10Yr"
@@ -421,15 +419,13 @@ def step7_extract_returns(pdf):
         for col in return_fields:
             item.setdefault(col, None)
 
-    # Match fund rows
     matched_count = 0
     for line in lines[hdr_idx + 1:]:
         parts = re.split(r'\t+', line.strip())
-        if len(parts) < 13:
+        if len(parts) < 12:
             continue
 
-        fund_name_raw = parts[0].strip().rstrip(".")
-        ticker = parts[1].strip()
+        raw_ticker = parts[1].strip().upper()
 
         try:
             fund_qtd, fund_1yr, fund_3yr, fund_5yr, fund_10yr = map(float, parts[2:7])
@@ -437,17 +433,9 @@ def step7_extract_returns(pdf):
         except ValueError:
             continue
 
-        # Fuzzy match
-        def clean(s): return re.sub(r'[^A-Za-z0-9 ]', '', s).lower().strip()
-        line_combined = clean(f"{fund_name_raw} {ticker}")
-
         for item in perf_data:
-            ref_name = item["Fund Scorecard Name"]
-            ref_ticker = item["Ticker"]
-            ref_combined = clean(f"{ref_name} {ref_ticker}")
-
-            score = fuzz.token_sort_ratio(ref_combined, line_combined)
-            if score >= 70:
+            item_ticker = (item.get("Ticker") or "").strip().upper()
+            if raw_ticker == item_ticker:
                 item["QTD"]             = str(fund_qtd)
                 item["1Yr"]             = str(fund_1yr)
                 item["3Yr"]             = str(fund_3yr)
@@ -461,8 +449,8 @@ def step7_extract_returns(pdf):
                 matched_count += 1
                 break
 
-    # Show results
-    st.info(f"✅ Matched {matched_count} fund(s) with returns.")
+    # Display result
+    st.info(f"✅ Matched {matched_count} fund(s) by ticker.")
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
 
@@ -473,6 +461,7 @@ def step7_extract_returns(pdf):
         return
 
     st.dataframe(df[display_cols], use_container_width=True)
+
 
 # === Main App ===
 def run():
