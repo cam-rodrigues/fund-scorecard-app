@@ -456,7 +456,6 @@ for page in pdf.pages[perf_page - 1:]:
     missing = [c for c in display_cols if c not in df.columns]
     if missing:
         st.error(f"Expected columns {display_cols}, but missing {missing}.")
-        return
 
     st.dataframe(df[display_cols], use_container_width=True)
 
