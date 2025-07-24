@@ -511,5 +511,9 @@ def run():
             names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
             step6_process_factsheets(pdf, names)
 
+        # Step 7
+        with st.expander("Step 7: Extract Annualized Returns", expanded=False):
+            step7_extract_returns(pdf)
+
 if __name__ == "__main__":
     run()
