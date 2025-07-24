@@ -407,20 +407,22 @@ def step7_extract_returns(pdf):
         for field in return_fields:
             item.setdefault(field, None)
 
-    def is_filled(item):
-        return all(item.get(f) not in [None, ""] for f in return_fields)
+    # Maximum pages limit (to prevent infinite loops)
+    MAX_PAGES = 100
+    page_counter = 0
 
-    # === Read only the Fund Performance section ===
     lines = []
     start = (perf_page or 1) - 1
-    for i in range(start, len(pdf.pages)):
-        page = pdf.pages[i]
-        text = page.extract_text() or ""
-        if "Fund Performance: Current vs." not in text:
-            break  # Stop when section ends
+    end = len(pdf.pages)  # Read until the end if factsheet_pg is missing or broken
 
-        page_lines = [l.strip() for l in text.splitlines() if l.strip()]
-        lines.extend(page_lines)
+    for p in pdf.pages[start:end]:
+        text = p.extract_text() or ""
+        lines += [l.strip() for l in text.splitlines() if l.strip()]
+        
+        page_counter += 1
+        if page_counter > MAX_PAGES:
+            st.error("❌ Stopped processing pages after 100 iterations.")
+            break
 
     matched_count = 0
     i = 0
@@ -430,7 +432,6 @@ def step7_extract_returns(pdf):
         next2 = lines[i + 2]
         next3 = lines[i + 3]
 
-        # Match return rows with 8 numeric values
         num_re = re.compile(r'^-?\d+\.\d+(\s+-?\d+\.\d+){7}$')
         if not num_re.match(row):
             i += 1
@@ -456,14 +457,10 @@ def step7_extract_returns(pdf):
 
             name = item.get("Fund Scorecard Name", "")
             tk = item.get("Ticker", "")
-            clean_fund_line = re.sub(r'[^a-zA-Z0-9\s]', '', fund_line).lower()
-            clean_name = re.sub(r'[^a-zA-Z0-9\s]', '', f"{name} {tk}").lower()
-            
-            score = fuzz.token_sort_ratio(clean_name, clean_fund_line)
+            score = fuzz.token_sort_ratio(f"{name} {tk}".lower(), fund_line.lower())
             ticker_ok = tk.upper() == (ticker or "").upper()
-            
+
             if score > 70 or ticker_ok:
-                # Fill in values only if still missing
                 if not item["QTD"]:             item["QTD"] = QTD_
                 if not item["1Yr"]:             item["1Yr"] = ONE_YR
                 if not item["3Yr"]:             item["3Yr"] = THREE_YR
@@ -477,9 +474,11 @@ def step7_extract_returns(pdf):
                 matched_count += 1
                 break
 
-    # === Display results ===
+        i += 1
+
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
+
     display_cols = ["Fund Scorecard Name", "Ticker"] + return_fields
     missing = [c for c in display_cols if c not in df.columns]
     if missing:
@@ -488,6 +487,7 @@ def step7_extract_returns(pdf):
 
     st.success(f"✅ Matched {matched_count} fund(s) with return data.")
     st.dataframe(df[display_cols], use_container_width=True)
+
 
 # === Main App ===
 def run():
