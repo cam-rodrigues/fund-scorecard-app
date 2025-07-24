@@ -306,7 +306,7 @@ def step6_process_factsheets(pdf, fund_names):
         st.error("❌ 'Fund Factsheets' page number not found in TOC.")
         return
     else:
-        with pdfplumber.open(uploaded_file) as pdf:
+        with pdfplumber.open(uploaded) as pdf:
             matched_factsheets = []
         # Iterate pages from factsheet_start to end
         for i in range(factsheet_start - 1, len(pdf.pages)):
