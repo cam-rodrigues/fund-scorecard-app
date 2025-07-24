@@ -19,14 +19,14 @@ def extract_report_date(text):
         return f"As of {month_name[m]} {d}, {year}"
     return None
     
-# === Step 1 & 1.5: Page 1 Extraction ===
+# === Step 1 & 1.5: Page 1 Extraction ===
 def process_page1(text):
     report_date = extract_report_date(text)
     if report_date:
         st.session_state['report_date'] = report_date
         st.success(f"Report Date: {report_date}")
     else:
-        st.error("Could not detect report date on page 1.")
+        st.error("Could not detect report date on page 1.")
 
     m = re.search(r"Total Options:\s*(\d+)", text or "")
     st.session_state['total_options'] = int(m.group(1)) if m else None
@@ -40,7 +40,7 @@ def process_page1(text):
         pb = "Procyon Partners, LLC"
     st.session_state['prepared_by'] = pb
 
-    st.subheader("Page 1 Metadata")
+    st.subheader("Page 1 Metadata")
     st.write(f"- Total Options: {st.session_state['total_options']}")
     st.write(f"- Prepared For: {st.session_state['prepared_for']}")
     st.write(f"- Prepared By: {pb}")
@@ -127,13 +127,13 @@ def step3_process_scorecard(pdf, start_page, declared_total):
 
     st.session_state["fund_blocks"] = fund_blocks
 
-    st.subheader("Step 3.5: Key Details per Metric")
+    st.subheader("Step 3.5: Key Details per Metric")
     for b in fund_blocks:
         st.markdown(f"### {b['Fund Name']}")
         for m in b["Metrics"]:
             st.write(f"- **{m['Metric']}**: {m['Info'].strip()}")
 
-    st.subheader("Step 3.6: Investment Option Count")
+    st.subheader("Step 3.6: Investment Option Count")
     count = len(fund_blocks)
     st.write(f"- Declared: **{declared_total}**")
     st.write(f"- Extracted: **{count}**")
@@ -160,7 +160,7 @@ def step4_ips_screen():
         "Tracking Error Rank (5Yr)",
         "Expense Ratio Rank"
     ]
-    st.subheader("Step 4: IPS Investment Criteria Screening")
+    st.subheader("Step 4: IPS Investment Criteria Screening")
 
     for b in st.session_state["fund_blocks"]:
         name = b["Fund Name"]
@@ -230,7 +230,7 @@ def step4_ips_screen():
             st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
 
 
-# === Step 5: Fund Performance Section Extraction (with fallback) ===
+# === Step 5: Fund Performance Section Extraction (with fallback) ===
 def step5_process_performance(pdf, start_page, fund_names):
     # figure out where the section ends
     end_page = st.session_state.get("factsheets_page") or (len(pdf.pages) + 1)
@@ -279,12 +279,12 @@ def step5_process_performance(pdf, start_page, fund_names):
 
     # store & display
     st.session_state["tickers"] = tickers
-    st.subheader("Step 5: Extracted Tickers")
+    st.subheader("Step 5: Extracted Tickers")
     for n, t in tickers.items():
         st.write(f"- {n}: {t or '❌ not found'}")
 
     # validation
-    st.subheader("Step 5.5: Ticker Count Validation")
+    st.subheader("Step 5.5: Ticker Count Validation")
     found_count = sum(1 for t in tickers.values() if t)
     st.write(f"- Expected tickers: **{total}**")
     st.write(f"- Found tickers:    **{found_count}**")
@@ -515,11 +515,6 @@ def step7_extract_returns(pdf):
 
     st.dataframe(df[display_cols], use_container_width=True)
 
-import re
-import streamlit as st
-import pdfplumber
-import pandas as pd
-
 # === Step 8: Fund Performance - Calendar Year Annualized Returns ===
 def step8_extract_annualized_returns(pdf):
     st.subheader("Step 8: Fund Performance - Calendar Year Annualized Returns")
@@ -538,16 +533,13 @@ def step8_extract_annualized_returns(pdf):
         cy_text += txt + "\n"
         all_lines.extend(txt.splitlines())
 
-    # Debugging: Show raw text to understand the structure (you can remove or comment this out later)
-    st.text(cy_text[:1000])  # Display first 1000 characters to examine the text structure
-
     # Parsing the data for each fund's calendar year performance
     fund_data = []
     is_fund_section = False
     for line in all_lines:
         # Check if the line contains fund data (based on the pattern in the document)
         m = re.match(r"^(?P<fund_name>[\w\s]+)\s+(?P<returns_2015>-?\d+\.\d+)\s+(?P<returns_2016>-?\d+\.\d+)\s+(?P<returns_2017>-?\d+\.\d+)\s+(?P<returns_2018>-?\d+\.\d+)\s+(?P<returns_2019>-?\d+\.\d+)\s+(?P<returns_2020>-?\d+\.\d+)\s+(?P<returns_2021>-?\d+\.\d+)\s+(?P<returns_2022>-?\d+\.\d+)\s+(?P<returns_2023>-?\d+\.\d+)\s+(?P<returns_2024>-?\d+\.\d+)", line.strip())
-
+        
         if m:
             fund_name = m.group("fund_name")
             returns = {year: m.group(f"returns_{year}") for year in range(2015, 2025)}
@@ -562,43 +554,13 @@ def step8_extract_annualized_returns(pdf):
         st.error("❌ No fund performance data found in the 'Fund Performance: Calendar Year' section.")
         return
 
-    # === Step 9: Extract Benchmark Returns ===
-    benchmark_data = []
-    is_benchmark_section = False
-    for line in all_lines:
-        # Check if the line contains benchmark data
-        m = re.match(r"^(?P<benchmark_name>[\w\s]+)\s+(?P<returns_2015>-?\d+\.\d+)\s+(?P<returns_2016>-?\d+\.\d+)\s+(?P<returns_2017>-?\d+\.\d+)\s+(?P<returns_2018>-?\d+\.\d+)\s+(?P<returns_2019>-?\d+\.\d+)\s+(?P<returns_2020>-?\d+\.\d+)\s+(?P<returns_2021>-?\d+\.\d+)\s+(?P<returns_2022>-?\d+\.\d+)\s+(?P<returns_2023>-?\d+\.\d+)\s+(?P<returns_2024>-?\d+\.\d+)", line.strip())
-
-        if m:
-            benchmark_name = m.group("benchmark_name")
-            returns = {year: m.group(f"returns_{year}") for year in range(2015, 2025)}
-            benchmark_data.append({"Benchmark Name": benchmark_name, **returns})
-            is_benchmark_section = True
-        
-        # If the section ends, break out of the loop
-        if is_benchmark_section and line.strip() == "":
-            break
-
-    if not benchmark_data:
-        st.error("❌ No benchmark performance data found in the 'Fund Performance: Calendar Year' section.")
-        return
-
-    # Combine Fund Data and Benchmark Data into a final DataFrame
-    final_data = []
-    for fund in fund_data:
-        fund_name = fund["Fund Name"]
-        matching_benchmark = next((b for b in benchmark_data if b["Benchmark Name"] in fund_name), None)
-
-        if matching_benchmark:
-            benchmark_returns = {f"Benchmark {year}": matching_benchmark[f"returns_{year}"] for year in range(2015, 2025)}
-            final_data.append({**fund, **benchmark_returns})
-
-    # Display the extracted fund performance and benchmark data in a table
-    df = pd.DataFrame(final_data)
+    # Display the extracted fund performance data in a table
+    df = pd.DataFrame(fund_data)
     st.dataframe(df, use_container_width=True)
 
     # Optionally, save the extracted data in session state for further use
-    st.session_state["fund_calendar_year_data"] = final_data
+    st.session_state["fund_calendar_year_data"] = fund_data
+
 
 # === Main App ===
 def run():
@@ -655,3 +617,4 @@ def run():
 
 if __name__ == "__main__":
     run()
+
