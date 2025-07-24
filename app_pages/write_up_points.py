@@ -389,6 +389,9 @@ def step6_process_factsheets(pdf, fund_names):
 
 
 # === Step 7: QTD, 1 Yrm 3Yr, 5Yr, 10 Yr Annualized Returns ===
+import re
+from rapidfuzz import fuzz
+
 def step7_extract_returns(pdf):
     st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns")
 
@@ -400,22 +403,28 @@ def step7_extract_returns(pdf):
         st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    # === Extract all lines from the performance section
+    # === Extract all lines from performance section
     lines = []
     for p in pdf.pages[perf_page-1 : factsheet_pg-1]:
         text = p.extract_text() or ""
         lines += [l.strip() for l in text.splitlines() if l.strip()]
 
+    # === Ensure all return columns exist
     required_cols = [
         "QTD", "1Yr", "3Yr", "5Yr", "10Yr",
         "Benchmark QTD", "Benchmark 1Yr", "Benchmark 3Yr", "Benchmark 5Yr", "Benchmark 10Yr"
     ]
-
     for item in perf_data:
         for col in required_cols:
-            item.setdefault(col, None)  # Ensure all keys exist
+            item.setdefault(col, None)
 
-    # === Parse each tabbed performance line
+    # === Helper to normalize fund names
+    def clean_fund_name(name):
+        name = re.sub(r'\b(Admiral|Instl|Instl Pl|R6|I|Z|ETF|Fund)\b', '', name, flags=re.IGNORECASE)
+        name = re.sub(r'[^\w\s]', '', name)  # remove punctuation
+        return name.lower().strip()
+
+    # === Parse and match each line
     for line in lines:
         parts = re.split(r'\t+', line.strip())
         if len(parts) < 12:
@@ -430,14 +439,13 @@ def step7_extract_returns(pdf):
         except ValueError:
             continue
 
-        # Match this line to a fund
-        matched_any = False
+        matched = False
         for item in perf_data:
-            name = item.get("Fund Scorecard Name", "")
-            tk   = item.get("Ticker", "")
-            score = fuzz.token_sort_ratio(f"{name} {tk}".lower(), f"{fund_name_raw} {ticker}".lower())
+            ref_name = clean_fund_name(f"{item.get('Fund Scorecard Name', '')} {item.get('Ticker', '')}")
+            target_name = clean_fund_name(f"{fund_name_raw} {ticker}")
+            score = fuzz.token_sort_ratio(ref_name, target_name)
 
-            if score > 80:
+            if score >= 70:
                 item["QTD"] = str(fund_qtd)
                 item["1Yr"] = str(fund_1yr)
                 item["3Yr"] = str(fund_3yr)
@@ -448,13 +456,13 @@ def step7_extract_returns(pdf):
                 item["Benchmark 3Yr"] = str(bench_3yr)
                 item["Benchmark 5Yr"] = str(bench_5yr)
                 item["Benchmark 10Yr"] = str(bench_10yr)
-                matched_any = True
+                matched = True
                 break
 
-        if not matched_any:
+        if not matched:
             st.warning(f"⚠️ No match found for: {fund_name_raw} ({ticker})")
 
-    # === Display DataFrame
+    # === Store & display
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
 
@@ -469,6 +477,7 @@ def step7_extract_returns(pdf):
         return
 
     st.dataframe(df[display_cols], use_container_width=True)
+
 
 
 # === Main App ===
