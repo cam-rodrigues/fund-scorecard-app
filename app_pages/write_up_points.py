@@ -400,14 +400,23 @@ def step7_extract_returns(pdf):
         st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    # 1) Extract all lines from the performance section
+    # === Extract all lines from the performance section
     lines = []
     for p in pdf.pages[perf_page-1 : factsheet_pg-1]:
         text = p.extract_text() or ""
         lines += [l.strip() for l in text.splitlines() if l.strip()]
 
+    required_cols = [
+        "QTD", "1Yr", "3Yr", "5Yr", "10Yr",
+        "Benchmark QTD", "Benchmark 1Yr", "Benchmark 3Yr", "Benchmark 5Yr", "Benchmark 10Yr"
+    ]
+
+    for item in perf_data:
+        for col in required_cols:
+            item.setdefault(col, None)  # Ensure all keys exist
+
+    # === Parse each tabbed performance line
     for line in lines:
-        # Format: Fund Name<TAB>Ticker<TAB>QTD 1Yr 3Yr 5Yr 10Yr<TAB>Benchmark QTD 1Yr 3Yr 5Yr 10Yr
         parts = re.split(r'\t+', line.strip())
         if len(parts) < 12:
             continue
@@ -421,10 +430,13 @@ def step7_extract_returns(pdf):
         except ValueError:
             continue
 
+        # Match this line to a fund
+        matched_any = False
         for item in perf_data:
             name = item.get("Fund Scorecard Name", "")
             tk   = item.get("Ticker", "")
             score = fuzz.token_sort_ratio(f"{name} {tk}".lower(), f"{fund_name_raw} {ticker}".lower())
+
             if score > 80:
                 item["QTD"] = str(fund_qtd)
                 item["1Yr"] = str(fund_1yr)
@@ -436,9 +448,13 @@ def step7_extract_returns(pdf):
                 item["Benchmark 3Yr"] = str(bench_3yr)
                 item["Benchmark 5Yr"] = str(bench_5yr)
                 item["Benchmark 10Yr"] = str(bench_10yr)
+                matched_any = True
                 break
 
-    # 2) Store & display
+        if not matched_any:
+            st.warning(f"⚠️ No match found for: {fund_name_raw} ({ticker})")
+
+    # === Display DataFrame
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
 
