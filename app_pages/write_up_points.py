@@ -394,9 +394,6 @@ def step6_process_factsheets(pdf, fund_names):
 
 # === Step 7: QTD, 3Yr, 5Yr ===
 
-import re
-from rapidfuzz import fuzz
-
 def step7_extract_returns(pdf):
     st.subheader("Step 7: QTD / 3YR / 5YR Returns")
 
@@ -408,30 +405,30 @@ def step7_extract_returns(pdf):
         st.error("❌ Please run Step 5 first to populate performance data.")
         return
 
-    # --- 1) Table extraction (may catch most rows) ---
+    # ——— 1) Table-based extraction ———
     last_item = None
     for page in pdf.pages[perf_page-1 : factsheet_pg-1]:
-        for table in page.extract_tables() or []:
-            hdr = table[0]
-            if "QTD" not in hdr or not any(re.search(r"3\s*Yr", h or "") for h in hdr):
+        for table in page.extract_tables():
+            hdr = table[0] if table else []
+            if not ("QTD" in hdr and any("3" in h and "Yr" in h for h in hdr)):
                 continue
-
-            # find QTD, 3Yr, 5Yr columns
-            q_idx  = next(i for i,h in enumerate(hdr) if "QTD" in (h or ""))
-            y3_idx = next(i for i,h in enumerate(hdr) if re.search(r"3\s*Yr", h or ""))
-            y5_idx = next(i for i,h in enumerate(hdr) if re.search(r"5\s*Yr", h or ""))
+            # find column indices
+            q_idx  = next(i for i,h in enumerate(hdr) if "QTD" in h)
+            y3_idx = next(i for i,h in enumerate(hdr) if re.search(r"3\s*Yr", h))
+            y5_idx = next(i for i,h in enumerate(hdr) if re.search(r"5\s*Yr", h))
 
             for row in table[1:]:
                 label = (row[0] or "").strip()
                 if not label:
                     continue
 
-                # match by ticker first
+                # match by fund name or ticker
                 item = None
+                #  a) by exact ticker
                 if len(row) > 1 and row[1] in {d["Ticker"] for d in data}:
                     item = next(d for d in data if d["Ticker"] == row[1])
                 else:
-                    # then fuzzy by name
+                    # b) fuzzy by name
                     for d in data:
                         if fuzz.token_sort_ratio(label.lower(), d["Fund Scorecard Name"].lower()) > 85:
                             item = d
@@ -439,81 +436,58 @@ def step7_extract_returns(pdf):
 
                 if item:
                     last_item = item
-                    item["QTD"]             = row[q_idx]
-                    item["3Yr"]            = row[y3_idx]
-                    item["5Yr"]            = row[y5_idx]
+                    item["QTD"]  = row[q_idx]
+                    item["3Yr"] = row[y3_idx]
+                    item["5Yr"] = row[y5_idx]
                 elif label.lower().startswith("benchmark") and last_item:
                     last_item["Benchmark QTD"]  = row[q_idx]
                     last_item["Benchmark 3Yr"] = row[y3_idx]
                     last_item["Benchmark 5Yr"] = row[y5_idx]
 
-    # --- 2) Regex fallback over raw lines for missing entries ---
-    # Pattern: FundName TKR num num num num num num
-    line_re = re.compile(
-        r'^(.+?)\s+([A-Z]{3,5})\s+'    # fund name + ticker
-        r'(-?\d+\.\d+)\s+'             # QTD
-        r'-?\d+\.\d+\s+'               # YTD (ignored)
-        r'-?\d+\.\d+\s+'               # 1YR (ignored)
-        r'(-?\d+\.\d+)\s+'             # 3YR
-        r'(-?\d+\.\d+)\s+'             # 5YR
-        r'-?\d+\.\d+\s+'               # 10YR (ignored)
-        r'-?\d+\.\d+$'                 # Net/Gross (ignored)
+    # ——— 2) Regex fallback for any still‐missing funds ———
+    perf_text = "\n".join(
+        (pg.extract_text() or "") for pg in pdf.pages[perf_page-1 : factsheet_pg-1]
     )
+    # pattern for five consecutive numeric fields
+    num_grp = r"(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)"
+    for d in data:
+        if all(k in d for k in ("QTD","3Yr","5Yr")):
+            continue  # already filled
 
-    for page in pdf.pages[perf_page-1 : factsheet_pg-1]:
-        text = page.extract_text() or ""
-        for line in text.splitlines():
-            m = line_re.match(line.strip())
-            if not m:
-                continue
-            raw_name, tk, qtd, threeyr, fiveyr = m.groups()
-            # normalize name
-            raw_name = raw_name.rstrip('. ')
-            for d in data:
-                key = f"{d['Fund Scorecard Name']} {d['Ticker']}".lower()
-                fund_key = f"{raw_name} {tk}".lower()
-                if fuzz.token_sort_ratio(key, fund_key) > 85:
-                    # only fill if still missing
-                    if "QTD" not in d:
-                        d["QTD"] = qtd
-                    if "3Yr" not in d:
-                        d["3Yr"] = threeyr
-                    if "5Yr" not in d:
-                        d["5Yr"] = fiveyr
-            
-                    # now look for its benchmark on next lines
-                    rest = text[text.find(line) + len(line):]
-                    bench_match = re.search(
-                        r'^[^\n]+\s+' +                   # bench name
-                        r'(-?\d+\.\d+)\s+-?\d+\.\d+\s+' + # QTD
-                        r'-?\d+\.\d+\s+-?\d+\.\d+\s+' +   # YTD & 1YR
-                        r'(-?\d+\.\d+)\s+(-?\d+\.\d+)',    # 3YR, 5YR
-                        rest,
-                        flags=re.MULTILINE
-                    )
-                    if bench_match:
-                        d["Benchmark QTD"]   = bench_match.group(1)
-                        d["Benchmark 3Yr"]  = bench_match.group(2)
-                        d["Benchmark 5Yr"]  = bench_match.group(3)
-                    break
+        name, tk = d["Fund Scorecard Name"], d["Ticker"]
+        # look for "Name  TKR  num num num num num"
+        pat = rf"{re.escape(name)}\s+{re.escape(tk)}\s+{num_grp}"
+        m = re.search(pat, perf_text)
+        if m:
+            d["QTD"]  = m.group(1)
+            d["3Yr"] = m.group(4)
+            d["5Yr"] = m.group(5)
 
+            # now capture the very next numeric block as the benchmark
+            rest = perf_text[m.end():]
+            # capture bench name then five nums
+            bench_pat = rf"[^\n]+\s+{num_grp}"
+            m2 = re.search(bench_pat, rest)
+            if m2:
+                d["Benchmark QTD"]  = m2.group(1)
+                d["Benchmark 3Yr"] = m2.group(4)
+                d["Benchmark 5Yr"] = m2.group(5)
 
-    # --- 3) Store & show ---
+    # ——— 3) Store & Display ———
     st.session_state["fund_performance_data"] = data
     df = pd.DataFrame(data)
 
-    display_cols = [
+    cols = [
         "Fund Scorecard Name","Ticker",
         "QTD","3Yr","5Yr",
         "Benchmark QTD","Benchmark 3Yr","Benchmark 5Yr"
     ]
-    missing = [c for c in display_cols if c not in df.columns]
+    missing = [c for c in cols if c not in df.columns]
     if missing:
-        st.error(f"Still missing columns after fallback: {missing}")
-        st.dataframe(df.head(), use_container_width=True)
+        st.error(f"Missing columns after extraction: {missing}")
         return
 
-    st.dataframe(df[display_cols], use_container_width=True)
+    st.dataframe(df[cols], use_container_width=True)
 
 
 # === Main App ===
