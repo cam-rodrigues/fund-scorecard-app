@@ -65,13 +65,6 @@ def process_toc(text):
     st.session_state['scorecard_page']   = sc_page
     st.session_state['factsheets_page']  = fs_page
 
-    if not fund_data:
-        st.error("❌ No funds found in Performance Comparison section.")
-    else:
-        st.success(f"✅ Found {len(fund_data)} funds in Performance Comparison section.")
-        df = pd.DataFrame(fund_data)
-        st.dataframe(df)
-        st.session_state["fund_performance_data"] = fund_data
 
 # === Step 3 ===
 def step3_process_scorecard(pdf, start_page, declared_total):
