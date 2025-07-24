@@ -546,7 +546,7 @@ def step8_extract_annualized_returns(pdf):
     # Parsing the data for each fund's calendar year performance
     fund_data = []
     for line in all_lines:
-        # Match fund name and its annualized returns for each year (2015-2024)
+        # Match fund name and its annualized returns for each year (2015-2024) along with the benchmark
         m = re.match(r"^(?P<fund_name>[\w\s]+)\s+(?P<returns_2015>-?\d+\.\d+)\s+(?P<returns_2016>-?\d+\.\d+)\s+(?P<returns_2017>-?\d+\.\d+)\s+(?P<returns_2018>-?\d+\.\d+)\s+(?P<returns_2019>-?\d+\.\d+)\s+(?P<returns_2020>-?\d+\.\d+)\s+(?P<returns_2021>-?\d+\.\d+)\s+(?P<returns_2022>-?\d+\.\d+)\s+(?P<returns_2023>-?\d+\.\d+)\s+(?P<returns_2024>-?\d+\.\d+)\s+(?P<benchmark_name>[\w\s]+)?\s+(?P<benchmark_returns>-?\d+\.\d+)", line.strip())
 
         if m:
