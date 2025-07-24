@@ -515,7 +515,6 @@ def step7_extract_returns(pdf):
 
     st.dataframe(df[display_cols], use_container_width=True)
 
-
 # === Step 8: Fund Performance Calendar Year Annualized Returns ===
 def step8_extract_calendar_year(pdf):
     st.subheader("Step 8: Fund Performance Calendar Year Annualized Returns")
@@ -622,10 +621,6 @@ def run():
         # Step 7
         with st.expander("Step 7: Extract Annualized Returns", expanded=False):
             step7_extract_returns(pdf)
-
-        # Step 8
-        with st.expander("Step 8: Calender Year Returns", expanded=False):
-            step8_extract_calendar_year(pdf)
 
 if __name__ == "__main__":
     run()
