@@ -277,10 +277,10 @@ def step5_process_performance(pdf, start_page, fund_names):
     else:
         st.error(f"❌ Missing {total - found_count} ticker(s).")
 
-st.session_state["fund_performance_data"] = [
-    {"Fund Scorecard Name": name, "Ticker": ticker}
-    for name, ticker in tickers.items()
-]
+    st.session_state["fund_performance_data"] = [
+        {"Fund Scorecard Name": name, "Ticker": ticker}
+        for name, ticker in tickers.items()
+    ]
 
 
 def extract_field(text: str, label: str, stop_at: str = None) -> str:
