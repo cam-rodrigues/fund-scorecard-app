@@ -462,7 +462,6 @@ def step7_extract_returns(pdf):
 
     st.dataframe(df[display_cols], use_container_width=True)
 
-
 # === Main App ===
 def run():
     st.title("Writeup")
