@@ -515,6 +515,62 @@ def step7_extract_returns(pdf):
 
     st.dataframe(df[display_cols], use_container_width=True)
 
+# === Step 8: Fund Performance Calendar Year Annualized Returns ===
+def step8_extract_calendar_year(pdf):
+    st.subheader("Step 8: Fund Performance Calendar Year Annualized Returns")
+
+    # Retrieve the page number from the session state
+    calendar_year_page = st.session_state.get('calendar_year_page')
+    
+    if not calendar_year_page:
+        st.error("❌ Could not find 'Fund Performance: Calendar Year' page number.")
+        return
+
+    # Extract text from the Fund Performance: Calendar Year page
+    page = pdf.pages[calendar_year_page - 1]  # Adjust because pdfplumber pages are 0-indexed
+    text = page.extract_text() or ""
+
+    # Look for the "Fund Performance: Calendar Year" section
+    if "Fund Performance: Calendar Year" not in text:
+        st.error("❌ Could not find the Fund Performance: Calendar Year section.")
+        return
+
+    # Split the text into lines and parse for fund names, years, and returns
+    lines = text.splitlines()
+    fund_data = []
+
+    for line in lines:
+        # Assuming a format like:
+        # Fund Name   | Ticker   | 2020 | 2021 | 2022 | ... | Benchmark QTD | Benchmark 2020 | Benchmark 2021 |
+        # Match a line with fund and its years (ignoring extra spaces)
+        match = re.match(r"([A-Za-z\s\.]+)\s+([A-Z]{4,6})\s+([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s+", line)
+        if match:
+            fund_name = match.group(1).strip()
+            ticker = match.group(2).strip()
+            returns = [match.group(i) for i in range(3, 6)]  # Get the returns for 2020, 2021, and 2022
+            benchmark = returns[0:3]  # Assuming benchmark data is next to the fund returns
+            fund_data.append({
+                "Fund Name": fund_name,
+                "Ticker": ticker,
+                "2020": returns[0],
+                "2021": returns[1],
+                "2022": returns[2],
+                "Benchmark 2020": benchmark[0],
+                "Benchmark 2021": benchmark[1],
+                "Benchmark 2022": benchmark[2]
+            })
+    
+    if not fund_data:
+        st.error("❌ Could not find any fund performance data.")
+        return
+
+    # Display the results in a nice format
+    st.write("### Annualized Returns for Each Fund and Benchmark")
+    df = pd.DataFrame(fund_data)
+    st.dataframe(df)
+
+    # Store the extracted data for future steps
+    st.session_state['calendar_year_fund_data'] = fund_data
 
 
 # === Main App ===
