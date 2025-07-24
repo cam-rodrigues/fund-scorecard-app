@@ -470,7 +470,7 @@ def step7_extract_returns(pdf):
             # normalize name
             raw_name = raw_name.rstrip('. ')
             for d in data:
-                key = f\"{d['Fund Scorecard Name']} {d['Ticker']}\".lower()
+                key = f"{d['Fund Scorecard Name']} {d['Ticker']}".lower()
                 if fuzz.token_sort_ratio(key, f\"{raw_name} {tk}\".lower()) > 85:
                     # only fill if still missing
                     if "QTD" not in d:      d["QTD"] = qtd
