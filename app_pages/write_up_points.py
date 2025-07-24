@@ -410,62 +410,57 @@ def step7_extract_returns(pdf):
     def is_filled(item):
         return all(item.get(f) not in [None, ""] for f in return_fields)
 
-    i = 0
     for p in pdf.pages[perf_page-1:factsheet_pg-1]:
         text = p.extract_text() or ""
         lines = [l.strip() for l in text.splitlines() if l.strip()]
 
-        hdr_idx = next((i for i, l in enumerate(lines) if "QTD" in l and "3 Yr" in l and "5 Yr" in l), None)
-        if hdr_idx is None:
-            continue
-
-        num_re = re.compile(r'^-?\d+\.\d+\s+-?\d+\.\d+\s+-?\d+\.\d+\s+'
-                            r'-?\d+\.\d+\s+-?\d+\.\d+\s+-?\d+\.\d+\s+'
-                            r'-?\d+\.\d+\s+-?\d+\.\d+$')
-
-        i = hdr_idx + 1
-        while i < len(lines):
+        for i in range(len(lines) - 3):
             row = lines[i]
-            if num_re.match(row):
-                parts = re.split(r'\s+', row)
-                QTD_     = parts[0]
-                ONE_YR   = parts[2]
-                THREE_YR = parts[3]
-                FIVE_YR  = parts[4]
-                TEN_YR   = parts[5]
+            next1 = lines[i + 1]
+            next2 = lines[i + 2] if i + 2 < len(lines) else ""
+            next3 = lines[i + 3] if i + 3 < len(lines) else ""
 
-                fund_line  = lines[i+1]
-                bench_line = lines[i+3]
-                bparts     = re.split(r'\s+', bench_line)
-                bvals      = bparts[-6:]
-                bQTD       = bvals[0]
-                b1YR       = bvals[2]
-                b3YR       = bvals[3]
-                b5YR       = bvals[4]
-                b10YR      = bvals[5]
+            num_re = re.compile(r'^-?\d+\.\d+(\s+-?\d+\.\d+){7}$')
+            if not num_re.match(row):
+                continue
 
-                for item in perf_data:
-                    if is_filled(item):
-                        continue
-                    name = item["Fund Scorecard Name"]
-                    tk   = item["Ticker"]
-                    score = fuzz.token_sort_ratio(f"{name} {tk}".lower(), fund_line.lower())
-                    if score > 80:
-                        if not item["QTD"]:             item["QTD"] = QTD_
-                        if not item["1Yr"]:             item["1Yr"] = ONE_YR
-                        if not item["3Yr"]:             item["3Yr"] = THREE_YR
-                        if not item["5Yr"]:             item["5Yr"] = FIVE_YR
-                        if not item["10Yr"]:            item["10Yr"] = TEN_YR
-                        if not item["Benchmark QTD"]:   item["Benchmark QTD"] = bQTD
-                        if not item["Benchmark 1Yr"]:   item["Benchmark 1Yr"] = b1YR
-                        if not item["Benchmark 3Yr"]:   item["Benchmark 3Yr"] = b3YR
-                        if not item["Benchmark 5Yr"]:   item["Benchmark 5Yr"] = b5YR
-                        if not item["Benchmark 10Yr"]:  item["Benchmark 10Yr"] = b10YR
-                        break
+            # Parse return numbers
+            parts = re.split(r'\s+', row)
+            QTD_, ONE_YR, THREE_YR, FIVE_YR, TEN_YR = parts[0], parts[2], parts[3], parts[4], parts[5]
 
-                i += 4
-            else:
-                i += 1
+            # Try to get fund name + ticker from next line
+            fund_line = next1
+            ticker_match = re.search(r'\b[A-Z]{4,6}\b', fund_line)
+            ticker = ticker_match.group(0).strip() if ticker_match else None
+
+            # Try to get benchmark returns from +3 line
+            bench_line = next3
+            bparts = re.split(r'\s+', bench_line)
+            bvals = bparts[-6:] if len(bparts) >= 6 else [None]*6
+            bQTD, b1YR, b3YR, b5YR, b10YR = bvals[0:5]
+
+            for item in perf_data:
+                if is_filled(item):
+                    continue
+
+                # Match by either cleaned fund name + ticker, or just ticker
+                name = item["Fund Scorecard Name"]
+                tk = item["Ticker"]
+                score = fuzz.token_sort_ratio(f"{name} {tk}".lower(), fund_line.lower())
+                ticker_match = (tk.upper() == (ticker or "").upper())
+
+                if score > 80 or ticker_match:
+                    if not item["QTD"]:             item["QTD"] = QTD_
+                    if not item["1Yr"]:             item["1Yr"] = ONE_YR
+                    if not item["3Yr"]:             item["3Yr"] = THREE_YR
+                    if not item["5Yr"]:             item["5Yr"] = FIVE_YR
+                    if not item["10Yr"]:            item["10Yr"] = TEN_YR
+                    if bQTD and not item["Benchmark QTD"]:   item["Benchmark QTD"] = bQTD
+                    if b1YR and not item["Benchmark 1Yr"]:   item["Benchmark 1Yr"] = b1YR
+                    if b3YR and not item["Benchmark 3Yr"]:   item["Benchmark 3Yr"] = b3YR
+                    if b5YR and not item["Benchmark 5Yr"]:   item["Benchmark 5Yr"] = b5YR
+                    if b10YR and not item["Benchmark 10Yr"]: item["Benchmark 10Yr"] = b10YR
+                    break
 
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
