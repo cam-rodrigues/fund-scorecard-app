@@ -378,25 +378,25 @@ def step6_process_factsheets(pdf, fund_names):
     # stash & display
     df = pd.DataFrame(matched_factsheets)
     st.session_state["fund_factsheets_data"] = matched_factsheets
-
-    display_df = (
-        df
-        .rename(columns={
-            "Matched Name": "Fund Name",
-            "Matched Tkr":  "Ticker"
-        })
-        [[
-            "Fund Name",
-            "Ticker",
-            "Benchmark",
-            "Category",
-            "Net Assets",
-            "Manager Name",
-            "Avg. Market Cap",
-            "Expense Ratio",
-            "Matched"
-        ]]
-    )
+    
+    # rename only the two keys that differ
+    df = df.rename(columns={
+        "Matched Fund Name": "Fund Name",
+        "Matched Ticker":    "Ticker",
+    })
+    
+    # now select exactly the columns you have in df
+    display_df = df[[
+        "Fund Name",
+        "Ticker",
+        "Benchmark",
+        "Category",
+        "Net Assets",
+        "Manager Name",
+        "Avg. Market Cap",
+        "Expense Ratio",
+        "Matched"
+    ]]
     
     st.dataframe(display_df, use_container_width=True)
 
