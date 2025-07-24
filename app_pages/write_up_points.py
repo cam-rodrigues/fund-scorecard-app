@@ -438,6 +438,11 @@ def run():
             names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
             if pp and names:
                 step5_process_performance(pdf, pp, names)
+                # persist for Step 6
+                tk_map = st.session_state.get('tickers', {})
+                st.session_state['fund_performance_data'] = [
+                    {"Fund Scorecard Name": n, "Ticker": tk_map.get(n, "")} for n in names
+                ]
             else:
                 st.error("Missing performance page or fund blocks")
 
@@ -448,4 +453,3 @@ def run():
 
 if __name__ == "__main__":
     run()
-
