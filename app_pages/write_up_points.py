@@ -399,18 +399,6 @@ def step7_extract_returns(pdf):
         st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    # Read all pages from perf_page onward
-    lines = []
-    for p in pdf.pages[perf_page - 1:]:
-        text = p.extract_text() or ""
-        lines += [l.strip() for l in text.splitlines() if l.strip()]
-
-    # Find the header line
-    hdr_idx = next((i for i, l in enumerate(lines) if "QTD" in l and "3 Yr" in l and "5 Yr" in l), None)
-    if hdr_idx is None:
-        st.error("❌ Could not find returns header.")
-        return
-
     return_fields = [
         "QTD", "1Yr", "3Yr", "5Yr", "10Yr",
         "Benchmark QTD", "Benchmark 1Yr", "Benchmark 3Yr", "Benchmark 5Yr", "Benchmark 10Yr"
@@ -420,37 +408,46 @@ def step7_extract_returns(pdf):
             item.setdefault(col, None)
 
     matched_count = 0
-    for line in lines[hdr_idx + 1:]:
-        parts = re.split(r'\t+', line.strip())
-        if len(parts) < 12:
-            continue
 
-        raw_ticker = parts[1].strip().upper()
+    for page in pdf.pages[perf_page - 1:]:
+        words = page.extract_words(use_text_flow=True)
+        lines = {}
+        for w in words:
+            top = round(w["top"])  # group words by line
+            lines.setdefault(top, []).append(w)
 
-        try:
-            fund_qtd, fund_1yr, fund_3yr, fund_5yr, fund_10yr = map(float, parts[2:7])
-            bench_qtd, bench_1yr, bench_3yr, bench_5yr, bench_10yr = map(float, parts[7:12])
-        except ValueError:
-            continue
+        for line_words in lines.values():
+            line_words.sort(key=lambda w: w["x"])  # sort left to right
+            texts = [w["text"].strip() for w in line_words]
 
-        for item in perf_data:
-            item_ticker = (item.get("Ticker") or "").strip().upper()
-            if raw_ticker == item_ticker:
-                item["QTD"]             = str(fund_qtd)
-                item["1Yr"]             = str(fund_1yr)
-                item["3Yr"]             = str(fund_3yr)
-                item["5Yr"]             = str(fund_5yr)
-                item["10Yr"]            = str(fund_10yr)
-                item["Benchmark QTD"]   = str(bench_qtd)
-                item["Benchmark 1Yr"]   = str(bench_1yr)
-                item["Benchmark 3Yr"]   = str(bench_3yr)
-                item["Benchmark 5Yr"]   = str(bench_5yr)
-                item["Benchmark 10Yr"]  = str(bench_10yr)
-                matched_count += 1
-                break
+            # Look for a row with format: Name, Ticker, 10 numbers
+            if len(texts) < 13:
+                continue
+            name = texts[0]
+            ticker = texts[1]
+            nums = texts[2:12]
+            try:
+                values = list(map(float, nums))
+            except ValueError:
+                continue
 
-    # Display result
-    st.info(f"✅ Matched {matched_count} fund(s) by ticker.")
+            for item in perf_data:
+                if (item.get("Ticker") or "").strip().upper() == ticker.upper():
+                    item["QTD"] = str(values[0])
+                    item["1Yr"] = str(values[1])
+                    item["3Yr"] = str(values[2])
+                    item["5Yr"] = str(values[3])
+                    item["10Yr"] = str(values[4])
+                    item["Benchmark QTD"] = str(values[5])
+                    item["Benchmark 1Yr"] = str(values[6])
+                    item["Benchmark 3Yr"] = str(values[7])
+                    item["Benchmark 5Yr"] = str(values[8])
+                    item["Benchmark 10Yr"] = str(values[9])
+                    matched_count += 1
+                    break
+
+    # Store & show
+    st.info(f"✅ Matched {matched_count} fund(s) with returns.")
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
 
@@ -461,6 +458,7 @@ def step7_extract_returns(pdf):
         return
 
     st.dataframe(df[display_cols], use_container_width=True)
+
 
 # === Main App ===
 def run():
