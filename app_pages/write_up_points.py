@@ -51,19 +51,33 @@ def process_toc(text):
     perf = re.search(r"Fund Performance[^\d]*(\d{1,3})", text or "")
     sc   = re.search(r"Fund Scorecard\s+(\d{1,3})", text or "")
     fs   = re.search(r"Fund Factsheets\s+(\d{1,3})", text or "")
+    cy   = re.search(r"Fund Performance: Calendar Year\s+(\d{1,3})", text or "")
+    r3yr = re.search(r"Risk Analysis: MPT Statistics \(3Yr\)\s+(\d{1,3})", text or "")
+    r5yr = re.search(r"Risk Analysis: MPT Statistics \(5Yr\)\s+(\d{1,3})", text or "")
 
     perf_page = int(perf.group(1)) if perf else None
     sc_page   = int(sc.group(1))   if sc   else None
     fs_page   = int(fs.group(1))   if fs   else None
+    cy_page   = int(cy.group(1))   if cy   else None
+    r3yr_page = int(r3yr.group(1)) if r3yr else None
+    r5yr_page = int(r5yr.group(1)) if r5yr else None
 
     st.subheader("Table of Contents Pages")
     st.write(f"- Performance Page: {perf_page}")
     st.write(f"- Scorecard Page:   {sc_page}")
     st.write(f"- Factsheets Page:  {fs_page}")
+    st.write(f"- Calendar Year Page: {cy_page}")
+    st.write(f"- MPT 3Yr Risk Analysis Page: {r3yr_page}")
+    st.write(f"- MPT 5Yr Risk Analysis Page: {r5yr_page}")
 
+    # Store in session state for future reference
     st.session_state['performance_page'] = perf_page
     st.session_state['scorecard_page']   = sc_page
     st.session_state['factsheets_page']  = fs_page
+    st.session_state['calendar_year_page'] = cy_page
+    st.session_state['r3yr_page'] = r3yr_page
+    st.session_state['r5yr_page'] = r5yr_page
+
 
 
 # === Step 3 ===
