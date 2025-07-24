@@ -293,19 +293,7 @@ def extract_field(text: str, label: str, stop_at: str = None) -> str:
     except ValueError:
         return ""
 
-        
-        # … existing calls for Steps 1–5 …
 
-        perf_page  = st.session_state.get("performance_page")
-        fund_names = [b["Fund Name"] for b in st.session_state.get("fund_blocks", [])]
-        if not perf_page or not fund_names:
-            st.warning("Complete Steps 1–5 first.")
-            return
-
-        step5_process_performance(pdf, perf_page, fund_names)
-
-        # Step 6: now _only_ this call—no inline parsing or display here
-        step6_process_factsheets(pdf, fund_names)
 
 # === Step 6: Fund Factsheets ===
     st.subheader("Step 6: Fund Factsheets Section")
