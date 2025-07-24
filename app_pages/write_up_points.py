@@ -368,31 +368,36 @@ def step6_process_factsheets(pdf, fund_names):
             "Matched":          best_score > 20
         })
 
+    # ——— Guard against zero matches ———
+    if not matched:
+        st.error("❌ No factsheet entries found. Check that your 'Fund Factsheets' page num is correct.")
+        return
+
     # stash & display
     df = pd.DataFrame(matched)
     st.session_state["fund_factsheets_data"] = matched
 
-    display_df = df[[
-        "Fund Name",
-        "Ticker",
-        "Benchmark",
-        "Category",
-        "Net Assets",
-        "Manager Name",
-        "Avg. Market Cap",
-        "Expense Ratio",
-        "Matched"
-    ]]
+    # verify columns before slicing
+    display_cols = [
+        "Fund Name", "Ticker", "Benchmark", "Category",
+        "Net Assets", "Manager Name", "Avg. Market Cap",
+        "Expense Ratio", "Matched"
+    ]
+    missing = [c for c in display_cols if c not in df.columns]
+    if missing:
+        st.error(f"Expected columns {display_cols}, but missing {missing}.")
+        return
 
+    display_df = df[display_cols]
     st.dataframe(display_df, use_container_width=True)
 
+    # final confirmation
     matched_count = display_df["Matched"].sum()
     st.write(f"Matched {matched_count} of {len(matched)} factsheet pages.")
     if matched_count == total_declared:
         st.success(f"All {matched_count} funds matched the declared Total Options.")
     else:
         st.error(f"Declared {total_declared}, but matched {matched_count}.")
-
 
 # === Main App ===
 def run():
