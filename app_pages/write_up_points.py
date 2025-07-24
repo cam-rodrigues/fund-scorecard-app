@@ -385,7 +385,7 @@ def step6_process_factsheets(pdf, fund_names):
         "Matched Ticker":    "Ticker",
     })
     
-    # now select exactly the columns you have in df
+    # now select exactly the columns you have
     display_df = df[[
         "Fund Name",
         "Ticker",
