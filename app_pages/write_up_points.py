@@ -407,6 +407,10 @@ def step7_extract_returns(pdf):
         for field in return_fields:
             item.setdefault(field, None)
 
+    # Define is_filled() to check if all returns are populated
+    def is_filled(item):
+        return all(item.get(f) not in [None, ""] for f in return_fields)
+
     # Maximum pages limit (to prevent infinite loops)
     MAX_PAGES = 100
     page_counter = 0
@@ -429,8 +433,8 @@ def step7_extract_returns(pdf):
     while i < len(lines) - 3:
         row = lines[i]
         next1 = lines[i + 1]
-        next2 = lines[i + 2]
-        next3 = lines[i + 3]
+        next2 = lines[i + 2] if i + 2 < len(lines) else ""
+        next3 = lines[i + 3] if i + 3 < len(lines) else ""
 
         num_re = re.compile(r'^-?\d+\.\d+(\s+-?\d+\.\d+){7}$')
         if not num_re.match(row):
@@ -487,6 +491,7 @@ def step7_extract_returns(pdf):
 
     st.success(f"✅ Matched {matched_count} fund(s) with return data.")
     st.dataframe(df[display_cols], use_container_width=True)
+
 
 
 # === Main App ===
