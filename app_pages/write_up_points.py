@@ -294,6 +294,10 @@ def extract_field(text: str, label: str, stop_at: str = None) -> str:
         return ""
 
 
+st.session_state["fund_performance_data"] = [
+    {"Fund Scorecard Name": name, "Ticker": ticker}
+    for name, ticker in tickers.items()
+]
 
 # === Step 6: Fund Factsheets ===
 def step6_process_factsheets(pdf, fund_names):
