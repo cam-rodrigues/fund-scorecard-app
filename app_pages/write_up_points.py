@@ -297,7 +297,7 @@ def extract_field(text: str, label: str, stop_at: str = None) -> str:
 
 # === Step 6: Fund Factsheets ===
 def step6_process_factsheets(pdf, fund_names):
-    st.subheader("Step 6: Fund Factsheets Section")
+    st.subheader("Step 6: Fund Factsheets Section")
     factsheet_start = st.session_state.get("factsheets_page")
     total_declared = st.session_state.get("total_options")
     performance_data = st.session_state.get("fund_performance_data", [])
@@ -307,12 +307,13 @@ def step6_process_factsheets(pdf, fund_names):
         return
 
     matched_factsheets = []
-    # iterate pages from factsheet_start to end
+    # Iterate pages from factsheet_start to end
     for i in range(factsheet_start - 1, len(pdf.pages)):
         page = pdf.pages[i]
         words = page.extract_words(use_text_flow=True)
         header_words = [w['text'] for w in words if w['top'] < 100]
         first_line = " ".join(header_words).strip()
+        
         if not first_line or "Benchmark:" not in first_line or "Expense Ratio:" not in first_line:
             continue
 
@@ -346,7 +347,7 @@ def step6_process_factsheets(pdf, fund_names):
         expense   = extract_field("Expense Ratio:", first_line)
 
         matched_factsheets.append({
-            "Page #": i+1,
+            "Page #": i + 1,
             "Parsed Fund Name": fund_name_raw,
             "Parsed Ticker": ticker,
             "Matched Fund Name": matched_name,
@@ -378,7 +379,6 @@ def step6_process_factsheets(pdf, fund_names):
             st.success(f"All {matched_count} funds matched the declared Total Options from Page 1.")
         else:
             st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
-
 
 # === Main App ===
 def run():
