@@ -622,5 +622,9 @@ def run():
         with st.expander("Step 7: Extract Annualized Returns", expanded=False):
             step7_extract_returns(pdf)
 
+        # Step 8
+        with st.expander("Step 8: Calender Year Returns", expanded=False):
+            step8_extract_calendar_year(pdf)
+
 if __name__ == "__main__":
     run()
