@@ -389,8 +389,9 @@ def step6_process_factsheets(pdf, fund_names):
 
 
 # === Step 7: QTD, 1 Yrm 3Yr, 5Yr, 10 Yr Annualized Returns ===
+# === Step 7: QTD, 1Yr, 3Yr, 5Yr, 10Yr Annualized Returns ===
 def step7_extract_returns(pdf):
-    st.subheader("Step 7: QTD / 3Yr / 5Yr Returns")
+    st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns")
 
     perf_page     = st.session_state.get("performance_page")
     factsheet_pg  = st.session_state.get("factsheets_page") or (len(pdf.pages)+1)
@@ -400,63 +401,82 @@ def step7_extract_returns(pdf):
         st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    # Extract all lines from performance section
+    # 1) Slurp all text from the “Current vs. Proposed Comparison” section
     lines = []
     for p in pdf.pages[perf_page-1 : factsheet_pg-1]:
         text = p.extract_text() or ""
         lines += [l.strip() for l in text.splitlines() if l.strip()]
 
-    # Prepare return columns
-    for item in perf_data:
-        item.setdefault("QTD", None)
-        item.setdefault("3Yr", None)
-        item.setdefault("5Yr", None)
-        item.setdefault("Benchmark QTD", None)
-        item.setdefault("Benchmark 3Yr", None)
-        item.setdefault("Benchmark 5Yr", None)
+    # 2) Locate the header row
+    hdr_idx = next((i for i,l in enumerate(lines)
+                    if "QTD" in l and "3 Yr" in l and "5 Yr" in l), None)
+    if hdr_idx is None:
+        st.error("❌ Could not find the returns header (QTD/1 Yr/3 Yr/5 Yr/10 Yr).")
+        return
 
-    # Normalize function
-    def clean(name):
-        return re.sub(r'[^\w\s]', '', name).lower().strip()
+    # 3) Pattern for exactly 8 space-separated floats
+    num_re = re.compile(r'^-?\d+\.\d+\s+-?\d+\.\d+\s+-?\d+\.\d+\s+'
+                        r'-?\d+\.\d+\s+-?\d+\.\d+\s+-?\d+\.\d+\s+'
+                        r'-?\d+\.\d+\s+-?\d+\.\d+$')
 
-    # Match and extract
-    for line in lines:
-        parts = re.split(r'\t+', line.strip())
-        if len(parts) != 8:
-            continue
+    i = hdr_idx + 1
+    while i < len(lines):
+        row = lines[i]
+        if num_re.match(row):
+            parts = re.split(r'\s+', row)
+            QTD_     = parts[0]
+            ONE_YR   = parts[2]
+            THREE_YR = parts[3]
+            FIVE_YR  = parts[4]
+            TEN_YR   = parts[5]
 
-        fund_name_raw = parts[0]
-        ticker = parts[1].strip()
+            fund_line  = lines[i+1]
+            bench_line = lines[i+3]
+            bparts     = re.split(r'\s+', bench_line)
+            bvals      = bparts[-6:]  # last 6 numbers on benchmark row
+            bQTD       = bvals[0]
+            b1YR       = bvals[2]
+            b3YR       = bvals[3]
+            b5YR       = bvals[4]
+            b10YR      = bvals[5]
 
-        try:
-            fund_qtd, fund_3yr, fund_5yr = map(float, parts[2:5])
-            bench_qtd, bench_3yr, bench_5yr = map(float, parts[5:8])
-        except ValueError:
-            continue
+            for item in perf_data:
+                name = item["Fund Scorecard Name"]
+                tk   = item["Ticker"]
+                score = fuzz.token_sort_ratio(f"{name} {tk}".lower(), fund_line.lower())
+                if score > 80:
+                    item["QTD"]             = QTD_
+                    item["1Yr"]             = ONE_YR
+                    item["3Yr"]             = THREE_YR
+                    item["5Yr"]             = FIVE_YR
+                    item["10Yr"]            = TEN_YR
+                    item["Benchmark QTD"]   = bQTD
+                    item["Benchmark 1Yr"]   = b1YR
+                    item["Benchmark 3Yr"]   = b3YR
+                    item["Benchmark 5Yr"]   = b5YR
+                    item["Benchmark 10Yr"]  = b10YR
+                    break
 
-        # Match to perf_data
-        for item in perf_data:
-            ref_name = clean(f"{item.get('Fund Scorecard Name', '')}")
-            ref_ticker = item.get("Ticker", "").strip().upper()
-            test_name = clean(fund_name_raw)
-            if ref_ticker == ticker.upper() and fuzz.token_sort_ratio(ref_name, test_name) >= 70:
-                item["QTD"] = str(fund_qtd)
-                item["3Yr"] = str(fund_3yr)
-                item["5Yr"] = str(fund_5yr)
-                item["Benchmark QTD"] = str(bench_qtd)
-                item["Benchmark 3Yr"] = str(bench_3yr)
-                item["Benchmark 5Yr"] = str(bench_5yr)
-                break
+            i += 4
+        else:
+            i += 1
 
-    # Show results
+    # 5) Store & display
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
 
-    st.dataframe(df[[
+    display_cols = [
         "Fund Scorecard Name", "Ticker",
-        "QTD", "3Yr", "5Yr",
-        "Benchmark QTD", "Benchmark 3Yr", "Benchmark 5Yr"
-    ]], use_container_width=True)
+        "QTD", "1Yr", "3Yr", "5Yr", "10Yr",
+        "Benchmark QTD", "Benchmark 1Yr", "Benchmark 3Yr", "Benchmark 5Yr", "Benchmark 10Yr"
+    ]
+    missing = [c for c in display_cols if c not in df.columns]
+    if missing:
+        st.error(f"Expected columns {display_cols}, but missing {missing}.")
+        return
+
+    st.dataframe(df[display_cols], use_container_width=True)
+
 
 # === Main App ===
 def run():
