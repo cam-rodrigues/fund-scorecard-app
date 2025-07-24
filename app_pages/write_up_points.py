@@ -325,33 +325,29 @@ def step6_process_factsheets(pdf, fund_names):
         return
 
     matched_factsheets = []
-    # iterate from the factsheets start page through the end
     for idx in range(factsheet_start - 1, len(pdf.pages)):
         page = pdf.pages[idx]
         text = page.extract_text() or ""
-        # take the first two non-empty lines (in case some labels wrap)
         lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
         header = " ".join(lines[:2])
-
-        # skip pages that aren’t factsheet headers
         if "Benchmark:" not in header or "Expense Ratio:" not in header:
             continue
 
-        # parse ticker (1–5 uppercase letters) and raw fund name
+        # parse ticker + raw name
         tk_m   = re.search(r"\b([A-Z]{1,5})\b", header)
         ticker = tk_m.group(1) if tk_m else ""
-        raw_name = header.split(ticker)[0].strip() if ticker else header
+        raw    = header.replace(ticker, "").strip() if ticker else header
 
-        # fuzzy-match back to your Step 5 performance_data
+        # fuzzy match back to performance_data
         best_score = 0
-        matched_name = matched_ticker = ""
+        m_name = m_tkr = ""
         for item in perf_data:
             ref   = f"{item['Fund Scorecard Name']} {item['Ticker']}".lower()
-            score = fuzz.token_sort_ratio(f"{raw_name.lower()} {ticker.lower()}", ref)
+            score = fuzz.token_sort_ratio(f"{raw.lower()} {ticker.lower()}", ref)
             if score > best_score:
-                best_score, matched_name, matched_ticker = score, item["Fund Scorecard Name"], item["Ticker"]
+                best_score, m_name, m_tkr = score, item["Fund Scorecard Name"], item["Ticker"]
 
-        # extract the other fields from that same header string
+        # extract other fields
         benchmark  = extract_field(header, "Benchmark:",    "Category:")
         category   = extract_field(header, "Category:",     "Net Assets:")
         net_assets = extract_field(header, "Net Assets:",   "Manager Name:")
@@ -360,32 +356,28 @@ def step6_process_factsheets(pdf, fund_names):
         expense    = extract_field(header, "Expense Ratio:")
 
         matched_factsheets.append({
-            "Page #":             idx + 1,
-            "Parsed Fund Name":   raw_name,
-            "Parsed Ticker":      ticker,
-            "Matched Fund Name":  matched_name,
-            "Matched Ticker":     matched_ticker,
+            "Matched Fund Name": matched_name,
+            "Matched Ticker":     m_tkr,
             "Benchmark":          benchmark,
             "Category":           category,
             "Net Assets":         net_assets,
             "Manager Name":       manager,
             "Avg. Market Cap":    avg_cap,
             "Expense Ratio":      expense,
-            "Match Score":        best_score,
             "Matched":            best_score > 20
         })
 
     # stash & display
     df = pd.DataFrame(matched_factsheets)
     st.session_state["fund_factsheets_data"] = matched_factsheets
-    
-    # rename only the two keys that differ
+
+    # **Rename only the two keys that differ** from your display names
     df = df.rename(columns={
         "Matched Fund Name": "Fund Name",
-        "Matched Ticker":    "Ticker",
+        "Matched Ticker":     "Ticker",
     })
-    
-    # now select exactly the columns you have
+
+    # now select exactly the columns that exist
     display_df = df[[
         "Fund Name",
         "Ticker",
@@ -397,15 +389,16 @@ def step6_process_factsheets(pdf, fund_names):
         "Expense Ratio",
         "Matched"
     ]]
-    
+
     st.dataframe(display_df, use_container_width=True)
 
-    matched_count = df["Matched"].sum()
+    # final confirmation
+    matched_count = display_df["Matched"].sum()
     st.write(f"Matched {matched_count} of {len(matched_factsheets)} factsheet pages.")
     if matched_count == total_declared:
         st.success(f"All {matched_count} funds matched the declared Total Options.")
     else:
-        st.error(f"Declared {total_declared}, but only matched {matched_count}.")
+        st.error(f"Declared {total_declared}, but matched {matched_count}.")
 
 
 # === Main App ===
