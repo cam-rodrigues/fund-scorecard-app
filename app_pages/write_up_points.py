@@ -517,6 +517,7 @@ def step7_extract_returns(pdf):
 
 import re
 import streamlit as st
+import pdfplumber
 import pandas as pd
 
 # === Step 8: Fund Performance - Calendar Year Annualized Returns ===
@@ -536,9 +537,6 @@ def step8_extract_annualized_returns(pdf):
         txt = p.extract_text() or ""
         cy_text += txt + "\n"
         all_lines.extend(txt.splitlines())
-
-    # Debugging: Show raw text to understand the structure (you can remove or comment this out later)
-    st.text(cy_text[:1000])  # Display first 1000 characters to examine the text structure
 
     # Parsing the data for each fund's calendar year performance
     fund_data = []
@@ -576,8 +574,6 @@ def step8_extract_annualized_returns(pdf):
 
     # Optionally, save the extracted data in session state for further use
     st.session_state["fund_calendar_year_data"] = fund_data
-
-
 
 # === Main App ===
 def run():
