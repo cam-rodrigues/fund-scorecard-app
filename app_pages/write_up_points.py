@@ -471,14 +471,17 @@ def step7_extract_returns(pdf):
             raw_name = raw_name.rstrip('. ')
             for d in data:
                 key = f"{d['Fund Scorecard Name']} {d['Ticker']}".lower()
-                if fuzz.token_sort_ratio(key, f\"{raw_name} {tk}\".lower()) > 85:
+                fund_key = f"{raw_name} {tk}".lower()
+                if fuzz.token_sort_ratio(key, fund_key) > 85:
                     # only fill if still missing
-                    if "QTD" not in d:      d["QTD"] = qtd
-                    if "3Yr" not in d:     d["3Yr"] = threeyr
-                    if "5Yr" not in d:     d["5Yr"] = fiveyr
+                    if "QTD" not in d:
+                        d["QTD"] = qtd
+                    if "3Yr" not in d:
+                        d["3Yr"] = threeyr
+                    if "5Yr" not in d:
+                        d["5Yr"] = fiveyr
+            
                     # now look for its benchmark on next lines
-                    # (simple approach: take the very next numeric-block)
-                    # you can refine if needed
                     rest = text[text.find(line) + len(line):]
                     bench_match = re.search(
                         r'^[^\n]+\s+' +                   # bench name
@@ -489,10 +492,11 @@ def step7_extract_returns(pdf):
                         flags=re.MULTILINE
                     )
                     if bench_match:
-                        d["Benchmark QTD"]  = bench_match.group(1)
-                        d["Benchmark 3Yr"] = bench_match.group(2)
-                        d["Benchmark 5Yr"] = bench_match.group(3)
+                        d["Benchmark QTD"]   = bench_match.group(1)
+                        d["Benchmark 3Yr"]  = bench_match.group(2)
+                        d["Benchmark 5Yr"]  = bench_match.group(3)
                     break
+
 
     # --- 3) Store & show ---
     st.session_state["fund_performance_data"] = data
