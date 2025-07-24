@@ -380,17 +380,24 @@ def step6_process_factsheets(pdf, fund_names):
     st.session_state["fund_factsheets_data"] = matched_factsheets
 
     display_df = (
-        df[[
-            "Matched Fund Name","Matched Ticker",
-            "Benchmark","Category","Net Assets",
-            "Manager Name","Avg. Market Cap","Expense Ratio","Matched"
-        ]]
+        df
         .rename(columns={
-            "Matched Fund Name":"Fund Name",
-            "Matched Ticker":"Ticker"
+            "Matched Name": "Fund Name",
+            "Matched Tkr":  "Ticker"
         })
+        [[
+            "Fund Name",
+            "Ticker",
+            "Benchmark",
+            "Category",
+            "Net Assets",
+            "Manager Name",
+            "Avg. Market Cap",
+            "Expense Ratio",
+            "Matched"
+        ]]
     )
-
+    
     st.dataframe(display_df, use_container_width=True)
 
     matched_count = df["Matched"].sum()
