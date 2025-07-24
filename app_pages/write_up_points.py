@@ -515,6 +515,11 @@ def step7_extract_returns(pdf):
 
     st.dataframe(df[display_cols], use_container_width=True)
 
+import re
+import streamlit as st
+import pdfplumber
+import pandas as pd
+
 # === Step 8: Fund Performance - Calendar Year Annualized Returns ===
 def step8_extract_annualized_returns(pdf):
     st.subheader("Step 8: Fund Performance - Calendar Year Annualized Returns")
@@ -525,24 +530,24 @@ def step8_extract_annualized_returns(pdf):
         st.error("❌ Could not find 'Fund Performance: Calendar Year' section in the TOC.")
         return
 
-    # Extract text from the Fund Performance: Calendar Year page and the next few pages if necessary
+    # Extract text from the Fund Performance: Calendar Year page
     all_lines = []
     cy_text = ""
-    for p in pdf.pages[cy_page-1:cy_page+2]:  # Extracting the calendar year data from the page
+    for p in pdf.pages[cy_page-1:cy_page+1]:  # Extracting data from calendar year pages
         txt = p.extract_text() or ""
         cy_text += txt + "\n"
         all_lines.extend(txt.splitlines())
 
-    # Debugging: Show raw text to understand the structure
+    # Debugging: Show raw text to understand the structure (you can remove or comment this out later)
     st.text(cy_text[:1000])  # Display first 1000 characters to examine the text structure
 
-    # Get the fund names and tickers already extracted from previous steps
+    # Get the fund names and tickers already extracted
     fund_names_and_tickers = st.session_state.get("fund_performance_data", [])
 
     # Parsing the data for each fund's calendar year performance
     fund_data = []
     for line in all_lines:
-        # Check if the line contains fund data (based on the pattern in the document)
+        # Match fund name and its annualized returns for each year (2015-2024)
         m = re.match(r"^(?P<fund_name>[\w\s]+)\s+(?P<returns_2015>-?\d+\.\d+)\s+(?P<returns_2016>-?\d+\.\d+)\s+(?P<returns_2017>-?\d+\.\d+)\s+(?P<returns_2018>-?\d+\.\d+)\s+(?P<returns_2019>-?\d+\.\d+)\s+(?P<returns_2020>-?\d+\.\d+)\s+(?P<returns_2021>-?\d+\.\d+)\s+(?P<returns_2022>-?\d+\.\d+)\s+(?P<returns_2023>-?\d+\.\d+)\s+(?P<returns_2024>-?\d+\.\d+)", line.strip())
 
         if m:
@@ -570,6 +575,7 @@ def step8_extract_annualized_returns(pdf):
 
     # Optionally, save the extracted data in session state for further use
     st.session_state["fund_calendar_year_data"] = fund_data
+
 
 
 
