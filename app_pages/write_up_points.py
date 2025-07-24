@@ -431,7 +431,6 @@ def step7_extract_returns(pdf):
         next2 = lines[i + 2] if i + 2 < len(lines) else ""
         next3 = lines[i + 3] if i + 3 < len(lines) else ""
 
-        # Match return rows with 8 numeric values (QTD, 1Yr, 3Yr, 5Yr, 10Yr)
         num_re = re.compile(r'^-?\d+\.\d+(\s+-?\d+\.\d+){7}$')
         if not num_re.match(row):
             i += 1
@@ -460,7 +459,6 @@ def step7_extract_returns(pdf):
             score = fuzz.token_sort_ratio(f"{name} {tk}".lower(), fund_line.lower())
             ticker_ok = tk.upper() == (ticker or "").upper()
 
-            # Dynamically detect and fill returns for retirement funds or missing benchmarks
             if score > 70 or ticker_ok:
                 if not item["QTD"]:             item["QTD"] = QTD_
                 if not item["1Yr"]:             item["1Yr"] = ONE_YR
@@ -487,7 +485,14 @@ def step7_extract_returns(pdf):
         return
 
     st.success(f"✅ Matched {matched_count} fund(s) with return data.")
+
+    # Debug: Log missing funds
+    for item in perf_data:
+        if not is_filled(item):
+            st.warning(f"⚠️ Could not fully fill: {item['Fund Scorecard Name']} ({item['Ticker']})")
+
     st.dataframe(df[display_cols], use_container_width=True)
+
 
 # === Main App ===
 def run():
