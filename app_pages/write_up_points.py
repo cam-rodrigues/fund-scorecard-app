@@ -389,7 +389,6 @@ def step6_process_factsheets(pdf, fund_names):
 
 
 # === Step 7: QTD, 1Yr, 3Yr, 5Yr, 10Yr Annualized Returns ===
-# === Step 7: QTD, 1Yr, 3Yr, 5Yr, 10Yr Annualized Returns ===
 def step7_extract_returns(pdf):
     st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns")
 
