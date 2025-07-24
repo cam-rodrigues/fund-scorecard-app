@@ -399,7 +399,6 @@ def step7_extract_returns(pdf):
         st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    # Pre-fill empty return columns
     return_fields = [
         "QTD", "1Yr", "3Yr", "5Yr", "10Yr",
         "Benchmark QTD", "Benchmark 1Yr", "Benchmark 3Yr", "Benchmark 5Yr", "Benchmark 10Yr"
@@ -409,50 +408,49 @@ def step7_extract_returns(pdf):
             item.setdefault(col, None)
 
     matched_count = 0
+    lines = []
+    for p in pdf.pages[perf_page - 1:]:
+        text = p.extract_text()
+        if text:
+            lines += [l.strip() for l in text.splitlines() if l.strip()]
 
-    # Loop through all pages from performance section onward
-    for page in pdf.pages[perf_page - 1:]:
-        words = page.extract_words(use_text_flow=True)
-        lines = {}
+    i = 0
+    while i < len(lines) - 1:
+        fund_line = lines[i]
+        bench_line = lines[i + 1]
 
-        for w in words:
-            if "x" in w and "top" in w:
-                top = round(w["top"])
-                lines.setdefault(top, []).append(w)
+        fund_parts = re.split(r'\s{2,}|\t+', fund_line)
+        bench_parts = re.split(r'\s{2,}|\t+', bench_line)
 
-        for line_words in lines.values():
-            line_words.sort(key=lambda w: w["x"])  # sort left to right
-            texts = [w["text"].strip() for w in line_words]
-
-            if len(texts) < 13:
-                continue  # must have: name, ticker, 10 return values
-
-            name = texts[0]
-            ticker = texts[1].upper()
+        if len(fund_parts) >= 7 and len(bench_parts) >= 6:
+            name = fund_parts[0].strip().rstrip(".")
+            ticker = fund_parts[1].strip().upper()
             try:
-                # Parse the 10 return values (fund + benchmark)
-                fund_vals = list(map(float, texts[2:7]))
-                bench_vals = list(map(float, texts[7:12]))
+                fund_vals = list(map(float, fund_parts[2:7]))
+                bench_vals = list(map(float, bench_parts[-5:]))
             except ValueError:
-                continue  # skip rows with non-numeric return values
+                i += 1
+                continue
 
             for item in perf_data:
-                ref_ticker = (item.get("Ticker") or "").strip().upper()
-                if ticker == ref_ticker:
-                    item["QTD"]             = str(fund_vals[0])
-                    item["1Yr"]             = str(fund_vals[1])
-                    item["3Yr"]             = str(fund_vals[2])
-                    item["5Yr"]             = str(fund_vals[3])
-                    item["10Yr"]            = str(fund_vals[4])
-                    item["Benchmark QTD"]   = str(bench_vals[0])
-                    item["Benchmark 1Yr"]   = str(bench_vals[1])
-                    item["Benchmark 3Yr"]   = str(bench_vals[2])
-                    item["Benchmark 5Yr"]   = str(bench_vals[3])
-                    item["Benchmark 10Yr"]  = str(bench_vals[4])
+                if (item.get("Ticker") or "").strip().upper() == ticker:
+                    item["QTD"] = str(fund_vals[0])
+                    item["1Yr"] = str(fund_vals[1])
+                    item["3Yr"] = str(fund_vals[2])
+                    item["5Yr"] = str(fund_vals[3])
+                    item["10Yr"] = str(fund_vals[4])
+                    item["Benchmark QTD"] = str(bench_vals[0])
+                    item["Benchmark 1Yr"] = str(bench_vals[1])
+                    item["Benchmark 3Yr"] = str(bench_vals[2])
+                    item["Benchmark 5Yr"] = str(bench_vals[3])
+                    item["Benchmark 10Yr"] = str(bench_vals[4])
                     matched_count += 1
                     break
+            i += 2  # skip to line after benchmark
+        else:
+            i += 1
 
-    st.info(f"✅ Matched {matched_count} fund(s) with return data.")
+    st.info(f"✅ Matched {matched_count} fund(s) with returns.")
     st.session_state["fund_performance_data"] = perf_data
 
     df = pd.DataFrame(perf_data)
@@ -463,6 +461,7 @@ def step7_extract_returns(pdf):
         return
 
     st.dataframe(df[display_cols], use_container_width=True)
+
 
 
 # === Main App ===
