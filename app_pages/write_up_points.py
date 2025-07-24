@@ -399,6 +399,7 @@ def step7_extract_returns(pdf):
         st.error("❌ Run Step 5 first to populate performance data.")
         return
 
+    # Pre-fill empty return columns
     return_fields = [
         "QTD", "1Yr", "3Yr", "5Yr", "10Yr",
         "Benchmark QTD", "Benchmark 1Yr", "Benchmark 3Yr", "Benchmark 5Yr", "Benchmark 10Yr"
@@ -409,53 +410,57 @@ def step7_extract_returns(pdf):
 
     matched_count = 0
 
-for page in pdf.pages[perf_page - 1:]:
-    words = page.extract_words(use_text_flow=True)
-    lines = {}
-    for w in words:
-        if "x" in w and "top" in w:
-            top = round(w["top"])
-            lines.setdefault(top, []).append(w)
+    # Loop through all pages from performance section onward
+    for page in pdf.pages[perf_page - 1:]:
+        words = page.extract_words(use_text_flow=True)
+        lines = {}
 
-    for line_words in lines.values():
-        line_words.sort(key=lambda w: w["x"])  # left to right
-        texts = [w["text"].strip() for w in line_words]
+        for w in words:
+            if "x" in w and "top" in w:
+                top = round(w["top"])
+                lines.setdefault(top, []).append(w)
 
-        if len(texts) < 13:
-            continue
+        for line_words in lines.values():
+            line_words.sort(key=lambda w: w["x"])  # sort left to right
+            texts = [w["text"].strip() for w in line_words]
 
-        name = texts[0]
-        ticker = texts[1]
-        nums = texts[2:12]
-        try:
-            values = list(map(float, nums))
-        except ValueError:
-            continue
+            if len(texts) < 13:
+                continue  # must have: name, ticker, 10 return values
 
-        for item in perf_data:
-            if (item.get("Ticker") or "").strip().upper() == ticker.upper():
-                item["QTD"] = str(values[0])
-                item["1Yr"] = str(values[1])
-                item["3Yr"] = str(values[2])
-                item["5Yr"] = str(values[3])
-                item["10Yr"] = str(values[4])
-                item["Benchmark QTD"] = str(values[5])
-                item["Benchmark 1Yr"] = str(values[6])
-                item["Benchmark 3Yr"] = str(values[7])
-                item["Benchmark 5Yr"] = str(values[8])
-                item["Benchmark 10Yr"] = str(values[9])
-                matched_count += 1
-                break
+            name = texts[0]
+            ticker = texts[1].upper()
+            try:
+                # Parse the 10 return values (fund + benchmark)
+                fund_vals = list(map(float, texts[2:7]))
+                bench_vals = list(map(float, texts[7:12]))
+            except ValueError:
+                continue  # skip rows with non-numeric return values
 
-    # Store & show
-    st.info(f"✅ Matched {matched_count} fund(s) with returns.")
+            for item in perf_data:
+                ref_ticker = (item.get("Ticker") or "").strip().upper()
+                if ticker == ref_ticker:
+                    item["QTD"]             = str(fund_vals[0])
+                    item["1Yr"]             = str(fund_vals[1])
+                    item["3Yr"]             = str(fund_vals[2])
+                    item["5Yr"]             = str(fund_vals[3])
+                    item["10Yr"]            = str(fund_vals[4])
+                    item["Benchmark QTD"]   = str(bench_vals[0])
+                    item["Benchmark 1Yr"]   = str(bench_vals[1])
+                    item["Benchmark 3Yr"]   = str(bench_vals[2])
+                    item["Benchmark 5Yr"]   = str(bench_vals[3])
+                    item["Benchmark 10Yr"]  = str(bench_vals[4])
+                    matched_count += 1
+                    break
+
+    st.info(f"✅ Matched {matched_count} fund(s) with return data.")
     st.session_state["fund_performance_data"] = perf_data
-    df = pd.DataFrame(perf_data)
 
+    df = pd.DataFrame(perf_data)
     display_cols = ["Fund Scorecard Name", "Ticker"] + return_fields
     missing = [c for c in display_cols if c not in df.columns]
     if missing:
         st.error(f"Expected columns {display_cols}, but missing {missing}.")
+        return
 
     st.dataframe(df[display_cols], use_container_width=True)
 
