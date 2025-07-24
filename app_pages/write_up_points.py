@@ -391,85 +391,104 @@ def step6_process_factsheets(pdf, fund_names):
         else:
             st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
+
+# === Step 7: QTD, 3Yr, 5Yr ===
+
 def step7_extract_returns(pdf):
     st.subheader("Step 7: QTD / 3YR / 5YR Returns")
 
     perf_page    = st.session_state.get("performance_page")
     factsheet_pg = st.session_state.get("factsheets_page") or (len(pdf.pages) + 1)
-    perf_data    = st.session_state.get("fund_performance_data", [])
+    data         = st.session_state.get("fund_performance_data", [])
 
-    if perf_page is None or not perf_data:
+    if perf_page is None or not data:
         st.error("❌ Please run Step 5 first to populate performance data.")
         return
 
-    # build quick lookup maps
-    name_map   = {d["Fund Scorecard Name"].lower(): d for d in perf_data}
-    ticker_map = {d["Ticker"]: d for d in perf_data}
-    last_item  = None
-
-    # scan each page in the Performance section
+    # ——— 1) Table-based extraction ———
+    last_item = None
     for page in pdf.pages[perf_page-1 : factsheet_pg-1]:
-        tables = page.extract_tables()
-        for table in tables:
-            if not table or "QTD" not in table[0] or "3 Yr" not in table[0] and "3YR" not in table[0]:
+        for table in page.extract_tables():
+            hdr = table[0] if table else []
+            if not ("QTD" in hdr and any("3" in h and "Yr" in h for h in hdr)):
                 continue
+            # find column indices
+            q_idx  = next(i for i,h in enumerate(hdr) if "QTD" in h)
+            y3_idx = next(i for i,h in enumerate(hdr) if re.search(r"3\s*Yr", h))
+            y5_idx = next(i for i,h in enumerate(hdr) if re.search(r"5\s*Yr", h))
 
-            header = table[0]
-            # find our columns
-            q_idx  = next(i for i,h in enumerate(header) if "QTD" in h)
-            y3_idx = next(i for i,h in enumerate(header) if "3" in h and "Yr" in h)
-            y5_idx = next(i for i,h in enumerate(header) if "5" in h and "Yr" in h)
-
-            # iterate data rows
             for row in table[1:]:
                 label = (row[0] or "").strip()
                 if not label:
                     continue
 
-                # pull the three return values
-                raw_qtd  = row[q_idx]
-                raw_3yr  = row[y3_idx]
-                raw_5yr  = row[y5_idx]
-
-                # try matching by fund name
+                # match by fund name or ticker
                 item = None
-                for nm, rec in name_map.items():
-                    if label.lower().startswith(nm):
-                        item = rec
-                        break
-
-                # fallback: match by ticker in column 2
-                if not item and len(row) > 1:
-                    tk = row[1]
-                    item = ticker_map.get(tk)
+                #  a) by exact ticker
+                if len(row) > 1 and row[1] in {d["Ticker"] for d in data}:
+                    item = next(d for d in data if d["Ticker"] == row[1])
+                else:
+                    # b) fuzzy by name
+                    for d in data:
+                        if fuzz.token_sort_ratio(label.lower(), d["Fund Scorecard Name"].lower()) > 85:
+                            item = d
+                            break
 
                 if item:
-                    item["QTD"]             = raw_qtd
-                    item["3Yr"]            = raw_3yr
-                    item["5Yr"]            = raw_5yr
                     last_item = item
-                # benchmark lines often start with “Russell …” or literally “Benchmark”,
-                # assign them to the last matched fund
+                    item["QTD"]  = row[q_idx]
+                    item["3Yr"] = row[y3_idx]
+                    item["5Yr"] = row[y5_idx]
                 elif label.lower().startswith("benchmark") and last_item:
-                    last_item["Benchmark QTD"]  = raw_qtd
-                    last_item["Benchmark 3Yr"] = raw_3yr
-                    last_item["Benchmark 5Yr"] = raw_5yr
+                    last_item["Benchmark QTD"]  = row[q_idx]
+                    last_item["Benchmark 3Yr"] = row[y3_idx]
+                    last_item["Benchmark 5Yr"] = row[y5_idx]
 
-    # stash & display
-    st.session_state["fund_performance_data"] = perf_data
-    df = pd.DataFrame(perf_data)
+    # ——— 2) Regex fallback for any still‐missing funds ———
+    perf_text = "\n".join(
+        (pg.extract_text() or "") for pg in pdf.pages[perf_page-1 : factsheet_pg-1]
+    )
+    # pattern for five consecutive numeric fields
+    num_grp = r"(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)"
+    for d in data:
+        if all(k in d for k in ("QTD","3Yr","5Yr")):
+            continue  # already filled
 
-    display_cols = [
-        "Fund Scorecard Name", "Ticker",
-        "QTD", "3Yr", "5Yr",
-        "Benchmark QTD", "Benchmark 3Yr", "Benchmark 5Yr"
+        name, tk = d["Fund Scorecard Name"], d["Ticker"]
+        # look for "Name  TKR  num num num num num"
+        pat = rf"{re.escape(name)}\s+{re.escape(tk)}\s+{num_grp}"
+        m = re.search(pat, perf_text)
+        if m:
+            d["QTD"]  = m.group(1)
+            d["3Yr"] = m.group(4)
+            d["5Yr"] = m.group(5)
+
+            # now capture the very next numeric block as the benchmark
+            rest = perf_text[m.end():]
+            # capture bench name then five nums
+            bench_pat = rf"[^\n]+\s+{num_grp}"
+            m2 = re.search(bench_pat, rest)
+            if m2:
+                d["Benchmark QTD"]  = m2.group(1)
+                d["Benchmark 3Yr"] = m2.group(4)
+                d["Benchmark 5Yr"] = m2.group(5)
+
+    # ——— 3) Store & Display ———
+    st.session_state["fund_performance_data"] = data
+    df = pd.DataFrame(data)
+
+    cols = [
+        "Fund Scorecard Name","Ticker",
+        "QTD","3Yr","5Yr",
+        "Benchmark QTD","Benchmark 3Yr","Benchmark 5Yr"
     ]
-    missing = [c for c in display_cols if c not in df.columns]
+    missing = [c for c in cols if c not in df.columns]
     if missing:
-        st.error(f"Missing expected columns: {missing}")
+        st.error(f"Missing columns after extraction: {missing}")
         return
 
-    st.dataframe(df[display_cols], use_container_width=True)
+    st.dataframe(df[cols], use_container_width=True)
+
 
 # === Main App ===
 def run():
