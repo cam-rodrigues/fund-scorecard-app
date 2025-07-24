@@ -388,7 +388,6 @@ def step6_process_factsheets(pdf, fund_names):
             st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
 
-# === Step 7: QTD, 1 Yrm 3Yr, 5Yr, 10 Yr Annualized Returns ===
 # === Step 7: QTD, 1Yr, 3Yr, 5Yr, 10Yr Annualized Returns ===
 def step7_extract_returns(pdf):
     st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns")
@@ -413,7 +412,17 @@ def step7_extract_returns(pdf):
         st.error("❌ Could not find the returns header (QTD/1 Yr/3 Yr/5 Yr/10 Yr).")
         return
 
-    # === Extract tab-separated return rows (with 12+ parts)
+    # ✅ Initialize all expected columns for every fund
+    return_fields = [
+        "QTD", "1Yr", "3Yr", "5Yr", "10Yr",
+        "Benchmark QTD", "Benchmark 1Yr", "Benchmark 3Yr", "Benchmark 5Yr", "Benchmark 10Yr"
+    ]
+    for item in perf_data:
+        for col in return_fields:
+            item.setdefault(col, None)
+
+    # === Match and extract from each line
+    matched_count = 0
     for line in lines[hdr_idx + 1:]:
         parts = re.split(r'\t+', line.strip())
         if len(parts) < 12:
@@ -428,7 +437,7 @@ def step7_extract_returns(pdf):
         except ValueError:
             continue
 
-        # Match to fund in session_state
+        matched = False
         for item in perf_data:
             ref_name = item["Fund Scorecard Name"]
             ref_ticker = item["Ticker"]
@@ -444,24 +453,25 @@ def step7_extract_returns(pdf):
                 item["Benchmark 3Yr"]   = str(bench_3yr)
                 item["Benchmark 5Yr"]   = str(bench_5yr)
                 item["Benchmark 10Yr"]  = str(bench_10yr)
+                matched_count += 1
+                matched = True
                 break
 
-    # ✅ Store & Display
+        if not matched:
+            st.warning(f"⚠️ No match found for: {fund_name_raw} ({ticker})")
+
+    # ✅ Store & display
+    st.info(f"✅ Matched {matched_count} fund(s) with returns data.")
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
 
-    display_cols = [
-        "Fund Scorecard Name", "Ticker",
-        "QTD", "1Yr", "3Yr", "5Yr", "10Yr",
-        "Benchmark QTD", "Benchmark 1Yr", "Benchmark 3Yr", "Benchmark 5Yr", "Benchmark 10Yr"
-    ]
+    display_cols = ["Fund Scorecard Name", "Ticker"] + return_fields
     missing = [c for c in display_cols if c not in df.columns]
     if missing:
         st.error(f"Expected columns {display_cols}, but missing {missing}.")
         return
 
     st.dataframe(df[display_cols], use_container_width=True)
-
 
 
 # === Main App ===
