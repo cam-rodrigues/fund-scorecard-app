@@ -441,8 +441,16 @@ def step7_extract_returns(pdf):
         for item in perf_data:
             ref_name = item["Fund Scorecard Name"]
             ref_ticker = item["Ticker"]
-            score = fuzz.token_sort_ratio(f"{ref_name} {ref_ticker}".lower(), f"{fund_name_raw} {ticker}".lower())
-            if score > 80:
+
+            # Clean + compare
+            def clean(s):
+                return re.sub(r'[^A-Za-z0-9 ]', '', s).lower().strip()
+
+            ref_combined  = clean(f"{ref_name} {ref_ticker}")
+            line_combined = clean(f"{fund_name_raw} {ticker}")
+            score = fuzz.token_sort_ratio(ref_combined, line_combined)
+
+            if score >= 70:
                 item["QTD"]             = str(fund_qtd)
                 item["1Yr"]             = str(fund_1yr)
                 item["3Yr"]             = str(fund_3yr)
