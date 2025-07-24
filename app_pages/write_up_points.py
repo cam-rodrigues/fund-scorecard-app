@@ -389,11 +389,8 @@ def step6_process_factsheets(pdf, fund_names):
 
 
 # === Step 7: QTD, 1 Yrm 3Yr, 5Yr, 10 Yr Annualized Returns ===
-import re
-from rapidfuzz import fuzz
-
 def step7_extract_returns(pdf):
-    st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns")
+    st.subheader("Step 7: QTD / 3Yr / 5Yr Returns")
 
     perf_page     = st.session_state.get("performance_page")
     factsheet_pg  = st.session_state.get("factsheets_page") or (len(pdf.pages)+1)
@@ -403,82 +400,63 @@ def step7_extract_returns(pdf):
         st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    # === Extract all lines from performance section
+    # Extract all lines from performance section
     lines = []
     for p in pdf.pages[perf_page-1 : factsheet_pg-1]:
         text = p.extract_text() or ""
         lines += [l.strip() for l in text.splitlines() if l.strip()]
 
-    # === Ensure all return columns exist
-    required_cols = [
-        "QTD", "1Yr", "3Yr", "5Yr", "10Yr",
-        "Benchmark QTD", "Benchmark 1Yr", "Benchmark 3Yr", "Benchmark 5Yr", "Benchmark 10Yr"
-    ]
+    # Prepare return columns
     for item in perf_data:
-        for col in required_cols:
-            item.setdefault(col, None)
+        item.setdefault("QTD", None)
+        item.setdefault("3Yr", None)
+        item.setdefault("5Yr", None)
+        item.setdefault("Benchmark QTD", None)
+        item.setdefault("Benchmark 3Yr", None)
+        item.setdefault("Benchmark 5Yr", None)
 
-    # === Helper to normalize fund names
-    def clean_fund_name(name):
-        name = re.sub(r'\b(Admiral|Instl|Instl Pl|R6|I|Z|ETF|Fund)\b', '', name, flags=re.IGNORECASE)
-        name = re.sub(r'[^\w\s]', '', name)  # remove punctuation
-        return name.lower().strip()
+    # Normalize function
+    def clean(name):
+        return re.sub(r'[^\w\s]', '', name).lower().strip()
 
-    # === Parse and match each line
+    # Match and extract
     for line in lines:
         parts = re.split(r'\t+', line.strip())
-        if len(parts) < 12:
+        if len(parts) != 8:
             continue
 
-        fund_name_raw = parts[0].strip().rstrip(".")
+        fund_name_raw = parts[0]
         ticker = parts[1].strip()
 
         try:
-            fund_qtd, fund_1yr, fund_3yr, fund_5yr, fund_10yr = map(float, parts[2:7])
-            bench_qtd, bench_1yr, bench_3yr, bench_5yr, bench_10yr = map(float, parts[7:12])
+            fund_qtd, fund_3yr, fund_5yr = map(float, parts[2:5])
+            bench_qtd, bench_3yr, bench_5yr = map(float, parts[5:8])
         except ValueError:
             continue
 
-        matched = False
+        # Match to perf_data
         for item in perf_data:
-            ref_name = clean_fund_name(f"{item.get('Fund Scorecard Name', '')} {item.get('Ticker', '')}")
-            target_name = clean_fund_name(f"{fund_name_raw} {ticker}")
-            score = fuzz.token_sort_ratio(ref_name, target_name)
-
-            if score >= 70:
+            ref_name = clean(f"{item.get('Fund Scorecard Name', '')}")
+            ref_ticker = item.get("Ticker", "").strip().upper()
+            test_name = clean(fund_name_raw)
+            if ref_ticker == ticker.upper() and fuzz.token_sort_ratio(ref_name, test_name) >= 70:
                 item["QTD"] = str(fund_qtd)
-                item["1Yr"] = str(fund_1yr)
                 item["3Yr"] = str(fund_3yr)
                 item["5Yr"] = str(fund_5yr)
-                item["10Yr"] = str(fund_10yr)
                 item["Benchmark QTD"] = str(bench_qtd)
-                item["Benchmark 1Yr"] = str(bench_1yr)
                 item["Benchmark 3Yr"] = str(bench_3yr)
                 item["Benchmark 5Yr"] = str(bench_5yr)
-                item["Benchmark 10Yr"] = str(bench_10yr)
-                matched = True
                 break
 
-        if not matched:
-            st.warning(f"⚠️ No match found for: {fund_name_raw} ({ticker})")
-
-    # === Store & display
+    # Show results
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
 
-    display_cols = [
+    st.dataframe(df[[
         "Fund Scorecard Name", "Ticker",
-        "QTD", "1Yr", "3Yr", "5Yr", "10Yr",
-        "Benchmark QTD", "Benchmark 1Yr", "Benchmark 3Yr", "Benchmark 5Yr", "Benchmark 10Yr"
-    ]
-    missing = [c for c in display_cols if c not in df.columns]
-    if missing:
-        st.error(f"Expected columns {display_cols}, but missing {missing}.")
-        return
-
-    st.dataframe(df[display_cols], use_container_width=True)
-
-
+        "QTD", "3Yr", "5Yr",
+        "Benchmark QTD", "Benchmark 3Yr", "Benchmark 5Yr"
+    ]], use_container_width=True)
 
 # === Main App ===
 def run():
