@@ -21,44 +21,33 @@ def extract_report_date(text):
     
 # === Step 1 & 1.5: Page 1 Extraction ===
 def process_page1(text):
-    # Report date (quarter‐end or fallback)
     report_date = extract_report_date(text)
     if report_date:
-        st.session_state["report_date"] = report_date
+        st.session_state['report_date'] = report_date
         st.success(f"Report Date: {report_date}")
     else:
         st.error("Could not detect report date on page 1.")
 
-    # Total Options
     m = re.search(r"Total Options:\s*(\d+)", text or "")
-    st.session_state["total_options"] = int(m.group(1)) if m else None
+    st.session_state['total_options'] = int(m.group(1)) if m else None
 
-    # Prepared For
     m = re.search(r"Prepared For:\s*\n(.*)", text or "")
-    st.session_state["prepared_for"] = m.group(1).strip() if m else None
+    st.session_state['prepared_for'] = m.group(1).strip() if m else None
 
-    # Prepared By (fallback to Procyon Partners, LLC)
     m = re.search(r"Prepared By:\s*(.*)", text or "")
     pb = m.group(1).strip() if m else ""
     if not pb or "mpi stylus" in pb.lower():
         pb = "Procyon Partners, LLC"
-    st.session_state["prepared_by"] = pb
+    st.session_state['prepared_by'] = pb
 
-    # Display
     st.subheader("Page 1 Metadata")
     st.write(f"- Total Options: {st.session_state['total_options']}")
     st.write(f"- Prepared For: {st.session_state['prepared_for']}")
-    st.write(f"- Prepared By: Procyon Partners, LLC")
+    st.write(f"- Prepared By: {pb}")
 
 
 # === Step 2: Table of Contents Extraction ===
 def process_toc(text):
-    """
-    Parses the TOC page text to find the start pages for:
-      – Fund Performance
-      – Fund Scorecard
-      – Fund Factsheets
-    """
     perf = re.search(r"Fund Performance[^\d]*(\d{1,3})", text or "")
     sc   = re.search(r"Fund Scorecard\s+(\d{1,3})", text or "")
     fs   = re.search(r"Fund Factsheets\s+(\d{1,3})", text or "")
@@ -72,10 +61,9 @@ def process_toc(text):
     st.write(f"- Scorecard Page:   {sc_page}")
     st.write(f"- Factsheets Page:  {fs_page}")
 
-    st.session_state["performance_page"] = perf_page
-    st.session_state["scorecard_page"]   = sc_page
-    st.session_state["factsheets_page"]  = fs_page
-
+    st.session_state['performance_page'] = perf_page
+    st.session_state['scorecard_page']   = sc_page
+    st.session_state['factsheets_page']  = fs_page
 
 
 # === Step 3 ===
@@ -320,6 +308,89 @@ def extract_field(text: str, label: str, stop_at: str = None) -> str:
         step6_process_factsheets(pdf, fund_names)
 
 
+def step6_process_factsheets(pdf, fund_names):
+    st.subheader("Step 6: Fund Factsheets Section")
+    factsheet_start = st.session_state.get("factsheets_page")
+    total_declared = st.session_state.get("total_options")
+    performance_data = st.session_state.get("fund_performance_data", [])
+
+    if not factsheet_start:
+        st.error("❌ 'Fund Factsheets' page number not found in TOC.")
+        return
+
+    matched_factsheets = []
+    # iterate pages from factsheet_start to end
+    for i in range(factsheet_start - 1, len(pdf.pages)):
+        page = pdf.pages[i]
+        words = page.extract_words(use_text_flow=True)
+        header_words = [w['text'] for w in words if w['top'] < 100]
+        first_line = " ".join(header_words).strip()
+        if not first_line or "Benchmark:" not in first_line or "Expense Ratio:" not in first_line:
+            continue
+
+        ticker_match = re.search(r"\b([A-Z]{5})\b", first_line)
+        ticker = ticker_match.group(1) if ticker_match else ""
+        fund_name_raw = first_line.split(ticker)[0].strip() if ticker else first_line
+
+        best_score = 0
+        matched_name = matched_ticker = ""
+        for item in performance_data:
+            ref = f"{item['Fund Scorecard Name']} {item['Ticker']}".strip()
+            score = fuzz.token_sort_ratio(f"{fund_name_raw} {ticker}".lower(), ref.lower())
+            if score > best_score:
+                best_score, matched_name, matched_ticker = score, item['Fund Scorecard Name'], item['Ticker']
+
+        def extract_field(label, text, stop=None):
+            try:
+                start = text.index(label) + len(label)
+                rest = text[start:]
+                if stop and stop in rest:
+                    return rest[:rest.index(stop)].strip()
+                return rest.split()[0]
+            except Exception:
+                return ""
+
+        benchmark = extract_field("Benchmark:", first_line, "Category:")
+        category  = extract_field("Category:", first_line, "Net Assets:")
+        net_assets= extract_field("Net Assets:", first_line, "Manager Name:")
+        manager   = extract_field("Manager Name:", first_line, "Avg. Market Cap:")
+        avg_cap   = extract_field("Avg. Market Cap:", first_line, "Expense Ratio:")
+        expense   = extract_field("Expense Ratio:", first_line)
+
+        matched_factsheets.append({
+            "Page #": i+1,
+            "Parsed Fund Name": fund_name_raw,
+            "Parsed Ticker": ticker,
+            "Matched Fund Name": matched_name,
+            "Matched Ticker": matched_ticker,
+            "Benchmark": benchmark,
+            "Category": category,
+            "Net Assets": net_assets,
+            "Manager Name": manager,
+            "Avg. Market Cap": avg_cap,
+            "Expense Ratio": expense,
+            "Match Score": best_score,
+            "Matched": "✅" if best_score > 20 else "❌"
+        })
+
+    df_facts = pd.DataFrame(matched_factsheets)
+    st.session_state['fund_factsheets_data'] = matched_factsheets
+
+    display_df = df_facts[[
+        "Matched Fund Name", "Matched Ticker", "Benchmark", "Category",
+        "Net Assets", "Manager Name", "Avg. Market Cap", "Expense Ratio", "Matched"
+    ]].rename(columns={"Matched Fund Name": "Fund Name", "Matched Ticker": "Ticker"})
+
+    st.dataframe(display_df, use_container_width=True)
+
+    matched_count = sum(1 for r in matched_factsheets if r["Matched"] == "✅")
+    if not st.session_state.get("suppress_matching_confirmation", False):
+        st.write(f"Matched {matched_count} of {len(matched_factsheets)} factsheet pages.")
+        if matched_count == total_declared:
+            st.success(f"All {matched_count} funds matched the declared Total Options from Page 1.")
+        else:
+            st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
+
 # === Main App ===
 def run():
     st.title("MPI Tool — Steps 1 to 6")
@@ -328,13 +399,17 @@ def run():
         return
 
     with pdfplumber.open(uploaded) as pdf:
-        # … Steps 1–5 here …
-        perf_page  = st.session_state.get("performance_page")
-        fund_names = [b["Fund Name"] for b in st.session_state.get("fund_blocks", [])]
+        # Steps 1-5 would be invoked here...
+        perf_page = st.session_state.get('performance_page')
+        fund_names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
         if not perf_page or not fund_names:
             st.warning("Complete Steps 1–5 first.")
             return
+        # Step 5
         step5_process_performance(pdf, perf_page, fund_names)
-
         # Step 6
         step6_process_factsheets(pdf, fund_names)
+
+if __name__ == "__main__":
+    run()
+
