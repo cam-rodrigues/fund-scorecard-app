@@ -306,28 +306,32 @@ def extract_field(text: str, label: str, stop_at: str = None) -> str:
         return ""
 
 def step6_process_factsheets(pdf, fund_names):
-    toc_pages       = st.session_state.get("toc_pages", {})
-    total_declared  = st.session_state.get("total_options", 0)
-    perf_data       = st.session_state.get("fund_performance_data", [])
-
-    # 1) find the TOC key containing “fact”
-    fact_key = next((k for k in toc_pages if "fact" in k.lower()), None)
-    if fact_key is None:
-        st.error(f"❌ No TOC entry with “fact” found. Available keys: {', '.join(toc_pages)}")
+    """
+    === Step 6: Fund Factsheets Extraction ===
+    Reads from the factsheets_page in session_state, finds each factsheet header,
+    fuzzy-matches back to fund_names/tickers from performance_data, extracts fields,
+    and displays the results.
+    """
+    start_page = st.session_state.get("factsheets_page")
+    if not start_page:
+        st.error("❌ 'factsheets_page' not set. Run Step 2 first.")
         return
-    start_page = toc_pages[fact_key] - 1
+
+    total_declared = st.session_state.get("total_options", 0)
+    perf_data      = st.session_state.get("fund_performance_data", [])
 
     matched = []
-    # 2) scan from start_page through end
-    for page_num in range(start_page, len(pdf.pages)):
+    # scan from the factsheets page through the end of the PDF
+    for page_num in range(start_page - 1, len(pdf.pages)):
         text = pdf.pages[page_num].extract_text() or ""
-        # take only the very top line(s)
-        header = "\n".join(line for line in text.splitlines()[:2])
+        header_lines = text.splitlines()[:2]
+        header = "\n".join(header_lines)
         if "Benchmark:" not in header or "Expense Ratio:" not in header:
             continue
 
-        # parse raw fund name & ticker
-        ticker = (re.search(r"\b[A-Z]{1,5}\b", header) or [None, ""])[1]
+        # parse ticker & raw name
+        tk_match = re.search(r"\b([A-Z]{1,5})\b", header)
+        ticker   = tk_match.group(1) if tk_match else ""
         raw_name = header.split(ticker)[0].strip() if ticker else ""
 
         # fuzzy match back to performance_data
@@ -339,13 +343,13 @@ def step6_process_factsheets(pdf, fund_names):
             if score > best_score:
                 best_score, match_name, match_ticker = score, item["Fund Scorecard Name"], item["Ticker"]
 
-        # extract required fields
-        bm   = extract_field(header, "Benchmark:",    "Category:")
-        cat  = extract_field(header, "Category:",     "Net Assets:")
-        na   = extract_field(header, "Net Assets:",   "Manager Name:")
-        mgr  = extract_field(header, "Manager Name:", "Avg. Market Cap:")
-        amc  = extract_field(header, "Avg. Market Cap:", "Expense Ratio:")
-        exp  = extract_field(header, "Expense Ratio:")
+        # extract fields helper
+        bm  = extract_field(header, "Benchmark:",    "Category:")
+        cat = extract_field(header, "Category:",     "Net Assets:")
+        na  = extract_field(header, "Net Assets:",   "Manager Name:")
+        mgr = extract_field(header, "Manager Name:", "Avg. Market Cap:")
+        amc = extract_field(header, "Avg. Market Cap:", "Expense Ratio:")
+        exp = extract_field(header, "Expense Ratio:")
 
         matched.append({
             "Page":           page_num + 1,
@@ -361,13 +365,13 @@ def step6_process_factsheets(pdf, fund_names):
             "Matched?":       best_score > 20
         })
 
-    # 3) stash & display
+    # stash & display
     df = pd.DataFrame(matched)
     st.session_state["fund_factsheets_data"] = matched
 
+    st.subheader("Step 6: Extracted Factsheets")
     display = df[[
-        "Fund Name","Ticker",
-        "Benchmark","Category","Net Assets",
+        "Fund Name","Ticker","Benchmark","Category","Net Assets",
         "Manager Name","Avg Market Cap","Expense Ratio","Matched?"
     ]]
     st.dataframe(display, use_container_width=True)
@@ -378,6 +382,29 @@ def step6_process_factsheets(pdf, fund_names):
         st.success(f"All {good} funds matched the declared Total Options.")
     else:
         st.error(f"Declared {total_declared}, but matched {good}.")
+
+
+def run():
+    st.title("MPI Tool — Steps 1 to 6")
+    uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
+    if not uploaded:
+        return
+
+    with pdfplumber.open(uploaded) as pdf:
+        
+        # … existing calls for Steps 1–5 …
+
+        perf_page  = st.session_state.get("performance_page")
+        fund_names = [b["Fund Name"] for b in st.session_state.get("fund_blocks", [])]
+        if not perf_page or not fund_names:
+            st.warning("Complete Steps 1–5 first.")
+            return
+
+        step5_process_performance(pdf, perf_page, fund_names)
+
+        # Step 6: now _only_ this call—no inline parsing or display here
+        step6_process_factsheets(pdf, fund_names)
+
 
 # === Main App ===
 def run():
