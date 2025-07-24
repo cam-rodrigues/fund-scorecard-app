@@ -393,22 +393,46 @@ def step6_process_factsheets(pdf, fund_names):
 
 # === Main App ===
 def run():
-    st.title("MPI Tool — Steps 1 to 6")
-    uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
-    if not uploaded:
+    st.title("MPI Tool — Steps 1 to 6")
+    uploaded_file = st.file_uploader("Upload MPI PDF", type="pdf")
+    if not uploaded_file:
         return
 
-    with pdfplumber.open(uploaded) as pdf:
-        # Steps 1-5 would be invoked here...
-        perf_page = st.session_state.get('performance_page')
-        fund_names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
-        if not perf_page or not fund_names:
-            st.warning("Complete Steps 1–5 first.")
-            return
-        # Step 5
-        step5_process_performance(pdf, perf_page, fund_names)
-        # Step 6
+    with pdfplumber.open(uploaded_file) as pdf:
+        # Step 1: Page 1 metadata
+        first_page_text = pdf.pages[0].extract_text() or ""
+        process_page1(first_page_text)
+
+        # Step 2: TOC (you can pull more pages if needed)
+        toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
+        process_toc(toc_text)
+
+        # Step 3: Scorecard blocks
+        scorecard_page = st.session_state.get("scorecard_page")
+        declared_total = st.session_state.get("total_options")
+        if scorecard_page and declared_total is not None:
+            step3_process_scorecard(pdf, scorecard_page, declared_total)
+        else:
+            st.error("❌ Scorecard page or total options missing—check Steps 1–2.")
+
+        # Step 4: IPS screening
+        step4_ips_screen()
+
+        # Step 5: Fund Performance
+        perf_page = st.session_state.get("performance_page")
+        fund_names = [b["Fund Name"] for b in st.session_state.get("fund_blocks", [])]
+        if perf_page and fund_names:
+            step5_process_performance(pdf, perf_page, fund_names)
+        else:
+            st.error("❌ Performance page or fund blocks missing—check Steps 2–3.")
+
+        # Step 6: Fund Factsheets
+        # (invoked unconditionally; it will warn if data’s missing)
         step6_process_factsheets(pdf, fund_names)
+
+
+if __name__ == "__main__":
+    run()
 
 if __name__ == "__main__":
     run()
