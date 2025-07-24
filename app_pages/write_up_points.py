@@ -393,7 +393,6 @@ def step7_extract_returns(pdf):
     st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns")
 
     perf_page     = st.session_state.get("performance_page")
-    factsheet_pg  = st.session_state.get("factsheets_page") or (len(pdf.pages)+1)
     perf_data     = st.session_state.get("fund_performance_data", [])
 
     if perf_page is None or not perf_data:
