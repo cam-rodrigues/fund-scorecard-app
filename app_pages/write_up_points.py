@@ -431,6 +431,7 @@ def step7_extract_returns(pdf):
         next2 = lines[i + 2] if i + 2 < len(lines) else ""
         next3 = lines[i + 3] if i + 3 < len(lines) else ""
 
+        # Match return rows with 8 numeric values (QTD, 1Yr, 3Yr, 5Yr, 10Yr)
         num_re = re.compile(r'^-?\d+\.\d+(\s+-?\d+\.\d+){7}$')
         if not num_re.match(row):
             i += 1
@@ -450,6 +451,7 @@ def step7_extract_returns(pdf):
         bvals = bparts[-6:] if len(bparts) >= 6 else [None]*6
         bQTD, b1YR, b3YR, b5YR, b10YR = bvals[0:5]
 
+        # Loop through all funds to match
         for item in perf_data:
             if is_filled(item):
                 continue
@@ -459,7 +461,7 @@ def step7_extract_returns(pdf):
             score = fuzz.token_sort_ratio(f"{name} {tk}".lower(), fund_line.lower())
             ticker_ok = tk.upper() == (ticker or "").upper()
 
-            # Handle cases where benchmark might be missing
+            # Dynamically detect and fill returns for retirement funds or missing benchmarks
             if score > 70 or ticker_ok:
                 if not item["QTD"]:             item["QTD"] = QTD_
                 if not item["1Yr"]:             item["1Yr"] = ONE_YR
@@ -476,15 +478,18 @@ def step7_extract_returns(pdf):
 
         i += 1
 
+    # Update session data
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
 
+    # Prepare columns to display
     display_cols = ["Fund Scorecard Name", "Ticker"] + return_fields
     missing = [c for c in display_cols if c not in df.columns]
     if missing:
         st.error(f"Expected columns {display_cols}, but missing {missing}.")
         return
 
+    # Output the results
     st.success(f"✅ Matched {matched_count} fund(s) with return data.")
 
     # Debug: Log missing funds
