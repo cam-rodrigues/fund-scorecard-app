@@ -305,19 +305,22 @@ def step6_process_factsheets(pdf, fund_names):
     if not factsheet_start:
         st.error("❌ 'Fund Factsheets' page number not found in TOC.")
         return
+    if not performance_data:
+        st.error("❌ Fund performance data not found. Run Step 5 first.")
+        return
 
     matched_factsheets = []
     # Iterate pages from factsheet_start to end
     for i in range(factsheet_start - 1, len(pdf.pages)):
         page = pdf.pages[i]
         words = page.extract_words(use_text_flow=True)
-        header_words = [w['text'] for w in words if w['top'] < 100]
+        header_words = [w['text'] for w in words if w['top'] < 120]  # slightly increased tolerance
         first_line = " ".join(header_words).strip()
         
         if not first_line or "Benchmark:" not in first_line or "Expense Ratio:" not in first_line:
             continue
 
-        ticker_match = re.search(r"\b([A-Z]{5})\b", first_line)
+        ticker_match = re.search(r"\b([A-Z]{3,5})\b", first_line)
         ticker = ticker_match.group(1) if ticker_match else ""
         fund_name_raw = first_line.split(ticker)[0].strip() if ticker else first_line
 
@@ -361,6 +364,10 @@ def step6_process_factsheets(pdf, fund_names):
             "Match Score": best_score,
             "Matched": "✅" if best_score > 20 else "❌"
         })
+
+    if not matched_factsheets:
+        st.error("❌ No factsheets matched. Check the factsheets page number or PDF structure.")
+        return
 
     df_facts = pd.DataFrame(matched_factsheets)
     st.session_state['fund_factsheets_data'] = matched_factsheets
