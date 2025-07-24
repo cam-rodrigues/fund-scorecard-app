@@ -303,16 +303,14 @@ def extract_field(text: str, label: str, stop_at: str = None) -> str:
 
 
 # === Step 6: Fund Factsheets ===
-# Corrected version of Step 6
 def step6_process_factsheets(pdf, fund_names):
     st.subheader("Step 6: Fund Factsheets Section")
     factsheet_start = st.session_state.get("factsheets_page")
     total_declared = st.session_state.get("total_options")
     performance_data = [
-        {"Fund Scorecard Name": name, "Ticker": st.session_state["tickers"].get(name, "")}
-        for name in st.session_state.get("tickers", {})
+        {"Fund Scorecard Name": name, "Ticker": ticker}
+        for name, ticker in st.session_state.get("tickers", {}).items()
     ]
-
 
     if not factsheet_start:
         st.error("❌ 'Fund Factsheets' page number not found in TOC.")
