@@ -517,7 +517,6 @@ def step7_extract_returns(pdf):
 
 import re
 import streamlit as st
-import pdfplumber
 import pandas as pd
 
 # === Step 8: Fund Performance - Calendar Year Annualized Returns ===
@@ -530,10 +529,10 @@ def step8_extract_annualized_returns(pdf):
         st.error("❌ Could not find 'Fund Performance: Calendar Year' section in the TOC.")
         return
 
-    # Extract text from the Fund Performance: Calendar Year page
+    # Extract text from the Fund Performance: Calendar Year page and the next page
     all_lines = []
     cy_text = ""
-    for p in pdf.pages[cy_page-1:cy_page+1]:  # Extracting data from calendar year pages
+    for p in pdf.pages[cy_page-1:cy_page+1]:  # Extracting the calendar year data from the page
         txt = p.extract_text() or ""
         cy_text += txt + "\n"
         all_lines.extend(txt.splitlines())
@@ -548,21 +547,25 @@ def step8_extract_annualized_returns(pdf):
     fund_data = []
     for line in all_lines:
         # Match fund name and its annualized returns for each year (2015-2024)
-        m = re.match(r"^(?P<fund_name>[\w\s]+)\s+(?P<returns_2015>-?\d+\.\d+)\s+(?P<returns_2016>-?\d+\.\d+)\s+(?P<returns_2017>-?\d+\.\d+)\s+(?P<returns_2018>-?\d+\.\d+)\s+(?P<returns_2019>-?\d+\.\d+)\s+(?P<returns_2020>-?\d+\.\d+)\s+(?P<returns_2021>-?\d+\.\d+)\s+(?P<returns_2022>-?\d+\.\d+)\s+(?P<returns_2023>-?\d+\.\d+)\s+(?P<returns_2024>-?\d+\.\d+)", line.strip())
+        m = re.match(r"^(?P<fund_name>[\w\s]+)\s+(?P<returns_2015>-?\d+\.\d+)\s+(?P<returns_2016>-?\d+\.\d+)\s+(?P<returns_2017>-?\d+\.\d+)\s+(?P<returns_2018>-?\d+\.\d+)\s+(?P<returns_2019>-?\d+\.\d+)\s+(?P<returns_2020>-?\d+\.\d+)\s+(?P<returns_2021>-?\d+\.\d+)\s+(?P<returns_2022>-?\d+\.\d+)\s+(?P<returns_2023>-?\d+\.\d+)\s+(?P<returns_2024>-?\d+\.\d+)\s+(?P<benchmark_name>[\w\s]+)?\s+(?P<benchmark_returns>-?\d+\.\d+)", line.strip())
 
         if m:
             fund_name = m.group("fund_name")
             returns = {year: m.group(f"returns_{year}") for year in range(2015, 2025)}
+            benchmark_name = m.group("benchmark_name")
+            benchmark_returns = m.group("benchmark_returns")
 
             # Check if the fund name matches any of the fund names from previously extracted data
             matched_fund = next((fund for fund in fund_names_and_tickers if fund_name.lower() in fund["Fund Scorecard Name"].lower()), None)
 
             if matched_fund:
-                # If a match is found, add both fund data and returns data
+                # If a match is found, add both fund data and returns data, along with benchmark
                 fund_data.append({
                     "Fund Name": fund_name,
                     "Ticker": matched_fund["Ticker"],
-                    **returns
+                    "Benchmark": benchmark_name,
+                    **returns,
+                    "Benchmark Returns": benchmark_returns
                 })
 
     if not fund_data:
@@ -575,8 +578,6 @@ def step8_extract_annualized_returns(pdf):
 
     # Optionally, save the extracted data in session state for further use
     st.session_state["fund_calendar_year_data"] = fund_data
-
-
 
 
 # === Main App ===
