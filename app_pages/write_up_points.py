@@ -547,7 +547,7 @@ def step8_extract_annualized_returns(pdf):
     for line in all_lines:
         # Check if the line contains fund data (based on the pattern in the document)
         m = re.match(r"^(?P<fund_name>[\w\s]+)\s+(?P<returns_2015>-?\d+\.\d+)\s+(?P<returns_2016>-?\d+\.\d+)\s+(?P<returns_2017>-?\d+\.\d+)\s+(?P<returns_2018>-?\d+\.\d+)\s+(?P<returns_2019>-?\d+\.\d+)\s+(?P<returns_2020>-?\d+\.\d+)\s+(?P<returns_2021>-?\d+\.\d+)\s+(?P<returns_2022>-?\d+\.\d+)\s+(?P<returns_2023>-?\d+\.\d+)\s+(?P<returns_2024>-?\d+\.\d+)", line.strip())
-        
+
         if m:
             fund_name = m.group("fund_name")
             returns = {year: m.group(f"returns_{year}") for year in range(2015, 2025)}
@@ -568,7 +568,7 @@ def step8_extract_annualized_returns(pdf):
     for line in all_lines:
         # Check if the line contains benchmark data
         m = re.match(r"^(?P<benchmark_name>[\w\s]+)\s+(?P<returns_2015>-?\d+\.\d+)\s+(?P<returns_2016>-?\d+\.\d+)\s+(?P<returns_2017>-?\d+\.\d+)\s+(?P<returns_2018>-?\d+\.\d+)\s+(?P<returns_2019>-?\d+\.\d+)\s+(?P<returns_2020>-?\d+\.\d+)\s+(?P<returns_2021>-?\d+\.\d+)\s+(?P<returns_2022>-?\d+\.\d+)\s+(?P<returns_2023>-?\d+\.\d+)\s+(?P<returns_2024>-?\d+\.\d+)", line.strip())
-        
+
         if m:
             benchmark_name = m.group("benchmark_name")
             returns = {year: m.group(f"returns_{year}") for year in range(2015, 2025)}
