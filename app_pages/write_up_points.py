@@ -469,7 +469,7 @@ def step7_extract_returns(pdf):
                 if b1YR and not item["Benchmark 1Yr"]:   item["Benchmark 1Yr"] = b1YR
                 if b3YR and not item["Benchmark 3Yr"]:   item["Benchmark 3Yr"] = b3YR
                 if b5YR and not item["Benchmark 5Yr"]:   item["Benchmark 5Yr"] = b5YR
-                if b10YR and not item["Benchmark 10Yr"]: item["Benchmark 10Yr"] = b10Yr
+                if b10YR and not item["Benchmark 10Yr"]: item["Benchmark 10Yr"] = b10YR
                 matched_count += 1
                 break
 
