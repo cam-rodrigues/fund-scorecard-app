@@ -389,7 +389,6 @@ def step6_process_factsheets(pdf, fund_names):
 
 
 # === Step 7: QTD, 1 Yrm 3Yr, 5Yr, 10 Yr Annualized Returns ===
-# === Step 7: QTD, 1Yr, 3Yr, 5Yr, 10Yr Annualized Returns ===
 def step7_extract_returns(pdf):
     st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns")
 
@@ -401,11 +400,12 @@ def step7_extract_returns(pdf):
         st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    # 1) Slurp all text from the “Current vs. Proposed Comparison” section
+    # Read all pages from perf_page to the end
     lines = []
-    for p in pdf.pages[perf_page-1 : factsheet_pg-1]:
+    for p in pdf.pages[perf_page - 1:]:
         text = p.extract_text() or ""
         lines += [l.strip() for l in text.splitlines() if l.strip()]
+
 
     # 2) Locate the header row
     hdr_idx = next((i for i,l in enumerate(lines)
@@ -480,7 +480,7 @@ def step7_extract_returns(pdf):
 
 # === Main App ===
 def run():
-    st.title("MPI Tool — Steps 1 to 6")
+    st.title("Writeup")
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
