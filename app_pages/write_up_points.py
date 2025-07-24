@@ -409,42 +409,43 @@ def step7_extract_returns(pdf):
 
     matched_count = 0
 
-    for page in pdf.pages[perf_page - 1:]:
-        words = page.extract_words(use_text_flow=True)
-        lines = {}
-        for w in words:
-            top = round(w["top"])  # group words by line
+for page in pdf.pages[perf_page - 1:]:
+    words = page.extract_words(use_text_flow=True)
+    lines = {}
+    for w in words:
+        if "x" in w and "top" in w:
+            top = round(w["top"])
             lines.setdefault(top, []).append(w)
 
-        for line_words in lines.values():
-            line_words.sort(key=lambda w: w["x"])  # sort left to right
-            texts = [w["text"].strip() for w in line_words]
+    for line_words in lines.values():
+        line_words.sort(key=lambda w: w["x"])  # left to right
+        texts = [w["text"].strip() for w in line_words]
 
-            # Look for a row with format: Name, Ticker, 10 numbers
-            if len(texts) < 13:
-                continue
-            name = texts[0]
-            ticker = texts[1]
-            nums = texts[2:12]
-            try:
-                values = list(map(float, nums))
-            except ValueError:
-                continue
+        if len(texts) < 13:
+            continue
 
-            for item in perf_data:
-                if (item.get("Ticker") or "").strip().upper() == ticker.upper():
-                    item["QTD"] = str(values[0])
-                    item["1Yr"] = str(values[1])
-                    item["3Yr"] = str(values[2])
-                    item["5Yr"] = str(values[3])
-                    item["10Yr"] = str(values[4])
-                    item["Benchmark QTD"] = str(values[5])
-                    item["Benchmark 1Yr"] = str(values[6])
-                    item["Benchmark 3Yr"] = str(values[7])
-                    item["Benchmark 5Yr"] = str(values[8])
-                    item["Benchmark 10Yr"] = str(values[9])
-                    matched_count += 1
-                    break
+        name = texts[0]
+        ticker = texts[1]
+        nums = texts[2:12]
+        try:
+            values = list(map(float, nums))
+        except ValueError:
+            continue
+
+        for item in perf_data:
+            if (item.get("Ticker") or "").strip().upper() == ticker.upper():
+                item["QTD"] = str(values[0])
+                item["1Yr"] = str(values[1])
+                item["3Yr"] = str(values[2])
+                item["5Yr"] = str(values[3])
+                item["10Yr"] = str(values[4])
+                item["Benchmark QTD"] = str(values[5])
+                item["Benchmark 1Yr"] = str(values[6])
+                item["Benchmark 3Yr"] = str(values[7])
+                item["Benchmark 5Yr"] = str(values[8])
+                item["Benchmark 10Yr"] = str(values[9])
+                matched_count += 1
+                break
 
     # Store & show
     st.info(f"✅ Matched {matched_count} fund(s) with returns.")
