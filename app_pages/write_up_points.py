@@ -533,22 +533,29 @@ def step8_extract_annualized_returns(pdf):
         cy_text += txt + "\n"
         all_lines.extend(txt.splitlines())
 
+    # Get the fund names and tickers already extracted from previous steps
+    fund_names_and_tickers = st.session_state.get("fund_performance_data", [])
+
     # Parsing the data for each fund's calendar year performance
     fund_data = []
-    is_fund_section = False
     for line in all_lines:
         # Check if the line contains fund data (based on the pattern in the document)
         m = re.match(r"^(?P<fund_name>[\w\s]+)\s+(?P<returns_2015>-?\d+\.\d+)\s+(?P<returns_2016>-?\d+\.\d+)\s+(?P<returns_2017>-?\d+\.\d+)\s+(?P<returns_2018>-?\d+\.\d+)\s+(?P<returns_2019>-?\d+\.\d+)\s+(?P<returns_2020>-?\d+\.\d+)\s+(?P<returns_2021>-?\d+\.\d+)\s+(?P<returns_2022>-?\d+\.\d+)\s+(?P<returns_2023>-?\d+\.\d+)\s+(?P<returns_2024>-?\d+\.\d+)", line.strip())
-        
+
         if m:
             fund_name = m.group("fund_name")
             returns = {year: m.group(f"returns_{year}") for year in range(2015, 2025)}
-            fund_data.append({"Fund Name": fund_name, **returns})
-            is_fund_section = True
-        
-        # If the section ends, break out of the loop
-        if is_fund_section and line.strip() == "":
-            break
+
+            # Check if the fund name matches any of the fund names from previously extracted data
+            matched_fund = next((fund for fund in fund_names_and_tickers if fund_name.lower() in fund["Fund Scorecard Name"].lower()), None)
+
+            if matched_fund:
+                # If a match is found, add both fund data and returns data
+                fund_data.append({
+                    "Fund Name": fund_name,
+                    "Ticker": matched_fund["Ticker"],
+                    **returns
+                })
 
     if not fund_data:
         st.error("❌ No fund performance data found in the 'Fund Performance: Calendar Year' section.")
