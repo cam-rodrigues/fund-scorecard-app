@@ -389,6 +389,7 @@ def step6_process_factsheets(pdf, fund_names):
 
 
 # === Step 7: QTD, 1Yr, 3Yr, 5Yr, 10Yr Annualized Returns ===
+# === Step 7: QTD, 1Yr, 3Yr, 5Yr, 10Yr Annualized Returns ===
 def step7_extract_returns(pdf):
     st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns")
 
@@ -411,22 +412,17 @@ def step7_extract_returns(pdf):
     def is_filled(item):
         return all(item.get(f) not in [None, ""] for f in return_fields)
 
-    # Maximum pages limit (to prevent infinite loops)
-    MAX_PAGES = 100
-    page_counter = 0
-
+    # === Read the Fund Performance pages only ===
     lines = []
     start = (perf_page or 1) - 1
-    end = len(pdf.pages)  # Read until the end if factsheet_pg is missing or broken
+    for i in range(start, len(pdf.pages)):
+        page = pdf.pages[i]
+        text = page.extract_text() or ""
+        if "Fund Performance: Current vs." not in text:
+            break  # Stop when section ends
 
-    for p in pdf.pages[start:end]:
-        text = p.extract_text() or ""
-        lines += [l.strip() for l in text.splitlines() if l.strip()]
-        
-        page_counter += 1
-        if page_counter > MAX_PAGES:
-            st.error("❌ Stopped processing pages after 100 iterations.")
-            break
+        page_lines = [l.strip() for l in text.splitlines() if l.strip()]
+        lines.extend(page_lines)
 
     matched_count = 0
     i = 0
@@ -436,6 +432,7 @@ def step7_extract_returns(pdf):
         next2 = lines[i + 2] if i + 2 < len(lines) else ""
         next3 = lines[i + 3] if i + 3 < len(lines) else ""
 
+        # Match return rows with 8 numeric values (QTD, 1Yr, 3Yr, 5Yr, 10Yr)
         num_re = re.compile(r'^-?\d+\.\d+(\s+-?\d+\.\d+){7}$')
         if not num_re.match(row):
             i += 1
@@ -464,6 +461,7 @@ def step7_extract_returns(pdf):
             score = fuzz.token_sort_ratio(f"{name} {tk}".lower(), fund_line.lower())
             ticker_ok = tk.upper() == (ticker or "").upper()
 
+            # Dynamically detect and fill returns
             if score > 70 or ticker_ok:
                 if not item["QTD"]:             item["QTD"] = QTD_
                 if not item["1Yr"]:             item["1Yr"] = ONE_YR
@@ -491,8 +489,6 @@ def step7_extract_returns(pdf):
 
     st.success(f"✅ Matched {matched_count} fund(s) with return data.")
     st.dataframe(df[display_cols], use_container_width=True)
-
-
 
 # === Main App ===
 def run():
