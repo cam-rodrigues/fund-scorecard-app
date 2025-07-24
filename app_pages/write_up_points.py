@@ -63,12 +63,14 @@ def process_toc(text):
     r5yr_page = int(r5yr.group(1)) if r5yr else None
 
     st.subheader("Table of Contents Pages")
-    st.write(f"- Performance Page: {perf_page}")
-    st.write(f"- Scorecard Page:   {sc_page}")
-    st.write(f"- Factsheets Page:  {fs_page}")
-    st.write(f"- Calendar Year Page: {cy_page}")
-    st.write(f"- MPT 3Yr Risk Analysis Page: {r3yr_page}")
-    st.write(f"- MPT 5Yr Risk Analysis Page: {r5yr_page}")
+    st.write(f"- Fund Performance Current vs Proposed Comparison : {perf_page}")
+    st.write(f"- Fund Performance Calendar Year : {cy_page}")
+    st.write(f"- MPT 3Yr Risk Analysis : {r3yr_page}")
+    st.write(f"- MPT 5Yr Risk Analysis : {r5yr_page}")
+    st.write(f"- Fund Scorecard:   {sc_page}")
+    st.write(f"- Fund Factsheets :  {fs_page}")
+    
+
 
     # Store in session state for future reference
     st.session_state['performance_page'] = perf_page
