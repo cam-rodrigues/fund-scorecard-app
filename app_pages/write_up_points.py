@@ -66,6 +66,44 @@ def process_toc(text):
     st.session_state['factsheets_page']  = fs_page
 
 
+# == Step 2b  ==
+def step2b_process_performance_comparison(pdf, page_number):
+    st.subheader("Step 2b: Performance Comparison Section")
+    all_text = ""
+    for p in pdf.pages[page_number-1:]:
+        t = p.extract_text()
+        if not t or "Fund Scorecard" in t or "Scorecard" in t:
+            break
+        all_text += t + "\n"
+
+    lines = [line.strip() for line in all_text.splitlines() if line.strip()]
+    fund_data = []
+    for i in range(len(lines) - 1):
+        name_line = lines[i]
+        ticker_line = lines[i+1]
+        if re.match(r"^[A-Z]{4,6}X?$", ticker_line.strip()):
+            fund_name = name_line.strip()
+            ticker = ticker_line.strip()
+            # try to look for category 1-2 lines above
+            category = ""
+            for j in range(i-1, max(i-4, 0), -1):
+                if lines[j] and not re.match(r"^[A-Z]{4,6}X?$", lines[j]) and len(lines[j].split()) < 6:
+                    category = lines[j].strip()
+                    break
+            fund_data.append({
+                "Fund Scorecard Name": fund_name,
+                "Ticker": ticker,
+                "Category": category
+            })
+
+    if not fund_data:
+        st.error("❌ No funds found in Performance Comparison section.")
+    else:
+        st.success(f"✅ Found {len(fund_data)} funds in Performance Comparison section.")
+        df = pd.DataFrame(fund_data)
+        st.dataframe(df)
+        st.session_state["fund_performance_data"] = fund_data
+
 # === Step 3 ===
 def step3_process_scorecard(pdf, start_page, declared_total):
     pages = []
@@ -398,6 +436,14 @@ def run():
         with st.expander("Step 2: Table of Contents Extraction", expanded=False):
             toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
             process_toc(toc_text)
+
+        # Step 2b
+        with st.expander("Step 2b: Fund Performance Comparison Section", expanded=False):
+            perf_page = st.session_state.get("performance_page")
+            if perf_page:
+                step2b_process_performance_comparison(pdf, perf_page)
+            else:
+                st.error("Missing performance page from TOC")
 
         # Step 3
         with st.expander("Step 3: Scorecard Extraction", expanded=False):
