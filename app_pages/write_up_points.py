@@ -526,13 +526,28 @@ def step8_extract_annualized_returns(pdf):
     fund_names = st.session_state.get("fund_names", [])
     fund_tickers = st.session_state.get("fund_tickers", [])
 
+    # Build ticker → name lookup from saved values
     fund_lookup = {
         ticker.upper(): name for name, ticker in zip(fund_names, fund_tickers)
     }
 
-    start_page = toc_pages.get("Fund Performance: Calendar Year", 0)
+    # Try multiple possible TOC keys
+    possible_keys = [
+        "Fund Performance: Calendar Year",
+        "Fund Performance - Calendar Year",
+        "Calendar Year Performance",
+        "Calendar Year Fund Performance",
+        "Fund Calendar Year Performance",
+    ]
+
+    start_page = 0
+    for key in possible_keys:
+        if key in toc_pages:
+            start_page = toc_pages[key]
+            break
+
     if not start_page:
-        st.warning("⚠️ Could not find a TOC entry for 'Fund Performance: Calendar Year'. Scanning all pages.")
+        st.warning("⚠️ Could not find a TOC entry for Calendar Year Performance. Scanning all pages.")
         start_page = 1
 
     pattern_year = re.compile(r"\b20(1[5-9]|2[0-4])\b")
@@ -546,9 +561,12 @@ def step8_extract_annualized_returns(pdf):
         if not table:
             continue
 
+        # Optional debug: show tables from candidate pages
+        # st.write(f"Page {i+1} table:", table)
+
         header_row = None
         for row in table:
-            if any(pattern_year.match(str(cell or "")) for cell in row):
+            if sum(1 for cell in row if pattern_year.match(str(cell or ""))) >= 5:
                 header_row = row
                 break
 
@@ -568,7 +586,7 @@ def step8_extract_annualized_returns(pdf):
 
             fund_name = fund_lookup.get(ticker)
             if not fund_name:
-                continue
+                continue  # skip unknown tickers
 
             returns = row[-10:]
             year_map = dict(zip(header_row[-10:], returns))
@@ -585,6 +603,7 @@ def step8_extract_annualized_returns(pdf):
         st.dataframe(df)
     else:
         st.warning("❌ No calendar year fund returns found.")
+
 
 # === Main App ===
 def run():
