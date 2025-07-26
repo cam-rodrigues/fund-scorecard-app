@@ -515,52 +515,76 @@ def step7_extract_returns(pdf):
 
     st.dataframe(df[display_cols], use_container_width=True)
 
-# === Step 8: Fund Performance - Calendar Year Annualized Returns ===
+# === Step 8: Extract Annualized Calendar Year Returns ===
 def step8_extract_annualized_returns(pdf):
-    st.subheader("Step 8: Fund Performance - Calendar Year Annualized Returns")
+    import re
+    import pandas as pd
 
-    # Ensure the page number for the Fund Performance Calendar Year section is available
-    cy_page = st.session_state.get("calendar_year_page")
-    if cy_page is None:
-        st.error("❌ Could not find 'Fund Performance: Calendar Year' section in the TOC.")
-        return
+    st.subheader("Step 8: Calendar Year Fund Performance")
 
-    # Extract text from the Fund Performance: Calendar Year page and the next few pages if necessary
-    all_lines = []
-    cy_text = ""
-    for p in pdf.pages[cy_page-1:cy_page+2]:  # Extracting the calendar year data from the page
-        txt = p.extract_text() or ""
-        cy_text += txt + "\n"
-        all_lines.extend(txt.splitlines())
+    toc_pages = st.session_state.get("toc_pages", {})
+    fund_names = st.session_state.get("fund_names", [])
+    fund_tickers = st.session_state.get("fund_tickers", [])
 
-    # Parsing the data for each fund's calendar year performance
-    fund_data = []
-    is_fund_section = False
-    for line in all_lines:
-        # Check if the line contains fund data (based on the pattern in the document)
-        m = re.match(r"^(?P<fund_name>[\w\s]+)\s+(?P<returns_2015>-?\d+\.\d+)\s+(?P<returns_2016>-?\d+\.\d+)\s+(?P<returns_2017>-?\d+\.\d+)\s+(?P<returns_2018>-?\d+\.\d+)\s+(?P<returns_2019>-?\d+\.\d+)\s+(?P<returns_2020>-?\d+\.\d+)\s+(?P<returns_2021>-?\d+\.\d+)\s+(?P<returns_2022>-?\d+\.\d+)\s+(?P<returns_2023>-?\d+\.\d+)\s+(?P<returns_2024>-?\d+\.\d+)", line.strip())
-        
-        if m:
-            fund_name = m.group("fund_name")
-            returns = {year: m.group(f"returns_{year}") for year in range(2015, 2025)}
-            fund_data.append({"Fund Name": fund_name, **returns})
-            is_fund_section = True
-        
-        # If the section ends, break out of the loop
-        if is_fund_section and line.strip() == "":
-            break
+    fund_lookup = {
+        ticker.upper(): name for name, ticker in zip(fund_names, fund_tickers)
+    }
 
-    if not fund_data:
-        st.error("❌ No fund performance data found in the 'Fund Performance: Calendar Year' section.")
-        return
+    start_page = toc_pages.get("Fund Performance: Calendar Year", 0)
+    if not start_page:
+        st.warning("⚠️ Could not find a TOC entry for 'Fund Performance: Calendar Year'. Scanning all pages.")
+        start_page = 1
 
-    # Display the extracted fund performance data in a table
-    df = pd.DataFrame(fund_data)
-    st.dataframe(df, use_container_width=True)
+    pattern_year = re.compile(r"\b20(1[5-9]|2[0-4])\b")
+    pattern_ticker = re.compile(r"\b[A-Z]{4,5}X\b")
 
-    # Optionally, save the extracted data in session state for further use
-    st.session_state["fund_calendar_year_data"] = fund_data
+    results = []
 
+    for i in range(start_page - 1, len(pdf.pages)):
+        page = pdf.pages[i]
+        table = page.extract_table()
+        if not table:
+            continue
+
+        header_row = None
+        for row in table:
+            if any(pattern_year.match(str(cell or "")) for cell in row):
+                header_row = row
+                break
+
+        if not header_row:
+            continue
+
+        for row in table:
+            row_text = " ".join(str(cell or "") for cell in row)
+
+            if any(x in row_text.lower() for x in ["index", "median"]):
+                continue
+
+            ticker_match = pattern_ticker.search(row_text)
+            if not ticker_match:
+                continue
+            ticker = ticker_match.group().upper()
+
+            fund_name = fund_lookup.get(ticker)
+            if not fund_name:
+                continue
+
+            returns = row[-10:]
+            year_map = dict(zip(header_row[-10:], returns))
+
+            results.append({
+                "Fund Name": fund_name,
+                "Ticker": ticker,
+                "Returns by Year": year_map
+            })
+
+    if results:
+        df = pd.DataFrame(results)
+        st.session_state["step8_results"] = results
+        st.dataframe(df)
+    else:
+        st.warning("❌ No calendar year fund returns found.")
 
 # === Main App ===
 def run():
