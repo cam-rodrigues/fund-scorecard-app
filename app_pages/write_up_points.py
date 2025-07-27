@@ -887,12 +887,13 @@ def step11_create_summary(pdf=None):
     st.session_state["step11_summary"] = df.to_dict("records")
     st.dataframe(df)
 
-# === Step 12: Find only “FUND FACTS” Subheading ===
-def step12_find_fund_facts(pdf):
+# === Step 12: Extract “FUND FACTS” & Its Table Details in One Go ===
+def step12_process_fund_facts(pdf):
+    import re
     import streamlit as st
     import pandas as pd
 
-    st.subheader("Step 12: Find 'FUND FACTS' Subheading")
+    st.subheader("Step 12: Extract Fund Facts Details")
 
     fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
@@ -900,51 +901,13 @@ def step12_find_fund_facts(pdf):
         st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
-    # build page → (Fund Name, Ticker) map
+    # map factsheet pages to fund name & ticker
     page_map = {
         f["Page #"]: (f["Matched Fund Name"], f["Matched Ticker"])
         for f in factsheets
     }
 
-    rows = []
-    for pnum in range(fs_start, len(pdf.pages) + 1):
-        text = pdf.pages[pnum-1].extract_text() or ""
-        lines = text.splitlines()
-        fund_name, ticker = page_map.get(pnum, ("<unknown>", ""))
-
-        for idx, line in enumerate(lines):
-            up = line.lstrip().upper()
-            if up.startswith("FUND FACTS"):
-                # record only the substring "FUND FACTS"
-                rows.append({
-                    "Fund Name": fund_name,
-                    "Ticker":    ticker,
-                    "Page":      pnum,
-                    "Line":      idx + 1,
-                    "Text":      "FUND FACTS"
-                })
-
-    if not rows:
-        st.warning("No 'FUND FACTS' heading found in your factsheets.")
-        return
-
-    st.session_state["step12_fund_facts"] = rows
-    st.table(pd.DataFrame(rows))
-
-# === Step 12.5: Extract Fund Facts Details (numeric‑only) ===
-def step12_extract_fund_facts_table(pdf):
-    import re
-    import streamlit as st
-    import pandas as pd
-
-    st.subheader("Step 12.5: Extract Fund Facts Details")
-
-    headings = st.session_state.get("step12_fund_facts", [])
-    if not headings:
-        st.error("❌ No FUND FACTS headings found. Run Step 12 first.")
-        return
-
-    # the labels we expect (exact prefixes)
+    # the exact labels and the order you want them in the table
     labels = [
         "Manager Tenure Yrs.",
         "Expense Ratio",
@@ -954,44 +917,39 @@ def step12_extract_fund_facts_table(pdf):
     ]
 
     records = []
-    for h in headings:
-        fund_name = h["Fund Name"]
-        ticker    = h["Ticker"]
-        page      = h["Page"]
-        line_idx  = h["Line"] - 1  # zero‑based
+    # scan each factsheet page
+    for pnum in range(fs_start, len(pdf.pages) + 1):
+        if pnum not in page_map:
+            continue
+        fund_name, ticker = page_map[pnum]
+        lines = pdf.pages[pnum-1].extract_text().splitlines()
 
-        # grab a small window of lines under the heading
-        txt_lines = (pdf.pages[page-1].extract_text() or "").splitlines()
-        snippet   = txt_lines[line_idx+1 : line_idx+1+8]
+        for idx, line in enumerate(lines):
+            if line.lstrip().upper().startswith("FUND FACTS"):
+                # grab the next 8 lines (should contain your 5 labels)
+                snippet = lines[idx+1 : idx+1+8]
+                rec = {"Fund Name": fund_name, "Ticker": ticker}
+                for lab in labels:
+                    val = None
+                    for ln in snippet:
+                        norm = " ".join(ln.strip().split())
+                        if norm.startswith(lab):
+                            rest = norm[len(lab):].strip(" :\t")
+                            m = re.match(r"(-?\d+\.\d+)", rest)
+                            val = m.group(1) if m else (rest.split()[0] if rest else None)
+                            break
+                    rec[lab] = val
+                records.append(rec)
+                break  # move on to the next page once Fund Facts is processed
 
-        rec = {
-            "Fund Name": fund_name,
-            "Ticker":    ticker
-        }
+    if not records:
+        st.warning("No Fund Facts tables found.")
+        return
 
-        for lab in labels:
-            val = None
-            for ln in snippet:
-                norm = " ".join(ln.strip().split())
-                if norm.startswith(lab):
-                    # capture only the very first number after the label
-                    rest = norm[len(lab):].strip(" :\t")
-                    m = re.match(r"(-?\d+\.\d+)", rest)
-                    if m:
-                        val = m.group(1)
-                    else:
-                        # fallback: first whitespace‑delimited chunk
-                        parts = rest.split()
-                        val = parts[0] if parts else None
-                    break
-            rec[lab] = val
-
-        records.append(rec)
-
-    df = pd.DataFrame(records)
+    # save & show
     st.session_state["step12_fund_facts_table"] = records
+    df = pd.DataFrame(records)
     st.dataframe(df, use_container_width=True)
-
 
 
 #-------------------------------------------------------------------------------------------
@@ -1074,12 +1032,8 @@ def run():
             step11_create_summary()
             
         # Step 12: Find Factsheet Sub‑Headings
-        with st.expander("Step 12: Find Factsheet Sub‑Headings", expanded=False):
-            step12_find_fund_facts(pdf)
-            
-        # Step 12.5: Find Factsheet Sub‑Headings
-        with st.expander("Step 12.5: Extract Fund Facts Details", expanded=False):
-            step12_extract_fund_facts_table(pdf)
+        with st.expander("Step 12: Fund Facts ", expanded=False):
+            step12_process_fund_facts(pdf)
 
 
 if __name__ == "__main__":
