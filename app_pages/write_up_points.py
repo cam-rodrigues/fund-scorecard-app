@@ -856,6 +856,53 @@ def step10_extract_mpt_statistics(pdf):
     st.session_state["step10_mpt_stats"] = results
     st.dataframe(df)
 
+# === Step 11: Combined MPT Statistics Summary ===
+def step11_create_summary(pdf=None):
+    import pandas as pd
+    import streamlit as st
+
+    st.subheader("Step 11: Combined MPT Statistics Summary")
+
+    # 1) Load your 3‑Yr and 5‑Yr stats from session state
+    mpt3 = st.session_state.get("step9_mpt_stats", [])
+    mpt5 = st.session_state.get("step10_mpt_stats", [])
+    if not mpt3 or not mpt5:
+        st.error("❌ Missing MPT stats. Run Steps 9 & 10 first.")
+        return
+
+    # 2) Build DataFrames
+    df3 = pd.DataFrame(mpt3)  # contains "3 Year Alpha", "3 Year Beta", etc.
+    df5 = pd.DataFrame(mpt5)  # contains "5 Year Alpha", "5 Year Beta", etc.
+
+    # 3) Merge on Fund Name & Ticker
+    df = pd.merge(
+        df3,
+        df5,
+        on=["Fund Name", "Ticker"],
+        how="outer",
+        suffixes=("_3yr", "_5yr")
+    )
+
+    # 4) Build the Investment Manager column
+    df.insert(0, "Investment Manager", df["Fund Name"] + " (" + df["Ticker"] + ")")
+
+    # 5) Select & order the columns
+    df = df[[
+        "Investment Manager",
+        "3 Year Alpha",
+        "5 Year Alpha",
+        "3 Year Beta",
+        "5 Year Beta",
+        "3 Year Upside Capture",
+        "3 Year Downside Capture",
+        "5 Year Upside Capture",
+        "5 Year Downside Capture"
+    ]]
+
+    # 6) Display
+    st.session_state["step11_summary"] = df.to_dict("records")
+    st.dataframe(df)
+
 #-------------------------------------------------------------------------------------------
 
 # === Main App ===
