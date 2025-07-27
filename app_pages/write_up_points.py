@@ -931,8 +931,9 @@ def step12_find_fund_facts(pdf):
     st.session_state["step12_fund_facts"] = rows
     st.table(pd.DataFrame(rows))
 
-# === Step 12.5: Extract Fund Facts table entries beneath each “FUND FACTS” ===
+# === Step 12.5: Extract Fund Facts Details (numeric‑only) ===
 def step12_extract_fund_facts_table(pdf):
+    import re
     import streamlit as st
     import pandas as pd
 
@@ -940,7 +941,7 @@ def step12_extract_fund_facts_table(pdf):
 
     headings = st.session_state.get("step12_fund_facts", [])
     if not headings:
-        st.error("❌ No FUND FACTS headings found. Run Step 12 first.")
+        st.error("❌ No FUND FACTS headings found. Run Step 12 first.")
         return
 
     # the labels we expect (exact prefixes)
@@ -957,27 +958,31 @@ def step12_extract_fund_facts_table(pdf):
         fund_name = h["Fund Name"]
         ticker    = h["Ticker"]
         page      = h["Page"]
-        line_idx  = h["Line"] - 1  # 0‑based
+        line_idx  = h["Line"] - 1  # zero‑based
 
-        # grab the next, say, 8 lines (should cover the 5 we need)
+        # grab a small window of lines under the heading
         txt_lines = (pdf.pages[page-1].extract_text() or "").splitlines()
         snippet   = txt_lines[line_idx+1 : line_idx+1+8]
 
-        # init dict
         rec = {
             "Fund Name": fund_name,
             "Ticker":    ticker
         }
-        # scan for each label
+
         for lab in labels:
-            # find line starting with that label
             val = None
             for ln in snippet:
-                # normalize spacing
                 norm = " ".join(ln.strip().split())
                 if norm.startswith(lab):
-                    # everything after the label
-                    val = norm[len(lab):].strip(" :\t")
+                    # capture only the very first number after the label
+                    rest = norm[len(lab):].strip(" :\t")
+                    m = re.match(r"(-?\d+\.\d+)", rest)
+                    if m:
+                        val = m.group(1)
+                    else:
+                        # fallback: first whitespace‑delimited chunk
+                        parts = rest.split()
+                        val = parts[0] if parts else None
                     break
             rec[lab] = val
 
@@ -986,6 +991,7 @@ def step12_extract_fund_facts_table(pdf):
     df = pd.DataFrame(records)
     st.session_state["step12_fund_facts_table"] = records
     st.dataframe(df, use_container_width=True)
+
 
 
 #-------------------------------------------------------------------------------------------
