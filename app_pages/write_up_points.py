@@ -581,76 +581,83 @@ def step8_match_calendar_tickers(pdf):
     else:
         st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
-# === Step 8.5: Extract Calendar Year Returns via extract_table ===
+# === Step 8.5: Extract Calendar Year Returns (per‑fund, word‑based) ===
 def step8_5_extract_calendar_returns(pdf):
     import re, pandas as pd, streamlit as st
 
     st.subheader("Step 8.5: Calendar Year Returns")
 
-    # 1) Load Step 8 results
-    locs     = st.session_state.get("step8_locations", {})
-    tickers  = st.session_state.get("step8_tickers", {})
-    start_pg = st.session_state.get("step8_start_page")
-    if not (locs and tickers and start_pg):
-        st.error("❌ No Step 8 data found. Run Step 8 first.")
+    # 1) Load Step 8 results
+    locs    = st.session_state.get("step8_locations", {})
+    tickers = st.session_state.get("step8_tickers", {})
+    if not (locs and tickers):
+        st.error("❌ No Step 8 data found. Please run Step 8 first.")
         return
 
-    # 2) Extract the table from the first calendar page (header row lives here)
-    header_tbl = pdf.pages[start_pg-1].extract_table()
-    if not header_tbl:
-        st.error(f"❌ Could not extract table on header page {start_pg}.")
-        return
-
-    # 3) Find the header row (where a cell == "Ticker")
-    header_row = next((r for r in header_tbl if r and r[0] and "Ticker" in r[0]), None)
-    if not header_row:
-        # maybe "Ticker" is in column 1
-        header_row = next((r for r in header_tbl if len(r)>1 and r[1]=="Ticker"), None)
-    if not header_row:
-        st.error("❌ Could not locate the table header row containing 'Ticker'.")
-        return
-
-    # 4) Parse out the years (cells after the ticker column)
-    #    assume columns: [ Fund Name | Ticker | 2015 | 2016 | … | 2024 ]
-    years = header_row[2:]
-    n     = len(years)
-    st.write("Detected years:", years)
-
-    # 5) Pull each fund’s row from its page
+    num_rx = re.compile(r"^-?\d+\.\d+%?$")
     results = []
-    for name, ticker in tickers.items():
-        pg_idx = locs[name]["page"] - 1
-        tbl = pdf.pages[pg_idx].extract_table()
-        if not tbl:
-            st.warning(f"⚠️ {name}: no table on page {pg_idx+1}.")
-            row_vals = [None]*n
+
+    for name, info in locs.items():
+        ticker    = info["ticker"].upper()
+        page_num  = info["page"] - 1
+        page      = pdf.pages[page_num]
+        words     = page.extract_words(use_text_flow=True)
+
+        # 2) Cluster words by their y‑coordinate (row)
+        rows = {}
+        for w in words:
+            y = round(w["top"])
+            rows.setdefault(y, []).append(w)
+
+        # 3) Identify header row on this page: must contain "Ticker" + at least one 20xx
+        header_y = next(
+            y for y, grp in rows.items()
+            if any(w["text"]=="Ticker" for w in grp)
+            and any(re.match(r"20(1[5-9]|2[0-4])", w["text"]) for w in grp)
+        )
+        header_row = sorted(rows[header_y], key=lambda w: w["x0"])
+        years      = [w["text"] for w in header_row if re.match(r"20(1[5-9]|2[0-4])", w["text"])]
+        n_years    = len(years)
+
+        # 4) Identify the fund’s data row (same clustering by y)
+        #    Find the row y where one of the words is the ticker
+        fund_y = next(
+            y for y, grp in rows.items()
+            if any(w["text"].upper()==ticker for w in grp)
+        )
+        fund_row = sorted(rows[fund_y], key=lambda w: w["x0"])
+        texts    = [w["text"] for w in fund_row]
+
+        # 5) After the ticker token, grab the next n_years numeric‑looking tokens
+        try:
+            idx = texts.index(ticker)
+        except ValueError:
+            st.warning(f"❌ {name} ({ticker}): ticker not found on page {page_num+1}.")
+            vals = [None]*n_years
         else:
-            # find the row where the 2nd column == ticker
-            row = next((r for r in tbl if len(r)>1 and r[1].strip().upper()==ticker), None)
-            if not row:
-                st.warning(f"⚠️ {name}: ticker {ticker} not found in table on page {pg_idx+1}.")
-                row_vals = [None]*n
-            else:
-                raw = row[2:2+n]
-                # clean percentages/parens
-                clean = []
-                for v in raw:
-                    if v is None:
-                        clean.append(None)
-                    else:
-                        s = re.sub(r"[()%]", "", v).strip()
-                        clean.append(s or None)
-                # pad/truncate
-                if len(clean)<n: clean += [None]*(n-len(clean))
-                row_vals = clean[:n]
+            tail = texts[idx+1:]
+            vals = []
+            for t in tail:
+                if num_rx.match(t):
+                    # strip any trailing %
+                    vals.append(t.rstrip("%"))
+                if len(vals) >= n_years:
+                    break
+            if len(vals) < n_years:
+                vals += [None] * (n_years - len(vals))
 
-        results.append({"Fund Name": name, "Ticker": ticker, **{years[i]: row_vals[i] for i in range(n)}})
+        # 6) Record the row
+        row = {"Fund Name": name, "Ticker": ticker}
+        row.update({years[i]: vals[i] for i in range(n_years)})
+        results.append(row)
 
-    # 6) Display
-    df = pd.DataFrame(results)
-    st.session_state["step8_returns"] = results
-    st.dataframe(df)
-
+    # 7) Display
+    if results:
+        df = pd.DataFrame(results)
+        st.session_state["step8_returns"] = results
+        st.dataframe(df)
+    else:
+        st.warning("❌ No calendar‑year returns could be extracted.")
 
 #-------------------------------------------------------------------------------------------
 
