@@ -898,7 +898,7 @@ def step12_find_fund_facts(pdf):
     fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
     if not fs_start or not factsheets:
-        st.error("❌ Run Step 6 first to populate your factsheet pages.")
+        st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
     # build lookup: page number → (Fund Name, Ticker)
@@ -913,8 +913,7 @@ def step12_find_fund_facts(pdf):
         lines = text.splitlines()
         fund_name, ticker = page_map.get(pnum, ("<unknown>", ""))
         for idx, line in enumerate(lines):
-            # only pick lines whose text (trimmed & uppercased) is exactly "FUND FACTS"
-            if line.strip().upper() == "FUND FACTS":
+            if "FUND FACTS" in line.strip().upper():
                 rows.append({
                     "Fund Name": fund_name,
                     "Ticker":    ticker,
