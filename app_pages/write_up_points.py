@@ -517,22 +517,43 @@ def step7_extract_returns(pdf):
 
 # === Step 8a: Match Saved Tickers & Fund Names in the Calendar Year Section ===
 # Mirrors Step 5’s approach but targets the Calendar Year Performance section.
-def step8_match_calendar_tickers(pdf, start_page, fund_names):
+def step8_match_calendar_tickers(pdf):
     import re
     import streamlit as st
 
-    st.subheader("Step 8: Extracted Calendar Year Tickers")
+    st.subheader("Step 8: Match Tickers in Calendar Year Section")
 
-    # Determine where to stop scanning (fallback to end of doc)
-    end_page = st.session_state.get("calendar_end_page") or (len(pdf.pages) + 1)
+    # 1) Figure out which page the Calendar Year Performance section starts on
+    toc = st.session_state.get("toc_pages", {})
+    # try a few common keys
+    start_page = (
+        toc.get("Calendar Year Performance")
+        or toc.get("Fund Performance - Calendar Year")
+        or toc.get("Calendar Year Fund Performance")
+        or toc.get("Fund Calendar Year Performance")
+        or 1
+    )
 
-    # 1) Gather all lines of text from the section
+    # 2) Load your saved fund names
+    fund_names   = st.session_state.get("fund_names", [])
+    # 3) Attempt to get your saved tickers from Step 5
+    fund_tickers = [t.upper() for t in st.session_state.get("tickers", {}).values()]
+
+    # fallback if you stored tickers under a different key
+    if not fund_tickers:
+        fund_tickers = [t.upper() for t in st.session_state.get("fund_tickers", [])]
+
+    # build name‑lookup dict
+    fund_lookup = { ticker: name for name, ticker in zip(fund_names, fund_tickers) }
+
+    # 4) Extract all lines in that section
+    end_page = st.session_state.get("next_section_page") or (len(pdf.pages) + 1)
     all_lines = []
     for p in pdf.pages[start_page-1 : end_page-1]:
         txt = p.extract_text() or ""
         all_lines.extend(txt.splitlines())
 
-    # 2) First pass: map normalized line → ticker (1–5 uppercase letters)
+    # 5) First‑pass: map normalized fund name → ticker when a line ends with the code
     mapping = {}
     for ln in all_lines:
         m = re.match(r"(.+?)\s+([A-Z]{1,5})$", ln.strip())
@@ -542,7 +563,7 @@ def step8_match_calendar_tickers(pdf, start_page, fund_names):
         norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
         mapping[norm] = ticker
 
-    # 3) Try matching each saved fund by normalized prefix
+    # 6) Try matching each saved fund by normalized prefix
     tickers = {}
     for name in fund_names:
         norm_expected = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
@@ -552,7 +573,7 @@ def step8_match_calendar_tickers(pdf, start_page, fund_names):
         )
         tickers[name] = found
 
-    # 4) Fallback: collect every ticker-like code in order
+    # 7) Fallback: if any still missing, scrape every 1–5 letter code in order
     total = len(fund_names)
     found_count = sum(1 for t in tickers.values() if t)
     if found_count < total:
@@ -567,28 +588,20 @@ def step8_match_calendar_tickers(pdf, start_page, fund_names):
             for i, name in enumerate(fund_names)
         }
 
-    # 5) Store & display
-    st.session_state["calendar_tickers"] = tickers
+    # 8) Store & display
+    st.session_state["step8_tickers"] = tickers
+
+    st.subheader("Extracted Tickers (Step 8)")
     for n, t in tickers.items():
         st.write(f"- {n}: {t or '❌ not found'}")
 
-    # 6) Validation
-    st.subheader("Step 8.5: Ticker Count Validation")
-    found_count = sum(1 for t in tickers.values() if t)
+    st.subheader("Ticker Count Validation")
     st.write(f"- Expected tickers: **{total}**")
-    st.write(f"- Found tickers:    **{found_count}**")
-    if found_count == total:
-        st.success("✅ All tickers found in Calendar Year section.")
+    st.write(f"- Found tickers:    **{sum(1 for t in tickers.values() if t)}**")
+    if sum(1 for t in tickers.values() if t) == total:
+        st.success("✅ All tickers found.")
     else:
-        st.error(f"❌ Missing {total - found_count} ticker(s).")
-
-    # Prepare minimal structure for next steps
-    st.session_state["calendar_performance_data"] = [
-        {"Fund Name": name, "Ticker": ticker}
-        for name, ticker in tickers.items()
-    ]
-
-
+        st.error(f"❌ Missing {total - sum(1 for t in tickers.values() if t)} ticker(s).")
 
 
 #-------------------------------------------------------------------------------------------
