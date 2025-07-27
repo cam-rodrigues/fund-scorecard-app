@@ -1033,7 +1033,6 @@ def step14_find_peer_risk_adjusted_return_rank(pdf):
         st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
-    # map each factsheet page → (Fund Name, Ticker)
     page_map = {
         f["Page #"]: (f["Matched Fund Name"], f["Matched Ticker"])
         for f in factsheets
@@ -1048,8 +1047,7 @@ def step14_find_peer_risk_adjusted_return_rank(pdf):
 
         for idx, ln in enumerate(lines):
             norm = " ".join(ln.strip().split()).upper()
-            # look for the core words, with or without hyphens/spaces
-            if "PEER RISK" in norm and "ADJUSTED RETURN RANK" in norm:
+            if norm.startswith("PEER RISK-ADJUSTED RETURN RANK"):
                 rows.append({
                     "Fund Name": fund_name,
                     "Ticker":    ticker,
@@ -1067,7 +1065,7 @@ def step14_find_peer_risk_adjusted_return_rank(pdf):
     st.table(pd.DataFrame(rows))
 
 
-# === Step 14.5: Extract Peer Risk‑Adjusted Return Ranks (1Yr,3Yr,5Yr,10Yr) ===
+# === Step 14.5: Extract Peer Risk‑Adjusted Return Ranks (wrap‑aware) ===
 def step14_extract_peer_risk_adjusted_return_rank(pdf):
     import re
     import streamlit as st
@@ -1081,7 +1079,7 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         return
 
     # regex to catch integers or decimals
-    num_rx = re.compile(r"-?\d+(?:\.\d+)?")
+    num_rx  = re.compile(r"-?\d+(?:\.\d+)?")
     metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
     records = []
 
@@ -1089,28 +1087,28 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         fund_name = h["Fund Name"]
         ticker    = h["Ticker"]
         page      = h["Page"]
-        idx       = h["Line"] - 1  # zero‑based index
+        start_idx = h["Line"]  # zero-based snippet starts at this index
 
-        # grab a handful of lines under the heading
-        text_lines = (pdf.pages[page-1].extract_text() or "").splitlines()
-        snippet    = text_lines[idx+1 : idx+1+6]
-
-        rec = {"Fund Name": fund_name, "Ticker": ticker}
+        lines = (pdf.pages[page-1].extract_text() or "").splitlines()
+        rec   = {"Fund Name": fund_name, "Ticker": ticker}
 
         for metric in metrics:
-            # find the snippet line starting with this metric
-            line_val = next(
-                (
-                    " ".join(ln.strip().split())
-                    for ln in snippet
-                    if ln.strip().upper().startswith(metric.upper())
-                ),
-                ""
+            # find the line index where the metric appears
+            metric_idx = next(
+                (i for i, ln in enumerate(lines[start_idx:], start=start_idx)
+                 if ln.strip().upper().startswith(metric.upper())),
+                None
             )
-            # extract up to 4 numbers
-            nums = num_rx.findall(line_val)
+            nums = []
+            if metric_idx is not None:
+                # pull floats from this line + next two lines
+                for j in range(metric_idx, metric_idx + 3):
+                    if j < len(lines):
+                        nums.extend(num_rx.findall(lines[j]))
+                        if len(nums) >= 4:
+                            break
+            # pad & assign
             nums += [None] * (4 - len(nums))
-
             rec[f"{metric} 1Yr"]  = nums[0]
             rec[f"{metric} 3Yr"]  = nums[1]
             rec[f"{metric} 5Yr"]  = nums[2]
@@ -1125,6 +1123,7 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
     df = pd.DataFrame(records)
     st.session_state["step14_peer_rank_table"] = records
     st.dataframe(df, use_container_width=True)
+
 
 
 #-------------------------------------------------------------------------------------------
