@@ -644,7 +644,7 @@ def step8_5_extract_calendar_returns(pdf):
     st.session_state["step8_returns"] = results
     st.dataframe(df)
 
-# === Step 9: Risk Analysis ‑ MPT Statistics (3Yr) ===
+# === Step 9: Match Tickers in the Risk Analysis (3Yr) Section ===
 def step9_match_risk_tickers(pdf):
     import re, streamlit as st
 
@@ -812,9 +812,12 @@ def run():
         with st.expander("Step 8.5: Extract Calendar Year Returns", expanded=False):
             step8_5_extract_calendar_returns(pdf)
         
-        # Step 9
-        with st.expander("Step 9: Risk Analysis — MPT Statistics (3Yr)", expanded=False):
+        with st.expander("Step 9: Match Tickers in Risk Analysis (3Yr)", expanded=False):
+            step9_match_risk_tickers(pdf)
+        
+        with st.expander("Step 9.5: Extract MPT Statistics (3Yr)", expanded=False):
             step9_extract_mpt_statistics(pdf)
+
 
 if __name__ == "__main__":
     run()
