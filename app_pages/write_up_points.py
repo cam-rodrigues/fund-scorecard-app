@@ -412,27 +412,27 @@ def step7_extract_returns(pdf):
 
     st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr & Net Expense Ratio")
 
+    # 1) Where to scan
     perf_page = st.session_state.get("performance_page")
-    # stop once we hit the calendar‐year section
     end_page  = st.session_state.get("calendar_year_page") or (len(pdf.pages) + 1)
     perf_data = st.session_state.get("fund_performance_data", [])
     if perf_page is None or not perf_data:
         st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    # 1) prepare slots for each metric + net expense
+    # 2) Prep output slots
     fields = ["QTD", "1Yr", "3Yr", "5Yr", "10Yr", "Net Expense Ratio"]
     for itm in perf_data:
         for f in fields:
             itm.setdefault(f, None)
 
-    # 2) collect every nonblank line in the performance pages
+    # 3) Gather every nonblank line in the Performance section
     lines = []
     for pnum in range(perf_page - 1, end_page - 1):
         txt = pdf.pages[pnum].extract_text() or ""
         lines += [ln.strip() for ln in txt.splitlines() if ln.strip()]
 
-    # 3) regex for decimals (allowing parentheses & %)
+    # 4) Regex to pull decimal tokens (with optional % and parentheses)
     num_rx = re.compile(r"\(?-?\d+\.\d+%?\)?")
 
     matched = 0
@@ -440,14 +440,14 @@ def step7_extract_returns(pdf):
         name = item["Fund Scorecard Name"]
         tk   = item["Ticker"].upper().strip()
 
-        # a) exact ticker first
+        # a) Try exact ticker match
         idx = next(
             (i for i, ln in enumerate(lines)
              if re.search(rf"\b{re.escape(tk)}\b", ln)),
             None
         )
 
-        # b) fallback to fuzzy‐name match
+        # b) Fuzzy‑name fallback
         if idx is None:
             scores = [(i, fuzz.token_sort_ratio(name.lower(), ln.lower()))
                       for i, ln in enumerate(lines)]
@@ -458,34 +458,35 @@ def step7_extract_returns(pdf):
                 st.warning(f"⚠️ {name} ({tk}): no ticker or name match found.")
                 continue
 
-        # c) need a line above to pull returns from
+        # c) Need at least one line above to get numbers
         if idx == 0:
-            st.warning(f"⚠️ {name} ({tk}): nothing above ticker line to extract returns.")
+            st.warning(f"⚠️ {name} ({tk}): nothing above matched line to extract returns.")
             continue
 
-        # d) grab all numbers on the line above
+        # d) Pull all decimals from the line above
         raw = num_rx.findall(lines[idx - 1])
-        # e) if fewer than 8, prepend from two lines above
+
+        # e) If fewer than 8 tokens, also prepend from two lines above
         if len(raw) < 8 and idx >= 2:
             raw = num_rx.findall(lines[idx - 2]) + raw
 
-        # f) clean & pad to exactly 8 slots
+        # f) Clean and pad to exactly 8 slots
         clean = [n.strip("()%").rstrip("%") for n in raw]
         if len(clean) < 8:
             clean += [None] * (8 - len(clean))
 
-        # g) map
+        # g) Map returns and net expense:
+        #    idx 0=QTD, 2=1Yr, 3=3Yr, 4=5Yr, 5=10Yr, (-2)=Net Expense Ratio
         item["QTD"]               = clean[0]
         item["1Yr"]               = clean[2]
         item["3Yr"]               = clean[3]
         item["5Yr"]               = clean[4]
         item["10Yr"]              = clean[5]
-        # the 8th element (index 7) is always NET expense ratio
-        item["Net Expense Ratio"] = clean[7]
+        item["Net Expense Ratio"] = clean[-2]
 
         matched += 1
 
-    # 4) save & show
+    # 5) Save back to session and display
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
 
