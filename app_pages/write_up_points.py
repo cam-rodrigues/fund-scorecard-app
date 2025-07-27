@@ -403,35 +403,51 @@ def step6_process_factsheets(pdf, fund_names):
         else:
             st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
-
-# === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr & Net Expense Ratio ===
+# === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr & Net Expense Ratio ===
 def step7_extract_returns(pdf):
-    st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr & Net Expense Ratio")
+    import re
+    import pandas as pd
+    import streamlit as st
+    from rapidfuzz import fuzz
+
+    st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr & Net Expense Ratio")
 
     perf_page = st.session_state.get("performance_page")
+    # stop once we hit the calendar‐year section
     end_page  = st.session_state.get("calendar_year_page") or (len(pdf.pages) + 1)
     perf_data = st.session_state.get("fund_performance_data", [])
     if perf_page is None or not perf_data:
-        st.error("❌ Run Step 5 first to populate performance data.")
+        st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    fields = ["QTD","1Yr","3Yr","5Yr","10Yr","Net Expense Ratio"]
+    # 1) prepare slots for each metric + net expense
+    fields = ["QTD", "1Yr", "3Yr", "5Yr", "10Yr", "Net Expense Ratio"]
     for itm in perf_data:
         for f in fields:
             itm.setdefault(f, None)
 
+    # 2) collect every nonblank line in the performance pages
     lines = []
-    for pnum in range(perf_page-1, end_page-1):
+    for pnum in range(perf_page - 1, end_page - 1):
         txt = pdf.pages[pnum].extract_text() or ""
         lines += [ln.strip() for ln in txt.splitlines() if ln.strip()]
 
+    # 3) regex for decimals (allowing parentheses & %)
     num_rx = re.compile(r"\(?-?\d+\.\d+%?\)?")
 
     matched = 0
     for item in perf_data:
-        name, tk = item["Fund Scorecard Name"], item["Ticker"].upper().strip()
+        name = item["Fund Scorecard Name"]
+        tk   = item["Ticker"].upper().strip()
 
-        idx = next((i for i,ln in enumerate(lines) if re.search(rf"\b{re.escape(tk)}\b", ln)), None)
+        # a) exact ticker first
+        idx = next(
+            (i for i, ln in enumerate(lines)
+             if re.search(rf"\b{re.escape(tk)}\b", ln)),
+            None
+        )
+
+        # b) fallback to fuzzy‐name match
         if idx is None:
             scores = [(i, fuzz.token_sort_ratio(name.lower(), ln.lower()))
                       for i, ln in enumerate(lines)]
@@ -439,37 +455,50 @@ def step7_extract_returns(pdf):
             if best_score > 60:
                 idx = best_i
             else:
-                st.warning(f"⚠️ {name} ({tk}): no match found.")
+                st.warning(f"⚠️ {name} ({tk}): no ticker or name match found.")
                 continue
 
+        # c) need a line above to pull returns from
         if idx == 0:
-            st.warning(f"⚠️ {name} ({tk}): no line above to extract.")
+            st.warning(f"⚠️ {name} ({tk}): nothing above ticker line to extract returns.")
             continue
 
-        raw = num_rx.findall(lines[idx-1])
+        # d) grab all numbers on the line above
+        raw = num_rx.findall(lines[idx - 1])
+        # e) if fewer than 8, prepend from two lines above
         if len(raw) < 8 and idx >= 2:
-            raw = num_rx.findall(lines[idx-2]) + raw
+            raw = num_rx.findall(lines[idx - 2]) + raw
 
-        clean = [n.strip("()%").rstrip("%") for n in raw] + [None]*10
+        # f) clean & pad to exactly 8 slots
+        clean = [n.strip("()%").rstrip("%") for n in raw]
+        if len(clean) < 8:
+            clean += [None] * (8 - len(clean))
 
+        # g) map
         item["QTD"]               = clean[0]
         item["1Yr"]               = clean[2]
         item["3Yr"]               = clean[3]
         item["5Yr"]               = clean[4]
         item["10Yr"]              = clean[5]
-        item["Net Expense Ratio"] = clean[-2]
+        # the 8th element (index 7) is always NET expense ratio
+        item["Net Expense Ratio"] = clean[7]
 
         matched += 1
 
+    # 4) save & show
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
 
     st.success(f"✅ Matched {matched} fund(s) with return data.")
     for itm in perf_data:
-        if any(itm[f] in (None,"") for f in fields):
+        if any(itm[f] in (None, "") for f in fields):
             st.warning(f"⚠️ Incomplete for {itm['Fund Scorecard Name']} ({itm['Ticker']})")
 
-    st.dataframe(df[["Fund Scorecard Name","Ticker"] + fields], use_container_width=True)
+    st.dataframe(
+        df[["Fund Scorecard Name", "Ticker"] + fields],
+        use_container_width=True
+    )
+
 
 # === Step 8: Match Tickers in “Calendar Year Performance” Section ===
 def step8_match_calendar_tickers(pdf):
