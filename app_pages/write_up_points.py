@@ -516,51 +516,78 @@ def step7_extract_returns(pdf):
     st.dataframe(df[display_cols], use_container_width=True)
 
 # === Step 8a: Match Saved Tickers & Fund Names in the Calendar Year Section ===
-def step8_extract_annualized_returns(pdf):
+# Mirrors Step 5’s approach but targets the Calendar Year Performance section.
+def step8_match_calendar_tickers(pdf, start_page, fund_names):
     import re
-    import pandas as pd
+    import streamlit as st
 
-    st.subheader("Step 8a: Match Saved Tickers in Calendar Year Section")
+    st.subheader("Step 8: Extracted Calendar Year Tickers")
 
-    # Load saved state
-    fund_names   = st.session_state.get("fund_names", [])
-    fund_tickers = [t.upper() for t in st.session_state.get("fund_tickers", [])]
-    fund_lookup  = { ticker: name for name, ticker in zip(fund_names, fund_tickers) }
+    # Determine where to stop scanning (fallback to end of doc)
+    end_page = st.session_state.get("calendar_end_page") or (len(pdf.pages) + 1)
 
-    # Regex to catch either spelling of Calendar/Calender
-    section_header_re = re.compile(r"Calen[dt]er Year Performance", re.IGNORECASE)
+    # 1) Gather all lines of text from the section
+    all_lines = []
+    for p in pdf.pages[start_page-1 : end_page-1]:
+        txt = p.extract_text() or ""
+        all_lines.extend(txt.splitlines())
 
-    # 1) Find the first page with the section header
-    target_text = None
-    for p in pdf.pages:
-        text = p.extract_text() or ""
-        if section_header_re.search(text):
-            target_text = text
-            break
+    # 2) First pass: map normalized line → ticker (1–5 uppercase letters)
+    mapping = {}
+    for ln in all_lines:
+        m = re.match(r"(.+?)\s+([A-Z]{1,5})$", ln.strip())
+        if not m:
+            continue
+        raw_name, ticker = m.groups()
+        norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
+        mapping[norm] = ticker
 
-    if not target_text:
-        st.warning("⚠️ Could not find “Calendar Year Performance” heading—falling back to all pages.")
-        # fallback: search all pages concatenated
-        target_text = "\n".join((p.extract_text() or "") for p in pdf.pages)
+    # 3) Try matching each saved fund by normalized prefix
+    tickers = {}
+    for name in fund_names:
+        norm_expected = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
+        found = next(
+            (t for raw, t in mapping.items() if raw.startswith(norm_expected)),
+            None
+        )
+        tickers[name] = found
 
-    # 2) Split into lines and look for tickers
-    matches = []
-    for line in target_text.split("\n"):
-        for ticker in fund_tickers:
-            if ticker in line:
-                matches.append({
-                    "Ticker": ticker,
-                    "Fund Name": fund_lookup.get(ticker, "Unknown"),
-                    "Line Text": line.strip()
-                })
+    # 4) Fallback: collect every ticker-like code in order
+    total = len(fund_names)
+    found_count = sum(1 for t in tickers.values() if t)
+    if found_count < total:
+        perf_text = "\n".join(all_lines)
+        all_tks = re.findall(r'\b([A-Z]{1,5})\b', perf_text)
+        seen = []
+        for tk in all_tks:
+            if tk not in seen:
+                seen.append(tk)
+        tickers = {
+            name: (seen[i] if i < len(seen) else None)
+            for i, name in enumerate(fund_names)
+        }
 
-    if matches:
-        df = pd.DataFrame(matches)
-        st.session_state["step8_matches"] = matches
-        st.write("✅ Found these saved funds in the Calendar Year section:")
-        st.dataframe(df)
+    # 5) Store & display
+    st.session_state["calendar_tickers"] = tickers
+    for n, t in tickers.items():
+        st.write(f"- {n}: {t or '❌ not found'}")
+
+    # 6) Validation
+    st.subheader("Step 8.5: Ticker Count Validation")
+    found_count = sum(1 for t in tickers.values() if t)
+    st.write(f"- Expected tickers: **{total}**")
+    st.write(f"- Found tickers:    **{found_count}**")
+    if found_count == total:
+        st.success("✅ All tickers found in Calendar Year section.")
     else:
-        st.warning("❌ None of your saved tickers were found in that section.")
+        st.error(f"❌ Missing {total - found_count} ticker(s).")
+
+    # Prepare minimal structure for next steps
+    st.session_state["calendar_performance_data"] = [
+        {"Fund Name": name, "Ticker": ticker}
+        for name, ticker in tickers.items()
+    ]
+
 
 
 
@@ -617,7 +644,7 @@ def run():
 
         # Step 8
         with st.expander("Step 8: Calender Year Returns", expanded=False):
-            step8_extract_annualized_returns(pdf)
+            step8_match_calendar_tickers(pdf)
 
 if __name__ == "__main__":
     run()
