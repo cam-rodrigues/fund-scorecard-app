@@ -1060,12 +1060,9 @@ def step14_find_peer_risk_adjusted_return_rank(pdf):
     st.session_state["step14_peer_rank_headings"] = headings
     st.table(pd.DataFrame(headings))
 
-
-# === Step 14.5: Extract Peer Risk‑Adjusted Return Ranks ===
+# === Step 14.5: Extract Peer Risk‑Adjusted Return Rank ===
 def step14_extract_peer_risk_adjusted_return_rank(pdf):
-    import re
-    import streamlit as st
-    import pandas as pd
+    import re, streamlit as st, pandas as pd
 
     st.subheader("Step 14.5: Extract Peer Risk‑Adjusted Return Rank")
 
@@ -1074,7 +1071,9 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         st.error("❌ No headings from Step 14. Run Step 14 first.")
         return
 
-    num_rx  = re.compile(r"-?\d+\.\d+")
+    # now match ints or floats
+    num_rx  = re.compile(r"-?\d+\.?\d*")
+
     metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
     records = []
 
@@ -1083,18 +1082,16 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         ticker = h["Ticker"]
         page   = h["Page"] - 1
         line0  = h["Line"] - 1
+        lines  = (pdf.pages[page].extract_text() or "").splitlines()
 
-        lines = (pdf.pages[page].extract_text() or "").splitlines()
-        rec   = {"Fund Name": fund, "Ticker": ticker}
-
+        rec = {"Fund Name": fund, "Ticker": ticker}
         for metric in metrics:
-            # look on the same line for the label + its four values
             vals = []
+            # scan the next 4 lines for the one that starts with our metric
             for ln in lines[line0+1 : line0+5]:
                 if ln.strip().upper().startswith(metric.upper()):
                     vals = num_rx.findall(ln)
                     break
-            # pad to 4
             vals += [None] * (4 - len(vals))
             rec[f"{metric} 1Yr"]  = vals[0]
             rec[f"{metric} 3Yr"]  = vals[1]
