@@ -978,6 +978,10 @@ def run():
         with st.expander("Step 10.5: Extract MPT Statistics (5Yr)", expanded=False):
             step10_extract_mpt_statistics(pdf)
 
+        # Step 11: MPT Statistics Summary
+        with st.expander("Step 11: Combined MPT Statistics Summary", expanded=False):
+            step11_create_summary()
+
 
 if __name__ == "__main__":
     run()
