@@ -1078,87 +1078,78 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
 
     st.subheader("Step 14: Peer Risk‑Adjusted Return Rank")
 
-    # 1) Get factsheet pages and fund→ticker mapping
     fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
     if not fs_start or not factsheets:
         st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
+    # build page → (Fund Name, Ticker) map
     page_map = {f["Page #"]:(f["Matched Fund Name"], f["Matched Ticker"])
                 for f in factsheets}
 
-    # 2) Locate the heading on each page
+    # collect heading locations
     headings = []
     for pnum in range(fs_start, len(pdf.pages)+1):
         if pnum not in page_map:
             continue
-        text = pdf.pages[pnum-1].extract_text() or ""
-        # normalize en/em dashes to plain hyphen
-        text = text.replace("–","-").replace("—","-")
-        for idx, ln in enumerate(text.splitlines()):
+        txt = (pdf.pages[pnum-1]
+                  .extract_text() or ""
+               ).replace("–","-").replace("—","-")
+        for idx, ln in enumerate(txt.splitlines()):
             if "PEER RISK-ADJUSTED RETURN RANK" in ln.upper():
                 name, tk = page_map[pnum]
-                headings.append({
-                    "Fund Name": name,
-                    "Ticker":    tk,
-                    "Page":      pnum-1,
-                    "LineIdx":   idx
-                })
+                headings.append((pnum-1, idx, name, tk))
                 break
 
     if not headings:
         st.warning("❌ No 'PEER RISK‑ADJUSTED RETURN RANK' headings found.")
         return
 
-    # 3) Prepare to extract metrics
-    num_rx  = re.compile(r"-?\d+\.?\d*")
+    # regex to extract integers or decimals
+    num_rx = re.compile(r"-?\d+\.?\d*")
     metrics = ["SHARPE RATIO", "INFORMATION RATIO", "SORTINO RATIO"]
     records = []
 
-    for h in headings:
-        name, tk, pg, idx = (
-            h["Fund Name"], h["Ticker"], h["Page"], h["LineIdx"]
-        )
-        lines = (
-            pdf.pages[pg]
-               .extract_text()
-               .replace("–","-")
-               .replace("—","-")
-               .splitlines()
-        )
+    for pg, start_idx, name, tk in headings:
+        lines = (pdf.pages[pg]
+                   .extract_text() or ""
+                ).replace("–","-").replace("—","-").splitlines()
+
         rec = {"Fund Name": name, "Ticker": tk}
+        found_metrics = set()
 
-        # scan up to 15 lines after the heading
+        # scan from the heading down
+        for ln in lines[start_idx+1:]:
+            up = ln.strip().upper()
+            # skip blank lines and the column‑header row
+            if not up or up.startswith("1 YR") or up.startswith("YR"):
+                continue
+
+            for metric in metrics:
+                if metric in up and metric not in found_metrics:
+                    nums = num_rx.findall(ln)
+                    # we expect 4 numbers
+                    nums += [None]*(4 - len(nums))
+                    rec[f"{metric} 1Yr"]  = nums[0]
+                    rec[f"{metric} 3Yr"]  = nums[1]
+                    rec[f"{metric} 5Yr"]  = nums[2]
+                    rec[f"{metric} 10Yr"] = nums[3]
+                    found_metrics.add(metric)
+            if len(found_metrics) == len(metrics):
+                break
+
+        # warn if any missing
         for metric in metrics:
-            found = None
-            for ln in lines[idx+1 : idx+16]:
-                up = ln.strip().upper()
-                # skip the header row that starts with "1 YR"
-                if up.startswith("1 YR"):
-                    continue
-                if metric in up:
-                    found = ln
-                    break
-
-            if not found:
+            if metric not in found_metrics:
                 st.warning(f"⚠️ {name} ({tk}): '{metric}' line not found.")
-                vals = [None]*4
-            else:
-                vals = num_rx.findall(found)
-                vals += [None]*(4-len(vals))
-
-            rec[f"{metric} 1Yr"]  = vals[0]
-            rec[f"{metric} 3Yr"]  = vals[1]
-            rec[f"{metric} 5Yr"]  = vals[2]
-            rec[f"{metric} 10Yr"] = vals[3]
 
         records.append(rec)
 
-    # 4) Display
     df = pd.DataFrame(records)
     st.session_state["step14_peer_rank_table"] = records
     st.dataframe(df, use_container_width=True)
+
 
 #-------------------------------------------------------------------------------------------
 
