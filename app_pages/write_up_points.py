@@ -888,9 +888,9 @@ def step11_create_summary(pdf=None):
     st.dataframe(df)
 
 
-# === Step 12: Find only “FUND FACTS” Subheading ===
-# === Step 12: Find only “FUND FACTS” Subheading ===
+# === Step 12: Find only “FUND FACTS” Subheading (strict match) ===
 def step12_find_fund_facts(pdf):
+    import re
     import streamlit as st
     import pandas as pd
 
@@ -899,7 +899,7 @@ def step12_find_fund_facts(pdf):
     fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
     if not fs_start or not factsheets:
-        st.error("❌ Run Step 6 first to populate your factsheet pages.")
+        st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
     # build lookup: page number → (Fund Name, Ticker)
@@ -915,8 +915,9 @@ def step12_find_fund_facts(pdf):
         fund_name, ticker = page_map.get(pnum, ("<unknown>", ""))
 
         for idx, line in enumerate(lines):
-            # only match lines that are exactly "FUND FACTS" (after strip + upper)
-            if line.strip().upper() == "FUND FACTS":
+            # normalize: remove anything but letters/spaces, collapse, and uppercase
+            norm = re.sub(r'[^A-Za-z ]+', '', line).strip().upper()
+            if norm == "FUND FACTS":
                 rows.append({
                     "Fund Name": fund_name,
                     "Ticker":    ticker,
@@ -931,8 +932,6 @@ def step12_find_fund_facts(pdf):
 
     st.session_state["step12_fund_facts"] = rows
     st.table(pd.DataFrame(rows))
-
-
 
 #-------------------------------------------------------------------------------------------
 
