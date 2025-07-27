@@ -404,7 +404,7 @@ def step6_process_factsheets(pdf, fund_names):
             st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
 
-# === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns (wrap‑aware) ===
+# === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns (wrap‑aware + regex ticker match) ===
 def step7_extract_returns(pdf):
     import re, pandas as pd, streamlit as st
 
@@ -416,12 +416,13 @@ def step7_extract_returns(pdf):
         st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    # Prepare slots
+    # 1) Prep slots
+    fields = ["QTD","1Yr","3Yr","5Yr","10Yr"]
     for item in perf_data:
-        for f in ["QTD","1Yr","3Yr","5Yr","10Yr"]:
+        for f in fields:
             item.setdefault(f, None)
 
-    # Collect the section text‐lines
+    # 2) Collect only the “Fund Performance: Current vs.” lines
     lines = []
     for p in pdf.pages[perf_page-1:]:
         txt = p.extract_text() or ""
@@ -429,52 +430,53 @@ def step7_extract_returns(pdf):
             break
         lines += [l.strip() for l in txt.splitlines() if l.strip()]
 
-    # Regex to pull floats (ignoring parentheses/ranks)
+    # 3) Regex to grab float tokens
     num_rx = re.compile(r"-?\d+\.\d+")
 
     matched = 0
     for item in perf_data:
-        tk = item["Ticker"].upper()
-        # find the index of the line containing the ticker
-        idx = next((i for i, ln in enumerate(lines) if tk in ln.split()), None)
+        ticker = item["Ticker"].upper()
+        # find the line index containing the ticker anywhere in text
+        idx = next(
+            (i for i, ln in enumerate(lines)
+             if re.search(rf"\b{re.escape(ticker)}\b", ln)),
+            None
+        )
         if idx is None:
-            st.warning(f"⚠️ {item['Fund Scorecard Name']} ({tk}): ticker line not found.")
+            st.warning(f"⚠️ {item['Fund Scorecard Name']} ({ticker}): ticker line not found.")
             continue
 
-        # gather numeric tokens from this line + up to two lines down
+        # 4) Accumulate up to 6 floats from this line + next 2 lines
         nums = []
-        for j in range(idx, min(idx+3, len(lines))):
+        for j in range(idx, min(idx + 3, len(lines))):
             nums += num_rx.findall(lines[j])
             if len(nums) >= 6:
                 break
+        nums += [None] * (6 - len(nums))
 
-        # clean & pad to length 6: [QTD, YTD, 1Yr, 3Yr, 5Yr, 10Yr]
-        clean = [n.strip() for n in nums] + [None]*6
-        QTD, YTD, ONE_YR, THREE_YR, FIVE_YR, TEN_YR = clean[:6]
-
-        # assign only the five we care about
+        # 5) Map them: 0=QTD,1=YTD,2=1Yr,3=3Yr,4=5Yr,5=10Yr
+        QTD, _, one, three, five, ten = nums[:6]
         item["QTD"]  = QTD
-        item["1Yr"] = ONE_YR
-        item["3Yr"] = THREE_YR
-        item["5Yr"] = FIVE_YR
-        item["10Yr"]= TEN_YR
+        item["1Yr"] = one
+        item["3Yr"] = three
+        item["5Yr"] = five
+        item["10Yr"]= ten
 
         matched += 1
 
-    # store & display
+    # 6) Save & show
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
 
     st.success(f"✅ Matched {matched} fund(s) with return data.")
     for item in perf_data:
-        if any(item[f] in (None, "") for f in ["QTD","1Yr","3Yr","5Yr","10Yr"]):
-            st.warning(f"⚠️ Incomplete returns for: {item['Fund Scorecard Name']} ({item['Ticker']})")
+        if any(item[f] in (None, "") for f in fields):
+            st.warning(f"⚠️ Incomplete returns for {item['Fund Scorecard Name']} ({item['Ticker']})")
 
     st.dataframe(
-        df[["Fund Scorecard Name","Ticker","QTD","1Yr","3Yr","5Yr","10Yr"]],
+        df[["Fund Scorecard Name", "Ticker"] + fields],
         use_container_width=True
     )
-
 
 # === Step 8: Match Tickers in “Calendar Year Performance” Section ===
 def step8_match_calendar_tickers(pdf):
