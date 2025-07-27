@@ -517,142 +517,138 @@ def step7_extract_returns(pdf):
 
 # === Step 8a: Match Saved Tickers & Fund Names in the Calendar Year Section ===
 # Mirrors Step 5’s approach but targets the Calendar Year Performance section.
-# === Step 8: Match Tickers in “Calendar Year Performance” and Record Locations ===
+# === Step 8: Match Tickers in “Calendar Year Performance” Section ===
 def step8_match_calendar_tickers(pdf):
-    import re
-    import streamlit as st
+    import re, streamlit as st
 
     st.subheader("Step 8: Match Tickers in Calendar Year Section")
 
-    # 1) Load your Step 5 mapping: fund_name → ticker
-    mapping5 = st.session_state.get("tickers", {})
-    if not mapping5:
-        st.error("❌ No ticker mapping found. Please run Step 5 first.")
+    # 1) Your original fund→ticker mapping from Step 5
+    fund_map5 = st.session_state.get("tickers", {})
+    if not fund_map5:
+        st.error("❌ No ticker mapping found. Run Step 5 first.")
         return
 
-    # 2) Prepare result dicts
-    found_tickers   = {}
-    found_locations = {}  # fund_name → {"ticker":…, "page":…, "line":…}
-
-    # 3) Scan each page and each line for your tickers
-    for page_num, page in enumerate(pdf.pages, start=1):
-        lines = (page.extract_text() or "").splitlines()
-        for idx, ln in enumerate(lines):
-            for fund_name, tk in mapping5.items():
-                if not tk: 
-                    continue
-                ticker = tk.upper()
-                # exact-match in split tokens
-                if ticker in ln.split() and fund_name not in found_tickers:
-                    found_tickers[fund_name]   = ticker
-                    found_locations[fund_name] = {
-                        "ticker": ticker,
-                        "page":   page_num,
-                        "line":   idx
-                    }
-        # stop early if all found
-        if len(found_tickers) == len(mapping5):
+    # 2) Find the start page of "Calendar Year Performance"
+    section_page = None
+    for idx, page in enumerate(pdf.pages, start=1):
+        text = page.extract_text() or ""
+        if "Calendar Year Performance" in text:
+            section_page = idx
             break
 
-    # 4) Save to session_state
-    st.session_state["step8_tickers"]   = found_tickers
-    st.session_state["step8_locations"] = found_locations
+    if section_page is None:
+        st.error("❌ Could not find the Calendar Year Performance section.")
+        return
 
-    # 5) Display
-    total = len(mapping5)
+    # 3) Scan from that page onward, until all funds are found
+    found    = {}
+    locs     = {}
+    total    = len(fund_map5)
+
+    for pnum in range(section_page, len(pdf.pages) + 1):
+        lines = (pdf.pages[pnum-1].extract_text() or "").splitlines()
+        for li, ln in enumerate(lines):
+            tokens = ln.split()
+            for fname, tk in fund_map5.items():
+                if fname in found: 
+                    continue
+                ticker = tk.upper()
+                if ticker in tokens:
+                    found[fname] = ticker
+                    locs[fname]  = {"page": pnum, "line": li}
+        if len(found) == total:
+            break
+
+    # 4) Save and display
+    st.session_state["step8_tickers"]   = found
+    st.session_state["step8_locations"] = locs
+    st.session_state["step8_start_page"] = section_page
+
     st.subheader("Extracted Tickers & Locations (Step 8)")
-    for name in mapping5:
-        if name in found_tickers:
-            loc = found_locations[name]
-            st.write(f"- {name}: {loc['ticker']} (page {loc['page']}, line {loc['line']+1}) ✅")
+    for name in fund_map5:
+        if name in found:
+            info = locs[name]
+            st.write(f"- {name}: {found[name]} (page {info['page']}, line {info['line']+1}) ✅")
         else:
             st.write(f"- {name}: ❌ not found")
 
     st.subheader("Ticker Count Validation")
     st.write(f"- Expected: **{total}**")
-    st.write(f"- Found:    **{len(found_tickers)}**")
-    if len(found_tickers) == total:
+    st.write(f"- Found:    **{len(found)}**")
+    if len(found) == total:
         st.success("✅ All tickers found.")
     else:
-        st.error(f"❌ Missing {total - len(found_tickers)} ticker(s).")
+        st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
-
-# === Step 8.5: Extract Calendar Year Returns (using only Step 8 mapping) ===
-# === Step 8.5: Extract Calendar Year Returns Using Those Locations ===
+# === Step 8.5: Extract Calendar Year Returns from Those Locations ===
 def step8_5_extract_calendar_returns(pdf):
-    import re
-    import pandas as pd
-    import streamlit as st
+    import re, pandas as pd, streamlit as st
 
     st.subheader("Step 8.5: Calendar Year Returns")
 
-    # 1) Load locations from Step 8
+    # 1) Load what Step 8 saved
     locs = st.session_state.get("step8_locations", {})
-    if not locs:
-        st.error("❌ No ticker locations found. Please run Step 8 first.")
+    tickers = st.session_state.get("step8_tickers", {})
+    start_page = st.session_state.get("step8_start_page")
+    if not (locs and tickers and start_page):
+        st.error("❌ Missing Step 8 results. Please run Step 8 first.")
         return
 
-    # 2) Build float regex and results container
+    # 2) Pull lines of that section page for the header
+    header_lines = (pdf.pages[start_page-1].extract_text() or "").splitlines()
+    # find the header with "Ticker" + first year
+    header = next(
+        (ln for ln in header_lines if "Ticker" in ln and re.search(r"\b2015\b", ln)),
+        None
+    )
+    if not header:
+        st.error("❌ Could not find header row on page {start_page}.")
+        return
+
+    parts = header.split()
+    # drop "Ticker"
+    years = parts[1:]
+    n = len(years)
+
+    st.write("Detected header:", header)
+    st.write("Parsed years:", years)
+
+    # 3) Build regex for numeric returns
     float_rx = re.compile(r"^-?\d+\.\d+$")
-    results  = []
 
-    # 3) For each fund, grab its page/line, find header & extract returns
-    for fund_name, info in locs.items():
-        page_num = info["page"]
-        line_idx = info["line"]
-        ticker   = info["ticker"]
-
-        lines = (pdf.pages[page_num-1].extract_text() or "").splitlines()
-
-        # 3a) find header row on this page
-        header_line = next(
-            (ln for ln in lines if "Ticker" in ln and re.search(r"\b2015\b", ln)),
-            None
-        )
-        if not header_line:
-            st.warning(f"⚠️ Page {page_num}: no header row found for years.")
-            continue
-
-        years = header_line.split()
-        # drop the first token "Ticker"
-        if years[0].lower() == "ticker":
-            years = years[1:]
-        num_years = len(years)
-
-        # 3b) get the target line
-        try:
-            target = lines[line_idx]
-        except IndexError:
-            st.warning(f"⚠️ {fund_name}: line index {line_idx+1} out of range on page {page_num}.")
-            continue
-
-        parts = target.split()
-        # 3c) locate the ticker in that split
-        if ticker in parts:
-            i = parts.index(ticker)
-            raw_vals = parts[i+1 : i+1+num_years]
+    # 4) Extract returns for each fund
+    results = []
+    for name, ticker in tickers.items():
+        info = locs[name]
+        lines = (pdf.pages[info["page"]-1].extract_text() or "").splitlines()
+        # safe guard line index
+        if info["line"] >= len(lines):
+            st.warning(f"⚠️ {name}: line index out of range on page {info['page']}.")
+            row = [None]*n
         else:
-            st.warning(f"⚠️ {fund_name}: ticker not in its own line.")
-            raw_vals = []
+            line = lines[info["line"]]
+            cols = line.split()
+            if ticker not in cols:
+                st.warning(f"⚠️ {name}: ticker not found on its mapped line.")
+                row = [None]*n
+            else:
+                idx = cols.index(ticker)
+                raw = cols[idx+1: idx+1+n]
+                vals = [v for v in raw if float_rx.match(v)]
+                # pad/truncate
+                if len(vals) < n:
+                    vals += [None]*(n-len(vals))
+                row = vals[:n]
 
-        # 3d) filter floats, pad/truncate
-        vals = [v for v in raw_vals if float_rx.match(v)]
-        if len(vals) < num_years:
-            vals += [None] * (num_years - len(vals))
-        vals = vals[:num_years]
+        results.append(
+            {"Fund Name": name, "Ticker": ticker, **{years[i]: row[i] for i in range(n)}}
+        )
 
-        # 3e) record
-        row = {"Fund Name": fund_name, "Ticker": ticker}
-        row.update({year: vals[j] for j, year in enumerate(years)})
-        results.append(row)
-
-    # 4) Show table
-    if results:
-        df = pd.DataFrame(results)
-        st.session_state["step8_returns"] = results
-        st.dataframe(df)
-    else:
-        st.warning("❌ No returns extracted.")
+    # 5) Show DataFrame
+    df = pd.DataFrame(results)
+    st.session_state["step8_returns"] = results
+    st.dataframe(df)
 
 
 #-------------------------------------------------------------------------------------------
