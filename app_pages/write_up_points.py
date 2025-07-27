@@ -889,7 +889,6 @@ def step11_create_summary(pdf=None):
 
 # === Step 12: Find only “FUND FACTS” Subheading ===
 def step12_find_fund_facts(pdf):
-    import re
     import streamlit as st
     import pandas as pd
 
@@ -898,10 +897,10 @@ def step12_find_fund_facts(pdf):
     fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
     if not fs_start or not factsheets:
-        st.error("❌ Run Step 6 first to populate your factsheet pages.")
+        st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
-    # build lookup: page number → (Fund Name, Ticker)
+    # build lookup: page → (Fund Name, Ticker)
     page_map = {
         f["Page #"]: (f["Matched Fund Name"], f["Matched Ticker"])
         for f in factsheets
@@ -914,22 +913,18 @@ def step12_find_fund_facts(pdf):
         fund_name, ticker = page_map.get(pnum, ("<unknown>", ""))
 
         for idx, line in enumerate(lines):
-            # 1) collapse whitespace
-            norm = " ".join(line.split())
-            # 2) strip trailing punctuation or dashes
-            norm = re.sub(r'[\:\-\–\—]+$', '', norm)
-            # 3) uppercase
-            norm = norm.upper().strip()
-
-            # exact match only
-            if norm == "FUND FACTS":
-                rows.append({
-                    "Fund Name": fund_name,
-                    "Ticker":    ticker,
-                    "Page":      pnum,
-                    "Line":      idx + 1,
-                    "Text":      line.strip()
-                })
+            up = line.strip().upper()
+            if up.startswith("FUND FACTS"):
+                rest = up[len("FUND FACTS"):].strip()
+                # only accept if nothing follows, or if it doesn't start with a digit
+                if not rest or not rest[0].isdigit():
+                    rows.append({
+                        "Fund Name": fund_name,
+                        "Ticker":    ticker,
+                        "Page":      pnum,
+                        "Line":      idx + 1,
+                        "Text":      line.strip()
+                    })
 
     if not rows:
         st.warning("No 'FUND FACTS' heading found in your factsheets.")
@@ -937,6 +932,7 @@ def step12_find_fund_facts(pdf):
 
     st.session_state["step12_fund_facts"] = rows
     st.table(pd.DataFrame(rows))
+
 
 
 #-------------------------------------------------------------------------------------------
