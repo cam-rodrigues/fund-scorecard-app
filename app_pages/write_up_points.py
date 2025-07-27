@@ -1031,64 +1031,61 @@ def step14_process_peer_risk_adjusted_return_rank(pdf):
     fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
     if not fs_start or not factsheets:
-        st.error("❌ Run Step 6 first to populate your factsheet pages.")
+        st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
-    # map factsheet page → (Fund Name, Ticker)
+    # map page → (Fund Name, Ticker)
     page_map = {
         f["Page #"]: (f["Matched Fund Name"], f["Matched Ticker"])
         for f in factsheets
     }
 
     metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
-    num_rx  = re.compile(r"\d+")
+    num_rx  = re.compile(r"-?\d+\.\d+")
+
     records = []
+    for pnum, (fund_name, ticker) in page_map.items():
+        text  = pdf.pages[pnum-1].extract_text() or ""
+        lines = text.splitlines()
 
-    # scan each factsheet page
-    for pnum in range(fs_start, len(pdf.pages) + 1):
-        if pnum not in page_map:
+        # 1) find the exact heading line
+        heading_idx = next(
+            (
+                i
+                for i, ln in enumerate(lines)
+                if re.sub(r'[^A-Za-z ]+', ' ', ln).strip().upper() 
+                   == "PEER RISK ADJUSTED RETURN RANK"
+            ),
+            None
+        )
+        if heading_idx is None:
+            st.warning(f"⚠️ {fund_name} ({ticker}): no ‘PEER RISK‑ADJUSTED RETURN RANK’ found on page {pnum}.")
             continue
-        fund_name, ticker = page_map[pnum]
-        lines = (pdf.pages[pnum-1].extract_text() or "").splitlines()
 
-        # find the PEER RISK‑ADJUSTED RETURN RANK heading
-        for idx, line in enumerate(lines):
-            norm = " ".join(line.strip().split()).upper()
-            if norm.startswith("PEER RISK-ADJUSTED RETURN RANK"):
-                # grab the next few lines (should contain our 3 metrics)
-                snippet = lines[idx+1 : idx+1+6]
-                rec = {"Fund Name": fund_name, "Ticker": ticker}
+        # 2) grab the next few lines for your three metrics
+        snippet = lines[heading_idx+1 : heading_idx+1+6]
+        rec = {"Fund Name": fund_name, "Ticker": ticker}
 
-                for m in metrics:
-                    # find the snippet line for this metric
-                    text_line = next(
-                        (
-                            " ".join(ln.strip().split())
-                            for ln in snippet
-                            if ln.strip().upper().startswith(m.upper())
-                        ),
-                        ""
-                    )
-                    # extract up to 4 integers (ranks)
-                    nums = num_rx.findall(text_line)
-                    nums += [None] * (4 - len(nums))
+        for m in metrics:
+            # find the line containing this metric
+            ln = next((l for l in snippet if m.upper() in l.upper()), "")
+            nums = num_rx.findall(ln)
+            nums += [None] * (4 - len(nums))
+            rec[f"{m} 1Yr"]  = nums[0]
+            rec[f"{m} 3Yr"]  = nums[1]
+            rec[f"{m} 5Yr"]  = nums[2]
+            rec[f"{m} 10Yr"] = nums[3]
 
-                    rec[f"{m} 1Yr"]  = nums[0]
-                    rec[f"{m} 3Yr"]  = nums[1]
-                    rec[f"{m} 5Yr"]  = nums[2]
-                    rec[f"{m} 10Yr"] = nums[3]
-
-                records.append(rec)
-                break  # done with this page
+        records.append(rec)
 
     if not records:
-        st.warning("No Peer Risk‑Adjusted Return Rank tables found.")
+        st.warning("No Peer Risk‑Adjusted Return Rank data extracted.")
         return
 
-    # save & display
-    st.session_state["step14_peer_rank_table"] = records
     df = pd.DataFrame(records)
+    st.session_state["step14_peer_rank_table"] = records
     st.dataframe(df, use_container_width=True)
+
 
 #-------------------------------------------------------------------------------------------
 
