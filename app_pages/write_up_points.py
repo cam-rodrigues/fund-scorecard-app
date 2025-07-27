@@ -700,7 +700,7 @@ def step9_match_risk_tickers(pdf):
         st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
 
-# === Step 9.5: Extract 3‑Yr MPT Statistics (Alpha, Beta, Up Mkt, Down Mkt) ===
+# === Step 9.5: Extract 3‑Yr MPT Statistics (renamed columns) ===
 def step9_extract_mpt_statistics(pdf):
     import re, pandas as pd, streamlit as st
 
@@ -731,18 +731,19 @@ def step9_extract_mpt_statistics(pdf):
         alpha, beta, up_mkt, down_mkt = nums[:4]
 
         results.append({
-            "Fund Name":      name,
-            "Ticker":         ticker.upper(),
-            "Alpha (3Yr)":    alpha,
-            "Beta (3Yr)":     beta,
-            "Up Mkt (3Yr)":   up_mkt,
-            "Down Mkt (3Yr)": down_mkt
+            "Fund Name":                name,
+            "Ticker":                   ticker.upper(),
+            "3 Year Alpha":             alpha,
+            "3 Year Beta":              beta,
+            "3 Year Upside Capture":    up_mkt,
+            "3 Year Downside Capture":  down_mkt
         })
 
     # 4) Render
     df = pd.DataFrame(results)
     st.session_state["step9_mpt_stats"] = results
     st.dataframe(df)
+
 
 
 #-------------------------------------------------------------------------------------------
