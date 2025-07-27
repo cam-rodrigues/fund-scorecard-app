@@ -952,6 +952,53 @@ def step12_process_fund_facts(pdf):
     st.dataframe(df, use_container_width=True)
 
 
+# === Step 13: Find only “RISK‑ADJUSTED RETURNS” Subheading ===
+def step13_find_risk_adjusted_returns(pdf):
+    import streamlit as st
+    import pandas as pd
+
+    st.subheader("Step 13: Find 'RISK‑ADJUSTED RETURNS' Subheading")
+
+    fs_start   = st.session_state.get("factsheets_page")
+    factsheets = st.session_state.get("fund_factsheets_data", [])
+    if not fs_start or not factsheets:
+        st.error("❌ Run Step 6 first to populate your factsheet pages.")
+        return
+
+    # build page → (Fund Name, Ticker) map
+    page_map = {
+        f["Page #"]: (f["Matched Fund Name"], f["Matched Ticker"])
+        for f in factsheets
+    }
+
+    rows = []
+    for pnum in range(fs_start, len(pdf.pages) + 1):
+        if pnum not in page_map:
+            continue
+        fund_name, ticker = page_map[pnum]
+        text  = pdf.pages[pnum-1].extract_text() or ""
+        lines = text.splitlines()
+        for idx, line in enumerate(lines):
+            # collapse whitespace and uppercase
+            norm = " ".join(line.split()).upper()
+            if norm.startswith("RISK-ADJUSTED RETURNS"):
+                rows.append({
+                    "Fund Name": fund_name,
+                    "Ticker":    ticker,
+                    "Page":      pnum,
+                    "Line":      idx + 1,
+                    "Text":      "RISK-ADJUSTED RETURNS"
+                })
+                break  # move on to next fund/page
+
+    if not rows:
+        st.warning("No 'RISK‑ADJUSTED RETURNS' heading found in your factsheets.")
+        return
+
+    st.session_state["step13_risk_adjusted_returns"] = rows
+    st.table(pd.DataFrame(rows))
+
+
 #-------------------------------------------------------------------------------------------
 
 # === Main App ===
@@ -1035,6 +1082,8 @@ def run():
         with st.expander("Step 12: Fund Facts ", expanded=False):
             step12_process_fund_facts(pdf)
 
+        with st.expander("Step 13: Find 'RISK‑ADJUSTED RETURNS' Subheading", expanded=False):
+            step13_find_risk_adjusted_returns(pdf)
 
 if __name__ == "__main__":
     run()
