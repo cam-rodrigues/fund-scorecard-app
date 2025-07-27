@@ -999,6 +999,64 @@ def step13_find_risk_adjusted_returns(pdf):
     st.table(pd.DataFrame(rows))
 
 
+# === Step 13.5: Extract Risk‑Adjusted Returns Metrics ===
+def step13_extract_risk_adjusted_returns(pdf):
+    import re
+    import streamlit as st
+    import pandas as pd
+
+    st.subheader("Step 13.5: Extract Risk‑Adjusted Returns Details")
+
+    # 1) load the subheading locations from Step 13
+    headings = st.session_state.get("step13_risk_adjusted_returns", [])
+    if not headings:
+        st.error("❌ No 'RISK-ADJUSTED RETURNS' headings found. Run Step 13 first.")
+        return
+
+    # 2) pattern to grab floats (no % here)
+    num_rx = re.compile(r"-?\d+\.\d+")
+
+    metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
+    records = []
+
+    for h in headings:
+        fund_name = h["Fund Name"]
+        ticker    = h["Ticker"]
+        page      = h["Page"]
+        # zero-based index to the heading line
+        idx       = h["Line"] - 1
+
+        # grab the next 6 lines to cover all three rows
+        txt_lines = pdf.pages[page-1].extract_text().splitlines()
+        snippet   = txt_lines[idx+1 : idx+1+6]
+
+        rec = {"Fund Name": fund_name, "Ticker": ticker}
+
+        for metric in metrics:
+            # normalize each snippet line
+            line = next(
+                ( " ".join(ln.strip().split())
+                  for ln in snippet
+                  if ln.strip().upper().startswith(metric.upper()) ),
+                ""
+            )
+            # extract up to 4 numbers
+            nums = num_rx.findall(line)
+            nums += [None] * (4 - len(nums))
+
+            # map to columns
+            rec[f"{metric} 1Yr"]  = nums[0]
+            rec[f"{metric} 3Yr"]  = nums[1]
+            rec[f"{metric} 5Yr"]  = nums[2]
+            rec[f"{metric} 10Yr"] = nums[3]
+
+        records.append(rec)
+
+    # 3) save & display
+    df = pd.DataFrame(records)
+    st.session_state["step13_risk_adjusted_table"] = records
+    st.dataframe(df, use_container_width=True)
+
 #-------------------------------------------------------------------------------------------
 
 # === Main App ===
@@ -1082,8 +1140,13 @@ def run():
         with st.expander("Step 12: Fund Facts ", expanded=False):
             step12_process_fund_facts(pdf)
 
+        # Step 13: Risk Adjusted Returns
         with st.expander("Step 13: Find 'RISK‑ADJUSTED RETURNS' Subheading", expanded=False):
             step13_find_risk_adjusted_returns(pdf)
+
+        with st.expander("Step 13.5: Extract Risk‑Adjusted Returns Details", expanded=False):
+            step13_extract_risk_adjusted_returns(pdf)
+
 
 if __name__ == "__main__":
     run()
