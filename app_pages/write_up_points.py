@@ -404,116 +404,72 @@ def step6_process_factsheets(pdf, fund_names):
             st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
 
-# === Step 7: QTD, 1Yr, 3Yr, 5Yr, 10Yr Annualized Returns ===
+# === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns (fund only) ===
 def step7_extract_returns(pdf):
-    st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns")
+    import re, pandas as pd, streamlit as st
+
+    st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns")
 
     perf_page = st.session_state.get("performance_page")
     perf_data = st.session_state.get("fund_performance_data", [])
-
     if perf_page is None or not perf_data:
-        st.error("❌ Run Step 5 first to populate performance data.")
+        st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    return_fields = [
-        "QTD", "1Yr", "3Yr", "5Yr", "10Yr",
-        "Benchmark QTD", "Benchmark 1Yr", "Benchmark 3Yr", "Benchmark 5Yr", "Benchmark 10Yr"
-    ]
+    # 1) Ensure each item has slots for the five return fields
+    return_fields = ["QTD", "1Yr", "3Yr", "5Yr", "10Yr"]
     for item in perf_data:
-        for field in return_fields:
-            item.setdefault(field, None)
+        for f in return_fields:
+            item.setdefault(f, None)
 
-    # Define is_filled() to check if all returns are populated
-    def is_filled(item):
-        return all(item.get(f) not in [None, ""] for f in return_fields)
-
-    # === Read the Fund Performance pages only ===
+    # 2) Gather only the Fund Performance section lines
     lines = []
-    start = (perf_page or 1) - 1
-    for i in range(start, len(pdf.pages)):
-        page = pdf.pages[i]
-        text = page.extract_text() or ""
+    for p in pdf.pages[perf_page - 1 :]:
+        text = p.extract_text() or ""
         if "Fund Performance: Current vs." not in text:
-            break  # Stop when section ends
+            break
+        lines += [l.strip() for l in text.splitlines() if l.strip()]
 
-        page_lines = [l.strip() for l in text.splitlines() if l.strip()]
-        lines.extend(page_lines)
+    # 3) Regex to grab numeric tokens (allowing parentheses and %)
+    num_rx = re.compile(r"\(?-?\d+\.\d+%?\)?")
 
-    matched_count = 0
-    i = 0
-    while i < len(lines) - 3:
-        row = lines[i]
-        next1 = lines[i + 1]
-        next2 = lines[i + 2] if i + 2 < len(lines) else ""
-        next3 = lines[i + 3] if i + 3 < len(lines) else ""
-
-        # Match return rows with 8 numeric values (QTD, 1Yr, 3Yr, 5Yr, 10Yr)
-        num_re = re.compile(r'^-?\d+\.\d+(\s+-?\d+\.\d+){7}$')
-        if not num_re.match(row):
-            i += 1
+    matched = 0
+    # 4) For each fund, find its ticker‑line, then read the line above for its returns
+    for item in perf_data:
+        tk = item["Ticker"].upper()
+        # locate the index of the line that contains exactly that ticker
+        idx = next((i for i, ln in enumerate(lines) if tk in ln.split()), None)
+        if idx is None or idx == 0:
+            st.warning(f"⚠️ {item['Fund Scorecard Name']} ({tk}): ticker line not found.")
             continue
 
-        parts = re.split(r'\s+', row)
-        QTD_, ONE_YR, THREE_YR, FIVE_YR, TEN_YR = parts[0], parts[2], parts[3], parts[4], parts[5]
+        fund_line = lines[idx - 1]  # returns are on the line above
+        nums = num_rx.findall(fund_line)
+        # clean out parentheses/percent signs
+        clean = [t.strip("()%").rstrip("%") for t in nums]
+        # pad to ensure 5 values
+        clean += [None] * (5 - len(clean))
 
-        # Fund line should be next
-        fund_line = next1
-        ticker_match = re.search(r'\b[A-Z]{4,6}\b', fund_line)
-        ticker = ticker_match.group(0).strip() if ticker_match else None
+        # assign into the item
+        item["QTD"], item["1Yr"], item["3Yr"], item["5Yr"], item["10Yr"] = clean[:5]
+        matched += 1
 
-        # Benchmark line (may not exist)
-        bench_line = next3
-        bparts = re.split(r'\s+', bench_line)
-        bvals = bparts[-6:] if len(bparts) >= 6 else [None]*6
-        bQTD, b1YR, b3YR, b5YR, b10YR = bvals[0:5]
-
-        # Loop through all funds to match
-        for item in perf_data:
-            if is_filled(item):
-                continue
-
-            name = item.get("Fund Scorecard Name", "")
-            tk = item.get("Ticker", "")
-            score = fuzz.token_sort_ratio(f"{name} {tk}".lower(), fund_line.lower())
-            ticker_ok = tk.upper() == (ticker or "").upper()
-
-            # Dynamically detect and fill returns for retirement funds or missing benchmarks
-            if score > 70 or ticker_ok:
-                if not item["QTD"]:             item["QTD"] = QTD_
-                if not item["1Yr"]:             item["1Yr"] = ONE_YR
-                if not item["3Yr"]:             item["3Yr"] = THREE_YR
-                if not item["5Yr"]:             item["5Yr"] = FIVE_YR
-                if not item["10Yr"]:            item["10Yr"] = TEN_YR
-                if bQTD and not item["Benchmark QTD"]:   item["Benchmark QTD"] = bQTD
-                if b1YR and not item["Benchmark 1Yr"]:   item["Benchmark 1Yr"] = b1YR
-                if b3YR and not item["Benchmark 3Yr"]:   item["Benchmark 3Yr"] = b3YR
-                if b5YR and not item["Benchmark 5Yr"]:   item["Benchmark 5Yr"] = b5YR
-                if b10YR and not item["Benchmark 10Yr"]: item["Benchmark 10Yr"] = b10YR
-                matched_count += 1
-                break
-
-        i += 1
-
-    # Update session data
+    # 5) Save back & display
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
 
-    # Prepare columns to display
-    display_cols = ["Fund Scorecard Name", "Ticker"] + return_fields
-    missing = [c for c in display_cols if c not in df.columns]
-    if missing:
-        st.error(f"Expected columns {display_cols}, but missing {missing}.")
-        return
-
-    # Output the results
-    st.success(f"✅ Matched {matched_count} fund(s) with return data.")
-
-    # Debug: Log missing funds
+    st.success(f"✅ Matched {matched} fund(s) with return data.")
+    # warn if any still missing
     for item in perf_data:
-        if not is_filled(item):
-            st.warning(f"⚠️ Could not fully fill: {item['Fund Scorecard Name']} ({item['Ticker']})")
+        if any(item[f] in [None, ""] for f in return_fields):
+            st.warning(f"⚠️ Incomplete returns for: {item['Fund Scorecard Name']} ({item['Ticker']})")
 
-    st.dataframe(df[display_cols], use_container_width=True)
+    # 6) Show only the fund returns columns
+    st.dataframe(
+        df[["Fund Scorecard Name", "Ticker"] + return_fields],
+        use_container_width=True
+    )
+
 
 # === Step 8a: Match Saved Tickers & Fund Names in the Calendar Year Section ===
 # Mirrors Step 5’s approach but targets the Calendar Year Performance section.
