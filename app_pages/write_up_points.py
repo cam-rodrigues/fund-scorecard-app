@@ -1020,12 +1020,12 @@ def step13_process_risk_adjusted_returns(pdf):
     df = pd.DataFrame(records)
     st.dataframe(df, use_container_width=True)
 
-# === Step 14: Find “PEER RISK‑ADJUSTED RETURN RANK” Subheading ===
+# === Step 14: Debug “PEER RISK‑ADJUSTED RETURN RANK” Finder ===
 def step14_find_peer_risk_adjusted_return_rank(pdf):
     import streamlit as st
     import pandas as pd
 
-    st.subheader("Step 14: Find 'PEER RISK‑ADJUSTED RETURN RANK' Subheading")
+    st.subheader("Step 14: Locate 'PEER RISK‑ADJUSTED RETURN RANK' (Debug)")
 
     fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
@@ -1033,87 +1033,35 @@ def step14_find_peer_risk_adjusted_return_rank(pdf):
         st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
-    # map page → (Fund Name, Ticker)
+    # build map: page → (Fund Name, Ticker)
     page_map = {
         f["Page #"]: (f["Matched Fund Name"], f["Matched Ticker"])
         for f in factsheets
     }
 
-    headings = []
+    found = []
     for page_num, (fund, ticker) in page_map.items():
         text  = pdf.pages[page_num-1].extract_text() or ""
         lines = text.splitlines()
+
         for idx, ln in enumerate(lines):
-            # normalize whitespace, uppercase
-            if "PEER RISK" in ln.upper() and "ADJUSTED RETURN RANK" in ln.upper():
-                headings.append({
+            norm = ln.strip().upper()
+            if all(kw in norm for kw in ["PEER RISK", "ADJUSTED", "RETURN", "RANK"]):
+                found.append({
                     "Fund Name": fund,
                     "Ticker":    ticker,
                     "Page":      page_num,
-                    "Line":      idx + 1
+                    "Line":      idx + 1,
+                    "Raw Line":  ln.strip()
                 })
-                break
 
-    if not headings:
-        st.warning("No 'PEER RISK‑ADJUSTED RETURN RANK' heading found.")
-        return
+    if not found:
+        st.warning("❌ No lines matching all four keywords were found.")
+    else:
+        st.success(f"✅ Found {len(found)} candidate heading(s):")
+        st.dataframe(pd.DataFrame(found))
 
-    st.session_state["step14_peer_rank_headings"] = headings
-    st.table(pd.DataFrame(headings))
-
-
-# === Step 14.5: Extract Peer Risk‑Adjusted Return Ranks (full‑page scan) ===
-def step14_extract_peer_risk_adjusted_return_rank(pdf):
-    import re
-    import streamlit as st
-    import pandas as pd
-
-    st.subheader("Step 14.5: Extract Peer Risk‑Adjusted Return Ranks")
-
-    headings = st.session_state.get("step14_peer_rank_headings", [])
-    if not headings:
-        st.error("❌ No ‘PEER RISK‑ADJUSTED RETURN RANK’ headings found. Run Step 14 first.")
-        return
-
-    # match integers or decimals
-    num_rx  = re.compile(r"-?\d+(?:\.\d+)?")
-    metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
-    records = []
-
-    for h in headings:
-        fund   = h["Fund Name"]
-        ticker = h["Ticker"]
-        page   = h["Page"] - 1
-        start  = h["Line"]       # 1‑based index of the heading line
-
-        # pull every line on that page after the heading
-        all_lines = (pdf.pages[page].extract_text() or "").splitlines()
-        lines_after = all_lines[start:]  # from immediately below the heading
-
-        rec = {"Fund Name": fund, "Ticker": ticker}
-        for metric in metrics:
-            found = None
-            for ln in lines_after:
-                if metric.upper() in ln.upper():
-                    found = ln
-                    break
-            # extract up to 4 numbers (integer or decimal)
-            nums = num_rx.findall(found or "")
-            nums += [None] * (4 - len(nums))
-            rec[f"{metric} 1Yr"]  = nums[0]
-            rec[f"{metric} 3Yr"]  = nums[1]
-            rec[f"{metric} 5Yr"]  = nums[2]
-            rec[f"{metric} 10Yr"] = nums[3]
-        records.append(rec)
-
-    if not records:
-        st.warning("No peer‑rank data extracted.")
-        return
-
-    df = pd.DataFrame(records)
-    st.session_state["step14_peer_rank_table"] = records
-    st.dataframe(df, use_container_width=True)
-
+    st.session_state["step14_peer_rank_headings_debug"] = found
 
 #-------------------------------------------------------------------------------------------
 
