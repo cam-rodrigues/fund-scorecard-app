@@ -889,9 +889,7 @@ def step11_create_summary(pdf=None):
 
 # === Step 12: Find only “FUND FACTS” Subheading ===
 def step12_find_fund_facts(pdf):
-    import re
-    import streamlit as st
-    import pandas as pd
+    import re, streamlit as st, pandas as pd
 
     st.subheader("Step 12: Find 'FUND FACTS' Subheading")
 
@@ -901,23 +899,26 @@ def step12_find_fund_facts(pdf):
         st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
-    # build lookup: page → (Fund Name, Ticker)
+    # map each factsheet‐header page to its fund name & ticker
     page_map = {
         f["Page #"]: (f["Matched Fund Name"], f["Matched Ticker"])
         for f in factsheets
     }
 
-    # regex: starts with FUND FACTS, word‐boundary, not followed by whitespace+digit
-    pat = re.compile(r"^\s*FUND\s+FACTS\b(?!\s*\d)", re.IGNORECASE)
-
     rows = []
     for pnum in range(fs_start, len(pdf.pages) + 1):
-        text  = pdf.pages[pnum-1].extract_text() or ""
-        lines = text.splitlines()
-        fund_name, ticker = page_map.get(pnum, ("<unknown>", ""))
+        text = pdf.pages[pnum-1].extract_text() or ""
+        for idx, line in enumerate(text.splitlines()):
+            # only consider lines on pages we know are fund sheets
+            if pnum not in page_map:
+                continue
+            fund_name, ticker = page_map[pnum]
 
-        for idx, line in enumerate(lines):
-            if pat.match(line):
+            # normalize: replace NBSP, strip out non‑letters/spaces, collapse, uppercase
+            ln = line.replace('\xa0', ' ')
+            norm = re.sub(r'[^A-Za-z ]+', ' ', ln).strip().upper()
+
+            if norm == "FUND FACTS":
                 rows.append({
                     "Fund Name": fund_name,
                     "Ticker":    ticker,
@@ -932,6 +933,7 @@ def step12_find_fund_facts(pdf):
 
     st.session_state["step12_fund_facts"] = rows
     st.table(pd.DataFrame(rows))
+
 
 
 #-------------------------------------------------------------------------------------------
