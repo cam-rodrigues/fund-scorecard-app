@@ -701,7 +701,7 @@ def step9_match_risk_tickers(pdf):
 
 
 # === Step 9.5: Extract 3‑Yr MPT Statistics (Alpha, Beta, Up Mkt, Down Mkt) ===
-def step9_5_extract_mpt_statistics(pdf):
+def step9_extract_mpt_statistics(pdf):
     import re, pandas as pd, streamlit as st
 
     st.subheader("Step 9.5: Extract MPT Statistics (3Yr)")
@@ -713,7 +713,7 @@ def step9_5_extract_mpt_statistics(pdf):
         st.error("❌ Missing Step 9 data. Run Step 9 first.")
         return
 
-    # 2) Regex to grab floats (no parentheses here)
+    # 2) Regex to grab floats
     num_rx = re.compile(r"-?\d+\.\d+")
 
     results = []
@@ -727,15 +727,15 @@ def step9_5_extract_mpt_statistics(pdf):
 
         # 3) Pull the first four numeric tokens from that line
         nums = num_rx.findall(line)
-        vals = nums[:4] + [None]*4
-        alpha, beta, up_mkt, down_mkt = vals[:4]
+        nums += [None] * (4 - len(nums))
+        alpha, beta, up_mkt, down_mkt = nums[:4]
 
         results.append({
-            "Fund Name":    name,
-            "Ticker":       ticker.upper(),
-            "Alpha (3Yr)":  alpha,
-            "Beta (3Yr)":   beta,
-            "Up Mkt (3Yr)": up_mkt,
+            "Fund Name":      name,
+            "Ticker":         ticker.upper(),
+            "Alpha (3Yr)":    alpha,
+            "Beta (3Yr)":     beta,
+            "Up Mkt (3Yr)":   up_mkt,
             "Down Mkt (3Yr)": down_mkt
         })
 
