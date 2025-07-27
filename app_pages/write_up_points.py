@@ -745,6 +745,112 @@ def step9_extract_mpt_statistics(pdf):
     st.dataframe(df)
 
 
+# === Step 10: Match Tickers in Risk Analysis (5Yr) Section ===
+def step10_match_risk_tickers(pdf):
+    import streamlit as st
+
+    st.subheader("Step 10: Match Tickers in Risk Analysis (5Yr)")
+
+    # 1) Your fund→ticker map from Step 5
+    fund_map = st.session_state.get("tickers", {})
+    if not fund_map:
+        st.error("❌ No ticker mapping found. Run Step 5 first.")
+        return
+
+    # 2) Locate the 5‑Yr section
+    section_page = next((
+        i for i, pg in enumerate(pdf.pages, start=1)
+        if "Risk Analysis: MPT Statistics (5Yr)" in (pg.extract_text() or "")
+    ), None)
+    if section_page is None:
+        st.error("❌ Could not find ‘Risk Analysis: MPT Statistics (5Yr)’ section.")
+        return
+
+    # 3) Scan from that page until all tickers are found
+    found, locs = {}, {}
+    total = len(fund_map)
+    for pnum in range(section_page, len(pdf.pages) + 1):
+        lines = (pdf.pages[pnum-1].extract_text() or "").splitlines()
+        for li, ln in enumerate(lines):
+            tokens = ln.split()
+            for name, tk in fund_map.items():
+                if name in found:
+                    continue
+                if tk.upper() in tokens:
+                    found[name] = tk.upper()
+                    locs[name] = {"page": pnum, "line": li}
+        if len(found) == total:
+            break
+
+    # 4) Save & display
+    st.session_state["step10_tickers"]    = found
+    st.session_state["step10_locations"]  = locs
+    st.session_state["step10_start_page"] = section_page
+
+    st.subheader("Extracted Tickers & Locations (Step 10)")
+    for name in fund_map:
+        if name in found:
+            info = locs[name]
+            st.write(f"- {name}: {found[name]} (page {info['page']}, line {info['line']+1}) ✅")
+        else:
+            st.write(f"- {name}: ❌ not found")
+
+    st.subheader("Ticker Count Validation")
+    st.write(f"- Expected: **{total}**")
+    st.write(f"- Found:    **{len(found)}**")
+    if len(found) == total:
+        st.success("✅ All tickers found.")
+    else:
+        st.error(f"❌ Missing {total - len(found)} ticker(s).")
+
+
+# === Step 10.5: Extract 5‑Yr MPT Statistics ===
+def step10_extract_mpt_statistics(pdf):
+    import re
+    import pandas as pd
+    import streamlit as st
+
+    st.subheader("Step 10.5: Extract MPT Statistics (5Yr)")
+
+    tickers = st.session_state.get("step10_tickers", {})
+    locs     = st.session_state.get("step10_locations", {})
+    start_pg = st.session_state.get("step10_start_page")
+    if not tickers or not locs or not start_pg:
+        st.error("❌ Missing Step 10 mapping. Run Step 10 first.")
+        return
+
+    # regex to grab floats
+    num_rx = re.compile(r"-?\d+\.\d+")
+
+    results = []
+    for name, tk in tickers.items():
+        info = locs.get(name)
+        if not info:
+            continue
+
+        # pull the exact line where the ticker lives
+        page = pdf.pages[info["page"] - 1]
+        lines = (page.extract_text() or "").splitlines()
+        idx = info["line"]
+        ln  = lines[idx] if 0 <= idx < len(lines) else ""
+
+        # extract the first four floats
+        nums = num_rx.findall(ln)
+        nums += [None] * (4 - len(nums))
+        alpha, beta, up, down = nums[:4]
+
+        results.append({
+            "Fund Name":               name,
+            "Ticker":                  tk.upper(),
+            "5 Year Alpha":            alpha,
+            "5 Year Beta":             beta,
+            "5 Year Upside Capture":   up,
+            "5 Year Downside Capture": down
+        })
+
+    df = pd.DataFrame(results)
+    st.session_state["step10_mpt_stats"] = results
+    st.dataframe(df)
 
 #-------------------------------------------------------------------------------------------
 
@@ -804,12 +910,22 @@ def run():
         # Step 8.5: Extract Calendar Year Returns
         with st.expander("Step 8.5: Extract Calendar Year Returns", expanded=False):
             step8_5_extract_calendar_returns(pdf)
-        
+
+        # Step 9: Match Tickers
         with st.expander("Step 9: Match Tickers in Risk Analysis (3Yr)", expanded=False):
             step9_match_risk_tickers(pdf)
-        
+
+        # Step 9.5: Extract MPT Statistics (3Yr)
         with st.expander("Step 9.5: Extract MPT Statistics (3Yr)", expanded=False):
             step9_extract_mpt_statistics(pdf)
+
+        # Step 10: Match Tickers
+        with st.expander("Step 10: Match Tickers in Risk Analysis (5Yr)", expanded=False):
+            step10_match_risk_tickers(pdf)
+
+        # Step 10.5: Extract Extract MPT Statistics (5Yr)
+        with st.expander("Step 10.5: Extract MPT Statistics (5Yr)", expanded=False):
+            step10_extract_mpt_statistics(pdf)
 
 
 if __name__ == "__main__":
