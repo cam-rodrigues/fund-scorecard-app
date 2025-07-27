@@ -515,54 +515,37 @@ def step7_extract_returns(pdf):
 
     st.dataframe(df[display_cols], use_container_width=True)
 
-# === Step 8: Extract Annualized Calendar Year Returns ===
+# === Step 8: Extract Annualized Calendar Year Returns (by scanning for section header) ===
 def step8_extract_annualized_returns(pdf):
     import re
     import pandas as pd
 
     st.subheader("Step 8: Calendar Year Fund Performance")
 
-    toc_pages = st.session_state.get("toc_pages", {})
     fund_names = st.session_state.get("fund_names", [])
     fund_tickers = st.session_state.get("fund_tickers", [])
 
-    # Build ticker → name lookup from saved values
     fund_lookup = {
         ticker.upper(): name for name, ticker in zip(fund_names, fund_tickers)
     }
-
-    # Try multiple possible TOC keys
-    possible_keys = [
-        "Fund Performance: Calendar Year",
-        "Fund Performance - Calendar Year",
-        "Calendar Year Performance",
-        "Calendar Year Fund Performance",
-        "Fund Calendar Year Performance",
-    ]
-
-    start_page = 0
-    for key in possible_keys:
-        if key in toc_pages:
-            start_page = toc_pages[key]
-            break
-
-    if not start_page:
-        st.warning("⚠️ Could not find a TOC entry for Calendar Year Performance. Scanning all pages.")
-        start_page = 1
 
     pattern_year = re.compile(r"\b20(1[5-9]|2[0-4])\b")
     pattern_ticker = re.compile(r"\b[A-Z]{4,5}X\b")
 
     results = []
+    found_section = False
 
-    for i in range(start_page - 1, len(pdf.pages)):
-        page = pdf.pages[i]
+    for i, page in enumerate(pdf.pages):
+        text = page.extract_text() or ""
+        if not found_section:
+            if "Calendar Year Performance" in text:
+                found_section = True
+            else:
+                continue  # keep scanning pages until we find the right section
+
         table = page.extract_table()
         if not table:
             continue
-
-        # Optional debug: show tables from candidate pages
-        # st.write(f"Page {i+1} table:", table)
 
         header_row = None
         for row in table:
@@ -586,7 +569,7 @@ def step8_extract_annualized_returns(pdf):
 
             fund_name = fund_lookup.get(ticker)
             if not fund_name:
-                continue  # skip unknown tickers
+                continue
 
             returns = row[-10:]
             year_map = dict(zip(header_row[-10:], returns))
@@ -603,6 +586,7 @@ def step8_extract_annualized_returns(pdf):
         st.dataframe(df)
     else:
         st.warning("❌ No calendar year fund returns found.")
+
 
 
 # === Main App ===
