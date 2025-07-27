@@ -581,7 +581,7 @@ def step8_match_calendar_tickers(pdf):
     else:
         st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
-# === Step 8.5: Extract Calendar Year Returns (using the line above each ticker) ===
+# === Step 8.5: Extract Calendar Year Returns ===
 def step8_5_extract_calendar_returns(pdf):
     import re, pandas as pd, streamlit as st
 
@@ -593,7 +593,7 @@ def step8_5_extract_calendar_returns(pdf):
         st.error("❌ No ticker mapping found. Run Step 8 first.")
         return
 
-    # 1) Find header line for years
+    # 1) Find header row to get year labels
     header_line = None
     for pnum in range(start_pg-1, len(pdf.pages)):
         for ln in (pdf.pages[pnum].extract_text() or "").splitlines():
@@ -607,45 +607,37 @@ def step8_5_extract_calendar_returns(pdf):
         return
 
     years = re.findall(r"\b20(1[5-9]|2[0-4])\b", header_line)
-    years = ["20"+y for y in years]
+    years = ["20" + y for y in years]
     n = len(years)
-    st.write("Detected years:", years)
 
-    # regex to pull numbers (allow leading parens, trailing %)
+    # regex to grab numeric values (allowing parentheses and %)
     num_rx = re.compile(r"\(?-?\d+\.\d+%?\)?")
 
     results = []
     for name, ticker in tickers_map.items():
         ticker = ticker.upper()
-        # scan from section start
-        found_vals = None
+        vals = None
+
+        # scan from section start forward
         for pnum in range(start_pg-1, len(pdf.pages)):
             lines = (pdf.pages[pnum].extract_text() or "").splitlines()
-            # locate the line index with the ticker
             idx = next((i for i, ln in enumerate(lines) if ticker in ln), None)
             if idx is not None:
-                # the numeric row is one above
-                if idx == 0:
-                    vals = []
-                else:
-                    num_line = lines[idx-1]
-                    raw = num_rx.findall(num_line)
-                    # clean parens/% and take first n
-                    clean = [t.strip("()%").rstrip("%") for t in raw]
-                    if len(clean) < n:
-                        clean += [None]*(n-len(clean))
-                    vals = clean[:n]
-                found_vals = vals
+                num_line = lines[idx-1] if idx > 0 else ""
+                raw = num_rx.findall(num_line)
+                clean = [t.strip("()%").rstrip("%") for t in raw]
+                if len(clean) < n:
+                    clean += [None] * (n - len(clean))
+                vals = clean[:n]
                 break
 
-        if not found_vals:
-            st.warning(f"⚠️ {name} ({ticker}): no numeric row found above ticker.")
-            found_vals = [None]*n
+        if not vals:
+            vals = [None] * n
 
         results.append({
             "Fund Name": name,
             "Ticker":    ticker,
-            **{years[i]: found_vals[i] for i in range(n)}
+            **{years[i]: vals[i] for i in range(n)}
         })
 
     df = pd.DataFrame(results)
