@@ -581,77 +581,75 @@ def step8_match_calendar_tickers(pdf):
     else:
         st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
-# === Step 8.5: Extract Calendar Year Returns ===
+# === Step 8.5: Extract Calendar Year Returns via Table Parsing ===
 def step8_5_extract_calendar_returns(pdf):
     import re, pandas as pd, streamlit as st
 
     st.subheader("Step 8.5: Calendar Year Returns")
 
-    # 1) Load the two pieces saved in Step 8
+    # 1) Load Step 8 results
     tickers_map = st.session_state.get("step8_tickers", {})    # { fund_name: ticker }
     locs        = st.session_state.get("step8_locations", {})  # { fund_name: {page, line} }
     start_pg    = st.session_state.get("step8_start_page")
-
-    if not tickers_map or not locs or not start_pg:
+    if not (tickers_map and locs and start_pg):
         st.error("❌ Missing Step 8 results. Run Step 8 first.")
         return
 
-    # 2) Grab the header row via extract_table on the start page
+    # 2) Extract the full table from the first Calendar Year page to get header
     header_tbl = pdf.pages[start_pg-1].extract_table()
     if not header_tbl:
         st.error(f"❌ Could not extract table on header page {start_pg}.")
         return
 
-    # 3) Locate the row where the second column is "Ticker"
-    header_row = next(
-        (r for r in header_tbl if len(r)>1 and r[1].strip().upper()=="TICKER"),
-        None
-    )
+    # 3) Locate header row (where any cell == "2015")
+    pattern_year = re.compile(r"^2015$")
+    header_row = next((r for r in header_tbl if any(pattern_year.match(str(c or "")) for c in r)), None)
     if not header_row:
-        st.error("❌ Cannot find the header row containing 'Ticker'.")
+        st.error("❌ Could not find header row with '2015'.")
         return
 
-    # 4) The years are the cells after the first two columns
-    years = header_row[2:]
+    # 4) Split out the years: assume [ nameCol | tickerCol | 2015 | 2016 | … ]
+    #    We’ll treat header_row[0] as label, header_row[1] might be "Ticker" or blank
+    years = [c for c in header_row[2:] if c]
     n     = len(years)
     st.write("Detected years:", years)
 
-    # 5) Regex to strip parentheses/percent signs
-    clean_rx = re.compile(r"[()%]")
+    # 5) Regex to identify pure numeric floats
+    float_rx = re.compile(r"^-?\d+(\.\d+)?$")
 
-    # 6) For each fund, go to its saved page & line, extract returns
     results = []
-    for name, ticker in tickers_map.items():
-        info = locs.get(name, {})
-        pg_idx = info.get("page", start_pg) - 1
-        line_i = info.get("line", 0)
 
-        tbl = pdf.pages[pg_idx].extract_table() or []
-        # find the row where col 1 == ticker
-        fund_row = next(
-            (r for r in tbl if len(r)>1 and r[1].strip().upper()==ticker),
-            None
-        )
+    # 6) For each fund, pull its page’s table, find its row, extract floats
+    for fund_name, ticker in tickers_map.items():
+        ticker = ticker.upper()
+        page_idx = locs[fund_name]["page"] - 1
+        tbl = pdf.pages[page_idx].extract_table() or []
+
+        # 6a) find the row where the first cell contains the ticker
+        fund_row = None
+        for row in tbl:
+            cell0 = str(row[0] or "")
+            if ticker in cell0.split():
+                fund_row = row
+                break
 
         if not fund_row:
-            st.warning(f"⚠️ {name}: ticker {ticker} not found in table on page {pg_idx+1}.")
+            st.warning(f"⚠️ {fund_name} ({ticker}): row not found on page {page_idx+1}.")
             vals = [None]*n
         else:
-            raw = fund_row[2:2+n]
-            vals = []
-            for v in raw:
-                if v is None:
-                    vals.append(None)
-                else:
-                    s = clean_rx.sub("", v).strip()
-                    vals.append(s if s!="" else None)
+            # 6b) take everything after the first two cells
+            tail = fund_row[2:]
+            # clean out parentheses and % signs
+            tail_clean = [re.sub(r"[()%]", "", str(x)) for x in tail]
+            # filter pure floats
+            vals = [x for x in tail_clean if float_rx.match(x)]
             # pad/truncate
-            if len(vals)<n:
-                vals += [None]*(n-len(vals))
+            if len(vals) < n:
+                vals += [None]*(n - len(vals))
             vals = vals[:n]
 
         results.append({
-            "Fund Name": name,
+            "Fund Name": fund_name,
             "Ticker":    ticker,
             **{years[i]: vals[i] for i in range(n)}
         })
