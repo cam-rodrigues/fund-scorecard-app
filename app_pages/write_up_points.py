@@ -565,7 +565,7 @@ def step8_match_calendar_tickers(pdf):
     else:
         st.error(f"❌ Missing {total - found_count} ticker(s).")
 
-# === Step 8.5: Extract Calendar Year Performance ===
+# === Step 8.5: Extract Calendar Year Returns ===
 def step8_5_extract_calendar_returns(pdf):
     import re
     import pandas as pd
@@ -573,26 +573,28 @@ def step8_5_extract_calendar_returns(pdf):
 
     st.subheader("Step 8.5: Calendar Year Returns")
 
-    # 1) Load the ticker mapping from Step 8
-    mapping = st.session_state.get("step8_tickers", {})
+    # 1) Prefer the new mapping from Step 8, but fall back to Step 5 mapping if needed
+    mapping = (
+        st.session_state.get("step8_tickers")
+        or st.session_state.get("tickers")
+        or {}
+    )
     if not mapping:
         st.error("❌ No ticker mapping found (run Step 8 first).")
         return
 
-    # 2) Gather all text lines from the entire document (or restrict pages as needed)
+    # 2) Gather all lines
     all_lines = []
     for page in pdf.pages:
         txt = page.extract_text() or ""
         all_lines.extend(txt.splitlines())
 
-    # 3) Locate the header row containing the calendar years (e.g. 2015–2024)
+    # 3) Find the header row with years (at least 5 year tokens)
     year_rx = re.compile(r"\b20(1[5-9]|2[0-4])\b")
-    header_line = None
-    for ln in all_lines:
-        if len(year_rx.findall(ln)) >= 5:
-            header_line = ln.strip()
-            break
-
+    header_line = next(
+        (ln for ln in all_lines if len(year_rx.findall(ln)) >= 5),
+        None
+    )
     if not header_line:
         st.warning("⚠️ Could not find the header row with calendar years.")
         return
@@ -600,39 +602,35 @@ def step8_5_extract_calendar_returns(pdf):
     years = header_line.split()
     num_years = len(years)
 
-    # 4) For each fund, find its line and pull the returns
-    results = []
+    # 4) Extract returns for each fund
     float_rx = re.compile(r"^-?\d+\.?\d+$")
+    results = []
 
     for fund_name, ticker in mapping.items():
         ticker = ticker.upper()
-        # find the first line containing the ticker
+        # find the first line containing this ticker
         line = next((ln for ln in all_lines if ticker in ln.split()), None)
-
-        if line:
+        if not line:
+            # fund not in section
+            row = {yr: None for yr in years}
+        else:
             parts = line.split()
-            # assume returns immediately follow the ticker
             idx = parts.index(ticker)
             raw_vals = parts[idx+1 : idx+1+num_years]
-            # filter to only valid floats
+            # keep only numeric-looking tokens
             returns = [v for v in raw_vals if float_rx.match(v)]
-            # if length mismatch, pad or truncate
-            if len(returns) != num_years:
-                st.warning(f"⚠️ {fund_name} ({ticker}): expected {num_years} values, got {len(returns)}.")
-            year_map = dict(zip(years, returns))
-        else:
-            year_map = {}
+            # pad/truncate
+            if len(returns) < num_years:
+                returns += [None] * (num_years - len(returns))
+            row = dict(zip(years, returns[:num_years]))
 
-        results.append({
-            "Fund Name": fund_name,
-            "Ticker": ticker,
-            **{yr: year_map.get(yr, None) for yr in years}
-        })
+        results.append({"Fund Name": fund_name, "Ticker": ticker, **row})
 
-    # 5) Display in a DataFrame
+    # 5) Show results
     df = pd.DataFrame(results)
     st.session_state["step8_returns"] = results
     st.dataframe(df)
+
 
 #-------------------------------------------------------------------------------------------
 
