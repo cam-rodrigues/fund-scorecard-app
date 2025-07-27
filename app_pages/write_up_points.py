@@ -644,6 +644,114 @@ def step8_5_extract_calendar_returns(pdf):
     st.session_state["step8_returns"] = results
     st.dataframe(df)
 
+# === Step 9: Risk Analysis ‑ MPT Statistics (3Yr) ===
+def step9_match_risk_tickers(pdf):
+    import re, streamlit as st
+
+    st.subheader("Step 9: Match Tickers in Risk Analysis (3Yr)")
+
+    # 1) your original fund→ticker map from Step 5
+    fund_map = st.session_state.get("tickers", {})
+    if not fund_map:
+        st.error("❌ No ticker mapping found. Run Step 5 first.")
+        return
+
+    # 2) locate the start page of “Risk Analysis: MPT Statistics (3Yr)”
+    section_page = st.session_state.get("r3yr_page")
+    if not section_page:
+        st.error("❌ ‘Risk Analysis: MPT Statistics (3Yr)’ page not found; run Step 2 first.")
+        return
+
+    # 3) scan from that page forward until all tickers are found
+    found, locs = {}, {}
+    total = len(fund_map)
+    for pnum in range(section_page, len(pdf.pages) + 1):
+        lines = (pdf.pages[pnum-1].extract_text() or "").splitlines()
+        for li, ln in enumerate(lines):
+            tokens = ln.split()
+            for fname, tk in fund_map.items():
+                if fname in found:
+                    continue
+                if tk.upper() in tokens:
+                    found[fname] = tk.upper()
+                    locs[fname]  = {"page": pnum, "line": li}
+        if len(found) == total:
+            break
+
+    # 4) save & report
+    st.session_state["step9_tickers"]   = found
+    st.session_state["step9_locations"] = locs
+    st.session_state["step9_start_page"] = section_page
+
+    st.subheader("Extracted Tickers & Locations (Step 9)")
+    for name in fund_map:
+        if name in found:
+            info = locs[name]
+            st.write(f"- {name}: {found[name]} (page {info['page']}, line {info['line']+1}) ✅")
+        else:
+            st.write(f"- {name}: ❌ not found")
+
+    st.subheader("Ticker Count Validation")
+    st.write(f"- Expected: **{total}**")
+    st.write(f"- Found:    **{len(found)}**")
+    if len(found) == total:
+        st.success("✅ All tickers found.")
+    else:
+        st.error(f"❌ Missing {total - len(found)} ticker(s).")
+
+
+# === Step 9.5: Extract 3‑Yr MPT Statistics ===
+def step9_extract_mpt_statistics(pdf):
+    import re, pandas as pd, streamlit as st
+
+    st.subheader("Step 9.5: Extract MPT Statistics (3Yr)")
+
+    tickers = st.session_state.get("step9_tickers", {})
+    start_pg = st.session_state.get("step9_start_page")
+    if not tickers or not start_pg:
+        st.error("❌ Missing Step 9 mapping. Run Step 9 first.")
+        return
+
+    # 1) pull the first table on the risk page
+    table = pdf.pages[start_pg-1].extract_table() or []
+    if not table:
+        st.error(f"❌ No table found on page {start_pg}.")
+        return
+
+    # 2) detect the header row by looking for “Sharpe”
+    header_row = next(
+        (r for r in table if any(cell and "Sharpe" in str(cell) for cell in r)),
+        None
+    )
+    if not header_row:
+        st.error("❌ Could not locate header row (looking for ‘Sharpe’).")
+        return
+
+    # 3) metric names are everything after the first two columns
+    metrics = header_row[2:]
+
+    # 4) for each fund, find its row & pull out those metric cells
+    results = []
+    for name, tk in tickers.items():
+        ticker = tk.upper()
+        row = next(
+            (r for r in table if any(str(c).strip().upper() == ticker for c in r)),
+            None
+        )
+        if row:
+            vals = row[2:2 + len(metrics)]
+        else:
+            st.warning(f"⚠️ {name} ({ticker}): not found in MPT table.")
+            vals = [None] * len(metrics)
+
+        entry = {"Fund Name": name, "Ticker": ticker}
+        entry.update({metrics[i]: vals[i] for i in range(len(metrics))})
+        results.append(entry)
+
+    # 5) show final DataFrame
+    df = pd.DataFrame(results)
+    st.session_state["step9_mpt_stats"] = results
+    st.dataframe(df)
 
 #-------------------------------------------------------------------------------------------
 
@@ -703,8 +811,10 @@ def run():
         # Step 8.5: Extract Calendar Year Returns
         with st.expander("Step 8.5: Extract Calendar Year Returns", expanded=False):
             step8_5_extract_calendar_returns(pdf)
-
-
+        
+        # Step 9
+        with st.expander("Step 9: Risk Analysis — MPT Statistics (3Yr)", expanded=False):
+            step9_extract_mpt_statistics(pdf)
 
 if __name__ == "__main__":
     run()
