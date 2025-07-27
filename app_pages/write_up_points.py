@@ -887,6 +887,58 @@ def step11_create_summary(pdf=None):
     st.session_state["step11_summary"] = df.to_dict("records")
     st.dataframe(df)
 
+
+# === Step 12: Locate Factsheet Sub‑Headings & Associate with Fund ===
+def step12_find_subheadings(pdf):
+    import streamlit as st
+    import pandas as pd
+
+    st.subheader("Step 12: Find Factsheet Sub‑Headings")
+
+    fs_start = st.session_state.get("factsheets_page")
+    factsheets = st.session_state.get("fund_factsheets_data", [])
+    if not fs_start or not factsheets:
+        st.error("❌ Run Step 6 first to populate factsheet mapping.")
+        return
+
+    # Build a lookup: page → (Fund Name, Ticker)
+    page_map = {f["Page #"]: (f["Matched Fund Name"], f["Matched Ticker"])
+                for f in factsheets}
+
+    subheadings = [
+        "FUND FACTS",
+        "RISK-ADJUSTED RETURNS",
+        "PEER RISK-ADJUSTED RETURN RANK"
+    ]
+
+    rows = []
+    for pnum in range(fs_start, len(pdf.pages) + 1):
+        text = pdf.pages[pnum-1].extract_text() or ""
+        lines = text.splitlines()
+        # see if this page is one of your factsheets
+        fund_info = page_map.get(pnum, ("<unknown>",""))
+        for idx, line in enumerate(lines):
+            u = line.strip().upper()
+            for heading in subheadings:
+                if heading in u:
+                    rows.append({
+                        "Fund Name": fund_info[0],
+                        "Ticker":    fund_info[1],
+                        "Heading":   heading,
+                        "Page":      pnum,
+                        "Line":      idx + 1,
+                        "Text":      line.strip()
+                    })
+
+    if not rows:
+        st.warning("No sub‑headings found in the Factsheets section.")
+        return
+
+    st.session_state["step12_headings"] = rows
+    df = pd.DataFrame(rows)
+    st.table(df)
+
+
 #-------------------------------------------------------------------------------------------
 
 # === Main App ===
@@ -965,6 +1017,10 @@ def run():
         # Step 11: MPT Statistics Summary
         with st.expander("Step 11: Combined MPT Statistics Summary", expanded=False):
             step11_create_summary()
+            
+        # Step 12: Find Factsheet Sub‑Headings
+        with st.expander("Step 12: Find Factsheet Sub‑Headings", expanded=False):
+            step12_find_subheadings(pdf)
 
 
 if __name__ == "__main__":
