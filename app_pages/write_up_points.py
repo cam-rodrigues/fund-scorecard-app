@@ -406,11 +406,6 @@ def step6_process_factsheets(pdf, fund_names):
 
 # === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr & Net Expense Ratio ===
 def step7_extract_returns(pdf):
-    import re
-    import pandas as pd
-    import streamlit as st
-    from rapidfuzz import fuzz
-
     st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr & Net Expense Ratio")
 
     perf_page = st.session_state.get("performance_page")
@@ -420,34 +415,23 @@ def step7_extract_returns(pdf):
         st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    # 1) Prepare slots
-    fields = ["QTD", "1Yr", "3Yr", "5Yr", "10Yr", "Net Expense Ratio"]
+    fields = ["QTD","1Yr","3Yr","5Yr","10Yr","Net Expense Ratio"]
     for itm in perf_data:
         for f in fields:
             itm.setdefault(f, None)
 
-    # 2) Pull every nonblank line in the Performance section
     lines = []
     for pnum in range(perf_page-1, end_page-1):
         txt = pdf.pages[pnum].extract_text() or ""
         lines += [ln.strip() for ln in txt.splitlines() if ln.strip()]
 
-    # 3) Regex for decimal numbers (allowing parens & %)
     num_rx = re.compile(r"\(?-?\d+\.\d+%?\)?")
 
     matched = 0
     for item in perf_data:
-        name = item["Fund Scorecard Name"]
-        tk   = item["Ticker"].upper().strip()
+        name, tk = item["Fund Scorecard Name"], item["Ticker"].upper().strip()
 
-        # a) Try exact ticker match
-        idx = next(
-            (i for i, ln in enumerate(lines)
-             if re.search(rf"\b{re.escape(tk)}\b", ln)),
-            None
-        )
-
-        # b) Fallback: fuzzy name match
+        idx = next((i for i,ln in enumerate(lines) if re.search(rf"\b{re.escape(tk)}\b", ln)), None)
         if idx is None:
             scores = [(i, fuzz.token_sort_ratio(name.lower(), ln.lower()))
                       for i, ln in enumerate(lines)]
@@ -455,50 +439,37 @@ def step7_extract_returns(pdf):
             if best_score > 60:
                 idx = best_i
             else:
-                st.warning(f"⚠️ {name} ({tk}): no ticker or name match found.")
+                st.warning(f"⚠️ {name} ({tk}): no match found.")
                 continue
 
-        # c) Need at least one line above to get returns
         if idx == 0:
-            st.warning(f"⚠️ {name} ({tk}): no line above matched line to extract returns.")
+            st.warning(f"⚠️ {name} ({tk}): no line above to extract.")
             continue
 
-        # d) Extract numbers from the line immediately above
         raw = num_rx.findall(lines[idx-1])
-
-        # e) If we got fewer than 8 tokens, also prepend the line two above
         if len(raw) < 8 and idx >= 2:
-            extra = num_rx.findall(lines[idx-2])
-            raw = extra + raw
+            raw = num_rx.findall(lines[idx-2]) + raw
 
-        # f) Clean up & pad to 9 tokens (we need at least 8)
-        clean = [n.strip("()%").rstrip("%") for n in raw] + [None]*9
+        clean = [n.strip("()%").rstrip("%") for n in raw] + [None]*10
 
-        # g) Map them:
-        #   0=QTD, 1=YTD, 2=1Yr, 3=3Yr, 4=5Yr, 5=10Yr, 6=SinceInception, 7=NetExpRatio, 8=GrossExpRatio
         item["QTD"]               = clean[0]
         item["1Yr"]               = clean[2]
         item["3Yr"]               = clean[3]
         item["5Yr"]               = clean[4]
         item["10Yr"]              = clean[5]
-        item["Net Expense Ratio"] = clean[7]
+        item["Net Expense Ratio"] = clean[-2]
 
         matched += 1
 
-    # 4) Save & display
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
 
     st.success(f"✅ Matched {matched} fund(s) with return data.")
     for itm in perf_data:
-        if any(itm[f] in (None, "") for f in fields):
+        if any(itm[f] in (None,"") for f in fields):
             st.warning(f"⚠️ Incomplete for {itm['Fund Scorecard Name']} ({itm['Ticker']})")
 
-    st.dataframe(
-        df[["Fund Scorecard Name", "Ticker"] + fields],
-        use_container_width=True
-    )
-
+    st.dataframe(df[["Fund Scorecard Name","Ticker"] + fields], use_container_width=True)
 
 # === Step 8: Match Tickers in “Calendar Year Performance” Section ===
 def step8_match_calendar_tickers(pdf):
