@@ -1065,7 +1065,7 @@ def step14_find_peer_risk_adjusted_return_rank(pdf):
     st.table(pd.DataFrame(rows))
 
 
-# === Step 14.5: Extract Peer Risk‑Adjusted Return Ranks (wrap‑aware) ===
+# === Step 14.5: Extract Peer Risk‑Adjusted Return Ranks (wrap‑aware + integer‑friendly) ===
 def step14_extract_peer_risk_adjusted_return_rank(pdf):
     import re
     import streamlit as st
@@ -1078,7 +1078,7 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         st.error("❌ No 'PEER RISK‑ADJUSTED RETURN RANK' headings found. Run Step 14 first.")
         return
 
-    # regex to catch integers or decimals
+    # match integers or decimals
     num_rx  = re.compile(r"-?\d+(?:\.\d+)?")
     metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
     records = []
@@ -1087,27 +1087,28 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         fund_name = h["Fund Name"]
         ticker    = h["Ticker"]
         page      = h["Page"]
-        start_idx = h["Line"]  # zero-based snippet starts at this index
+        # zero‑based index of the heading line
+        start_idx = h["Line"] - 1
 
         lines = (pdf.pages[page-1].extract_text() or "").splitlines()
-        rec   = {"Fund Name": fund_name, "Ticker": ticker}
+        rec = {"Fund Name": fund_name, "Ticker": ticker}
 
         for metric in metrics:
-            # find the line index where the metric appears
+            # look for the line where this metric appears
             metric_idx = next(
-                (i for i, ln in enumerate(lines[start_idx:], start=start_idx)
-                 if ln.strip().upper().startswith(metric.upper())),
+                (i for i in range(start_idx, len(lines))
+                 if lines[i].strip().upper().startswith(metric.upper())),
                 None
             )
             nums = []
             if metric_idx is not None:
-                # pull floats from this line + next two lines
-                for j in range(metric_idx, metric_idx + 3):
-                    if j < len(lines):
-                        nums.extend(num_rx.findall(lines[j]))
-                        if len(nums) >= 4:
-                            break
-            # pad & assign
+                # gather numbers from that line + up to 2 lines below
+                for j in range(metric_idx, min(metric_idx + 3, len(lines))):
+                    nums.extend(num_rx.findall(lines[j]))
+                    if len(nums) >= 4:
+                        break
+
+            # ensure exactly four slots
             nums += [None] * (4 - len(nums))
             rec[f"{metric} 1Yr"]  = nums[0]
             rec[f"{metric} 3Yr"]  = nums[1]
@@ -1123,7 +1124,6 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
     df = pd.DataFrame(records)
     st.session_state["step14_peer_rank_table"] = records
     st.dataframe(df, use_container_width=True)
-
 
 
 #-------------------------------------------------------------------------------------------
