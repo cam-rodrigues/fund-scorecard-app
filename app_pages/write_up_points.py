@@ -581,75 +581,96 @@ def step8_match_calendar_tickers(pdf):
     else:
         st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
-# === Step 8.5: Extract Calendar Year Returns from Those Locations ===
+# === Step 8.5: Extract Calendar Year Returns (word‑based) ===
 def step8_5_extract_calendar_returns(pdf):
     import re, pandas as pd, streamlit as st
+    from collections import defaultdict
 
     st.subheader("Step 8.5: Calendar Year Returns")
 
-    # 1) Load what Step 8 saved
-    locs = st.session_state.get("step8_locations", {})
-    tickers = st.session_state.get("step8_tickers", {})
-    start_page = st.session_state.get("step8_start_page")
-    if not (locs and tickers and start_page):
-        st.error("❌ Missing Step 8 results. Please run Step 8 first.")
+    # 1) Get your Step 8 results
+    tickers_map = st.session_state.get("step8_tickers", {})
+    start_page  = st.session_state.get("step8_start_page")
+    if not tickers_map or not start_page:
+        st.error("❌ No ticker mapping found. Please run **Step 8** first.")
         return
 
-    # 2) Pull lines of that section page for the header
-    header_lines = (pdf.pages[start_page-1].extract_text() or "").splitlines()
-    # find the header with "Ticker" + first year
-    header = next(
-        (ln for ln in header_lines if "Ticker" in ln and re.search(r"\b2015\b", ln)),
+    # 2) Load words from the section page
+    page = pdf.pages[start_page - 1]
+    words = page.extract_words(use_text_flow=True)
+
+    # 3) Cluster words into rows by their 'top' position
+    rows = defaultdict(list)
+    for w in words:
+        y = round(w["top"])
+        rows[y].append(w)
+
+    # 4) Find the header row (where 'Ticker' and '2015' both appear)
+    year_rx = re.compile(r"20(1[5-9]|2[0-4])")
+    header_y = next(
+        (y for y, grp in rows.items()
+         if any(w["text"] == "Ticker" for w in grp)
+         and any(year_rx.match(w["text"]) for w in grp)),
         None
     )
-    if not header:
-        st.error("❌ Could not find header row on page {start_page}.")
+    if header_y is None:
+        st.error("❌ Could not find header row with ‘Ticker’ and a year label.")
         return
 
-    parts = header.split()
-    # drop "Ticker"
-    years = parts[1:]
-    n = len(years)
+    # 5) Parse the list of years from that header row
+    header_row = sorted(rows[header_y], key=lambda w: w["x0"])
+    years      = [w["text"] for w in header_row if year_rx.match(w["text"])]
+    n_years    = len(years)
 
-    st.write("Detected header:", header)
+    st.write("Detected header:", " ".join(w["text"] for w in header_row))
     st.write("Parsed years:", years)
 
-    # 3) Build regex for numeric returns
-    float_rx = re.compile(r"^-?\d+\.\d+$")
+    # 6) Regex to match numeric returns, allowing a trailing '%'
+    num_rx = re.compile(r"^-?\d+\.\d+%?$")
 
-    # 4) Extract returns for each fund
+    # 7) For each fund, find its ticker word, then grab the next N words on that row
     results = []
-    for name, ticker in tickers.items():
-        info = locs[name]
-        lines = (pdf.pages[info["page"]-1].extract_text() or "").splitlines()
-        # safe guard line index
-        if info["line"] >= len(lines):
-            st.warning(f"⚠️ {name}: line index out of range on page {info['page']}.")
-            row = [None]*n
-        else:
-            line = lines[info["line"]]
-            cols = line.split()
-            if ticker not in cols:
-                st.warning(f"⚠️ {name}: ticker not found on its mapped line.")
-                row = [None]*n
-            else:
-                idx = cols.index(ticker)
-                raw = cols[idx+1: idx+1+n]
-                vals = [v for v in raw if float_rx.match(v)]
-                # pad/truncate
-                if len(vals) < n:
-                    vals += [None]*(n-len(vals))
-                row = vals[:n]
+    for fund_name, ticker in tickers_map.items():
+        ticker = ticker.upper()
 
-        results.append(
-            {"Fund Name": name, "Ticker": ticker, **{years[i]: row[i] for i in range(n)}}
+        # find the first word matching this ticker, below the header
+        candidate = next(
+            (w for w in words
+             if w["text"] == ticker and round(w["top"]) > header_y),
+            None
         )
+        if not candidate:
+            st.warning(f"❌ {fund_name} ({ticker}): ticker not found below header.")
+            row_vals = [None] * n_years
+        else:
+            y_f = round(candidate["top"])
+            line_words = sorted(rows[y_f], key=lambda w: w["x0"])
+            texts = [w["text"] for w in line_words]
 
-    # 5) Show DataFrame
+            # find the index of the ticker, then take the next n_years tokens
+            try:
+                idx = texts.index(ticker)
+                raw = texts[idx+1 : idx+1+n_years]
+            except ValueError:
+                raw = []
+
+            # filter only the numeric/percentage tokens
+            vals = [v.rstrip("%") for v in raw if num_rx.match(v)]
+            # pad/truncate
+            if len(vals) < n_years:
+                vals += [None] * (n_years - len(vals))
+            row_vals = vals[:n_years]
+
+        results.append({
+            "Fund Name": fund_name,
+            "Ticker":    ticker,
+            **{years[i]: row_vals[i] for i in range(n_years)}
+        })
+
+    # 8) Display
     df = pd.DataFrame(results)
     st.session_state["step8_returns"] = results
     st.dataframe(df)
-
 
 #-------------------------------------------------------------------------------------------
 
