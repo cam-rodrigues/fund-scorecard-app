@@ -701,23 +701,14 @@ def run():
         # Step 7
         with st.expander("Step 7: Extract Annualized Returns", expanded=False):
             step7_extract_returns(pdf)
-
-        # Step 8: Match Tickers in Calendar Year Section
+        
+        # Step 8: Match Tickers
         with st.expander("Step 8: Match Tickers in Calendar Year Section", expanded=False):
-            # Make sure you ran Step 5 so that st.session_state["tickers"] exists
-            if "tickers" in st.session_state:
-                step8_match_calendar_tickers(pdf)
-            else:
-                st.error("Missing ticker mapping (run Step 5 first).")
+            step8_match_calendar_tickers(pdf)
         
         # Step 8.5: Extract Calendar Year Returns
         with st.expander("Step 8.5: Extract Calendar Year Returns", expanded=False):
-            # We need step8_tickers in session_state before extracting returns
-            if "step8_tickers" in st.session_state:
-                step8_5_extract_calendar_returns(pdf)
-            else:
-                st.error("Missing matched tickers (run Step 8 first).")
-
+            step8_5_extract_calendar_returns(pdf)
 
 
 
