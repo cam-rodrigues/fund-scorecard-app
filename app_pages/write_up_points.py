@@ -889,7 +889,8 @@ def step11_create_summary(pdf=None):
 
 # === Step 12: Find only “FUND FACTS” Subheading ===
 def step12_find_fund_facts(pdf):
-    import re, streamlit as st, pandas as pd
+    import streamlit as st
+    import pandas as pd
 
     st.subheader("Step 12: Find 'FUND FACTS' Subheading")
 
@@ -899,7 +900,7 @@ def step12_find_fund_facts(pdf):
         st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
-    # map each factsheet‐header page to its fund name & ticker
+    # build page → (Fund Name, Ticker) map
     page_map = {
         f["Page #"]: (f["Matched Fund Name"], f["Matched Ticker"])
         for f in factsheets
@@ -908,23 +909,19 @@ def step12_find_fund_facts(pdf):
     rows = []
     for pnum in range(fs_start, len(pdf.pages) + 1):
         text = pdf.pages[pnum-1].extract_text() or ""
-        for idx, line in enumerate(text.splitlines()):
-            # only consider lines on pages we know are fund sheets
-            if pnum not in page_map:
-                continue
-            fund_name, ticker = page_map[pnum]
+        lines = text.splitlines()
+        fund_name, ticker = page_map.get(pnum, ("<unknown>", ""))
 
-            # normalize: replace NBSP, strip out non‑letters/spaces, collapse, uppercase
-            ln = line.replace('\xa0', ' ')
-            norm = re.sub(r'[^A-Za-z ]+', ' ', ln).strip().upper()
-
-            if norm == "FUND FACTS":
+        for idx, line in enumerate(lines):
+            up = line.lstrip().upper()
+            if up.startswith("FUND FACTS"):
+                # record only the substring "FUND FACTS"
                 rows.append({
                     "Fund Name": fund_name,
                     "Ticker":    ticker,
                     "Page":      pnum,
                     "Line":      idx + 1,
-                    "Text":      line.strip()
+                    "Text":      "FUND FACTS"
                 })
 
     if not rows:
@@ -933,7 +930,6 @@ def step12_find_fund_facts(pdf):
 
     st.session_state["step12_fund_facts"] = rows
     st.table(pd.DataFrame(rows))
-
 
 
 #-------------------------------------------------------------------------------------------
