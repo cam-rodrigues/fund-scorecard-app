@@ -1070,40 +1070,43 @@ def step14_find_peer_risk_adjusted_return_rank(pdf):
         st.table(pd.DataFrame(rows))
 
 
-# === Step 14.5: Extract Peer Risk‑Adjusted Return Ranks (full‑page scan) ===
+# === Step 14.5: Extract Peer Risk‑Adjusted Return Rank Metrics ===
 def step14_extract_peer_risk_adjusted_return_rank(pdf):
     import re
     import streamlit as st
     import pandas as pd
 
-    st.subheader("Step 14.5: Extract Peer Risk‑Adjusted Return Ranks")
+    st.subheader("Step 14.5: Extract Peer Risk‑Adjusted Return Rank Metrics")
 
+    # 1) Load the clean headings from Step 14
     headings = st.session_state.get("step14_peer_rank_headings", [])
     if not headings:
-        st.error("❌ No headings from Step 14. Run Step 14 first.")
+        st.error("❌ No 'PEER RISK‑ADJUSTED RETURN RANK' headings found. Run Step 14 first.")
         return
 
-    # regex matching integers or decimals
+    # 2) Regex to capture integers or decimals
     num_rx  = re.compile(r"-?\d+\.?\d*")
     metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
     records = []
 
+    # 3) For each fund heading, scan all lines below it for each metric
     for h in headings:
         fund   = h["Fund Name"]
         ticker = h["Ticker"]
-        page   = h["Page"] - 1
-        line0  = h["Line"]     # 1-based of heading
+        page_i = h["Page"] - 1
+        start  = h["Line"]      # 1‑based index of heading line
 
-        # pull every line below the heading
-        lines_after = (pdf.pages[page].extract_text() or "").splitlines()[line0:]
+        # pull every line after the heading on that page
+        all_lines   = (pdf.pages[page_i].extract_text() or "").splitlines()
+        lines_after = all_lines[start:]
 
         rec = {"Fund Name": fund, "Ticker": ticker}
         for metric in metrics:
             # find the first line containing the metric name
-            text_line = next((ln for ln in lines_after if metric.upper() in ln.upper()), "")
-            nums = num_rx.findall(text_line)
-            # pad to exactly 4 values
-            nums += [None] * (4 - len(nums))
+            line_val = next((ln for ln in lines_after if metric.upper() in ln.upper()), "")
+            # extract up to 4 numeric tokens (ints or decimals)
+            nums = num_rx.findall(line_val)
+            nums += [None] * (4 - len(nums))  # pad to 4 values
             rec[f"{metric} 1Yr"]  = nums[0]
             rec[f"{metric} 3Yr"]  = nums[1]
             rec[f"{metric} 5Yr"]  = nums[2]
@@ -1111,14 +1114,13 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
 
         records.append(rec)
 
+    # 4) Display
     if not records:
-        st.warning("⚠️ Peer‑rank data extraction yielded no rows.")
-        return
-
-    df = pd.DataFrame(records)
-    st.session_state["step14_peer_rank_table"] = records
-    st.dataframe(df, use_container_width=True)
-
+        st.warning("⚠️ No Peer Risk‑Adjusted Return Rank data extracted.")
+    else:
+        df = pd.DataFrame(records)
+        st.session_state["step14_peer_rank_table"] = records
+        st.dataframe(df, use_container_width=True)
 
 #-------------------------------------------------------------------------------------------
 
