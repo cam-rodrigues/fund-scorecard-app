@@ -516,7 +516,7 @@ def step7_extract_returns(pdf):
     st.dataframe(df[display_cols], use_container_width=True)
 
 # === Step 8a: Match Saved Tickers & Fund Names in the Calendar Year Section ===
-def step8a_match_saved_funds(pdf):
+def step8_extract_annualized_returns(pdf):
     import re
     import pandas as pd
 
