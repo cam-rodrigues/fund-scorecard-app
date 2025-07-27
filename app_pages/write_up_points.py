@@ -804,50 +804,54 @@ def step10_match_risk_tickers(pdf):
         st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
 
-# === Step 10.5: Extract 5‑Yr MPT Statistics ===
+# === Step 10.5: Extract 5‑Yr MPT Statistics with Wrap‑Aware Parsing ===
 def step10_extract_mpt_statistics(pdf):
-    import re
-    import pandas as pd
-    import streamlit as st
+    import re, pandas as pd, streamlit as st
 
     st.subheader("Step 10.5: Extract MPT Statistics (5Yr)")
 
+    # 1) Load Step 10 mapping & locations
     tickers = st.session_state.get("step10_tickers", {})
     locs     = st.session_state.get("step10_locations", {})
-    start_pg = st.session_state.get("step10_start_page")
-    if not tickers or not locs or not start_pg:
-        st.error("❌ Missing Step 10 mapping. Run Step 10 first.")
+    if not tickers or not locs:
+        st.error("❌ Missing Step 10 data. Run Step 10 first.")
         return
 
-    # regex to grab floats
+    # 2) Regex for floats (no parentheses)
     num_rx = re.compile(r"-?\d+\.\d+")
 
     results = []
     for name, tk in tickers.items():
-        info = locs.get(name)
-        if not info:
-            continue
-
-        # pull the exact line where the ticker lives
+        info = locs[name]
         page = pdf.pages[info["page"] - 1]
         lines = (page.extract_text() or "").splitlines()
-        idx = info["line"]
-        ln  = lines[idx] if 0 <= idx < len(lines) else ""
 
-        # extract the first four floats
-        nums = num_rx.findall(ln)
-        nums += [None] * (4 - len(nums))
-        alpha, beta, up, down = nums[:4]
+        # 3) Find the line index containing the ticker
+        idx = next((i for i, ln in enumerate(lines) if tk in ln), None)
+        if idx is None:
+            st.warning(f"⚠️ {name} ({tk}): ticker line not found on page {info['page']}.")
+            vals = [None]*4
+        else:
+            # 4) Accumulate numeric tokens from this line + next up to 2 lines
+            nums = []
+            for j in range(idx, min(idx + 3, len(lines))):
+                nums += num_rx.findall(lines[j])
+                if len(nums) >= 4:
+                    break
+            nums += [None] * (4 - len(nums))
+            alpha, beta, up, down = nums[:4]
+            vals = [alpha, beta, up, down]
 
         results.append({
             "Fund Name":               name,
-            "Ticker":                  tk.upper(),
-            "5 Year Alpha":            alpha,
-            "5 Year Beta":             beta,
-            "5 Year Upside Capture":   up,
-            "5 Year Downside Capture": down
+            "Ticker":                  tk,
+            "5 Year Alpha":            vals[0],
+            "5 Year Beta":             vals[1],
+            "5 Year Upside Capture":   vals[2],
+            "5 Year Downside Capture": vals[3],
         })
 
+    # 5) Display
     df = pd.DataFrame(results)
     st.session_state["step10_mpt_stats"] = results
     st.dataframe(df)
