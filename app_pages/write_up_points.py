@@ -1020,6 +1020,54 @@ def step13_process_risk_adjusted_returns(pdf):
     df = pd.DataFrame(records)
     st.dataframe(df, use_container_width=True)
 
+# === Step 14: Find only “PEER RISK‑ADJUSTED RETURN RANK” Subheading ===
+def step14_find_peer_risk_return_rank(pdf):
+    import streamlit as st
+    import pandas as pd
+
+    st.subheader("Step 14: Find 'PEER RISK‑ADJUSTED RETURN RANK' Subheading")
+
+    fs_start   = st.session_state.get("factsheets_page")
+    factsheets = st.session_state.get("fund_factsheets_data", [])
+    if not fs_start or not factsheets:
+        st.error("❌ Run Step 6 first to populate your factsheet pages.")
+        return
+
+    # map each factsheet page → (Fund Name, Ticker)
+    page_map = {
+        f["Page #"]: (f["Matched Fund Name"], f["Matched Ticker"])
+        for f in factsheets
+    }
+
+    rows = []
+    # scan through each factsheet page
+    for pnum in range(fs_start, len(pdf.pages) + 1):
+        if pnum not in page_map:
+            continue
+        fund_name, ticker = page_map[pnum]
+        text  = pdf.pages[pnum-1].extract_text() or ""
+        lines = text.splitlines()
+
+        for idx, line in enumerate(lines):
+            # normalize whitespace + uppercase for matching
+            norm = " ".join(line.strip().split()).upper()
+            if norm.startswith("PEER RISK-ADJUSTED RETURN RANK"):
+                # record only the subheading text
+                rows.append({
+                    "Fund Name": fund_name,
+                    "Ticker":    ticker,
+                    "Page":      pnum,
+                    "Line":      idx + 1,
+                    "Text":      "PEER RISK-ADJUSTED RETURN RANK"
+                })
+                break  # move to next page once found
+
+    if not rows:
+        st.warning("No 'PEER RISK‑ADJUSTED RETURN RANK' heading found in your factsheets.")
+        return
+
+    st.session_state["step14_peer_rank_headings"] = rows
+    st.table(pd.DataFrame(rows))
 
 #-------------------------------------------------------------------------------------------
 
@@ -1108,7 +1156,9 @@ def run():
         with st.expander("Step 13: Find 'RISK‑ADJUSTED RETURNS' Subheading", expanded=False):
             step13_process_risk_adjusted_returns(pdf)
 
-
+        # Step 14: Peer Risk-Adjusted Return Rank
+        with st.expander("Step 14: Find 'PEER RISK‑ADJUSTED RETURN RANK' Subheading", expanded=False):
+            step14_find_peer_risk_return_rank(pdf)
 
 if __name__ == "__main__":
     run()
