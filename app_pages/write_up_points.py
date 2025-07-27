@@ -410,68 +410,67 @@ def step7_extract_returns(pdf):
 
     st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns")
 
-    perf_page = st.session_state.get("performance_page")
-    end_page  = st.session_state.get("calendar_year_page") or (len(pdf.pages) + 1)
+    # --- pull your Step 5 results ---
     perf_data = st.session_state.get("fund_performance_data", [])
+    perf_page = st.session_state.get("performance_page")
     if perf_page is None or not perf_data:
         st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    # 1) Prepare output fields
+    # --- prepare five empty slots per fund ---
     fields = ["QTD","1Yr","3Yr","5Yr","10Yr"]
     for item in perf_data:
         for f in fields:
             item.setdefault(f, None)
 
-    # 2) Scan _all_ pages in the Perf section
+    # --- gather all lines in the “Current vs.” section (multi‐page) ---
+    end_page = st.session_state.get("calendar_year_page") or (len(pdf.pages)+1)
     lines = []
-    for pnum in range(perf_page - 1, end_page - 1):
+    for pnum in range(perf_page-1, end_page-1):
         txt = pdf.pages[pnum].extract_text() or ""
-        # strip out blank lines
+        if "Fund Performance: Current vs." not in txt:
+            # still include it—don’t break, because the header only on first page
+            pass
         lines += [l.strip() for l in txt.splitlines() if l.strip()]
 
-    # 3) Float‐matching regex
+    # --- float regex (ignore integer ranks in parens) ---
     num_rx = re.compile(r"-?\d+\.\d+")
 
     matched = 0
-    # 4) For each fund, find its ticker line (any page) & pull 6 numbers from that line + next 2
+    # --- for each fund from Step 5, find its ticker‐line and pull its six numbers ---
     for item in perf_data:
-        ticker = item["Ticker"].upper()
-        idx = next(
-            (i for i, ln in enumerate(lines)
-             if re.search(rf"\b{re.escape(ticker)}\b", ln)),
-            None
+        tk = item["Ticker"].upper()
+        # find the very first line containing that exact ticker
+        fund_line = next(
+            (ln for ln in lines if re.search(rf"\b{re.escape(tk)}\b", ln)),
+            ""
         )
-        if idx is None:
-            st.warning(f"⚠️ {item['Fund Scorecard Name']} ({ticker}): ticker line not found.")
+        if not fund_line:
+            st.warning(f"⚠️ {item['Fund Scorecard Name']} ({tk}): ticker line not found.")
             continue
 
-        # gather up to 6 numbers across this line and the next two
-        nums = []
-        for j in range(idx, min(idx + 3, len(lines))):
-            nums += num_rx.findall(lines[j])
-            if len(nums) >= 6:
-                break
+        # extract exactly six decimal tokens: QTD, YTD, 1Yr, 3Yr, 5Yr, 10Yr
+        nums = num_rx.findall(fund_line)
         nums += [None] * (6 - len(nums))
+        QTD, YTD, one, three, five, ten = nums[:6]
 
-        # unpack: 0=QTD,1=YTD,2=1Yr,3=3Yr,4=5Yr,5=10Yr
-        QTD, _, one, three, five, ten = nums[:6]
+        # store only the five you care about
         item["QTD"]   = QTD
-        item["1Yr"]  = one
-        item["3Yr"]  = three
-        item["5Yr"]  = five
-        item["10Yr"] = ten
+        item["1Yr"]   = one
+        item["3Yr"]   = three
+        item["5Yr"]   = five
+        item["10Yr"]  = ten
 
         matched += 1
 
-    # 5) Save & display
+    # --- write back & render ---
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
 
     st.success(f"✅ Matched {matched} fund(s) with return data.")
-    for itm in perf_data:
-        if any(itm[f] in (None, "") for f in fields):
-            st.warning(f"⚠️ Incomplete returns for {itm['Fund Scorecard Name']} ({itm['Ticker']})")
+    for it in perf_data:
+        if any(it[f] in (None, "") for f in fields):
+            st.warning(f"⚠️ Incomplete returns for {it['Fund Scorecard Name']} ({it['Ticker']})")
 
     st.dataframe(
         df[["Fund Scorecard Name","Ticker"] + fields],
