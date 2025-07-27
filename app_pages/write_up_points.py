@@ -1070,70 +1070,93 @@ def step14_find_peer_risk_adjusted_return_rank(pdf):
         st.table(pd.DataFrame(rows))
 
 
-# === Step 14.5: Extract Peer Risk‑Adjusted Return Rank Metrics (two‐line aware) ===
+# === Step 14: Find & Extract “PEER RISK‑ADJUSTED RETURN RANK” ===
 def step14_extract_peer_risk_adjusted_return_rank(pdf):
     import re
     import streamlit as st
     import pandas as pd
 
-    st.subheader("Step 14.5: Extract Peer Risk‑Adjusted Return Rank Metrics")
+    st.subheader("Step 14: Peer Risk‑Adjusted Return Rank")
 
-    headings = st.session_state.get("step14_peer_rank_headings", [])
-    if not headings:
-        st.error("❌ No 'PEER RISK‑ADJUSTED RETURN RANK' headings found. Run Step 14 first.")
+    # 1) Locate all the heading positions
+    fs_start   = st.session_state.get("factsheets_page")
+    factsheets = st.session_state.get("fund_factsheets_data", [])
+    if not fs_start or not factsheets:
+        st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
-    # match integers or decimals
+    # build page→(name,ticker) map
+    page_map = {f["Page #"]:(f["Matched Fund Name"],f["Matched Ticker"])
+                for f in factsheets}
+
+    headings = []
+    for pnum in range(fs_start, len(pdf.pages)+1):
+        if pnum not in page_map:
+            continue
+        text = pdf.pages[pnum-1].extract_text() or ""
+        # normalize any en/em dashes to ASCII hyphen
+        text = text.replace("–","-").replace("—","-")
+        for idx, ln in enumerate(text.splitlines()):
+            if "PEER RISK-ADJUSTED RETURN RANK" in ln.upper():
+                name, tk = page_map[pnum]
+                headings.append({
+                    "Fund Name": name,
+                    "Ticker":    tk,
+                    "Page":      pnum,
+                    "Line":      idx+1
+                })
+                break
+
+    if not headings:
+        st.warning("❌ No 'PEER RISK‑ADJUSTED RETURN RANK' headings found.")
+        return
+
+    # 2) Now extract the three rows beneath each heading
     num_rx  = re.compile(r"-?\d+\.?\d*")
-    metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
+    metrics = ["SHARPE RATIO", "INFORMATION RATIO", "SORTINO RATIO"]
     records = []
 
     for h in headings:
-        fund   = h["Fund Name"]
-        ticker = h["Ticker"]
-        page_i = h["Page"] - 1
-        start  = h["Line"]      # 1‑based index of the heading
+        name, tk, pg, ln0 = h["Fund Name"], h["Ticker"], h["Page"]-1, h["Line"]-1
+        all_lines = (pdf.pages[pg].extract_text() or "").replace("–","-").splitlines()
+        # focus on the next, say, 8 lines
+        snippet = all_lines[ln0+1 : ln0+9]
 
-        # all lines below the heading
-        all_lines   = (pdf.pages[page_i].extract_text() or "").splitlines()
-        lines_after = all_lines[start:]  
-
-        rec = {"Fund Name": fund, "Ticker": ticker}
+        rec = {"Fund Name": name, "Ticker": tk}
         for metric in metrics:
-            found_text = ""
-            # scan single lines
-            for ln in lines_after:
-                if metric.upper() in ln.upper():
-                    found_text = ln
+            found = ""
+            # try single-line match
+            for ln in snippet:
+                if metric in ln.upper():
+                    found = ln
                     break
-            # if not found in a single line, try paired lines
-            if not found_text:
-                for i in range(len(lines_after)-1):
-                    combo = lines_after[i] + " " + lines_after[i+1]
-                    if metric.upper() in combo.upper():
-                        found_text = combo
+            # if not found, try two-line concatenation
+            if not found:
+                for i in range(len(snippet)-1):
+                    combo = snippet[i] + " " + snippet[i+1]
+                    if metric in combo.upper():
+                        found = combo
                         break
 
-            # extract up to 4 numeric tokens (integers or decimals)
-            nums = num_rx.findall(found_text or "")
-            nums += [None] * (4 - len(nums))
-            rec[f"{metric} 1Yr"]  = nums[0]
-            rec[f"{metric} 3Yr"]  = nums[1]
-            rec[f"{metric} 5Yr"]  = nums[2]
-            rec[f"{metric} 10Yr"] = nums[3]
+            if not found:
+                st.warning(f"⚠️ {name} ({tk}): '{metric}' not found.")
+                vals = [None]*4
+            else:
+                vals = num_rx.findall(found)
+                # pad to 4
+                vals += [None]*(4-len(vals))
 
-            if not found_text:
-                st.warning(f"⚠️ {fund} ({ticker}): '{metric}' line not found.")
+            rec[f"{metric} 1Yr"]  = vals[0]
+            rec[f"{metric} 3Yr"]  = vals[1]
+            rec[f"{metric} 5Yr"]  = vals[2]
+            rec[f"{metric} 10Yr"] = vals[3]
 
         records.append(rec)
-
-    if not records:
-        st.warning("⚠️ No peer‑rank data extracted.")
-        return
 
     df = pd.DataFrame(records)
     st.session_state["step14_peer_rank_table"] = records
     st.dataframe(df, use_container_width=True)
+
 
 
 #-------------------------------------------------------------------------------------------
