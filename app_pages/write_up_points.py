@@ -889,6 +889,7 @@ def step11_create_summary(pdf=None):
 
 # === Step 12: Find only “FUND FACTS” Subheading ===
 def step12_find_fund_facts(pdf):
+    import re
     import streamlit as st
     import pandas as pd
 
@@ -906,6 +907,9 @@ def step12_find_fund_facts(pdf):
         for f in factsheets
     }
 
+    # regex: starts with FUND FACTS, word‐boundary, not followed by whitespace+digit
+    pat = re.compile(r"^\s*FUND\s+FACTS\b(?!\s*\d)", re.IGNORECASE)
+
     rows = []
     for pnum in range(fs_start, len(pdf.pages) + 1):
         text  = pdf.pages[pnum-1].extract_text() or ""
@@ -913,18 +917,14 @@ def step12_find_fund_facts(pdf):
         fund_name, ticker = page_map.get(pnum, ("<unknown>", ""))
 
         for idx, line in enumerate(lines):
-            up = line.strip().upper()
-            if up.startswith("FUND FACTS"):
-                rest = up[len("FUND FACTS"):].strip()
-                # only accept if nothing follows, or if it doesn't start with a digit
-                if not rest or not rest[0].isdigit():
-                    rows.append({
-                        "Fund Name": fund_name,
-                        "Ticker":    ticker,
-                        "Page":      pnum,
-                        "Line":      idx + 1,
-                        "Text":      line.strip()
-                    })
+            if pat.match(line):
+                rows.append({
+                    "Fund Name": fund_name,
+                    "Ticker":    ticker,
+                    "Page":      pnum,
+                    "Line":      idx + 1,
+                    "Text":      line.strip()
+                })
 
     if not rows:
         st.warning("No 'FUND FACTS' heading found in your factsheets.")
@@ -932,7 +932,6 @@ def step12_find_fund_facts(pdf):
 
     st.session_state["step12_fund_facts"] = rows
     st.table(pd.DataFrame(rows))
-
 
 
 #-------------------------------------------------------------------------------------------
