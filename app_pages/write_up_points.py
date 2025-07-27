@@ -1062,7 +1062,7 @@ def step14_find_peer_risk_adjusted_return_rank(pdf):
     st.table(pd.DataFrame(headings))
 
 
-# === Step 14.5: Extract Peer Risk‑Adjusted Return Ranks ===
+# === Step 14.5: Extract Peer Risk‑Adjusted Return Ranks (full‑page scan) ===
 def step14_extract_peer_risk_adjusted_return_rank(pdf):
     import re
     import streamlit as st
@@ -1072,11 +1072,11 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
 
     headings = st.session_state.get("step14_peer_rank_headings", [])
     if not headings:
-        st.error("❌ No headings from Step 14. Run Step 14 first.")
+        st.error("❌ No ‘PEER RISK‑ADJUSTED RETURN RANK’ headings found. Run Step 14 first.")
         return
 
-    # match ints or floats
-    num_rx  = re.compile(r"-?\d+\.?\d*")
+    # match integers or decimals
+    num_rx  = re.compile(r"-?\d+(?:\.\d+)?")
     metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
     records = []
 
@@ -1084,35 +1084,36 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         fund   = h["Fund Name"]
         ticker = h["Ticker"]
         page   = h["Page"] - 1
-        start  = h["Line"]      # zero-based snippet start
+        start  = h["Line"]       # 1‑based index of the heading line
 
+        # pull every line on that page after the heading
         all_lines = (pdf.pages[page].extract_text() or "").splitlines()
-        snippet   = all_lines[start : start + 6]  # grab next 6 lines
+        lines_after = all_lines[start:]  # from immediately below the heading
 
         rec = {"Fund Name": fund, "Ticker": ticker}
         for metric in metrics:
-            # find any line containing the metric
-            line_val = next(
-                (ln for ln in snippet if metric.upper() in ln.upper()),
-                ""
-            )
-            # extract up to 4 numeric tokens
-            nums = num_rx.findall(line_val)
+            found = None
+            for ln in lines_after:
+                if metric.upper() in ln.upper():
+                    found = ln
+                    break
+            # extract up to 4 numbers (integer or decimal)
+            nums = num_rx.findall(found or "")
             nums += [None] * (4 - len(nums))
             rec[f"{metric} 1Yr"]  = nums[0]
             rec[f"{metric} 3Yr"]  = nums[1]
             rec[f"{metric} 5Yr"]  = nums[2]
             rec[f"{metric} 10Yr"] = nums[3]
-
         records.append(rec)
 
     if not records:
-        st.warning("No Peer Risk‑Adjusted Return Rank data extracted.")
+        st.warning("No peer‑rank data extracted.")
         return
 
     df = pd.DataFrame(records)
     st.session_state["step14_peer_rank_table"] = records
     st.dataframe(df, use_container_width=True)
+
 
 #-------------------------------------------------------------------------------------------
 
