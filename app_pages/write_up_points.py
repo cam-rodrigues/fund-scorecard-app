@@ -1067,7 +1067,7 @@ def step14_find_peer_risk_adjusted_return_rank(pdf):
     st.table(pd.DataFrame(rows))
 
 
-# === Step 14.5: Extract Peer Risk‑Adjusted Return Ranks ===
+# === Step 14.5: Extract Peer Risk‑Adjusted Return Ranks (1Yr,3Yr,5Yr,10Yr) ===
 def step14_extract_peer_risk_adjusted_return_rank(pdf):
     import re
     import streamlit as st
@@ -1077,11 +1077,11 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
 
     headings = st.session_state.get("step14_peer_rank_headings", [])
     if not headings:
-        st.error("❌ No headings found. Run Step 14 first.")
+        st.error("❌ No 'PEER RISK‑ADJUSTED RETURN RANK' headings found. Run Step 14 first.")
         return
 
-    # float‐regex (handles negatives, decimals)
-    num_rx  = re.compile(r"-?\d+\.\d+")
+    # regex to catch integers or decimals
+    num_rx = re.compile(r"-?\d+(?:\.\d+)?")
     metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
     records = []
 
@@ -1089,31 +1089,32 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         fund_name = h["Fund Name"]
         ticker    = h["Ticker"]
         page      = h["Page"]
-        idx       = h["Line"] - 1
+        idx       = h["Line"] - 1  # zero‑based index
 
-        # pull a handful of lines under the heading (6 should cover 3 rows + buffer)
-        lines   = (pdf.pages[page-1].extract_text() or "").splitlines()
-        snippet = lines[idx+1 : idx+1+8]
+        # grab a handful of lines under the heading
+        text_lines = (pdf.pages[page-1].extract_text() or "").splitlines()
+        snippet    = text_lines[idx+1 : idx+1+6]
 
         rec = {"Fund Name": fund_name, "Ticker": ticker}
-        for m in metrics:
-            # find any snippet line containing the metric name
+
+        for metric in metrics:
+            # find the snippet line starting with this metric
             line_val = next(
                 (
                     " ".join(ln.strip().split())
                     for ln in snippet
-                    if m.upper() in ln.strip().upper()
+                    if ln.strip().upper().startswith(metric.upper())
                 ),
                 ""
             )
-            # grab up to 4 floats
+            # extract up to 4 numbers
             nums = num_rx.findall(line_val)
             nums += [None] * (4 - len(nums))
 
-            rec[f"{m} 1Yr"]  = nums[0]
-            rec[f"{m} 3Yr"]  = nums[1]
-            rec[f"{m} 5Yr"]  = nums[2]
-            rec[f"{m} 10Yr"] = nums[3]
+            rec[f"{metric} 1Yr"]  = nums[0]
+            rec[f"{metric} 3Yr"]  = nums[1]
+            rec[f"{metric} 5Yr"]  = nums[2]
+            rec[f"{metric} 10Yr"] = nums[3]
 
         records.append(rec)
 
@@ -1121,8 +1122,9 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         st.warning("No Peer Risk‑Adjusted Return Rank data extracted.")
         return
 
+    df = pd.DataFrame(records)
     st.session_state["step14_peer_rank_table"] = records
-    st.dataframe(pd.DataFrame(records), use_container_width=True)
+    st.dataframe(df, use_container_width=True)
 
 
 #-------------------------------------------------------------------------------------------
