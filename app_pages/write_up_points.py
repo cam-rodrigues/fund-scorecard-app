@@ -404,7 +404,7 @@ def step6_process_factsheets(pdf, fund_names):
             st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
 
-# === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns (fund only) ===
+# === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns (fund only) ===
 def step7_extract_returns(pdf):
     import re, pandas as pd, streamlit as st
 
@@ -416,63 +416,57 @@ def step7_extract_returns(pdf):
         st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    # 1) Ensure each item has slots for the five return fields
+    # 1) Prepare the five return slots
     return_fields = ["QTD", "1Yr", "3Yr", "5Yr", "10Yr"]
     for item in perf_data:
         for f in return_fields:
             item.setdefault(f, None)
 
-    # 2) Gather only the Fund Performance section lines
+    # 2) Collect only the Fund Performance section
     lines = []
     for p in pdf.pages[perf_page - 1 :]:
-        text = p.extract_text() or ""
-        if "Fund Performance: Current vs." not in text:
+        txt = p.extract_text() or ""
+        if "Fund Performance: Current vs." not in txt:
             break
-        lines += [l.strip() for l in text.splitlines() if l.strip()]
+        lines += [l.strip() for l in txt.splitlines() if l.strip()]
 
-    # 3) Regex to grab numeric tokens (allowing parentheses and %)
+    # 3) Regex to find numeric tokens (allow parentheses & %)
     num_rx = re.compile(r"\(?-?\d+\.\d+%?\)?")
 
     matched = 0
-    # 4) For each fund, find its ticker‑line, then read the line above for its returns
+    # 4) Loop through each fund, locate its ticker, then read the line above
     for item in perf_data:
         tk = item["Ticker"].upper()
-        # locate the index of the line that contains exactly that ticker
+        # find index where the line contains exactly the ticker token
         idx = next((i for i, ln in enumerate(lines) if tk in ln.split()), None)
         if idx is None or idx == 0:
             st.warning(f"⚠️ {item['Fund Scorecard Name']} ({tk}): ticker line not found.")
             continue
 
-        fund_line = lines[idx - 1]  # returns are on the line above
-        nums = num_rx.findall(fund_line)
-        # clean out parentheses/percent signs
-        clean = [t.strip("()%").rstrip("%") for t in nums]
-        # pad to ensure 5 values
-        clean += [None] * (5 - len(clean))
+        # extract that fund’s returns from the line above
+        fund_line = lines[idx - 1]
+        raw_nums  = num_rx.findall(fund_line)
+        # clean out parens/% and pad to five
+        clean = [n.strip("()%").rstrip("%") for n in raw_nums] + [None]*5
 
-        # assign into the item
+        # assign back into your data
         item["QTD"], item["1Yr"], item["3Yr"], item["5Yr"], item["10Yr"] = clean[:5]
         matched += 1
 
-    # 5) Save back & display
+    # 5) Save & render
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
 
     st.success(f"✅ Matched {matched} fund(s) with return data.")
-    # warn if any still missing
     for item in perf_data:
-        if any(item[f] in [None, ""] for f in return_fields):
+        if any(item[f] in (None, "") for f in return_fields):
             st.warning(f"⚠️ Incomplete returns for: {item['Fund Scorecard Name']} ({item['Ticker']})")
 
-    # 6) Show only the fund returns columns
     st.dataframe(
         df[["Fund Scorecard Name", "Ticker"] + return_fields],
         use_container_width=True
     )
 
-
-# === Step 8a: Match Saved Tickers & Fund Names in the Calendar Year Section ===
-# Mirrors Step 5’s approach but targets the Calendar Year Performance section.
 # === Step 8: Match Tickers in “Calendar Year Performance” Section ===
 def step8_match_calendar_tickers(pdf):
     import re, streamlit as st
