@@ -700,58 +700,50 @@ def step9_match_risk_tickers(pdf):
         st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
 
-# === Step 9.5: Extract 3‑Yr MPT Statistics ===
-def step9_extract_mpt_statistics(pdf):
+# === Step 9.5: Extract 3‑Yr MPT Statistics (Alpha, Beta, Up Mkt, Down Mkt) ===
+def step9_5_extract_mpt_statistics(pdf):
     import re, pandas as pd, streamlit as st
 
     st.subheader("Step 9.5: Extract MPT Statistics (3Yr)")
 
+    # 1) Load the mapping & locations from Step 9
     tickers = st.session_state.get("step9_tickers", {})
-    start_pg = st.session_state.get("step9_start_page")
-    if not tickers or not start_pg:
-        st.error("❌ Missing Step 9 mapping. Run Step 9 first.")
+    locs    = st.session_state.get("step9_locations", {})
+    if not tickers or not locs:
+        st.error("❌ Missing Step 9 data. Run Step 9 first.")
         return
 
-    # 1) pull the first table on the risk page
-    table = pdf.pages[start_pg-1].extract_table() or []
-    if not table:
-        st.error(f"❌ No table found on page {start_pg}.")
-        return
+    # 2) Regex to grab floats (no parentheses here)
+    num_rx = re.compile(r"-?\d+\.\d+")
 
-    # 2) detect the header row by looking for “Sharpe”
-    header_row = next(
-        (r for r in table if any(cell and "Sharpe" in str(cell) for cell in r)),
-        None
-    )
-    if not header_row:
-        st.error("❌ Could not locate header row (looking for ‘Sharpe’).")
-        return
-
-    # 3) metric names are everything after the first two columns
-    metrics = header_row[2:]
-
-    # 4) for each fund, find its row & pull out those metric cells
     results = []
-    for name, tk in tickers.items():
-        ticker = tk.upper()
-        row = next(
-            (r for r in table if any(str(c).strip().upper() == ticker for c in r)),
-            None
-        )
-        if row:
-            vals = row[2:2 + len(metrics)]
-        else:
-            st.warning(f"⚠️ {name} ({ticker}): not found in MPT table.")
-            vals = [None] * len(metrics)
+    for name, ticker in tickers.items():
+        info = locs.get(name)
+        if not info:
+            continue
+        page = pdf.pages[info["page"] - 1]
+        lines = (page.extract_text() or "").splitlines()
+        line = lines[info["line"]] if info["line"] < len(lines) else ""
 
-        entry = {"Fund Name": name, "Ticker": ticker}
-        entry.update({metrics[i]: vals[i] for i in range(len(metrics))})
-        results.append(entry)
+        # 3) Pull the first four numeric tokens from that line
+        nums = num_rx.findall(line)
+        vals = nums[:4] + [None]*4
+        alpha, beta, up_mkt, down_mkt = vals[:4]
 
-    # 5) show final DataFrame
+        results.append({
+            "Fund Name":    name,
+            "Ticker":       ticker.upper(),
+            "Alpha (3Yr)":  alpha,
+            "Beta (3Yr)":   beta,
+            "Up Mkt (3Yr)": up_mkt,
+            "Down Mkt (3Yr)": down_mkt
+        })
+
+    # 4) Render
     df = pd.DataFrame(results)
     st.session_state["step9_mpt_stats"] = results
     st.dataframe(df)
+
 
 #-------------------------------------------------------------------------------------------
 
