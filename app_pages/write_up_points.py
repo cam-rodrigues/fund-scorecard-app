@@ -565,7 +565,7 @@ def step8_match_calendar_tickers(pdf):
     else:
         st.error(f"❌ Missing {total - found_count} ticker(s).")
 
-# === Step 8.5: Extract Calendar Year Performance ===
+# === Step 8.5: Extract Calendar Year Returns (using only Step 8 mapping) ===
 def step8_5_extract_calendar_returns(pdf):
     import re
     import pandas as pd
@@ -573,10 +573,10 @@ def step8_5_extract_calendar_returns(pdf):
 
     st.subheader("Step 8.5: Calendar Year Returns")
 
-    # 1) Grab the ticker → name mapping you built in Step 8
-    mapping = st.session_state.get("step8_tickers")
+    # 1) Load the ticker→name mapping from Step 8
+    mapping = st.session_state.get("step8_tickers", {})
     if not mapping:
-        st.error("❌ No ticker mapping found. Run **Step 8** first.")
+        st.error("❌ No ticker mapping found. Please run **Step 8** first.")
         return
 
     # 2) Pull every line of text from the document
@@ -585,67 +585,52 @@ def step8_5_extract_calendar_returns(pdf):
         txt = page.extract_text() or ""
         all_lines.extend(txt.splitlines())
 
-    # 3) Find the *header* line that contains "Ticker" AND "2015"
+    # 3) Find the header row that has "Ticker" + at least one year (e.g. "2015")
     header_line = next(
-        (ln for ln in all_lines if "Ticker" in ln and "2015" in ln),
+        (ln for ln in all_lines if "Ticker" in ln and re.search(r"\b2015\b", ln)),
         None
     )
     if not header_line:
-        st.error("❌ Could not find the header row containing ‘Ticker’ and ‘2015’.")
+        st.error("❌ Could not find the header row containing ‘Ticker’ and the first year.")
         return
 
-    # 4) Split out the year columns (drop the first token "Ticker")
+    # 4) Parse the year labels (drop "Ticker" itself)
     parts = header_line.split()
-    # parts might look like ["Ticker","2015","2016",...,"2024"]
-    try:
-        idx_t = parts.index("Ticker")
-        years = parts[idx_t+1:]
-    except ValueError:
-        # if it somehow isn’t the first token:
+    if parts[0] == "Ticker":
+        years = parts[1:]
+    else:
         years = parts[1:]
     num_years = len(years)
 
-    st.write("Detected header:", header_line)
-    st.write("Parsed years:", years)
-
-    # 5) Build regex for floats
+    # 5) Regex to detect numeric returns
     float_rx = re.compile(r"^-?\d+\.\d+$")
 
-    # 6) For each fund, find its line and extract the returns
+    # 6) For each fund, locate its line and grab the next N tokens
     results = []
     for fund_name, ticker in mapping.items():
         ticker = ticker.upper()
-        # find the first line that has BOTH the ticker and at least one of the year tokens
-        line = next(
-            (ln for ln in all_lines
-             if ticker in ln.split() and any(yr in ln for yr in years)),
-            None
-        )
+        # find the line containing this ticker
+        line = next((ln for ln in all_lines if ticker in ln.split()), None)
 
         if not line:
-            st.warning(f"❌ {fund_name} ({ticker}): no line with ticker+year data found.")
+            st.warning(f"❌ {fund_name} ({ticker}): no line found.")
             row = {yr: None for yr in years}
         else:
-            parts = line.split()
+            cols = line.split()
             try:
-                i = parts.index(ticker)
-                raw_vals = parts[i+1 : i+1+num_years]
-                # keep only valid floats
-                vals = [v for v in raw_vals if float_rx.match(v)]
-                # pad/truncate to match number of years
+                i = cols.index(ticker)
+                raw = cols[i+1 : i+1+num_years]
+                vals = [v for v in raw if float_rx.match(v)]
+                # pad/truncate
                 if len(vals) < num_years:
                     vals += [None] * (num_years - len(vals))
                 row = dict(zip(years, vals[:num_years]))
-            except Exception:
+            except ValueError:
                 row = {yr: None for yr in years}
 
-        results.append({
-            "Fund Name": fund_name,
-            "Ticker": ticker,
-            **row
-        })
+        results.append({"Fund Name": fund_name, "Ticker": ticker, **row})
 
-    # 7) Show in a DataFrame
+    # 7) Display the table
     df = pd.DataFrame(results)
     st.session_state["step8_returns"] = results
     st.dataframe(df)
