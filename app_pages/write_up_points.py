@@ -1020,11 +1020,9 @@ def step13_process_risk_adjusted_returns(pdf):
     df = pd.DataFrame(records)
     st.dataframe(df, use_container_width=True)
 
-# === Step 14: Find only the exact “PEER RISK‑ADJUSTED RETURN RANK” Subheading ===
+# === Step 14: Find “PEER RISK‑ADJUSTED RETURN RANK” but strip trailing text ===
 def step14_find_peer_risk_adjusted_return_rank(pdf):
-    import streamlit as st
-    import pandas as pd
-    import re
+    import streamlit as st, pandas as pd, re
 
     st.subheader("Step 14: Locate 'PEER RISK‑ADJUSTED RETURN RANK'")
 
@@ -1034,38 +1032,43 @@ def step14_find_peer_risk_adjusted_return_rank(pdf):
         st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
-    # map page -> (Fund Name, Ticker)
+    # map page → (Fund Name, Ticker)
     page_map = {
         f["Page #"]: (f["Matched Fund Name"], f["Matched Ticker"])
         for f in factsheets
     }
 
-    # regex: start of line, "Peer Risk" + any dash + "Adjusted Return Rank" (allow optional plural)
-    pattern = re.compile(r"(?i)^PEER RISK\s*[-–—]\s*ADJUSTED RETURN RANKS?\b")
+    # capture exactly "PEER RISK‑ADJUSTED RETURN RANK" (allow any dash, optional trailing S)
+    heading_re = re.compile(
+        r"(?i)(PEER RISK\s*[-–—]\s*ADJUSTED RETURN RANKS?)"
+    )
 
     rows = []
     for pnum, (fund, ticker) in page_map.items():
         text  = pdf.pages[pnum-1].extract_text() or ""
         for idx, ln in enumerate(text.splitlines()):
-            # collapse whitespace and normalize all dashes to hyphen
             norm = re.sub(r"\s+", " ", ln.strip())
+            # normalize dashes
             norm = norm.replace("–", "-").replace("—", "-")
-            if pattern.match(norm):
+            m = heading_re.search(norm)
+            if m:
+                # extract only the heading portion
+                clean_heading = m.group(1).upper()
                 rows.append({
                     "Fund Name": fund,
                     "Ticker":    ticker,
                     "Page":      pnum,
                     "Line":      idx + 1,
-                    "Text":      norm  # shows you exactly what was matched
+                    "Text":      clean_heading
                 })
                 break
 
     if not rows:
-        st.warning("❌ No exact 'PEER RISK‑ADJUSTED RETURN RANK' heading found.")
-        return
+        st.warning("❌ No 'PEER RISK‑ADJUSTED RETURN RANK' heading found.")
+    else:
+        st.session_state["step14_peer_rank_headings"] = rows
+        st.table(pd.DataFrame(rows))
 
-    st.session_state["step14_peer_rank_headings"] = rows
-    st.table(pd.DataFrame(rows))
 
 # === Step 14.5: Extract Peer Risk‑Adjusted Return Ranks (full‑page scan) ===
 def step14_extract_peer_risk_adjusted_return_rank(pdf):
