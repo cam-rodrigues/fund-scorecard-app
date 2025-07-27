@@ -889,6 +889,7 @@ def step11_create_summary(pdf=None):
 
 # === Step 12: Find only “FUND FACTS” Subheading ===
 def step12_find_fund_facts(pdf):
+    import re
     import streamlit as st
     import pandas as pd
 
@@ -911,8 +912,17 @@ def step12_find_fund_facts(pdf):
         text  = pdf.pages[pnum-1].extract_text() or ""
         lines = text.splitlines()
         fund_name, ticker = page_map.get(pnum, ("<unknown>", ""))
+
         for idx, line in enumerate(lines):
-            if "FUND FACTS" in line.strip().upper():
+            # 1) collapse whitespace
+            norm = " ".join(line.split())
+            # 2) strip trailing punctuation or dashes
+            norm = re.sub(r'[\:\-\–\—]+$', '', norm)
+            # 3) uppercase
+            norm = norm.upper().strip()
+
+            # exact match only
+            if norm == "FUND FACTS":
                 rows.append({
                     "Fund Name": fund_name,
                     "Ticker":    ticker,
@@ -927,6 +937,7 @@ def step12_find_fund_facts(pdf):
 
     st.session_state["step12_fund_facts"] = rows
     st.table(pd.DataFrame(rows))
+
 
 #-------------------------------------------------------------------------------------------
 
