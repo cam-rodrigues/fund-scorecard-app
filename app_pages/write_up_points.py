@@ -581,71 +581,82 @@ def step8_match_calendar_tickers(pdf):
     else:
         st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
-# === Step 8.5: Extract Calendar Year Returns (ticker‑only matching) ===
+# === Step 8.5: Extract Calendar Year Returns (robust ticker‐contains matching) ===
 def step8_5_extract_calendar_returns(pdf):
     import re, pandas as pd, streamlit as st
 
     st.subheader("Step 8.5: Calendar Year Returns")
 
-    # 1) Load Step 8 results
-    tickers_map = st.session_state.get("step8_tickers", {})    # { fund_name: ticker }
-    locs        = st.session_state.get("step8_locations", {})  # { fund_name: {page, line} }
+    # 1) Grab Step 8’s results
+    tickers_map = st.session_state.get("step8_tickers", {})
+    locs        = st.session_state.get("step8_locations", {})
     start_pg    = st.session_state.get("step8_start_page")
     if not (tickers_map and locs and start_pg):
-        st.error("❌ Missing Step 8 data. Run Step 8 first.")
+        st.error("❌ Missing Step 8 data. Run Step 8 first.")
         return
 
-    # 2) Grab the header row once (from the first section page)
+    # 2) Read the header table on the section’s first page to get year labels
     header_tbl = pdf.pages[start_pg-1].extract_table() or []
     # find the row with “2015” in it
-    header_row = next((r for r in header_tbl if any(str(c)=="2015" for c in r)), None)
+    header_row = next((r for r in header_tbl if any(str(c) == "2015" for c in r)), None)
     if not header_row:
-        st.error("❌ Couldn’t find header row with 2015.")
+        st.error("❌ Couldn’t find header row with 2015 on page {}.".format(start_pg))
         return
-
-    # 3) The year columns start at index 2
     years = header_row[2:]
     n     = len(years)
     st.write("Detected years:", years)
 
-    # 4) float‐only matcher
+    # 3) Prepare cleanup
     float_rx = re.compile(r"^-?\d+(\.\d+)?$")
+    clean_rx = re.compile(r"[()%]")
 
     results = []
     for name, ticker in tickers_map.items():
-        pg_idx = locs[name]["page"] - 1
-        tbl    = pdf.pages[pg_idx].extract_table() or []
+        ticker = ticker.upper()
+        info   = locs[name]
+        pg_idx  = info["page"] - 1
 
-        # 5) find the first row where ANY cell equals the ticker
-        fund_row = next(
-            row for row in tbl
-            if any(str(cell).strip().upper()==ticker for cell in row)
-        ) if tbl else None
-
-        if not fund_row:
-            st.warning(f"⚠️ {name} ({ticker}): row not found on page {pg_idx+1}.")
-            vals = [None]*n
+        tbl = pdf.pages[pg_idx].extract_table()
+        if not tbl:
+            st.warning(f"⚠️ {name} ({ticker}): no table on page {pg_idx+1}.")
+            # show for debugging
+            st.write("Raw text on that page:", pdf.pages[pg_idx].extract_text())
+            row_vals = [None]*n
         else:
-            # 6) take cells 2→2+n and clean them
-            raw = fund_row[2:2+n]
-            clean = []
-            for v in raw:
-                s = "" if v is None else re.sub(r"[()%]", "", str(v)).strip()
-                clean.append(s if float_rx.match(s) else None)
-            # 7) pad/truncate
-            clean += [None]*(n-len(clean))
-            vals = clean[:n]
+            # 4) find the first row where any cell contains the ticker substring
+            fund_row = None
+            for row in tbl:
+                if any(cell and ticker in str(cell) for cell in row):
+                    fund_row = row
+                    break
 
-        # 8) record
-        row = {"Fund Name": name, "Ticker": ticker}
-        row.update({years[i]: vals[i] for i in range(n)})
-        results.append(row)
+            if not fund_row:
+                st.warning(f"⚠️ {name} ({ticker}): row not found on page {pg_idx+1}.")
+                # debug
+                st.write("Extracted table on page {}:".format(pg_idx+1), tbl)
+                row_vals = [None]*n
+            else:
+                # 5) grab columns 2→2+n and clean
+                raw = fund_row[2:2+n]
+                clean = []
+                for v in raw:
+                    text = "" if v is None else clean_rx.sub("", str(v)).strip()
+                    clean.append(text if float_rx.match(text) else None)
+                # pad/truncate
+                if len(clean) < n:
+                    clean += [None] * (n - len(clean))
+                row_vals = clean[:n]
 
-    # 9) show table
+        results.append({
+            "Fund Name": name,
+            "Ticker":    ticker,
+            **{years[i]: row_vals[i] for i in range(n)}
+        })
+
+    # 6) Display
     df = pd.DataFrame(results)
     st.session_state["step8_returns"] = results
     st.dataframe(df)
-
 
 
 #-------------------------------------------------------------------------------------------
