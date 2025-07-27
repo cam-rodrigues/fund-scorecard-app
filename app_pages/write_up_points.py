@@ -581,20 +581,19 @@ def step8_match_calendar_tickers(pdf):
     else:
         st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
-# === Step 8.5: Extract Calendar Year Returns via Line Scanning ===
+# === Step 8.5: Extract Calendar Year Returns (using the line above each ticker) ===
 def step8_5_extract_calendar_returns(pdf):
     import re, pandas as pd, streamlit as st
 
     st.subheader("Step 8.5: Calendar Year Returns")
 
-    # 1) Load your Step 8 mapping & section start
-    tickers_map = st.session_state.get("step8_tickers", {})    # { fund_name: ticker }
+    tickers_map = st.session_state.get("step8_tickers", {})
     start_pg    = st.session_state.get("step8_start_page", 1)
     if not tickers_map:
         st.error("❌ No ticker mapping found. Run Step 8 first.")
         return
 
-    # 2) Find the header line with “Ticker” + “2015”
+    # 1) Find header line for years
     header_line = None
     for pnum in range(start_pg-1, len(pdf.pages)):
         for ln in (pdf.pages[pnum].extract_text() or "").splitlines():
@@ -603,54 +602,55 @@ def step8_5_extract_calendar_returns(pdf):
                 break
         if header_line:
             break
-
     if not header_line:
-        st.error("❌ Could not locate header row containing ‘Ticker’ and ‘2015’.")
+        st.error("❌ Couldn’t find header row with Ticker+2015.")
         return
 
-    # 3) Extract year labels (2015–2024) from that header
-    yrs = re.findall(r"\b20(1[5-9]|2[0-4])\b", header_line)
-    years = ["20" + y for y in yrs]
+    years = re.findall(r"\b20(1[5-9]|2[0-4])\b", header_line)
+    years = ["20"+y for y in years]
     n = len(years)
     st.write("Detected years:", years)
 
-    # 4) Regex to grab numbers (allowing parentheses and %)
+    # regex to pull numbers (allow leading parens, trailing %)
     num_rx = re.compile(r"\(?-?\d+\.\d+%?\)?")
 
     results = []
-    # 5) For each fund, scan all lines in the section for its ticker
     for name, ticker in tickers_map.items():
         ticker = ticker.upper()
-        vals = None
-
-        # scan from section start forward
+        # scan from section start
+        found_vals = None
         for pnum in range(start_pg-1, len(pdf.pages)):
-            for ln in (pdf.pages[pnum].extract_text() or "").splitlines():
-                if ticker in ln:
-                    # pull all matching numeric tokens
-                    raw_nums = num_rx.findall(ln)
-                    clean = [t.strip("()%") for t in raw_nums]
-                    if len(clean) >= n:
-                        vals = clean[:n]
-                        break
-            if vals:
+            lines = (pdf.pages[pnum].extract_text() or "").splitlines()
+            # locate the line index with the ticker
+            idx = next((i for i, ln in enumerate(lines) if ticker in ln), None)
+            if idx is not None:
+                # the numeric row is one above
+                if idx == 0:
+                    vals = []
+                else:
+                    num_line = lines[idx-1]
+                    raw = num_rx.findall(num_line)
+                    # clean parens/% and take first n
+                    clean = [t.strip("()%").rstrip("%") for t in raw]
+                    if len(clean) < n:
+                        clean += [None]*(n-len(clean))
+                    vals = clean[:n]
+                found_vals = vals
                 break
 
-        if not vals:
-            st.warning(f"⚠️ {name} ({ticker}): no numeric data found in any line.")
-            vals = [None] * n
+        if not found_vals:
+            st.warning(f"⚠️ {name} ({ticker}): no numeric row found above ticker.")
+            found_vals = [None]*n
 
         results.append({
             "Fund Name": name,
             "Ticker":    ticker,
-            **{years[i]: vals[i] for i in range(n)}
+            **{years[i]: found_vals[i] for i in range(n)}
         })
 
-    # 6) Show your table
     df = pd.DataFrame(results)
     st.session_state["step8_returns"] = results
     st.dataframe(df)
-
 
 
 #-------------------------------------------------------------------------------------------
