@@ -518,90 +518,52 @@ def step7_extract_returns(pdf):
 # === Step 8a: Match Saved Tickers & Fund Names in the Calendar Year Section ===
 # Mirrors Step 5’s approach but targets the Calendar Year Performance section.
 def step8_match_calendar_tickers(pdf):
-    import re
-    import streamlit as st
+    import re, streamlit as st
 
     st.subheader("Step 8: Match Tickers in Calendar Year Section")
 
-    # 1) Figure out which page the Calendar Year Performance section starts on
-    toc = st.session_state.get("toc_pages", {})
-    # try a few common keys
-    start_page = (
-        toc.get("Calendar Year Performance")
-        or toc.get("Fund Performance - Calendar Year")
-        or toc.get("Calendar Year Fund Performance")
-        or toc.get("Fund Calendar Year Performance")
-        or 1
-    )
+    # 1) Grab the mapping you built in Step 5:
+    #    st.session_state["tickers"] is { fund_name -> ticker }
+    mapping = st.session_state.get("tickers", {})
+    if not mapping:
+        st.error("❌ No ticker mapping found in session_state['tickers']. Run Step 5 first.")
+        return
 
-    # 2) Load your saved fund names
-    fund_names   = st.session_state.get("fund_names", [])
-    # 3) Attempt to get your saved tickers from Step 5
-    fund_tickers = [t.upper() for t in st.session_state.get("tickers", {}).values()]
+    fund_names   = list(mapping.keys())
+    fund_tickers = [t.upper() for t in mapping.values() if t]
 
-    # fallback if you stored tickers under a different key
-    if not fund_tickers:
-        fund_tickers = [t.upper() for t in st.session_state.get("fund_tickers", [])]
+    total = len(fund_names)
 
-    # build name‑lookup dict
-    fund_lookup = { ticker: name for name, ticker in zip(fund_names, fund_tickers) }
-
-    # 4) Extract all lines in that section
-    end_page = st.session_state.get("next_section_page") or (len(pdf.pages) + 1)
+    # 2) Pull all text lines from the Calendar Year section:
+    #    (here we simply scan every page for simplicity)
     all_lines = []
-    for p in pdf.pages[start_page-1 : end_page-1]:
-        txt = p.extract_text() or ""
+    for page in pdf.pages:
+        txt = page.extract_text() or ""
         all_lines.extend(txt.splitlines())
 
-    # 5) First‑pass: map normalized fund name → ticker when a line ends with the code
-    mapping = {}
-    for ln in all_lines:
-        m = re.match(r"(.+?)\s+([A-Z]{1,5})$", ln.strip())
-        if not m:
-            continue
-        raw_name, ticker = m.groups()
-        norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
-        mapping[norm] = ticker
+    # 3) Check which of your saved tickers actually appear in those lines
+    found = { name: (mapping[name].upper() in ln) 
+              for name, ln in ((n, " ".join(all_lines)) for n in fund_names) }
 
-    # 6) Try matching each saved fund by normalized prefix
-    tickers = {}
-    for name in fund_names:
-        norm_expected = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
-        found = next(
-            (t for raw, t in mapping.items() if raw.startswith(norm_expected)),
-            None
-        )
-        tickers[name] = found
-
-    # 7) Fallback: if any still missing, scrape every 1–5 letter code in order
-    total = len(fund_names)
-    found_count = sum(1 for t in tickers.values() if t)
-    if found_count < total:
-        perf_text = "\n".join(all_lines)
-        all_tks = re.findall(r'\b([A-Z]{1,5})\b', perf_text)
-        seen = []
-        for tk in all_tks:
-            if tk not in seen:
-                seen.append(tk)
-        tickers = {
-            name: (seen[i] if i < len(seen) else None)
-            for i, name in enumerate(fund_names)
-        }
-
-    # 8) Store & display
-    st.session_state["step8_tickers"] = tickers
-
+    # 4) Display
     st.subheader("Extracted Tickers (Step 8)")
-    for n, t in tickers.items():
-        st.write(f"- {n}: {t or '❌ not found'}")
+    found_count = 0
+    for name in fund_names:
+        ticker = mapping[name].upper()
+        present = ticker in "\n".join(all_lines)
+        if present:
+            found_count += 1
+            st.write(f"- {name}: {ticker} ✅")
+        else:
+            st.write(f"- {name}: {ticker} ❌ not found")
 
     st.subheader("Ticker Count Validation")
     st.write(f"- Expected tickers: **{total}**")
-    st.write(f"- Found tickers:    **{sum(1 for t in tickers.values() if t)}**")
-    if sum(1 for t in tickers.values() if t) == total:
+    st.write(f"- Found tickers:    **{found_count}**")
+    if found_count == total:
         st.success("✅ All tickers found.")
     else:
-        st.error(f"❌ Missing {total - sum(1 for t in tickers.values() if t)} ticker(s).")
+        st.error(f"❌ Missing {total - found_count} ticker(s).")
 
 
 #-------------------------------------------------------------------------------------------
