@@ -404,83 +404,60 @@ def step6_process_factsheets(pdf, fund_names):
             st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
 
-# === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns (two‑line aware) ===
+# === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns (calendar‐style) ===
 def step7_extract_returns(pdf):
     import re, pandas as pd, streamlit as st
 
     st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns")
 
+    # 1) Grab your Step 5 data & section bounds
+    perf_data = st.session_state.get("fund_performance_data", [])
     perf_page = st.session_state.get("performance_page")
     end_page  = st.session_state.get("calendar_year_page") or (len(pdf.pages) + 1)
-    perf_data = st.session_state.get("fund_performance_data", [])
     if perf_page is None or not perf_data:
         st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    # 1) Prep the five return fields
-    fields = ["QTD", "1Yr", "3Yr", "5Yr", "10Yr"]
+    # 2) Prepare return slots
+    fields = ["QTD","1Yr","3Yr","5Yr","10Yr"]
     for item in perf_data:
         for f in fields:
             item.setdefault(f, None)
 
-    # 2) Gather every nonblank line in the entire Performance section
+    # 3) Collect all non‐blank lines in the Fund Performance section
     lines = []
-    for pnum in range(perf_page - 1, end_page - 1):
-        txt = pdf.pages[pnum].extract_text() or ""
-        lines += [l.strip() for l in txt.splitlines() if l.strip()]
+    for pg in range(perf_page-1, end_page-1):
+        txt = pdf.pages[pg].extract_text() or ""
+        lines.extend([ln.strip() for ln in txt.splitlines() if ln.strip()])
 
-    # 3) Regex for decimal numbers (ignores integer-only tokens)
-    num_rx = re.compile(r"-?\d+\.\d+")
+    # 4) Regex to grab numbers (allow parentheses and %)
+    num_rx = re.compile(r"\(?-?\d+\.\d+%?\)?")
 
-    matched = 0
+    # 5) For each fund, find its ticker line and pull the line above
     for item in perf_data:
         tk = item["Ticker"].upper()
-
-        # 4) Find the index of the line containing this ticker
-        idx = next(
-            (i for i, ln in enumerate(lines)
-             if re.search(rf"\b{re.escape(tk)}\b", ln)),
-            None
-        )
-        if idx is None:
-            st.warning(f"⚠️ {item['Fund Scorecard Name']} ({tk}): ticker line not found.")
+        # find index of the line containing the ticker
+        idx = next((i for i, ln in enumerate(lines) if tk in ln), None)
+        if idx is None or idx == 0:
+            st.warning(f"⚠️ {item['Fund Scorecard Name']} ({tk}): no data found above ticker.")
             continue
 
-        # 5) Pull numbers from the line above & the one above that if needed
-        nums = []
-        for back in (1, 2):
-            if idx - back >= 0:
-                nums += num_rx.findall(lines[idx - back])
-            if len(nums) >= 6:
-                break
+        # extract numeric row above
+        num_line = lines[idx - 1]
+        raw_nums = num_rx.findall(num_line)
+        clean    = [t.strip("()%").rstrip("%") for t in raw_nums] + [None]*6
 
-        # 6) Clean & pad to 6 tokens: [QTD, YTD, 1Yr, 3Yr, 5Yr, 10Yr]
-        clean = [n.strip("()%").rstrip("%") for n in nums] + [None] * 6
-        QTD, _, one, three, five, ten = clean[:6]
+        # map tokens: 0=QTD,1=YTD,2=1Yr,3=3Yr,4=5Yr,5=10Yr
+        item["QTD"]  = clean[0]
+        item["1Yr"]  = clean[2]
+        item["3Yr"]  = clean[3]
+        item["5Yr"]  = clean[4]
+        item["10Yr"] = clean[5]
 
-        # 7) Store the five you care about
-        item["QTD"]   = QTD
-        item["1Yr"]   = one
-        item["3Yr"]   = three
-        item["5Yr"]   = five
-        item["10Yr"]  = ten
-
-        matched += 1
-
-    # 8) Save back & render
+    # 6) Save & display
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
-
-    st.success(f"✅ Matched {matched} fund(s) with return data.")
-    for it in perf_data:
-        if any(it[f] in (None, "") for f in fields):
-            st.warning(f"⚠️ Incomplete returns for {it['Fund Scorecard Name']} ({it['Ticker']})")
-
-    st.dataframe(
-        df[["Fund Scorecard Name", "Ticker"] + fields],
-        use_container_width=True
-    )
-
+    st.dataframe(df[["Fund Scorecard Name","Ticker"] + fields], use_container_width=True)
 
 # === Step 8: Match Tickers in “Calendar Year Performance” Section ===
 def step8_match_calendar_tickers(pdf):
