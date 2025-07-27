@@ -404,57 +404,61 @@ def step6_process_factsheets(pdf, fund_names):
             st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
 
-# === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns (multi‐page scan) ===
+# === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns (two‑line aware) ===
 def step7_extract_returns(pdf):
     import re, pandas as pd, streamlit as st
 
     st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr Returns")
 
-    # --- pull your Step 5 results ---
-    perf_data = st.session_state.get("fund_performance_data", [])
     perf_page = st.session_state.get("performance_page")
+    end_page  = st.session_state.get("calendar_year_page") or (len(pdf.pages) + 1)
+    perf_data = st.session_state.get("fund_performance_data", [])
     if perf_page is None or not perf_data:
         st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    # --- prepare five empty slots per fund ---
-    fields = ["QTD","1Yr","3Yr","5Yr","10Yr"]
+    # 1) Prep the five return fields
+    fields = ["QTD", "1Yr", "3Yr", "5Yr", "10Yr"]
     for item in perf_data:
         for f in fields:
             item.setdefault(f, None)
 
-    # --- gather all lines in the “Current vs.” section (multi‐page) ---
-    end_page = st.session_state.get("calendar_year_page") or (len(pdf.pages)+1)
+    # 2) Gather every nonblank line in the entire Performance section
     lines = []
-    for pnum in range(perf_page-1, end_page-1):
+    for pnum in range(perf_page - 1, end_page - 1):
         txt = pdf.pages[pnum].extract_text() or ""
-        if "Fund Performance: Current vs." not in txt:
-            # still include it—don’t break, because the header only on first page
-            pass
         lines += [l.strip() for l in txt.splitlines() if l.strip()]
 
-    # --- float regex (ignore integer ranks in parens) ---
+    # 3) Regex for decimal numbers (ignores integer-only tokens)
     num_rx = re.compile(r"-?\d+\.\d+")
 
     matched = 0
-    # --- for each fund from Step 5, find its ticker‐line and pull its six numbers ---
     for item in perf_data:
         tk = item["Ticker"].upper()
-        # find the very first line containing that exact ticker
-        fund_line = next(
-            (ln for ln in lines if re.search(rf"\b{re.escape(tk)}\b", ln)),
-            ""
+
+        # 4) Find the index of the line containing this ticker
+        idx = next(
+            (i for i, ln in enumerate(lines)
+             if re.search(rf"\b{re.escape(tk)}\b", ln)),
+            None
         )
-        if not fund_line:
+        if idx is None:
             st.warning(f"⚠️ {item['Fund Scorecard Name']} ({tk}): ticker line not found.")
             continue
 
-        # extract exactly six decimal tokens: QTD, YTD, 1Yr, 3Yr, 5Yr, 10Yr
-        nums = num_rx.findall(fund_line)
-        nums += [None] * (6 - len(nums))
-        QTD, YTD, one, three, five, ten = nums[:6]
+        # 5) Pull numbers from the line above & the one above that if needed
+        nums = []
+        for back in (1, 2):
+            if idx - back >= 0:
+                nums += num_rx.findall(lines[idx - back])
+            if len(nums) >= 6:
+                break
 
-        # store only the five you care about
+        # 6) Clean & pad to 6 tokens: [QTD, YTD, 1Yr, 3Yr, 5Yr, 10Yr]
+        clean = [n.strip("()%").rstrip("%") for n in nums] + [None] * 6
+        QTD, _, one, three, five, ten = clean[:6]
+
+        # 7) Store the five you care about
         item["QTD"]   = QTD
         item["1Yr"]   = one
         item["3Yr"]   = three
@@ -463,7 +467,7 @@ def step7_extract_returns(pdf):
 
         matched += 1
 
-    # --- write back & render ---
+    # 8) Save back & render
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
 
@@ -473,7 +477,7 @@ def step7_extract_returns(pdf):
             st.warning(f"⚠️ Incomplete returns for {it['Fund Scorecard Name']} ({it['Ticker']})")
 
     st.dataframe(
-        df[["Fund Scorecard Name","Ticker"] + fields],
+        df[["Fund Scorecard Name", "Ticker"] + fields],
         use_container_width=True
     )
 
