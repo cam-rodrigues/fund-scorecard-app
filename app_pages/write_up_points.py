@@ -515,79 +515,104 @@ def step7_extract_returns(pdf):
 
     st.dataframe(df[display_cols], use_container_width=True)
 
-# === Step 8: Extract Annualized Calendar Year Returns (by scanning for section header) ===
+# === Step 8: Extract Annualized Calendar Year Returns ===
 def step8_extract_annualized_returns(pdf):
     import re
     import pandas as pd
 
-    st.subheader("Step 8: Calendar Year Fund Performance")
+    st.subheader("Step 8: Calendar Year Fund Performance")
 
-    fund_names = st.session_state.get("fund_names", [])
-    fund_tickers = st.session_state.get("fund_tickers", [])
+    # Load your saved funds
+    fund_names   = st.session_state.get("fund_names", [])
+    fund_tickers = [t.upper() for t in st.session_state.get("fund_tickers", [])]
 
-    fund_lookup = {
-        ticker.upper(): name for name, ticker in zip(fund_names, fund_tickers)
-    }
+    # Map tickers → names
+    fund_lookup = { ticker: name for name, ticker in zip(fund_names, fund_tickers) }
 
-    pattern_year = re.compile(r"\b20(1[5-9]|2[0-4])\b")
-    pattern_ticker = re.compile(r"\b[A-Z]{4,5}X\b")
+    # Regex to detect year tokens like 2015–2024
+    year_pattern   = re.compile(r"\b20(1[5-9]|2[0-4])\b")
+    ticker_pattern = re.compile(r"\b([A-Z]{4,5}X)\b")
 
     results = []
-    found_section = False
+    section_found = False
 
-    for i, page in enumerate(pdf.pages):
+    # Phase 1: find the page with the “Calendar Year Performance” heading
+    target_page = None
+    for idx, page in enumerate(pdf.pages):
         text = page.extract_text() or ""
-        if not found_section:
-            if "Calendar Year Performance" in text:
-                found_section = True
-            else:
-                continue  # keep scanning pages until we find the right section
+        if "Calendar Year Performance" in text:
+            target_page = page
+            section_found = True
+            break
 
-        table = page.extract_table()
-        if not table:
-            continue
-
-        header_row = None
-        for row in table:
-            if sum(1 for cell in row if pattern_year.match(str(cell or ""))) >= 5:
-                header_row = row
+    if not section_found:
+        st.warning("⚠️ Could not find the “Calendar Year Performance” section. Scanning all pages anyway.")
+        # fallback: just use the first page that has any year tokens
+        for page in pdf.pages:
+            if re.search(year_pattern, page.extract_text() or ""):
+                target_page = page
                 break
 
-        if not header_row:
+    if target_page is None:
+        st.warning("❌ No page with calendar-year data found.")
+        return
+
+    # Phase 2: split into lines and locate the header row
+    lines = (target_page.extract_text() or "").split("\n")
+    header_idx = None
+    for i, line in enumerate(lines):
+        if line.startswith("Ticker") and len(year_pattern.findall(line)) >= 5:
+            header_idx = i
+            break
+
+    if header_idx is None:
+        st.warning("❌ Could not find the header row (Ticker + years).")
+        return
+
+    # Parse the years from the header
+    header_parts = lines[header_idx].split()
+    # assume format: ["Ticker", "2015", "2016", ..., "2024"]
+    years = header_parts[1:]
+
+    # Phase 3: extract each fund row until blank line or median/index appears
+    for line in lines[header_idx + 1 :]:
+        text = line.strip()
+        if not text:
+            break
+        if any(x in text.lower() for x in ("index", "median")):
             continue
 
-        for row in table:
-            row_text = " ".join(str(cell or "") for cell in row)
+        # find ticker
+        m = ticker_pattern.search(text)
+        if not m:
+            continue
+        ticker = m.group(1)
 
-            if any(x in row_text.lower() for x in ["index", "median"]):
-                continue
+        if ticker not in fund_lookup:
+            continue
 
-            ticker_match = pattern_ticker.search(row_text)
-            if not ticker_match:
-                continue
-            ticker = ticker_match.group().upper()
+        parts = text.split()
+        # last len(years) parts are the return values
+        ret_vals = parts[-len(years) :]
+        if len(ret_vals) != len(years):
+            continue
 
-            fund_name = fund_lookup.get(ticker)
-            if not fund_name:
-                continue
+        results.append({
+            "Fund Name": fund_lookup[ticker],
+            "Ticker": ticker,
+            "Returns by Year": dict(zip(years, ret_vals))
+        })
 
-            returns = row[-10:]
-            year_map = dict(zip(header_row[-10:], returns))
-
-            results.append({
-                "Fund Name": fund_name,
-                "Ticker": ticker,
-                "Returns by Year": year_map
-            })
-
+    # Display or warn
     if results:
         df = pd.DataFrame(results)
         st.session_state["step8_results"] = results
         st.dataframe(df)
     else:
-        st.warning("❌ No calendar year fund returns found.")
+        st.warning("❌ No calendar year fund returns found for your saved funds.")
 
 
+#-------------------------------------------------------------------------------------------
 
 # === Main App ===
 def run():
