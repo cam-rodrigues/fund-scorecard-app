@@ -581,96 +581,76 @@ def step8_match_calendar_tickers(pdf):
     else:
         st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
-# === Step 8.5: Extract Calendar Year Returns (word‑based) ===
+# === Step 8.5: Extract Calendar Year Returns via extract_table ===
 def step8_5_extract_calendar_returns(pdf):
     import re, pandas as pd, streamlit as st
-    from collections import defaultdict
 
     st.subheader("Step 8.5: Calendar Year Returns")
 
-    # 1) Get your Step 8 results
-    tickers_map = st.session_state.get("step8_tickers", {})
-    start_page  = st.session_state.get("step8_start_page")
-    if not tickers_map or not start_page:
-        st.error("❌ No ticker mapping found. Please run **Step 8** first.")
+    # 1) Load Step 8 results
+    locs     = st.session_state.get("step8_locations", {})
+    tickers  = st.session_state.get("step8_tickers", {})
+    start_pg = st.session_state.get("step8_start_page")
+    if not (locs and tickers and start_pg):
+        st.error("❌ No Step 8 data found. Run Step 8 first.")
         return
 
-    # 2) Load words from the section page
-    page = pdf.pages[start_page - 1]
-    words = page.extract_words(use_text_flow=True)
-
-    # 3) Cluster words into rows by their 'top' position
-    rows = defaultdict(list)
-    for w in words:
-        y = round(w["top"])
-        rows[y].append(w)
-
-    # 4) Find the header row (where 'Ticker' and '2015' both appear)
-    year_rx = re.compile(r"20(1[5-9]|2[0-4])")
-    header_y = next(
-        (y for y, grp in rows.items()
-         if any(w["text"] == "Ticker" for w in grp)
-         and any(year_rx.match(w["text"]) for w in grp)),
-        None
-    )
-    if header_y is None:
-        st.error("❌ Could not find header row with ‘Ticker’ and a year label.")
+    # 2) Extract the table from the first calendar page (header row lives here)
+    header_tbl = pdf.pages[start_pg-1].extract_table()
+    if not header_tbl:
+        st.error(f"❌ Could not extract table on header page {start_pg}.")
         return
 
-    # 5) Parse the list of years from that header row
-    header_row = sorted(rows[header_y], key=lambda w: w["x0"])
-    years      = [w["text"] for w in header_row if year_rx.match(w["text"])]
-    n_years    = len(years)
+    # 3) Find the header row (where a cell == "Ticker")
+    header_row = next((r for r in header_tbl if r and r[0] and "Ticker" in r[0]), None)
+    if not header_row:
+        # maybe "Ticker" is in column 1
+        header_row = next((r for r in header_tbl if len(r)>1 and r[1]=="Ticker"), None)
+    if not header_row:
+        st.error("❌ Could not locate the table header row containing 'Ticker'.")
+        return
 
-    st.write("Detected header:", " ".join(w["text"] for w in header_row))
-    st.write("Parsed years:", years)
+    # 4) Parse out the years (cells after the ticker column)
+    #    assume columns: [ Fund Name | Ticker | 2015 | 2016 | … | 2024 ]
+    years = header_row[2:]
+    n     = len(years)
+    st.write("Detected years:", years)
 
-    # 6) Regex to match numeric returns, allowing a trailing '%'
-    num_rx = re.compile(r"^-?\d+\.\d+%?$")
-
-    # 7) For each fund, find its ticker word, then grab the next N words on that row
+    # 5) Pull each fund’s row from its page
     results = []
-    for fund_name, ticker in tickers_map.items():
-        ticker = ticker.upper()
-
-        # find the first word matching this ticker, below the header
-        candidate = next(
-            (w for w in words
-             if w["text"] == ticker and round(w["top"]) > header_y),
-            None
-        )
-        if not candidate:
-            st.warning(f"❌ {fund_name} ({ticker}): ticker not found below header.")
-            row_vals = [None] * n_years
+    for name, ticker in tickers.items():
+        pg_idx = locs[name]["page"] - 1
+        tbl = pdf.pages[pg_idx].extract_table()
+        if not tbl:
+            st.warning(f"⚠️ {name}: no table on page {pg_idx+1}.")
+            row_vals = [None]*n
         else:
-            y_f = round(candidate["top"])
-            line_words = sorted(rows[y_f], key=lambda w: w["x0"])
-            texts = [w["text"] for w in line_words]
+            # find the row where the 2nd column == ticker
+            row = next((r for r in tbl if len(r)>1 and r[1].strip().upper()==ticker), None)
+            if not row:
+                st.warning(f"⚠️ {name}: ticker {ticker} not found in table on page {pg_idx+1}.")
+                row_vals = [None]*n
+            else:
+                raw = row[2:2+n]
+                # clean percentages/parens
+                clean = []
+                for v in raw:
+                    if v is None:
+                        clean.append(None)
+                    else:
+                        s = re.sub(r"[()%]", "", v).strip()
+                        clean.append(s or None)
+                # pad/truncate
+                if len(clean)<n: clean += [None]*(n-len(clean))
+                row_vals = clean[:n]
 
-            # find the index of the ticker, then take the next n_years tokens
-            try:
-                idx = texts.index(ticker)
-                raw = texts[idx+1 : idx+1+n_years]
-            except ValueError:
-                raw = []
+        results.append({"Fund Name": name, "Ticker": ticker, **{years[i]: row_vals[i] for i in range(n)}})
 
-            # filter only the numeric/percentage tokens
-            vals = [v.rstrip("%") for v in raw if num_rx.match(v)]
-            # pad/truncate
-            if len(vals) < n_years:
-                vals += [None] * (n_years - len(vals))
-            row_vals = vals[:n_years]
-
-        results.append({
-            "Fund Name": fund_name,
-            "Ticker":    ticker,
-            **{years[i]: row_vals[i] for i in range(n_years)}
-        })
-
-    # 8) Display
+    # 6) Display
     df = pd.DataFrame(results)
     st.session_state["step8_returns"] = results
     st.dataframe(df)
+
 
 #-------------------------------------------------------------------------------------------
 
