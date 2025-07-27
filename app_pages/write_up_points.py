@@ -952,110 +952,74 @@ def step12_process_fund_facts(pdf):
     st.dataframe(df, use_container_width=True)
 
 
-# === Step 13: Find only “RISK‑ADJUSTED RETURNS” Subheading ===
-def step13_find_risk_adjusted_returns(pdf):
+# === Step 13: Extract Risk‑Adjusted Returns Metrics ===
+def step13_process_risk_adjusted_returns(pdf):
+    import re
     import streamlit as st
     import pandas as pd
 
-    st.subheader("Step 13: Find 'RISK‑ADJUSTED RETURNS' Subheading")
+    st.subheader("Step 13: Extract Risk‑Adjusted Returns Details")
 
     fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
     if not fs_start or not factsheets:
-        st.error("❌ Run Step 6 first to populate your factsheet pages.")
+        st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
-    # build page → (Fund Name, Ticker) map
+    # map factsheet pages to fund name & ticker
     page_map = {
         f["Page #"]: (f["Matched Fund Name"], f["Matched Ticker"])
         for f in factsheets
     }
 
-    rows = []
+    # which metrics to pull
+    metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
+    num_rx  = re.compile(r"-?\d+\.\d+")
+
+    records = []
     for pnum in range(fs_start, len(pdf.pages) + 1):
         if pnum not in page_map:
             continue
         fund_name, ticker = page_map[pnum]
-        text  = pdf.pages[pnum-1].extract_text() or ""
-        lines = text.splitlines()
+        lines = (pdf.pages[pnum-1].extract_text() or "").splitlines()
+
+        # find the heading
         for idx, line in enumerate(lines):
-            # collapse whitespace and uppercase
-            norm = " ".join(line.split()).upper()
+            norm = " ".join(line.strip().split()).upper()
             if norm.startswith("RISK-ADJUSTED RETURNS"):
-                rows.append({
-                    "Fund Name": fund_name,
-                    "Ticker":    ticker,
-                    "Page":      pnum,
-                    "Line":      idx + 1,
-                    "Text":      "RISK-ADJUSTED RETURNS"
-                })
-                break  # move on to next fund/page
+                snippet = lines[idx+1 : idx+1+6]  # grab next few lines
+                rec = {"Fund Name": fund_name, "Ticker": ticker}
 
-    if not rows:
-        st.warning("No 'RISK‑ADJUSTED RETURNS' heading found in your factsheets.")
+                for metric in metrics:
+                    # find the snippet line for this metric
+                    text_line = next(
+                        ( " ".join(ln.strip().split())
+                          for ln in snippet
+                          if ln.strip().upper().startswith(metric.upper()) ),
+                        None
+                    ) or ""
+                    # extract up to 4 numbers
+                    nums = num_rx.findall(text_line)
+                    nums += [None] * (4 - len(nums))
+
+                    # assign into rec
+                    rec[f"{metric} 1Yr"]  = nums[0]
+                    rec[f"{metric} 3Yr"]  = nums[1]
+                    rec[f"{metric} 5Yr"]  = nums[2]
+                    rec[f"{metric} 10Yr"] = nums[3]
+
+                records.append(rec)
+                break  # done with this page
+
+    if not records:
+        st.warning("No 'RISK‑ADJUSTED RETURNS' tables found.")
         return
 
-    st.session_state["step13_risk_adjusted_returns"] = rows
-    st.table(pd.DataFrame(rows))
-
-
-# === Step 13.5: Extract Risk‑Adjusted Returns Metrics ===
-def step13_extract_risk_adjusted_returns(pdf):
-    import re
-    import streamlit as st
-    import pandas as pd
-
-    st.subheader("Step 13.5: Extract Risk‑Adjusted Returns Details")
-
-    # 1) load the subheading locations from Step 13
-    headings = st.session_state.get("step13_risk_adjusted_returns", [])
-    if not headings:
-        st.error("❌ No 'RISK-ADJUSTED RETURNS' headings found. Run Step 13 first.")
-        return
-
-    # 2) pattern to grab floats (no % here)
-    num_rx = re.compile(r"-?\d+\.\d+")
-
-    metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
-    records = []
-
-    for h in headings:
-        fund_name = h["Fund Name"]
-        ticker    = h["Ticker"]
-        page      = h["Page"]
-        # zero-based index to the heading line
-        idx       = h["Line"] - 1
-
-        # grab the next 6 lines to cover all three rows
-        txt_lines = pdf.pages[page-1].extract_text().splitlines()
-        snippet   = txt_lines[idx+1 : idx+1+6]
-
-        rec = {"Fund Name": fund_name, "Ticker": ticker}
-
-        for metric in metrics:
-            # normalize each snippet line
-            line = next(
-                ( " ".join(ln.strip().split())
-                  for ln in snippet
-                  if ln.strip().upper().startswith(metric.upper()) ),
-                ""
-            )
-            # extract up to 4 numbers
-            nums = num_rx.findall(line)
-            nums += [None] * (4 - len(nums))
-
-            # map to columns
-            rec[f"{metric} 1Yr"]  = nums[0]
-            rec[f"{metric} 3Yr"]  = nums[1]
-            rec[f"{metric} 5Yr"]  = nums[2]
-            rec[f"{metric} 10Yr"] = nums[3]
-
-        records.append(rec)
-
-    # 3) save & display
-    df = pd.DataFrame(records)
+    # save & show
     st.session_state["step13_risk_adjusted_table"] = records
+    df = pd.DataFrame(records)
     st.dataframe(df, use_container_width=True)
+
 
 #-------------------------------------------------------------------------------------------
 
@@ -1142,10 +1106,8 @@ def run():
 
         # Step 13: Risk Adjusted Returns
         with st.expander("Step 13: Find 'RISK‑ADJUSTED RETURNS' Subheading", expanded=False):
-            step13_find_risk_adjusted_returns(pdf)
+            step13_process_risk_adjusted_returns(pdf)
 
-        with st.expander("Step 13.5: Extract Risk‑Adjusted Returns Details", expanded=False):
-            step13_extract_risk_adjusted_returns(pdf)
 
 
 if __name__ == "__main__":
