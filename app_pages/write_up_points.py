@@ -580,65 +580,77 @@ def step8_match_calendar_tickers(pdf):
         st.success("✅ All tickers found.")
     else:
         st.error(f"❌ Missing {total - len(found)} ticker(s).")
-# === Step 8.5: Extract Calendar Year Returns via Line Parsing ===
+
+# === Step 8.5: Extract Calendar Year Returns via Line Scanning ===
 def step8_5_extract_calendar_returns(pdf):
     import re, pandas as pd, streamlit as st
 
     st.subheader("Step 8.5: Calendar Year Returns")
 
-    # 1) Load Step 8 results
+    # 1) Load your Step 8 mapping & section start
     tickers_map = st.session_state.get("step8_tickers", {})    # { fund_name: ticker }
-    locs        = st.session_state.get("step8_locations", {})  # { fund_name: {page, line} }
-    start_pg    = st.session_state.get("step8_start_page")
-    if not (tickers_map and locs and start_pg):
-        st.error("❌ Missing Step 8 data. Run Step 8 first.")
+    start_pg    = st.session_state.get("step8_start_page", 1)
+    if not tickers_map:
+        st.error("❌ No ticker mapping found. Run Step 8 first.")
         return
 
-    # 2) Extract the header row once to get years
-    header_text = pdf.pages[start_pg-1].extract_text() or ""
-    # find the first occurrence of the line containing "2015"
-    header_line = next((ln for ln in header_text.splitlines() if "2015" in ln), None)
+    # 2) Find the header line with “Ticker” + “2015”
+    header_line = None
+    for pnum in range(start_pg-1, len(pdf.pages)):
+        for ln in (pdf.pages[pnum].extract_text() or "").splitlines():
+            if "Ticker" in ln and "2015" in ln:
+                header_line = ln
+                break
+        if header_line:
+            break
+
     if not header_line:
-        st.error("❌ Could not find the header row with years on page %d." % start_pg)
+        st.error("❌ Could not locate header row containing ‘Ticker’ and ‘2015’.")
         return
-    # years are the 2015–2024 tokens on that line
-    years = re.findall(r"\b20(1[5-9]|2[0-4])\b", header_line)
-    years = ["20" + y for y in years]  # full years
-    if len(years) < 10:
-        st.warning("⚠️ Detected fewer than 10 year tokens; results may misalign.")
-    n = len(years)
 
+    # 3) Extract year labels (2015–2024) from that header
+    yrs = re.findall(r"\b20(1[5-9]|2[0-4])\b", header_line)
+    years = ["20" + y for y in yrs]
+    n = len(years)
     st.write("Detected years:", years)
 
-    # regex for floats (allow optional %)
-    num_rx = re.compile(r"-?\d+\.\d+%?")
+    # 4) Regex to grab numbers (allowing parentheses and %)
+    num_rx = re.compile(r"\(?-?\d+\.\d+%?\)?")
 
     results = []
+    # 5) For each fund, scan all lines in the section for its ticker
     for name, ticker in tickers_map.items():
-        info = locs[name]
-        page = pdf.pages[info["page"] - 1]
-        text = page.extract_text() or ""
-        # find the line containing the ticker
-        line = next((ln for ln in text.splitlines() if ticker in ln), None)
+        ticker = ticker.upper()
+        vals = None
 
-        if not line:
-            st.warning(f"⚠️ {name} ({ticker}): no line with ticker found on page {info['page']}.")
-            vals = [None]*n
-        else:
-            # extract numeric tokens
-            nums = num_rx.findall(line)
-            # strip any trailing %
-            clean = [x.rstrip("%") for x in nums]
-            # take first n values
-            if len(clean) < n:
-                clean += [None]*(n-len(clean))
-            vals = clean[:n]
+        # scan from section start forward
+        for pnum in range(start_pg-1, len(pdf.pages)):
+            for ln in (pdf.pages[pnum].extract_text() or "").splitlines():
+                if ticker in ln:
+                    # pull all matching numeric tokens
+                    raw_nums = num_rx.findall(ln)
+                    clean = [t.strip("()%") for t in raw_nums]
+                    if len(clean) >= n:
+                        vals = clean[:n]
+                        break
+            if vals:
+                break
 
-        results.append({"Fund Name": name, "Ticker": ticker, **{years[i]: vals[i] for i in range(n)}})
+        if not vals:
+            st.warning(f"⚠️ {name} ({ticker}): no numeric data found in any line.")
+            vals = [None] * n
 
+        results.append({
+            "Fund Name": name,
+            "Ticker":    ticker,
+            **{years[i]: vals[i] for i in range(n)}
+        })
+
+    # 6) Show your table
     df = pd.DataFrame(results)
     st.session_state["step8_returns"] = results
     st.dataframe(df)
+
 
 
 #-------------------------------------------------------------------------------------------
