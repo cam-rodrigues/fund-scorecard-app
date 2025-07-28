@@ -1705,19 +1705,15 @@ def run():
                 st.error("❌ No fund selected. Please select a fund from Step 15.")
                 
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-
         # === Export PowerPoint ===
-        if "summary_df" not in st.session_state:
-            st.session_state["summary_df"] = df_summary
-    
         st.markdown("---")
         st.subheader("Export Selected Fund to PowerPoint")
-    
+
         if st.button("Export to PowerPoint"):
-            if selected_fund and not st.session_state["summary_df"].empty:
-                ppt = generate_watchlist_slide(st.session_state["summary_df"], selected_fund)
+            if selected_fund:
+                ppt_stream = generate_watchlist_slide(selected_fund)  # Updated function without df_summary
                 output = BytesIO()
-                ppt.save(output)
+                ppt_stream.save(output)
     
                 st.download_button(
                     label="Download PowerPoint File",
@@ -1726,7 +1722,7 @@ def run():
                     mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
                 )
             else:
-                st.warning("Please select a fund and ensure data is loaded.")
+                st.warning("Please select a fund.")
 
 if __name__ == "__main__":
     run()
