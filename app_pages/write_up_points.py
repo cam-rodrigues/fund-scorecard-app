@@ -1576,7 +1576,24 @@ def run():
                     st.markdown(f"- {action}")
             else:
                 st.error("❌ No fund selected. Please select a fund from Step 15.")
+                
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+        # ── PowerPoint Section ──
+        with st.expander("Download PowerPoint", expanded=False):
+            # Get the category of the selected fund
+            category = "Equity"  # This would dynamically get the category based on selected fund (like you have before)
+
+            # Generate PowerPoint with titles
+            ppt_stream = generate_ppt_with_titles(category)  # Generate the PowerPoint with the category
+
+            # Display download button
+            st.download_button(
+                label="Download PowerPoint with Titles",
+                data=ppt_stream,
+                file_name="investment_watchlist_with_titles.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
 
 if __name__ == "__main__":
     run()
