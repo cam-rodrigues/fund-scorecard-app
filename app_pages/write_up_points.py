@@ -1020,28 +1020,78 @@ def step13_process_risk_adjusted_returns(pdf):
     df = pd.DataFrame(records)
     st.dataframe(df, use_container_width=True)
 
-def step14_debug_peer_heading(pdf):
+def step14_extract_peer_risk_adjusted_return_rank(pdf):
+    import re
     import streamlit as st
+    import pandas as pd
 
-    st.subheader("Debug: Inspect Factsheet Page Text (Lines 18–40)")
+    st.subheader("Step 14: Peer Risk-Adjusted Return Rank")
 
     factsheets = st.session_state.get("fund_factsheets_data", [])
     if not factsheets:
         st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
-    page_num = factsheets[0]["Page #"]
-    fund     = factsheets[0]["Matched Fund Name"]
-    ticker   = factsheets[0]["Matched Ticker"]
+    page_map = {
+        f["Page #"]:(f["Matched Fund Name"], f["Matched Ticker"])
+        for f in factsheets
+    }
 
-    page = pdf.pages[page_num - 1]
-    text = page.extract_text() or ""
-    lines = [ln for ln in text.splitlines() if ln.strip()]
+    metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
+    records = []
 
-    st.caption(f"Showing lines 18–40 from page {page_num} for {fund} ({ticker}):")
-    for i in range(18, min(len(lines), 41)):
-        st.text(f"{i:02d}: {lines[i]}")
-    return
+    for pnum, (fund, ticker) in page_map.items():
+        page = pdf.pages[pnum-1]
+        text = page.extract_text() or ""
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+
+        # 1) locate the Risk-Adjusted Returns header
+        try:
+            risk_idx = next(i for i, ln in enumerate(lines)
+                            if "RISK-ADJUSTED RETURNS" in ln.upper())
+        except StopIteration:
+            st.warning(f"⚠️ {fund} ({ticker}): Risk-Adjusted header not found.")
+            continue
+
+        # 2) find all “1 Yr 3 Yrs 5 Yrs 10 Yrs” lines after that
+        header_idxs = [i for i, ln in enumerate(lines)
+                       if re.match(r"1\s*Yr", ln)]
+        peer_header_idxs = [i for i in header_idxs if i > risk_idx]
+
+        if not peer_header_idxs:
+            st.warning(f"⚠️ {fund} ({ticker}): peer header not found.")
+            continue
+
+        # take the *second* header occurrence (first is Risk-Adjusted, next is Peer)
+        peer_hdr = peer_header_idxs[0] if len(peer_header_idxs)==1 else peer_header_idxs[1]
+
+        rec = {"Fund Name": fund, "Ticker": ticker}
+
+        # 3) read the three lines immediately below that header
+        for offset, metric in enumerate(metrics, start=1):
+            if peer_hdr + offset < len(lines):
+                parts = lines[peer_hdr + offset].split()
+                # parts[0:2] = metric name words, parts[2:6] = the four integer ranks
+                vals = parts[2:6] if len(parts) >= 6 else []
+            else:
+                vals = []
+
+            # fill into record (pad with None if missing)
+            for idx, period in enumerate(["1Yr","3Yr","5Yr","10Yr"]):
+                rec[f"{metric} {period}"] = vals[idx] if idx < len(vals) else None
+
+            if len(vals) < 4:
+                st.warning(f"⚠️ {fund} ({ticker}): only {len(vals)} peer values found for '{metric}'.")
+
+        records.append(rec)
+
+    if not records:
+        st.warning("❌ No Peer Risk-Adjusted Return Rank data extracted.")
+        return
+
+    df = pd.DataFrame(records)
+    st.session_state["step14_peer_rank_table"] = records
+    st.dataframe(df, use_container_width=True)
 
 
 #-------------------------------------------------------------------------------------------
@@ -1133,7 +1183,7 @@ def run():
 
         # Step 14: Peer Risk-Adjusted Return Rank
         with st.expander("Step 14: Find 'PEER RISK‑ADJUSTED RETURN RANK' Subheading", expanded=False):
-            step14_debug_peer_heading(pdf)
+            step14_extract_peer_risk_adjusted_return_rank(pdf)
 
 
 if __name__ == "__main__":
