@@ -1317,6 +1317,14 @@ def step15_display_selected_fund():
 
 # –– Powerpoint ––––––––––––––––––––––––––––––––––––
 
+from pptx import Presentation
+from pptx.util import Inches, Pt
+from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
+from pptx.dml.color import RGBColor  # Make sure this is included
+from pptx.oxml.xmlchemy import OxmlElement
+
+# Existing functions...
+
 def load_template():
     # Load the PowerPoint template from the file path in 'assets/template.pptx'
     template_path = "assets/template.pptx"  # Ensure it's a .pptx file
@@ -1495,6 +1503,44 @@ def slide_1_table(df, selected_fund):
                 p.text = str(val)
 
     return prs
+
+
+# Update the Main App
+def run():
+    import re
+    st.title("Writeup")
+    uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
+    if not uploaded:
+        return
+
+    # Initialize slide_1_table in session state
+    if "slide_1_table" not in st.session_state:
+        st.session_state["slide_1_table"] = None
+
+    with pdfplumber.open(uploaded) as pdf:
+        # Steps for processing PDF
+        # ...
+
+        # Export to PowerPoint section
+        st.markdown("---")
+        st.subheader("Export Selected Fund to PowerPoint")
+
+        selected_fund = st.session_state.get('selected_fund', None)
+
+        if selected_fund:
+            ppt_stream = slide_1_table(st.session_state["slide_1_table"], selected_fund)
+            output = BytesIO()
+            ppt_stream.save(output)
+
+            # Display download button for PowerPoint file
+            st.download_button(
+                label="Download PowerPoint File",
+                data=output.getvalue(),
+                file_name=f"{selected_fund}_Watchlist.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
+        else:
+            st.warning("Please select a fund and ensure data is loaded.")
 
 
 #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
