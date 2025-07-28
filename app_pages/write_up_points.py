@@ -673,8 +673,7 @@ def benchmarkcal(pdf):
 
     # Optionally, save the extracted data in session state for further use
     st.session_state["fund_calendar_year_data"] = fund_data
-
-
+    
 
 # === Step 9: Match Tickers in the Risk Analysis (3Yr) Section ===
 def step9_match_risk_tickers(pdf):
@@ -1535,16 +1534,15 @@ def run():
         with st.expander("Step 7: Extract Annualized Returns", expanded=False):
             step7_extract_returns(pdf)
         
-        # Step 8: Match Tickers
-        with st.expander("Step 8: Match Tickers in Calendar Year Section", expanded=False):
+        # Step 8: Match Tickers in Calendar Year Section
+        with st.expander("Step 8: Match Tickers in Calendar Year Section", expanded=False):
             step8_match_calendar_tickers(pdf)
-        
-        # Step 8.5: Extract Calendar Year Returns
-        with st.expander("Step 8.5: Extract Calendar Year Returns", expanded=False):
-            step8_5_extract_calendar_returns(pdf)
 
-        # Step 8.5: Extract Calendar Year Returns
-        with st.expander("Benchmark Calendar Year Returns", expanded=False):
+        # Step 8.5: Calendar Year Returns (fund + benchmark)
+        with st.expander("Step 8.5: Extract Calendar Year Returns", expanded=False):
+            # fund returns
+            step8_5_extract_calendar_returns(pdf)
+            # benchmark returns
             benchmarkcal(pdf)
 
         # Step 9: Match Tickers
@@ -1572,11 +1570,11 @@ def run():
             step12_process_fund_facts(pdf)
 
         # Step 13: Risk Adjusted Returns
-        with st.expander("Step 13: Find 'RISK‑ADJUSTED RETURNS' Subheading", expanded=False):
+        with st.expander("Step 13: Risk-Adjusted Returns", expanded=False):
             step13_process_risk_adjusted_returns(pdf)
 
         # Step 14: Peer Risk-Adjusted Return Rank
-        with st.expander("Step 14: Find 'PEER RISK‑ADJUSTED RETURN RANK' Subheading", expanded=False):
+        with st.expander("Step 14: Peer Risk-Adjusted Return Rank", expanded=False):
             step14_extract_peer_risk_adjusted_return_rank(pdf)
 
         # Step 15: View Single Fund Details
