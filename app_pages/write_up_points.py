@@ -1259,7 +1259,7 @@ def step15_display_selected_fund():
 
 
 
-        # === Slide 4 Table 1 ===
+    # === Slide 4 Table 1 ===
     st.markdown("**Slide 4 Table 1**")
     # grab 3‑Yr MPT stats
     mpt3 = st.session_state.get("step9_mpt_stats", [])
@@ -1308,6 +1308,26 @@ def step15_display_selected_fund():
     }])
     st.dataframe(df_slide5, use_container_width=True)
 
+    # === Slide 5 Table 2 ===
+    st.markdown("**Slide 5 Table 2**")
+    # grab factsheet details for the selected fund
+    facts = st.session_state.get("fund_factsheets_data", [])
+    fs_rec = next((f for f in facts if f["Matched Fund Name"] == choice), {})
+    # grab ticker for label
+    perf_data = st.session_state.get("fund_performance_data", [])
+    perf_item = next((p for p in perf_data if p["Fund Scorecard Name"] == choice), {})
+    # build Investment Manager label
+    inv_mgr    = f"{choice} ({perf_item.get('Ticker','')})"
+    # extract Net Assets and Avg. Market Cap
+    assets     = fs_rec.get("Net Assets", "")
+    avg_cap    = fs_rec.get("Avg. Market Cap", "")
+    # assemble and display
+    df_slide5_2 = pd.DataFrame([{
+        "Investment Manager":             inv_mgr,
+        "Assets Under Management":        assets,
+        "Average Market Capitalization":  avg_cap
+    }])
+    st.dataframe(df_slide5_2, use_container_width=True)
 
 #---------------------------------------------------------------------------------------
     
