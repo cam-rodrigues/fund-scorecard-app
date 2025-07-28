@@ -1020,55 +1020,6 @@ def step13_process_risk_adjusted_returns(pdf):
     df = pd.DataFrame(records)
     st.dataframe(df, use_container_width=True)
 
-# === Step 14: Find “PEER RISK‑ADJUSTED RETURN RANK” but strip trailing text ===
-def step14_find_peer_risk_adjusted_return_rank(pdf):
-    import streamlit as st, pandas as pd, re
-
-    st.subheader("Step 14: Locate 'PEER RISK‑ADJUSTED RETURN RANK'")
-
-    fs_start   = st.session_state.get("factsheets_page")
-    factsheets = st.session_state.get("fund_factsheets_data", [])
-    if not fs_start or not factsheets:
-        st.error("❌ Run Step 6 first to populate your factsheet pages.")
-        return
-
-    # map page → (Fund Name, Ticker)
-    page_map = {
-        f["Page #"]: (f["Matched Fund Name"], f["Matched Ticker"])
-        for f in factsheets
-    }
-
-    # capture exactly "PEER RISK‑ADJUSTED RETURN RANK" (allow any dash, optional trailing S)
-    heading_re = re.compile(
-        r"(?i)(PEER RISK\s*[-–—]\s*ADJUSTED RETURN RANKS?)"
-    )
-
-    rows = []
-    for pnum, (fund, ticker) in page_map.items():
-        text  = pdf.pages[pnum-1].extract_text() or ""
-        for idx, ln in enumerate(text.splitlines()):
-            norm = re.sub(r"\s+", " ", ln.strip())
-            # normalize dashes
-            norm = norm.replace("–", "-").replace("—", "-")
-            m = heading_re.search(norm)
-            if m:
-                # extract only the heading portion
-                clean_heading = m.group(1).upper()
-                rows.append({
-                    "Fund Name": fund,
-                    "Ticker":    ticker,
-                    "Page":      pnum,
-                    "Line":      idx + 1,
-                    "Text":      clean_heading
-                })
-                break
-
-    if not rows:
-        st.warning("❌ No 'PEER RISK‑ADJUSTED RETURN RANK' heading found.")
-    else:
-        st.session_state["step14_peer_rank_headings"] = rows
-        st.table(pd.DataFrame(rows))
-        
 def step14_extract_peer_risk_adjusted_return_rank(pdf):
     import re
     import streamlit as st
@@ -1076,10 +1027,9 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
 
     st.subheader("Step 14: Peer Risk-Adjusted Return Rank")
 
-    fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
-    if not fs_start or not factsheets:
-        st.error("❌ Run Step 6 first to populate your factsheet pages.")
+    if not factsheets:
+        st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
     # map page → (Fund Name, Ticker)
@@ -1088,51 +1038,47 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         for f in factsheets
     }
 
-    # regex to grab up to four integer tokens
-    num_rx = re.compile(r"\b(\d+)\b")
+    # regex to find heading, allowing non‑standard dash
+    heading_rx = re.compile(
+        r"peer\s*risk[\W_]*adjusted\s*return\s*rank",
+        re.IGNORECASE
+    )
+
+    # regex to pull four ints or decimals in sequence
+    nums_rx = re.compile(r"(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)")
 
     metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
     records = []
 
     for pnum, (fund, ticker) in page_map.items():
         page = pdf.pages[pnum-1]
-        text = page.extract_text() or ""
-        lines = [ln.strip() for ln in text.splitlines()]
+        raw = page.extract_text() or ""
+        flat = " ".join(raw.split())  # collapse all whitespace
 
-        # 1) find heading index
-        idx = next(
-            (i for i, ln in enumerate(lines)
-             if "peer risk" in ln.lower() and "return rank" in ln.lower()),
-            None
-        )
-        if idx is None:
+        # 1) heading check
+        if not heading_rx.search(flat):
             st.warning(f"⚠️ {fund} ({ticker}): heading not found.")
             continue
 
-        # 2) look at the next 6 lines for our three metrics
-        snippet = lines[idx+1 : idx+1+6]
         rec = {"Fund Name": fund, "Ticker": ticker}
 
-        for metric in metrics:
-            # find the line that starts with the metric name
-            line = next(
-                (ln for ln in snippet
-                 if ln.lower().startswith(metric.lower())),
-                None
+        # 2) for each metric, look for “Metric … 4 numbers”
+        for mname in metrics:
+            # build a pattern like “Sharpe Ratio…# # # #”
+            pat = re.compile(
+                re.escape(mname) + r".*?" + nums_rx.pattern,
+                re.IGNORECASE
             )
-            if line:
-                nums = num_rx.findall(line)
-                # pad to exactly 4 slots
-                nums += [None] * (4 - len(nums))
-                rec[f"{metric} 1Yr"]  = nums[0]
-                rec[f"{metric} 3Yr"]  = nums[1]
-                rec[f"{metric} 5Yr"]  = nums[2]
-                rec[f"{metric} 10Yr"] = nums[3]
+            m = pat.search(flat)
+            if m:
+                rec[f"{mname} 1Yr"]  = m.group(1)
+                rec[f"{mname} 3Yr"]  = m.group(2)
+                rec[f"{mname} 5Yr"]  = m.group(3)
+                rec[f"{mname} 10Yr"] = m.group(4)
             else:
-                st.warning(f"⚠️ {fund} ({ticker}): '{metric}' line not found.")
-                # fill with None so columns are consistent
+                st.warning(f"⚠️ {fund} ({ticker}): '{mname}' values not found.")
                 for col in ["1Yr","3Yr","5Yr","10Yr"]:
-                    rec[f"{metric} {col}"] = None
+                    rec[f"{mname} {col}"] = None
 
         records.append(rec)
 
@@ -1140,7 +1086,6 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         st.warning("❌ No Peer Risk-Adjusted Return Rank data extracted.")
         return
 
-    # 3) display and save
     df = pd.DataFrame(records)
     st.session_state["step14_peer_rank_table"] = records
     st.dataframe(df, use_container_width=True)
