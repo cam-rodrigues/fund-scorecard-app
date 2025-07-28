@@ -1357,7 +1357,7 @@ def format_quarter(raw):
     
     return raw  # fallback if it doesn't match
 
-def generate_watchlist_slide(df, selected_fund):
+def slide_1_table(selected_fund):
     prs = Presentation()
     blank_slide_layout = prs.slide_layouts[6]  # Layout 6 is typically a blank slide
     slide = prs.slides.add_slide(blank_slide_layout)
@@ -1370,7 +1370,7 @@ def generate_watchlist_slide(df, selected_fund):
     tf.clear()
     p = tf.paragraphs[0]
     run = p.add_run()
-    run.text = "Slide 1 Table"  # Change this to "Slide 1 Table"
+    run.text = "Investment Watchlist"  # Change this to "Slide 1 Table"
     run.font.size = Pt(20)
     run.font.name = "Helvetica"
     run.font.color.rgb = RGBColor(33, 43, 88)  # #212b58
@@ -1701,13 +1701,13 @@ def run():
         
         # Ensure that df_summary is initialized
         if "summary_df" not in st.session_state:
-            st.session_state["summary_df"] = df_summary  # Make sure df_summary exists
+            st.session_state["slide_1_table"] = slide_1_table  # Make sure df_summary exists
         
         # Check if the selected fund and summary data are available before exporting
         if st.button("Export to PowerPoint"):
-            if selected_fund and not st.session_state["summary_df"].empty:
+            if selected_fund and not st.session_state["slide_1_table"].empty:
                 # Pass both the data and selected fund to generate the slide
-                ppt_stream = generate_watchlist_slide(st.session_state["summary_df"], selected_fund)
+                ppt_stream = slide_1_table(st.session_state["slide_1_table"], selected_fund)
                 output = BytesIO()
                 ppt_stream.save(output)
         
