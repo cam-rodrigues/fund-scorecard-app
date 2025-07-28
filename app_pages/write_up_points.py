@@ -4,6 +4,10 @@ import pdfplumber
 from calendar import month_name
 import pandas as pd
 from rapidfuzz import fuzz
+from pptx import Presentation
+from pptx.util import Inches
+from io import BytesIO
+
 
 # === Utility: Extract & Label Report Date ===
 def extract_report_date(text):
@@ -1310,6 +1314,76 @@ def step15_display_selected_fund():
         "Average Market Capitalization":  avg_cap
     }])
     st.dataframe(df_slide5_2, use_container_width=True)
+
+
+from pptx import Presentation
+from pptx.util import Pt
+from pptx.dml.color import RGBColor
+import streamlit as st
+from io import BytesIO
+
+def load_template():
+    # Load the PowerPoint template from the file path in 'assets/template.pptx'
+    template_path = "assets/template.pptx"  # Ensure it's a .pptx file
+    prs = Presentation(template_path)  # Load the template
+    return prs
+
+# Function to add formatted title to a slide
+def add_title_to_slide(slide, title, category=None):
+    title_shape = slide.shapes.title
+    title_shape.text = title if category is None else title.replace("[Category]", category)
+
+    # Set the title formatting: Font, Size, and Color
+    title_text_frame = title_shape.text_frame
+    for paragraph in title_text_frame.paragraphs:
+        for run in paragraph.runs:
+            run.font.name = 'Helvetica'
+            run.font.size = Pt(19.4)
+            run.font.color.rgb = RGBColor(33, 43, 88)  # #212b58
+
+# Function to generate the PowerPoint with titles only
+def generate_ppt_with_titles(category="General"):
+    prs = load_template()  # Load the PowerPoint template
+
+    # Slide 1: Investment Watchlist
+    slide_1 = prs.slides.add_slide(prs.slide_layouts[0])  # Title slide layout
+    add_title_to_slide(slide_1, "Investment Watchlist")
+
+    # Slide 2: [Category] – Expense & Return
+    slide_2 = prs.slides.add_slide(prs.slide_layouts[1])  # Title and content layout
+    add_title_to_slide(slide_2, "[Category] – Expense & Return", category)
+
+    # Slide 3: [Category] – Risk Adjusted Statistics
+    slide_3 = prs.slides.add_slide(prs.slide_layouts[1])  # Title and content layout
+    add_title_to_slide(slide_3, "[Category] – Risk Adjusted Statistics", category)
+
+    # Slide 4: [Category] – Qualitative Factors
+    slide_4 = prs.slides.add_slide(prs.slide_layouts[1])  # Title and content layout
+    add_title_to_slide(slide_4, "[Category] – Qualitative Factors", category)
+
+    # Save to BytesIO object for Streamlit download
+    ppt_stream = BytesIO()
+    prs.save(ppt_stream)
+    ppt_stream.seek(0)  # Rewind to the start of the file
+
+    return ppt_stream
+
+# Function to display the download button in Streamlit
+def show_ppt_download_button():
+    category = "Equity"  # Default category, can change based on user input or further logic
+    ppt_stream = generate_ppt_with_titles(category)
+
+    # Streamlit download button
+    st.download_button(
+        label="Download PowerPoint with Titles",
+        data=ppt_stream,
+        file_name="investment_watchlist_with_titles.pptx",
+        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    )
+
+# Call this function in your Streamlit app
+if __name__ == "__main__":
+    show_ppt_download_button()
 
 
 #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
