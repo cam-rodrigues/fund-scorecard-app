@@ -1088,16 +1088,14 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
     page_map = {f["Page #"]:(f["Matched Fund Name"], f["Matched Ticker"])
                 for f in factsheets}
 
-    # collect heading locations
+    # find each PEER RISK‑ADJUSTED RETURN RANK line
     headings = []
     for pnum in range(fs_start, len(pdf.pages)+1):
-        if pnum not in page_map:
+        if pnum not in page_map: 
             continue
-        txt = (pdf.pages[pnum-1]
-                  .extract_text() or ""
-               ).replace("–","-").replace("—","-")
-        for idx, ln in enumerate(txt.splitlines()):
-            if "PEER RISK-ADJUSTED RETURN RANK" in ln.upper():
+        text = pdf.pages[pnum-1].extract_text() or ""
+        for idx, ln in enumerate(text.splitlines()):
+            if "peer risk-adjusted return rank" in ln.lower():
                 name, tk = page_map[pnum]
                 headings.append((pnum-1, idx, name, tk))
                 break
@@ -1106,44 +1104,35 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         st.warning("❌ No 'PEER RISK‑ADJUSTED RETURN RANK' headings found.")
         return
 
-    # regex to extract integers or decimals
     num_rx = re.compile(r"-?\d+\.?\d*")
-    metrics = ["SHARPE RATIO", "INFORMATION RATIO", "SORTINO RATIO"]
+    metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
     records = []
 
     for pg, start_idx, name, tk in headings:
-        lines = (pdf.pages[pg]
-                   .extract_text() or ""
-                ).replace("–","-").replace("—","-").splitlines()
-
+        lines = (pdf.pages[pg].extract_text() or "").splitlines()
         rec = {"Fund Name": name, "Ticker": tk}
-        found_metrics = set()
+        found = set()
 
-        # scan from the heading down
+        # scan downward, skip blank and header rows
         for ln in lines[start_idx+1:]:
-            up = ln.strip().upper()
-            # skip blank lines and the column‑header row
-            if not up or up.startswith("1 YR") or up.startswith("YR"):
+            if not ln.strip() or ln.strip().lower().startswith("1 yr"):
                 continue
-
-            for metric in metrics:
-                if metric in up and metric not in found_metrics:
+            low = ln.lower()
+            for m in metrics:
+                if m.lower() in low and m not in found:
                     nums = num_rx.findall(ln)
-                    # we expect 4 numbers
                     nums += [None]*(4 - len(nums))
-                    rec[f"{metric} 1Yr"]  = nums[0]
-                    rec[f"{metric} 3Yr"]  = nums[1]
-                    rec[f"{metric} 5Yr"]  = nums[2]
-                    rec[f"{metric} 10Yr"] = nums[3]
-                    found_metrics.add(metric)
-            if len(found_metrics) == len(metrics):
+                    rec[f"{m} 1Yr"]  = nums[0]
+                    rec[f"{m} 3Yr"]  = nums[1]
+                    rec[f"{m} 5Yr"]  = nums[2]
+                    rec[f"{m} 10Yr"] = nums[3]
+                    found.add(m)
+            if len(found) == len(metrics):
                 break
 
-        # warn if any missing
-        for metric in metrics:
-            if metric not in found_metrics:
-                st.warning(f"⚠️ {name} ({tk}): '{metric}' line not found.")
-
+        for m in metrics:
+            if m not in found:
+                st.warning(f"⚠️ {name} ({tk}): '{m}' line not found.")
         records.append(rec)
 
     df = pd.DataFrame(records)
