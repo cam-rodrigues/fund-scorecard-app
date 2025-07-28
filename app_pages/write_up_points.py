@@ -1285,7 +1285,28 @@ def step15_display_selected_fund():
     df_slide4_1 = pd.DataFrame([row])
     st.dataframe(df_slide4_1, use_container_width=True)
 
-    
+
+    # === Slide 5 Table 1 ===
+    st.markdown("**Slide 5 Table 1**")
+    # grab the scorecard metrics for the selected fund
+    blocks     = st.session_state.get("fund_blocks", [])
+    block      = next((b for b in blocks if b["Fund Name"] == choice), {})
+    raw_tenure = next((m["Info"] for m in block.get("Metrics", []) if m["Metric"] == "Manager Tenure"), "")
+    # ensure it ends with 'years'
+    tenure = raw_tenure if "year" in raw_tenure.lower() else f"{raw_tenure} years"
+
+    # build Investment Manager label with ticker
+    perf_data = st.session_state.get("fund_performance_data", [])
+    perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == choice), {})
+    inv_mgr   = f"{choice} ({perf_item.get('Ticker','')})"
+
+    # assemble and display
+    df_slide5 = pd.DataFrame([{
+        "Investment Manager": inv_mgr,
+        "Manager Tenure":     tenure
+    }])
+    st.dataframe(df_slide5, use_container_width=True)
+
 #---------------------------------------------------------------------------------------
     
     # Step 5: Fund performance mapping
