@@ -1201,34 +1201,34 @@ def step15_display_selected_fund():
     df_slide3_2 = pd.DataFrame([row])
     st.dataframe(df_slide3_2, use_container_width=True)
 
-    # === Slide 3 Table 3 ===
+    # === Slide 3 Table 3 ===
     st.markdown("**Slide 3 Table 3**")
-
-    # grab calendar‑year returns for fund and benchmark
-    fund_cy  = st.session_state.get("step8_returns", [])
-    bench_cy = st.session_state.get("benchmark_calendar_returns", [])
-
-    # find the two rows
-    fund_row  = next((r for r in fund_cy  if r["Fund Name"] == choice), {})
-    bench_row = next((r for r in bench_cy if r["Fund Name"] == choice), {})
-
-    # collect the year columns in chronological order
-    years = sorted([c for c in fund_row.keys() if re.match(r"20\\d{2}$", c)])
-
-    # build Investment Manager labels
-    inv_mgr_f = f"{choice} ({fund_row.get('Ticker','')})"
-    bench_nm  = bench_row.get("Benchmark","")
-    inv_mgr_b = f"{bench_nm} ({bench_row.get('Ticker','')})"
-
-    # assemble two rows
-    row_f = {"Investment Manager": inv_mgr_f}
-    row_b = {"Investment Manager": inv_mgr_b}
-    for y in years:
-        row_f[y] = fund_row.get(y)
-        row_b[y] = bench_row.get(y)
-
-    df_slide3_3 = pd.DataFrame([row_f, row_b])
+    
+    # 1) grab the calendar‐year returns extracted in Step 8
+    fund_cy   = st.session_state.get("step8_returns", [])
+    bench_cy  = st.session_state.get("benchmark_calendar_year_returns", [])
+    
+    # 2) find the selected fund’s record and its benchmark record
+    fund_rec  = next((r for r in fund_cy  if r["Name"]   == choice), {})
+    bench_rec = next((r for r in bench_cy if r["Ticker"] == fund_rec.get("Ticker")), {})
+    
+    # 3) build Investment Manager label
+    inv_mgr = f"{choice} ({fund_rec.get('Ticker','')})"
+    
+    # 4) determine the calendar‐year columns
+    year_cols = [c for c in fund_rec.keys() if re.match(r"20\\d{2}", c)]
+    
+    # 5) assemble two rows: Fund and Benchmark
+    row_fund  = {"Investment Manager": inv_mgr}
+    row_bench = {"Investment Manager": inv_mgr}
+    for yr in year_cols:
+        row_fund[yr]  = fund_rec.get(yr, "")
+        row_bench[yr] = bench_rec.get(yr, "")
+    
+    # 6) create & show
+    df_slide3_3 = pd.DataFrame([row_fund, row_bench], index=["Fund","Benchmark"])
     st.dataframe(df_slide3_3, use_container_width=True)
+    
 
 
     # === Slide 4 Table 1 ===
