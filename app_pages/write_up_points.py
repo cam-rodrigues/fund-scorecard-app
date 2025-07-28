@@ -1241,6 +1241,34 @@ def step15_display_selected_fund():
     }
     df_slide3_2 = pd.DataFrame([row])
     st.dataframe(df_slide3_2, use_container_width=True)
+
+
+        # === Slide 4 Table 1 ===
+    st.markdown("**Slide 4 Table 1**")
+    # grab 3‑Yr MPT stats
+    mpt3 = st.session_state.get("step9_mpt_stats", [])
+    stats3 = next((r for r in mpt3 if r["Fund Name"] == choice), {})
+    # grab 5‑Yr MPT stats
+    mpt5 = st.session_state.get("step10_mpt_stats", [])
+    stats5 = next((r for r in mpt5 if r["Fund Name"] == choice), {})
+    # build Investment Manager with ticker
+    ticker = stats3.get("Ticker", stats5.get("Ticker", ""))
+    inv_mgr = f"{choice} ({ticker})"
+    # assemble the row
+    row = {
+        "Investment Manager":        inv_mgr,
+        "3 Year Alpha":              stats3.get("3 Year Alpha", ""),
+        "5 Year Alpha":              stats5.get("5 Year Alpha", ""),
+        "3 Year Beta":               stats3.get("3 Year Beta", ""),
+        "5 Year Beta":               stats5.get("5 Year Beta", ""),
+        "3 Year Upside Capture":     stats3.get("3 Year Upside Capture", ""),
+        "3 Year Downside Capture":   stats3.get("3 Year Downside Capture", ""),
+        "5 Year Upside Capture":     stats5.get("5 Year Upside Capture", ""),
+        "5 Year Downside Capture":   stats5.get("5 Year Downside Capture", "")
+    }
+    df_slide4_1 = pd.DataFrame([row])
+    st.dataframe(df_slide4_1, use_container_width=True)
+
     
 #---------------------------------------------------------------------------------------
     
