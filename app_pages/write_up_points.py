@@ -1363,11 +1363,7 @@ def run():
 
         # Step 10: Match Tickers
         with st.expander("Step 10: Match Tickers in Risk Analysis (5Yr)", expanded=False):
-            step10_match_risk_tickers(pdf)
-
-        # Step 10.5: Extract Extract MPT Statistics (5Yr)
-        with st.expander("Step 10.5: Extract MPT Statistics (5Yr)", expanded=False):
-            step10_extract_mpt_statistics(pdf)
+            step10_risk_analysis_5yr(pdf)
 
         # Step 11: MPT Statistics Summary
         with st.expander("Step 11: Combined MPT Statistics Summary", expanded=False):
