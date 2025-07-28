@@ -984,6 +984,7 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
 def step15_display_selected_fund():
     import pandas as pd
     import streamlit as st
+    import re
 
     st.subheader("Step 15: Single Fund Details")
     facts = st.session_state.get("fund_factsheets_data", [])
