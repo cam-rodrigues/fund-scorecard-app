@@ -1095,6 +1095,9 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
 
 #--------------------------------------------------------------------------------------------
 # == Step 15 ==
+import streamlit as st
+import pandas as pd
+
 def step15_display_selected_fund():
     st.subheader("Step 15: View Single Fund Details")
     # list of funds from factsheets step
@@ -1147,17 +1150,16 @@ def step15_display_selected_fund():
     # Step 6: Factsheet details
     st.markdown("**Step 6: Fund Factsheet Details**")
     facts_df = pd.DataFrame(facts)
-    
-    if 'Parsed Fund Name' in facts_df.columns:
-        df6 = facts_df[facts_df['Parsed Fund Name'] == choice]
+    # filter on Matched Fund Name instead of Parsed Fund Name
+    if 'Matched Fund Name' in facts_df.columns:
+        df6 = facts_df[facts_df['Matched Fund Name'] == choice]
     else:
-        df6 = pd.DataFrame()  # empty DataFrame
-    
+        df6 = pd.DataFrame()
+
     if not df6.empty:
         st.dataframe(df6, use_container_width=True)
     else:
         st.write("_No factsheet data for this fund._")
-
 
     # Step 7: Annualized returns & expense
     st.markdown("**Step 7: Annualized Returns / Expense**")
@@ -1238,6 +1240,7 @@ def step15_display_selected_fund():
         st.dataframe(df14.set_index('Fund Name'), use_container_width=True)
     else:
         st.write("_No peer rank data for this fund._")
+
 
 #-------------------------------------------------------------------------------------------
 
