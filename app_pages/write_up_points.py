@@ -628,6 +628,41 @@ def step8_5_extract_calendar_returns(pdf):
     st.session_state["step8_returns"] = results
     st.dataframe(df)
 
+    # … your existing fund‐returns code …
+    df = pd.DataFrame(results)
+    st.session_state["step8_returns"] = results
+    st.dataframe(df, use_container_width=True)
+
+    # === Benchmark Calendar Year Returns Only ===
+    st.markdown("**Benchmark Calendar Year Returns**")
+    bench_rows = []
+    for name, ticker in tickers_map.items():
+        ticker    = ticker.upper()
+        bench_vals = [None] * n
+        # scan forward to find the fund’s ticker line
+        for pnum in range(start_pg-1, len(pdf.pages)):
+            lines = (pdf.pages[pnum].extract_text() or "").splitlines()
+            idx = next((i for i, ln in enumerate(lines) if ticker in ln), None)
+            if idx is None:
+                continue
+            # grab benchmark returns from the line below
+            bi = idx + 1
+            if bi < len(lines):
+                rawb = num_rx.findall(lines[bi])
+                cleanb = [t.strip("()%").rstrip("%") for t in rawb]
+                if len(cleanb) < n:
+                    cleanb += [None] * (n - len(cleanb))
+                bench_vals = cleanb[:n]
+            break
+
+        row = {"Fund Name": name, "Ticker": ticker}
+        for i, yr in enumerate(years):
+            row[f"Benchmark {yr}"] = bench_vals[i]
+        bench_rows.append(row)
+
+    df_bench = pd.DataFrame(bench_rows)
+    st.session_state["step8_benchmark_returns"] = bench_rows
+    st.dataframe(df_bench, use_container_width=True)
 
 
 # === Step 9: Match Tickers in the Risk Analysis (3Yr) Section ===
