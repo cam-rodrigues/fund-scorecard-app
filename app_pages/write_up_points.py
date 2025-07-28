@@ -1220,39 +1220,43 @@ def step15_display_selected_fund():
     
     # 3) Find the selected fund’s record and its benchmark record
     fund_rec = next((r for r in fund_cy if r.get("Name") == choice), None)  # Changed "Fund Name" to "Name"
-    bench_rec = next((r for r in bench_cy if r.get("Name") == choice), None)  # Changed "Fund Name" to "Name"
-    
-    # If fund or benchmark record is not found
     if not fund_rec:
         st.error(f"❌ Could not find data for selected fund: {choice}")
         return
+    
+    # 4) Try to match the benchmark data using Name or Ticker
+    benchmark_name = choice  # Assume benchmark matches the fund's name, we can refine this logic if needed
+    bench_rec = next((r for r in bench_cy if r.get("Name") == benchmark_name or r.get("Ticker") == fund_rec.get("Ticker")), None)
+    
+    # If benchmark record is not found
     if not bench_rec:
         st.error(f"❌ Could not find benchmark data for selected fund: {choice}")
         return
     
-    # 4) Get the years from the calendar year columns (using the first record)
+    # 5) Get the years from the calendar year columns (using the first record)
     year_cols = [col for col in fund_rec.keys() if re.match(r"20\d{2}", col)]
     
-    # 5) Prepare the rows for the selected fund and benchmark
+    # 6) Prepare the rows for the selected fund and benchmark
     rows = []
     
-    # 6) Add the selected fund's data
+    # 7) Add the selected fund's data
     row_fund = {"Investment Manager": f"{choice} ({fund_rec.get('Ticker','')})"}
     for year in year_cols:
         row_fund[year] = fund_rec.get(year, "")
     rows.append(row_fund)
     
-    # 7) Add the benchmark's data
+    # 8) Add the benchmark's data
     row_benchmark = {"Investment Manager": "Benchmark"}
     for year in year_cols:
         row_benchmark[year] = bench_rec.get(year, "")
     rows.append(row_benchmark)
     
-    # 8) Create a DataFrame for the table
+    # 9) Create a DataFrame for the table
     df_slide3_3 = pd.DataFrame(rows, columns=["Investment Manager"] + year_cols)
     
-    # 9) Display the table
+    # 10) Display the table
     st.dataframe(df_slide3_3, use_container_width=True)
+    
 
 
     # === Slide 4 Table 1 ===
