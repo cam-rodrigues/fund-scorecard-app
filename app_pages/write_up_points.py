@@ -501,20 +501,20 @@ def step7_extract_returns(pdf):
     )
 
 
-# === Step 8 & 8.5: Calendar Year Returns (Funds + Benchmarks) ===
+# === Step 8 & 8.5: Calendar Year Returns (funds + benchmarks) ===
 def step8_calendar_returns(pdf):
     import re, streamlit as st, pandas as pd
 
     st.subheader("Step 8: Calendar Year Returns")
 
-    # 1) Section boundaries
-    cy_page = st.session_state.get("calendar_year_page")
-    end_page = st.session_state.get("r3yr_page", len(pdf.pages)+1)
+    # 1) Figure out section bounds
+    cy_page  = st.session_state.get("calendar_year_page")
+    end_page = st.session_state.get("r3yr_page", len(pdf.pages) + 1)
     if cy_page is None:
-        st.error("❌ 'Fund Performance: Calendar Year' not in TOC.")
+        st.error("❌ 'Fund Performance: Calendar Year' not found in TOC.")
         return
 
-    # 2) Gather all lines in that section
+    # 2) Pull every line from that section
     all_lines = []
     for p in pdf.pages[cy_page-1 : end_page-1]:
         all_lines.extend((p.extract_text() or "").splitlines())
@@ -525,53 +525,52 @@ def step8_calendar_returns(pdf):
         st.error("❌ Couldn’t find header row with 'Ticker' + year.")
         return
     years = re.findall(r"\b20\d{2}\b", header)
-    n     = len(years)
-
     num_rx = re.compile(r"-?\d+\.\d+%?")
 
-    # — A) Funds —
-    fund_map = st.session_state.get("tickers", {})
+    # — A) Funds themselves —
+    fund_map     = st.session_state.get("tickers", {})
     fund_records = []
     for name, tk in fund_map.items():
         ticker = (tk or "").upper()
-        # find the line that contains the ticker
-        idx = next((i for i, ln in enumerate(all_lines) if ticker in ln.split()), None)
-        raw = num_rx.findall(all_lines[idx-1]) if idx not in (None, 0) else []
-        vals = [v.rstrip("%") for v in raw[:n]] + [None]*(n - len(raw))
-        rec = {"Fund Name": name, "Ticker": ticker}
-        rec.update({years[i]: vals[i] for i in range(n)})
+        idx    = next((i for i, ln in enumerate(all_lines) if ticker in ln.split()), None)
+        raw    = num_rx.findall(all_lines[idx-1]) if idx not in (None, 0) else []
+        vals   = raw[:len(years)] + [None] * (len(years) - len(raw))
+        rec    = {"Name": name, "Ticker": ticker}
+        rec.update({years[i]: vals[i] for i in range(len(years))})
         fund_records.append(rec)
 
     df_fund = pd.DataFrame(fund_records)
     if not df_fund.empty:
         st.markdown("**Fund Calendar‑Year Returns**")
-        st.dataframe(df_fund[["Fund Name","Ticker"] + years], use_container_width=True)
+        st.dataframe(df_fund[["Name", "Ticker"] + years], use_container_width=True)
         st.session_state["step8_returns"] = fund_records
-    else:
-        st.warning("No fund returns extracted.")
 
-    # — B) Benchmarks —
-    facts = st.session_state.get("fund_factsheets_data", [])
+    # — B) Benchmarks matched back to each fund’s ticker —
+    facts         = st.session_state.get("fund_factsheets_data", [])
     bench_records = []
     for f in facts:
-        bench = f.get("Benchmark", "").strip()
-        raw = []
-        if bench:
-            idx = next((i for i, ln in enumerate(all_lines) if bench in ln), None)
-            raw = num_rx.findall(all_lines[idx]) if idx is not None else []
-        vals = [v.rstrip("%") for v in raw[:n]] + [None]*(n - len(raw))
-        rec = {"Fund Name": bench or "—", "Ticker": ""}
-        rec.update({years[i]: vals[i] for i in range(n)})
+        bench_name = f.get("Benchmark", "").strip()
+        fund_tkr   = f.get("Matched Ticker", "")
+        if not bench_name:
+            continue
+
+        # find the first line containing the benchmark name
+        idx = next((i for i, ln in enumerate(all_lines) if bench_name in ln), None)
+        if idx is None:
+            continue
+        raw  = num_rx.findall(all_lines[idx])
+        vals = raw[:len(years)] + [None] * (len(years) - len(raw))
+        rec  = {"Name": bench_name, "Ticker": fund_tkr}
+        rec.update({years[i]: vals[i] for i in range(len(years))})
         bench_records.append(rec)
 
     df_bench = pd.DataFrame(bench_records)
     if not df_bench.empty:
         st.markdown("**Benchmark Calendar‑Year Returns**")
-        st.dataframe(df_bench[["Fund Name","Ticker"] + years], use_container_width=True)
+        st.dataframe(df_bench[["Name", "Ticker"] + years], use_container_width=True)
         st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
         st.warning("No benchmark returns extracted.")
-
 
 # === Step 9: Match Tickers in the Risk Analysis (3Yr) Section ===
 def step9_match_risk_tickers(pdf):
