@@ -592,65 +592,76 @@ def step8_5_extract_calendar_returns(pdf):
     st.dataframe(df, use_container_width=True)
 
 
-# === Benchmark Calendar Year Annualized Returns ===
+# === Step 8.5: Benchmark Calendar Year Returns ===
 def benchmarkcal(pdf):
     import re, pandas as pd, streamlit as st
 
     st.subheader("Benchmark Calendar Year Returns")
-
     cy_page = st.session_state.get("calendar_year_page")
     if cy_page is None:
-        st.error("❌ 'Calendar Year' page not in TOC.")
+        st.error("❌ 'Fund Performance: Calendar Year' page not found in TOC.")
         return
 
-    # gather lines from that page
-    lines = []
-    for p in pdf.pages[cy_page-1:cy_page+2]:
-        lines.extend((p.extract_text() or "").splitlines())
+    # 1) figure out which years we're looking at
+    header_line = None
+    for p in range(cy_page-1, min(cy_page+2, len(pdf.pages))):
+        for ln in (pdf.pages[p].extract_text() or "").splitlines():
+            if "Ticker" in ln and re.search(r"20(1[5-9]|2[0-4])", ln):
+                header_line = ln
+                break
+        if header_line:
+            break
+    if not header_line:
+        st.error("❌ Couldn't find Calendar‑Year header row.")
+        return
 
-    # regex for a single‐line benchmark + 10 returns
-    pattern = re.compile(
-        r"^(?P<name>[\w\s\-&]+?)\s+" +
-        r"(?P<r15>-?\d+\.\d+)%?\s+" +
-        r"(?P<r16>-?\d+\.\d+)%?\s+" +
-        r"(?P<r17>-?\d+\.\d+)%?\s+" +
-        r"(?P<r18>-?\d+\.\d+)%?\s+" +
-        r"(?P<r19>-?\d+\.\d+)%?\s+" +
-        r"(?P<r20>-?\d+\.\d+)%?\s+" +
-        r"(?P<r21>-?\d+\.\d+)%?\s+" +
-        r"(?P<r22>-?\d+\.\d+)%?\s+" +
-        r"(?P<r23>-?\d+\.\d+)%?\s+" +
-        r"(?P<r24>-?\d+\.\d+)%?$"
-    )
+    years = re.findall(r"\b20(1[5-9]|2[0-4])\b", header_line)
+    years = ["20" + y for y in years]
+    n     = len(years)
+
+    # 2) load your factsheet benchmarks + tickers
+    facts      = st.session_state.get("fund_factsheets_data", [])
+    bench_map  = {
+        f["Benchmark"].strip(): f["Matched Ticker"]
+        for f in facts
+        if f.get("Benchmark")
+    }
+    if not bench_map:
+        st.error("⚠️ No benchmarks found in fund_factsheets_data.")
+        return
+
+    # 3) scan the calendar‑year pages for any line starting with one of your benchmarks
+    all_lines = []
+    for p in range(cy_page-1, min(cy_page+2, len(pdf.pages))):
+        all_lines.extend((pdf.pages[p].extract_text() or "").splitlines())
 
     rows = []
-    for ln in lines:
-        m = pattern.match(ln.strip())
-        if not m:
-            continue
-        d = m.groupdict()
-        row = {"Benchmark": d.pop("name")}
-        for yy in range(15,25):
-            row[f"20{yy}"] = d[f"r{yy:02d}"]
-        rows.append(row)
+    for ln in all_lines:
+        for bench, tk in bench_map.items():
+            if not ln.startswith(bench):
+                continue
+
+            # split off the benchmark name
+            rest = ln[len(bench):].strip().split()
+            # if the first token is a ticker, drop it
+            if rest and re.match(r"^[A-Z]{1,5}$", rest[0]):
+                rest = rest[1:]
+            # take exactly n values
+            vals = rest[:n]
+
+            row = {"Benchmark": bench, "Ticker": tk}
+            for y, v in zip(years, vals):
+                row[y] = v.rstrip("%")
+            rows.append(row)
 
     if not rows:
-        st.error("❌ No benchmark data found.")
+        st.error("❌ No matching benchmark lines found.")
         return
 
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(rows).set_index("Benchmark")
+    st.dataframe(df, use_container_width=True)
+    st.session_state["benchmark_calendar_returns"] = rows
 
-    # attach each fund's ticker via factsheet mapping
-    facts = st.session_state.get("fund_factsheets_data", [])
-    bmk2tk = { f["Benchmark"]: f["Matched Ticker"] for f in facts }
-    df["Ticker"] = df["Benchmark"].map(lambda b: bmk2tk.get(b, ""))
-
-    # now set Benchmark → index, and show Ticker + each year only
-    year_cols = [c for c in df.columns if re.match(r"20\d\d", c)]
-    display_cols = ["Ticker"] + year_cols
-
-    df2 = df.set_index("Benchmark")[display_cols]
-    st.dataframe(df2, use_container_width=True)
 
 
 # === Step 9: Match Tickers in the Risk Analysis (3Yr) Section ===
