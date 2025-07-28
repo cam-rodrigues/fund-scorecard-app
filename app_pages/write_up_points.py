@@ -1204,7 +1204,7 @@ def step15_display_selected_fund():
     # === Slide 3 Table 3 ===
     st.markdown("**Slide 3 Table 3**")
     
-    # 1) Grab the calendar‐year returns extracted in Step 8 (fund and benchmark data)
+    # 1) Grab the calendar year returns extracted in Step 8 (fund and benchmark data)
     fund_cy = st.session_state.get("step8_returns", [])
     bench_cy = st.session_state.get("benchmark_calendar_year_returns", [])
     
@@ -1213,9 +1213,14 @@ def step15_display_selected_fund():
         st.error("❌ No calendar year returns data found. Ensure Step 8 has been run correctly.")
         return
     
-    # 2) Find the selected fund’s record and its benchmark record
-    fund_rec = next((r for r in fund_cy if r["Fund Name"] == choice), None)
-    bench_rec = next((r for r in bench_cy if r["Fund Name"] == choice), None)
+    # 2) Ensure 'Fund Name' exists in the fund and benchmark records
+    # Debugging output to check structure
+    st.write(f"Fund data keys: {fund_cy[0].keys() if fund_cy else 'No data'}")
+    st.write(f"Benchmark data keys: {bench_cy[0].keys() if bench_cy else 'No data'}")
+    
+    # 3) Find the selected fund’s record and its benchmark record
+    fund_rec = next((r for r in fund_cy if r.get("Fund Name") == choice), None)
+    bench_rec = next((r for r in bench_cy if r.get("Fund Name") == choice), None)
     
     # If fund or benchmark record is not found
     if not fund_rec:
@@ -1225,29 +1230,30 @@ def step15_display_selected_fund():
         st.error(f"❌ Could not find benchmark data for selected fund: {choice}")
         return
     
-    # 3) Get the years from the calendar year columns (using the first record)
+    # 4) Get the years from the calendar year columns (using the first record)
     year_cols = [col for col in fund_rec.keys() if re.match(r"20\d{2}", col)]
     
-    # 4) Prepare the rows for the selected fund and benchmark
+    # 5) Prepare the rows for the selected fund and benchmark
     rows = []
     
-    # 5) Add the selected fund's data
+    # 6) Add the selected fund's data
     row_fund = {"Investment Manager": f"{choice} ({fund_rec.get('Ticker','')})"}
     for year in year_cols:
         row_fund[year] = fund_rec.get(year, "")
     rows.append(row_fund)
     
-    # 6) Add the benchmark's data
+    # 7) Add the benchmark's data
     row_benchmark = {"Investment Manager": "Benchmark"}
     for year in year_cols:
         row_benchmark[year] = bench_rec.get(year, "")
     rows.append(row_benchmark)
     
-    # 7) Create a DataFrame for the table
+    # 8) Create a DataFrame for the table
     df_slide3_3 = pd.DataFrame(rows, columns=["Investment Manager"] + year_cols)
     
-    # 8) Display the table
+    # 9) Display the table
     st.dataframe(df_slide3_3, use_container_width=True)
+
 
     # === Slide 4 Table 1 ===
     st.markdown("**Slide 4 Table 1**")
