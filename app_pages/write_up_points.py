@@ -1301,26 +1301,6 @@ def step15_display_selected_fund():
     st.dataframe(df_slide5_2, use_container_width=True)
 
 
-# ── Bullet Points Section ─────────────────────────────────────────────────────────────────
-
-with st.expander("Bullet Points", expanded=False):
-    perf_data = st.session_state.get("fund_performance_data", [])
-    if not perf_data:
-        st.error("❌ No performance data found. Run Step 7 first.")
-    else:
-        sel = st.selectbox(
-            "Select Fund for Bullet Points",
-            [itm["Fund Scorecard Name"] for itm in perf_data],
-            key="bullet_fund_select"
-        )
-        item = next(x for x in perf_data if x["Fund Scorecard Name"] == sel)
-        templates = st.session_state["bullet_point_templates"]
-        for tpl in templates:
-            filled = tpl
-            for field, val in item.items():
-                filled = filled.replace(f"[{field}]", str(val))
-            st.markdown(f"- {filled}")
-
 #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 # === Main App ===
