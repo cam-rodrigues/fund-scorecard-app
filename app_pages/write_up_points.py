@@ -1439,7 +1439,7 @@ def run():
                         if field != "QTD_vs":  # Skip QTD_vs, as we handle it separately
                             filled = filled.replace(f"[{field}]", str(val))
         
-                    # Convert QTD and Bench QTD to floats and format them as percentages
+                    # Now, handle the QTD and Bench QTD values specifically
                     try:
                         fund_pct = float(item.get('QTD', 0))  # Default to 0 if missing
                         bench_pct = float(item.get('Bench QTD', 0))  # Default to 0 if missing
@@ -1448,13 +1448,15 @@ def run():
                         fund_pct_str = f"{fund_pct:.2f}%"
                         bench_pct_str = f"{bench_pct:.2f}%"
         
-                        # Insert the QTD vs value without applying any math
+                        # Insert the formatted QTD vs. Bench QTD values into the template
                         filled = filled.replace("[QTD_vs]", f"({fund_pct_str} vs. {bench_pct_str})")
                     except ValueError:
                         # If QTD or Bench QTD is not a valid number, replace [QTD_vs] with placeholder text
                         filled = filled.replace("[QTD_vs]", "(Invalid Data vs. Invalid Data)")
         
+                    # Display the filled bullet point
                     st.markdown(f"- {filled}")
+
 
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
