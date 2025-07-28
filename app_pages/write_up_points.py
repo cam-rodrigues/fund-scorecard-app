@@ -1440,7 +1440,7 @@ def run():
         
         # Step 8: Match Tickers
         with st.expander("Step 8: Match Tickers in Calendar Year Section", expanded=False):
-            step8_match_calendar_tickers(pdf)
+            step8_extract_annualized_returns(pdf)
         
         # Step 8.5: Extract Calendar Year Returns
         with st.expander("Step 8.5: Extract Calendar Year Returns", expanded=False):
