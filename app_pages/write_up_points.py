@@ -602,63 +602,68 @@ def benchmarkcal(pdf):
         st.error("❌ 'Fund Performance: Calendar Year' page not found in TOC.")
         return
 
-    # 1) figure out which years we're looking at
+    # 1) grab the header row to detect which years to extract
     header_line = None
     for p in range(cy_page-1, min(cy_page+2, len(pdf.pages))):
         for ln in (pdf.pages[p].extract_text() or "").splitlines():
-            if "Ticker" in ln and re.search(r"20(1[5-9]|2[0-4])", ln):
+            if "Ticker" in ln and re.search(r"\b20(1[5-9]|2[0-4])\b", ln):
                 header_line = ln
                 break
         if header_line:
             break
+
     if not header_line:
-        st.error("❌ Couldn't find Calendar‑Year header row.")
+        st.error("❌ Couldn't find the calendar‑year header row.")
         return
 
     years = re.findall(r"\b20(1[5-9]|2[0-4])\b", header_line)
     years = ["20" + y for y in years]
     n     = len(years)
 
-    # 2) load your factsheet benchmarks + tickers
+    # 2) pull your list of (Fund → Benchmark → Ticker) from the factsheets step
     facts      = st.session_state.get("fund_factsheets_data", [])
-    bench_map  = {
-        f["Benchmark"].strip(): f["Matched Ticker"]
+    bench_list = [
+        (f["Matched Fund Name"], f["Benchmark"].strip(), f["Matched Ticker"])
         for f in facts
-        if f.get("Benchmark")
-    }
-    if not bench_map:
-        st.error("⚠️ No benchmarks found in fund_factsheets_data.")
+        if f.get("Benchmark") and f.get("Matched Ticker")
+    ]
+    if not bench_list:
+        st.error("⚠️ No benchmarks found in your factsheet data.")
         return
 
-    # 3) scan the calendar‑year pages for any line starting with one of your benchmarks
+    # 3) grab every line from the calendar‑year pages
     all_lines = []
     for p in range(cy_page-1, min(cy_page+2, len(pdf.pages))):
         all_lines.extend((pdf.pages[p].extract_text() or "").splitlines())
 
     rows = []
-    for ln in all_lines:
-        for bench, tk in bench_map.items():
-            if not ln.startswith(bench):
-                continue
+    for fund_name, bench, tk in bench_list:
+        # find the exact line that starts with your benchmark name
+        ln = next((l for l in all_lines if l.startswith(bench)), None)
 
-            # split off the benchmark name
-            rest = ln[len(bench):].strip().split()
-            # if the first token is a ticker, drop it
-            if rest and re.match(r"^[A-Z]{1,5}$", rest[0]):
-                rest = rest[1:]
-            # take exactly n values
-            vals = rest[:n]
+        if not ln:
+            st.warning(f"⚠️ No calendar‑year row found for benchmark '{bench}'.")
+            vals = [None] * n
+        else:
+            parts = ln[len(bench):].strip().split()
+            # if the first token is the ticker, drop it
+            if parts and parts[0] == tk:
+                parts = parts[1:]
+            vals = parts[:n]
 
-            row = {"Benchmark": bench, "Ticker": tk}
-            for y, v in zip(years, vals):
-                row[y] = v.rstrip("%")
-            rows.append(row)
+        # assemble a row with one column per year
+        row = {
+            "Fund Name": fund_name,
+            "Benchmark": bench,
+            "Ticker":    tk
+        }
+        for year, val in zip(years, vals):
+            row[year] = val.rstrip("%") if isinstance(val, str) else val
 
-    if not rows:
-        st.error("❌ No matching benchmark lines found.")
-        return
+        rows.append(row)
 
-    df = pd.DataFrame(rows).set_index("Benchmark")
+    # 4) show it (one line per fund → benchmark)
+    df = pd.DataFrame(rows).set_index("Fund Name")
     st.dataframe(df, use_container_width=True)
     st.session_state["benchmark_calendar_returns"] = rows
 
