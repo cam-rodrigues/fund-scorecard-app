@@ -1312,9 +1312,9 @@ def step15_display_selected_fund():
 
 
 #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-import re
 # === Main App ===
 def run():
+    import re
     st.title("Writeup")
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
