@@ -1418,7 +1418,6 @@ def run():
             step15_display_selected_fund()
             
         # ── Bullet Points Section ─────────────────────────────────────────────────────────────────
-        
         with st.expander("Bullet Points", expanded=False):
             perf_data = st.session_state.get("fund_performance_data", [])
             if not perf_data:
@@ -1434,29 +1433,46 @@ def run():
                 templates = st.session_state.get("bullet_point_templates", [])
                 for tpl in templates:
                     filled = tpl
-                    # Replace placeholders with actual values for the template
-                    for field, val in item.items():
-                        if field != "QTD_vs":  # Skip QTD_vs, as we handle it separately
-                            filled = filled.replace(f"[{field}]", str(val))
+                    # Handle IPS Screening status
+                    is_passing_ips = item.get("IPS Status") == "Passed IPS Screen"
+                    if is_passing_ips:
+                        # If the fund passed IPS screening
+                        filled = "The Fund passed the IPS Screening."
+                    else:
+                        # If the fund is on Informal/Formal Watch
+                        status = "Informal Watch" if "IW" in item.get("IPS Status", "") else "Formal Watch"
+                        
+                        # Retrieve relevant data for the returns and risk-adjusted returns
+                        three_year_return = item.get("3Yr", 0)
+                        bench_three_year = item.get("Bench 3Yr", 0)
+                        five_year_return = item.get("5Yr", 0)
+                        bench_five_year = item.get("Bench 5Yr", 0)
+                        sharpe_ratio_3yr = item.get("Sharpe Ratio 3Yr", "")
+                        sortino_ratio_3yr = item.get("Sortino Ratio 3Yr", "")
+                        peer_group_rank_3yr = item.get("Sharpe Rank 3Yr", "Unknown")
+                        peer_group_rank_5yr = item.get("Sharpe Rank 5Yr", "Unknown")
         
-                    # Now, handle the QTD and Bench QTD values specifically
-                    try:
-                        fund_pct = float(item.get('QTD', 0))  # Default to 0 if missing
-                        bench_pct = float(item.get('Bench QTD', 0))  # Default to 0 if missing
+                        # Calculate the difference in bps
+                        bps_three_year = (three_year_return - bench_three_year) * 100
+                        bps_five_year = (five_year_return - bench_five_year) * 100
         
                         # Format as percentages with two decimal places
-                        fund_pct_str = f"{fund_pct:.2f}%"
-                        bench_pct_str = f"{bench_pct:.2f}%"
+                        three_year_return_str = f"{three_year_return:.2f}%"
+                        five_year_return_str = f"{five_year_return:.2f}%"
+                        bench_three_year_str = f"{bench_three_year:.2f}%"
+                        bench_five_year_str = f"{bench_five_year:.2f}%"
         
-                        # Insert the formatted QTD vs. Bench QTD values into the template
-                        filled = filled.replace("[QTD_vs]", f"({fund_pct_str} vs. {bench_pct_str})")
-                    except ValueError:
-                        # If QTD or Bench QTD is not a valid number, replace [QTD_vs] with placeholder text
-                        filled = filled.replace("[QTD_vs]", "(Invalid Data vs. Invalid Data)")
+                        # Fill in the bullet point
+                        filled = (
+                            f"The fund is now on {status}. Its three-year return currently trails the benchmark by "
+                            f"{bps_three_year} bps ({three_year_return_str} vs. {bench_three_year_str}) "
+                            f"and its five-year return trails by {bps_five_year} bps ({five_year_return_str} vs. {bench_five_year_str}). "
+                            f"In addition, the fund’s three-year absolute and risk-adjusted returns, as measured by Sharpe and Sortino ratios, "
+                            f"now rank in the {peer_group_rank_3yr} half of their peer group."
+                        )
         
                     # Display the filled bullet point
                     st.markdown(f"- {filled}")
-
 
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
