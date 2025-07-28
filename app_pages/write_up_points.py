@@ -1418,6 +1418,7 @@ def run():
             step15_display_selected_fund()
             
         # ── Bullet Points Section ─────────────────────────────────────────────────────────────────
+        
         with st.expander("Bullet Points", expanded=False):
             perf_data = st.session_state.get("fund_performance_data", [])
             if not perf_data:
@@ -1443,10 +1444,10 @@ def run():
                         status = "Informal Watch" if "IW" in item.get("IPS Status", "") else "Formal Watch"
                         
                         # Retrieve relevant data for the returns and risk-adjusted returns
-                        three_year_return = item.get("3Yr", 0)
-                        bench_three_year = item.get("Bench 3Yr", 0)
-                        five_year_return = item.get("5Yr", 0)
-                        bench_five_year = item.get("Bench 5Yr", 0)
+                        three_year_return = float(item.get("3Yr", 0))  # Convert to float
+                        bench_three_year = float(item.get("Bench 3Yr", 0))  # Convert to float
+                        five_year_return = float(item.get("5Yr", 0))  # Convert to float
+                        bench_five_year = float(item.get("Bench 5Yr", 0))  # Convert to float
                         sharpe_ratio_3yr = item.get("Sharpe Ratio 3Yr", "")
                         sortino_ratio_3yr = item.get("Sortino Ratio 3Yr", "")
                         peer_group_rank_3yr = item.get("Sharpe Rank 3Yr", "Unknown")
@@ -1473,6 +1474,7 @@ def run():
         
                     # Display the filled bullet point
                     st.markdown(f"- {filled}")
+
 
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
