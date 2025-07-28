@@ -1315,56 +1315,52 @@ def step15_display_selected_fund():
     }])
     st.dataframe(df_slide5_2, use_container_width=True)
 
-# –– Powerpoint ––––––––––––––––––––––––––––––––
+# –– Powerpoint ––––––––––––––––––––––––––––––––––––
+
+from pptx import Presentation
+from pptx.util import Inches, Pt
+from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
+from pptx.dml.color import RGBColor
+from pptx.oxml.xmlchemy import OxmlElement
 
 def load_template():
     # Load the PowerPoint template from the file path in 'assets/template.pptx'
     template_path = "assets/template.pptx"  # Ensure it's a .pptx file
     prs = Presentation(template_path)  # Load the template
     return prs
+
+def set_cell_border(cell, border_color=RGBColor(0, 0, 0)):
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+    r, g, b = border_color[0], border_color[1], border_color[2]
+    hex_color = "%02X%02X%02X" % (r, g, b)
+    for line in ["a:lnL", "a:lnR", "a:lnT", "a:lnB"]:
+        ln = OxmlElement(line)
+        ln.set("w", "12700")
+        solidFill = OxmlElement("a:solidFill")
+        srgbClr = OxmlElement("a:srgbClr")
+        srgbClr.set("val", hex_color)
+        solidFill.append(srgbClr)
+        ln.append(solidFill)
+        tcPr.append(ln)
+
+def format_quarter(raw):
+    import re
+    raw = str(raw).strip()
     
+    # Patterns like "Q1: 3/31/2025" or "Q1, 2025"
+    match = re.search(r"Q([1-4])[,:\s-]*(\d{4})?", raw, re.IGNORECASE)
+    if match:
+        qtr, year = match.groups()
+        suffix = {"1": "1st", "2": "2nd", "3": "3rd", "4": "4th"}[qtr]
+        return f"{suffix} QTR {year}" if year else f"{suffix} QTR"
+    
+    return raw  # fallback if it doesn't match
+
 def generate_watchlist_slide(df, selected_fund):
-    from pptx import Presentation
-    from pptx.util import Inches, Pt
-    from pptx.enum.shapes import MSO_SHAPE
-    from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
-    from pptx.dml.color import RGBColor
-    from pptx.oxml.xmlchemy import OxmlElement
-    from pptx.util import Inches
-
-
-    def set_cell_border(cell, border_color=RGBColor(0, 0, 0)):
-        tc = cell._tc
-        tcPr = tc.get_or_add_tcPr()
-        r, g, b = border_color[0], border_color[1], border_color[2]
-        hex_color = "%02X%02X%02X" % (r, g, b)
-        for line in ["a:lnL", "a:lnR", "a:lnT", "a:lnB"]:
-            ln = OxmlElement(line)
-            ln.set("w", "12700")
-            solidFill = OxmlElement("a:solidFill")
-            srgbClr = OxmlElement("a:srgbClr")
-            srgbClr.set("val", hex_color)
-            solidFill.append(srgbClr)
-            ln.append(solidFill)
-            tcPr.append(ln)
-
-    def format_quarter(raw):
-        import re
-        raw = str(raw).strip()
-    
-        # Patterns like "Q1: 3/31/2025" or "Q1, 2025"
-        match = re.search(r"Q([1-4])[,:\s-]*(\d{4})?", raw, re.IGNORECASE)
-        if match:
-            qtr, year = match.groups()
-            suffix = {"1": "1st", "2": "2nd", "3": "3rd", "4": "4th"}[qtr]
-            return f"{suffix} QTR {year}" if year else f"{suffix} QTR"
-    
-        return raw  # fallback if it doesn't match
-
     prs = Presentation()
     blank_slide_layout = prs.slide_layouts[6]  # Layout 6 is typically a blank slide
     slide = prs.slides.add_slide(blank_slide_layout)
-
 
     # Add Procyon logo in upper-right corner with padding and larger size
     logo_path = "assets/procyon_logo.png"
@@ -1374,11 +1370,7 @@ def generate_watchlist_slide(df, selected_fund):
     
     # Standard 10" slide width - logo width - right padding
     logo_left = Inches(10) - logo_width - right_padding
-    
     slide.shapes.add_picture(logo_path, logo_left, logo_top, width=logo_width)
-
-
-
 
     # Manually add left-aligned title textbox to match logo padding
     title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.5), Inches(6), Inches(0.5))  # left and top = 0.5"
@@ -1390,11 +1382,9 @@ def generate_watchlist_slide(df, selected_fund):
     run = p.add_run()
     run.text = "Investment Watchlist"
     run.font.size = Pt(20)
-    run.font.name = "HelveticaNeueLT Std Lt Ext"
-    run.font.color.rgb = RGBColor(0, 51, 102)
+    run.font.name = "Helvetica"
+    run.font.color.rgb = RGBColor(33, 43, 88)  # #212b58
     p.alignment = PP_ALIGN.LEFT
-
-
 
     top = Inches(1.1)
     subheading = slide.shapes.add_textbox(Inches(0.5), top, Inches(9), Inches(0.3))
@@ -1408,6 +1398,7 @@ def generate_watchlist_slide(df, selected_fund):
     run.font.underline = True
     run.font.color.rgb = RGBColor(0, 0, 0)
 
+    # Prepare table with fund data
     matching_rows = df[df["Fund Name"] == selected_fund]
     rows = len(matching_rows)
     cols = 15
@@ -1520,7 +1511,6 @@ def generate_watchlist_slide(df, selected_fund):
                 p.text = str(val)
 
     return prs
-
 
 
 #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
