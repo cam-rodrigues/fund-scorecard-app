@@ -1489,17 +1489,24 @@ def run():
                     else:
                         rank_5yr_position = "bottom"
                 
+                    # Logic to combine or separate the ranking based on whether both are top/bottom
+                    if rank_3yr_position == rank_5yr_position:
+                        rank_statement = f"now rank in the {rank_3yr_position} half of their peer group for both 3Yr Sharpe and 5Yr Sharpe."
+                    else:
+                        rank_statement = f"now rank in the {rank_3yr_position} half of their peer group for 3Yr Sharpe and {rank_5yr_position} half for 5Yr Sharpe."
+                
                     # Fill the bullet point for non-passing funds
                     filled = (
                         f"The fund is now on {status}. Its three-year return currently trails the benchmark by "
                         f"{bps_three_year} bps ({three_year_return_str} vs. {bench_three_year_str}) "
                         f"and its five-year return trails by {bps_five_year} bps ({five_year_return_str} vs. {bench_five_year_str}). "
                         f"In addition, the fund’s three-year absolute and risk-adjusted returns, as measured by Sharpe and Sortino ratios, "
-                        f"now rank in the {rank_3yr_position} half of their peer group for 3Yr Sharpe and {rank_5yr_position} half for 5Yr Sharpe."
+                        f"{rank_statement}"
                     )
                 
                 # Display the second bullet point
                 st.markdown(f"- {filled}")
+
 
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
