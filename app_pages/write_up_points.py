@@ -1429,7 +1429,7 @@ def run():
         with st.expander("Step 15: Single Fund Details", expanded=False):
             step15_display_selected_fund()
                     
-        # ── Bullet Points Section ─────────────────────────────────────────────────────────────────
+        # –– Bullet Points Section –––––––––––––––––––––––––––––––––––––––––––––––––––––––-
         with st.expander("Bullet Points", expanded=False):
             # Get the selected fund from session state
             selected_fund = st.session_state.get('selected_fund', None)
