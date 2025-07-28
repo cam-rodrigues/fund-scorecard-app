@@ -1205,7 +1205,7 @@ def step15_display_selected_fund():
 
     st.dataframe(styled, use_container_width=True)
 
-        # === Slide 3 Table 1 ===
+    # === Slide 3 Table 1 ===
     st.markdown("**Slide 3 Table 1**")
     # grab performance data for the selected fund
     perf_data = st.session_state.get("fund_performance_data", [])
@@ -1221,7 +1221,29 @@ def step15_display_selected_fund():
     }])
     st.dataframe(df_slide3, use_container_width=True)
 
-
+    # === Slide 3 Table 2 ===
+    st.markdown("**Slide 3 Table 2**")
+    # grab the annualized returns for the selected fund
+    perf_data = st.session_state.get("fund_performance_data", [])
+    perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == choice), {})
+    # build Investment Manager label
+    inv_mgr    = f"{choice} ({perf_item.get('Ticker','')})"
+    # use report_date as the QTD column header
+    date_label = st.session_state.get("report_date", "QTD")
+    # assemble the row
+    row = {
+        "Investment Manager": inv_mgr,
+        date_label:           perf_item.get("QTD", ""),
+        "1 Year":             perf_item.get("1Yr", ""),
+        "3 Year":             perf_item.get("3Yr", ""),
+        "5 Year":             perf_item.get("5Yr", ""),
+        "10 Year":            perf_item.get("10Yr", "")
+    }
+    df_slide3_2 = pd.DataFrame([row])
+    st.dataframe(df_slide3_2, use_container_width=True)
+    
+#---------------------------------------------------------------------------------------
+    
     # Step 5: Fund performance mapping
     st.markdown("**Step 5: Performance Ticker Mapping**")
     perf = st.session_state.get('fund_performance_data', [])
