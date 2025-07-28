@@ -1036,62 +1036,62 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         f["Page #"]:(f["Matched Fund Name"], f["Matched Ticker"])
         for f in factsheets
     }
+
     metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
     records = []
 
     for pnum, (fund, ticker) in page_map.items():
         page = pdf.pages[pnum-1]
-        words = page.extract_words(use_text_flow=True)
+        text = page.extract_text() or ""
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
 
-        # 1) find the heading word‐index
-        heading_idx = None
-        for i in range(len(words)-3):
-            if (words[i]["text"].lower() == "peer"
-             and words[i+1]["text"].lower().startswith("risk")
-             and words[i+2]["text"].lower() == "return"
-             and words[i+3]["text"].lower() == "rank"):
-                heading_idx = i
-                break
-
+        # 1) find the peer‑rank heading line index
+        heading_idx = next(
+            (i for i, ln in enumerate(lines)
+             if re.search(r"peer\s*risk[\W_]*adjusted\s*return\s*rank",
+                          ln, re.IGNORECASE)),
+            None
+        )
         if heading_idx is None:
             st.warning(f"⚠️ {fund} ({ticker}): peer‑rank heading not found.")
             continue
 
         rec = {"Fund Name": fund, "Ticker": ticker}
+        # look in the 5 lines following the heading
+        snippet = lines[heading_idx+1 : heading_idx+6]
+
         for metric in metrics:
-            t0, t1 = metric.lower().split()  # e.g. ["sharpe","ratio"]
+            # 2) find the one line in snippet containing the metric name
+            line = next((ln for ln in snippet
+                         if metric.lower() in ln.lower()), None)
 
-            # 2) locate the metric label after the heading
-            metric_idx = None
-            for j in range(heading_idx+4, len(words)-1):
-                if (words[j]["text"].lower() == t0
-                 and words[j+1]["text"].lower() == t1):
-                    metric_idx = j
-                    break
-
-            # 3) grab the next four pure‐digit words
-            vals = []
-            if metric_idx is not None:
-                for w in words[metric_idx+2:]:
-                    if w["text"].isdigit():
-                        vals.append(w["text"])
-                        if len(vals) == 4:
-                            break
-
-            if len(vals) == 4:
-                rec[f"{metric} 1Yr"]  = vals[0]
-                rec[f"{metric} 3Yr"]  = vals[1]
-                rec[f"{metric} 5Yr"]  = vals[2]
-                rec[f"{metric} 10Yr"] = vals[3]
+            if not line:
+                st.warning(f"⚠️ {fund} ({ticker}): '{metric}' line not found.")
+                # fill blanks
+                rec.update({f"{metric} {h}": None
+                            for h in ["1Yr","3Yr","5Yr","10Yr"]})
             else:
-                st.warning(f"⚠️ {fund} ({ticker}): '{metric}' peer values not found.")
-                for col in ["1Yr","3Yr","5Yr","10Yr"]:
-                    rec[f"{metric} {col}"] = None
+                # 3) pull only integer tokens from that line
+                ints = re.findall(r"\b(\d{1,3})\b", line)
+                # sometimes a leading zero may be written "08", so allow 1-3 digits
+                if len(ints) >= 4:
+                    rec[f"{metric} 1Yr"]  = ints[0]
+                    rec[f"{metric} 3Yr"]  = ints[1]
+                    rec[f"{metric} 5Yr"]  = ints[2]
+                    rec[f"{metric} 10Yr"] = ints[3]
+                else:
+                    st.warning(f"⚠️ {fund} ({ticker}): only {len(ints)} peer ranks found in '{metric}' line.")
+                    # pad to four
+                    vals = ints + [None]*4
+                    rec[f"{metric} 1Yr"]  = vals[0]
+                    rec[f"{metric} 3Yr"]  = vals[1]
+                    rec[f"{metric} 5Yr"]  = vals[2]
+                    rec[f"{metric} 10Yr"] = vals[3]
 
         records.append(rec)
 
     if not records:
-        st.warning("❌ No Peer data extracted.")
+        st.warning("❌ No Peer Risk‑Adjusted Return Rank data extracted.")
         return
 
     df = pd.DataFrame(records)
