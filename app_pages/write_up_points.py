@@ -1505,44 +1505,6 @@ def slide_1_table(df, selected_fund):
     return prs
 
 
-# Update the Main App
-def run():
-    import re
-    st.title("Writeup")
-    uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
-    if not uploaded:
-        return
-
-    # Initialize slide_1_table in session state
-    if "slide_1_table" not in st.session_state:
-        st.session_state["slide_1_table"] = None
-
-    with pdfplumber.open(uploaded) as pdf:
-        # Steps for processing PDF
-        # ...
-
-        # Export to PowerPoint section
-        st.markdown("---")
-        st.subheader("Export Selected Fund to PowerPoint")
-
-        selected_fund = st.session_state.get('selected_fund', None)
-
-        if selected_fund:
-            ppt_stream = slide_1_table(st.session_state["slide_1_table"], selected_fund)
-            output = BytesIO()
-            ppt_stream.save(output)
-
-            # Display download button for PowerPoint file
-            st.download_button(
-                label="Download PowerPoint File",
-                data=output.getvalue(),
-                file_name=f"{selected_fund}_Watchlist.pptx",
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
-        else:
-            st.warning("Please select a fund and ensure data is loaded.")
-
-
 #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 # === Main App ===
 def run():
@@ -1557,6 +1519,10 @@ def run():
         st.session_state["bullet_point_templates"] = [
             "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], [Year] by [QTD_bps_diff] bps ([QTD_pct_diff])."
         ]
+
+        # Initialize slide_1_table in session state
+    if "slide_1_table" not in st.session_state:
+        st.session_state["slide_1_table"] = None
     # ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
     
     with pdfplumber.open(uploaded) as pdf:
@@ -1735,23 +1701,6 @@ def run():
                 st.error("❌ No fund selected. Please select a fund from Step 15.")
                 
     #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-    # Initialize slide_1_table in session state
-    if "slide_1_table" not in st.session_state:
-        st.session_state["slide_1_table"] = None
-
-    with pdfplumber.open(uploaded) as pdf:
-        # Step 1
-        with st.expander("Step 1: Details", expanded=False):
-            first = pdf.pages[0].extract_text() or ""
-            process_page1(first)
-
-        # Step 2
-        with st.expander("Step 2: Table of Contents", expanded=False):
-            toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
-            process_toc(toc_text)
-
-        # Step 3: Scorecard Metrics and other steps here...
-        
         # Export to PowerPoint section
         st.markdown("---")
         st.subheader("Export Selected Fund to PowerPoint")
