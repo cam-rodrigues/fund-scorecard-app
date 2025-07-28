@@ -628,6 +628,52 @@ def step8_5_extract_calendar_returns(pdf):
     st.session_state["step8_returns"] = results
     st.dataframe(df)
 
+# === Step 8: Fund Performance - Calendar Year Annualized Returns ===
+def benchmarkcal(pdf):
+    st.subheader("Step 8: Fund Performance - Calendar Year Annualized Returns")
+
+    # Ensure the page number for the Fund Performance Calendar Year section is available
+    cy_page = st.session_state.get("calendar_year_page")
+    if cy_page is None:
+        st.error("❌ Could not find 'Fund Performance: Calendar Year' section in the TOC.")
+        return
+
+    # Extract text from the Fund Performance: Calendar Year page and the next few pages if necessary
+    all_lines = []
+    cy_text = ""
+    for p in pdf.pages[cy_page-1:cy_page+2]:  # Extracting the calendar year data from the page
+        txt = p.extract_text() or ""
+        cy_text += txt + "\n"
+        all_lines.extend(txt.splitlines())
+
+    # Parsing the data for each fund's calendar year performance
+    fund_data = []
+    is_fund_section = False
+    for line in all_lines:
+        # Check if the line contains fund data (based on the pattern in the document)
+        m = re.match(r"^(?P<fund_name>[\w\s]+)\s+(?P<returns_2015>-?\d+\.\d+)\s+(?P<returns_2016>-?\d+\.\d+)\s+(?P<returns_2017>-?\d+\.\d+)\s+(?P<returns_2018>-?\d+\.\d+)\s+(?P<returns_2019>-?\d+\.\d+)\s+(?P<returns_2020>-?\d+\.\d+)\s+(?P<returns_2021>-?\d+\.\d+)\s+(?P<returns_2022>-?\d+\.\d+)\s+(?P<returns_2023>-?\d+\.\d+)\s+(?P<returns_2024>-?\d+\.\d+)", line.strip())
+        
+        if m:
+            fund_name = m.group("fund_name")
+            returns = {year: m.group(f"returns_{year}") for year in range(2015, 2025)}
+            fund_data.append({"Fund Name": fund_name, **returns})
+            is_fund_section = True
+        
+        # If the section ends, break out of the loop
+        if is_fund_section and line.strip() == "":
+            break
+
+    if not fund_data:
+        st.error("❌ No fund performance data found in the 'Fund Performance: Calendar Year' section.")
+        return
+
+    # Display the extracted fund performance data in a table
+    df = pd.DataFrame(fund_data)
+    st.dataframe(df, use_container_width=True)
+
+    # Optionally, save the extracted data in session state for further use
+    st.session_state["fund_calendar_year_data"] = fund_data
+
 
 
 # === Step 9: Match Tickers in the Risk Analysis (3Yr) Section ===
@@ -1496,6 +1542,10 @@ def run():
         # Step 8.5: Extract Calendar Year Returns
         with st.expander("Step 8.5: Extract Calendar Year Returns", expanded=False):
             step8_5_extract_calendar_returns(pdf)
+
+        # Step 8.5: Extract Calendar Year Returns
+        with st.expander("Step 8.5: Extract Calendar Year Returns", expanded=False):
+            benchmarkcal(pdf)
 
         # Step 9: Match Tickers
         with st.expander("Step 9: Match Tickers in Risk Analysis (3Yr)", expanded=False):
