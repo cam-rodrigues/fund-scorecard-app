@@ -604,14 +604,13 @@ def benchmarkcal(pdf):
         st.error("❌ 'Calendar Year' page not in TOC.")
         return
 
-    all_lines = []
+    lines = []
     for p in pdf.pages[cy_page-1:cy_page+2]:
-        txt = p.extract_text() or ""
-        all_lines.extend(txt.splitlines())
+        lines.extend((p.extract_text() or "").splitlines())
 
-    # match any line that looks like a benchmark (no wrapped lines)
+    # match exactly one line per benchmark: name + ten years of decimals
     pattern = re.compile(
-        r"^(?P<name>[\w\s]+)\s+" +
+        r"^(?P<name>[\w\s\-\&]+?)\s+" +
         r"(?P<r15>-?\d+\.\d+)%?\s+" +
         r"(?P<r16>-?\d+\.\d+)%?\s+" +
         r"(?P<r17>-?\d+\.\d+)%?\s+" +
@@ -625,16 +624,14 @@ def benchmarkcal(pdf):
     )
 
     rows = []
-    for ln in all_lines:
+    for ln in lines:
         m = pattern.match(ln.strip())
         if not m:
             continue
-        data = m.groupdict()
-        row = {"Benchmark": data.pop("name")}
-        # reassemble year columns 2015–2024
-        for year in range(2015, 2025):
-            key = f"r{str(year)[2:]}"
-            row[str(year)] = data.get(key)
+        d = m.groupdict()
+        row = {"Benchmark": d.pop("name")}
+        for yy in range(15, 25):
+            row[f"20{yy}"] = d[f"r{yy:02d}"]
         rows.append(row)
 
     if not rows:
@@ -642,9 +639,15 @@ def benchmarkcal(pdf):
         return
 
     df = pd.DataFrame(rows)
-    st.dataframe(df.set_index("Benchmark"), use_container_width=True)
 
+    # now add fund‐ticker mapping from factsheets
+    facts = st.session_state.get("fund_factsheets_data", [])
+    bmk2tk = {f["Benchmark"]: f["Matched Ticker"] for f in facts}
+    df["Ticker"] = df["Benchmark"].map(lambda b: bmk2tk.get(b, ""))
 
+    # display with Ticker first
+    cols = ["Ticker"] + [c for c in df.columns if c!="Ticker"]
+    st.dataframe(df.set_index("Benchmark")[cols], use_container_width=True)
 
 # === Step 9: Match Tickers in the Risk Analysis (3Yr) Section ===
 def step9_match_risk_tickers(pdf):
