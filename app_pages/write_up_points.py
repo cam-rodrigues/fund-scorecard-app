@@ -1205,7 +1205,21 @@ def step15_display_selected_fund():
 
     st.dataframe(styled, use_container_width=True)
 
-    # === Steps 5–14 follow unchanged below… ===
+        # === Slide 3 Table 1 ===
+    st.markdown("**Slide 3 Table 1**")
+    # grab performance data for the selected fund
+    perf_data = st.session_state.get("fund_performance_data", [])
+    perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == choice), {})
+    # build Investment Manager label
+    inv_mgr = f"{choice} ({perf_item.get('Ticker','')})"
+    # extract Net Expense Ratio
+    net_exp = perf_item.get("Net Expense Ratio", "")
+    # assemble and display
+    df_slide3 = pd.DataFrame([{
+        "Investment Manager": inv_mgr,
+        "Net Expense Ratio":  net_exp
+    }])
+    st.dataframe(df_slide3, use_container_width=True)
 
 
     # Step 5: Fund performance mapping
