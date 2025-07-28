@@ -1716,21 +1716,27 @@ def run():
                 
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
-        # ── PowerPoint Section ──
-        with st.expander("Download PowerPoint", expanded=False):
-            # Get the category of the selected fund
-            category = "Equity"  # This would dynamically get the category based on selected fund (like you have before)
-
-            # Generate PowerPoint with titles
-            ppt_stream = generate_ppt_with_titles(category)  # Generate the PowerPoint with the category
-
-            # Display download button
-            st.download_button(
-                label="Download PowerPoint with Titles",
-                data=ppt_stream,
-                file_name="investment_watchlist_with_titles.pptx",
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
+        # === Export PowerPoint ===
+        if "summary_df" not in st.session_state:
+            st.session_state["summary_df"] = df_summary
+    
+        st.markdown("---")
+        st.subheader("Export Selected Fund to PowerPoint")
+    
+        if st.button("Export to PowerPoint"):
+            if selected_fund and not st.session_state["summary_df"].empty:
+                ppt = generate_watchlist_slide(st.session_state["summary_df"], selected_fund)
+                output = BytesIO()
+                ppt.save(output)
+    
+                st.download_button(
+                    label="Download PowerPoint File",
+                    data=output.getvalue(),
+                    file_name=f"{selected_fund}_Watchlist.pptx",
+                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                )
+            else:
+                st.warning("Please select a fund and ensure data is loaded.")
 
 if __name__ == "__main__":
     run()
