@@ -1708,13 +1708,20 @@ def run():
         # === Export PowerPoint ===
         st.markdown("---")
         st.subheader("Export Selected Fund to PowerPoint")
-
+        
+        # Ensure that df_summary is initialized
+        if "summary_df" not in st.session_state:
+            st.session_state["summary_df"] = df_summary  # Make sure df_summary exists
+        
+        # Check if the selected fund and summary data are available before exporting
         if st.button("Export to PowerPoint"):
-            if selected_fund:
-                ppt_stream = generate_watchlist_slide(selected_fund)  # Pass selected_fund here
+            if selected_fund and not st.session_state["summary_df"].empty:
+                # Pass both the data and selected fund to generate the slide
+                ppt_stream = generate_watchlist_slide(st.session_state["summary_df"], selected_fund)
                 output = BytesIO()
                 ppt_stream.save(output)
-    
+        
+                # Display download button for the PowerPoint file
                 st.download_button(
                     label="Download PowerPoint File",
                     data=output.getvalue(),
@@ -1722,7 +1729,8 @@ def run():
                     mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
                 )
             else:
-                st.warning("Please select a fund.")
+                st.warning("Please select a fund and ensure data is loaded.")
+
 
 if __name__ == "__main__":
     run()
