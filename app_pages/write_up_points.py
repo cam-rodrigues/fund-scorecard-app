@@ -999,6 +999,9 @@ def step15_display_selected_fund():
     fund_names = [f["Matched Fund Name"] for f in facts]
     choice     = st.selectbox("Select a fund to view details:", fund_names)
 
+    # Store the selected fund in session state
+    st.session_state.selected_fund = selected_fund
+
     # === Step 1: Page 1 Metadata ===
     st.markdown("**Step 1: Page 1 Metadata**")
     st.write(f"- Report Date:   {st.session_state.get('report_date','N/A')}")
@@ -1422,30 +1425,22 @@ def run():
         with st.expander("Step 15: Single Fund Details", expanded=False):
             step15_display_selected_fund()
                     
-        # ── Bullet Points Section ─────────────────────────────────────────────────────────────────
+        # ── Bullet Points Section ────────────────────────────────────────────────────────────────
         with st.expander("Bullet Points", expanded=False):
-            perf_data = st.session_state.get("fund_performance_data", [])
+            # Get the selected fund from session state
+            selected_fund = st.session_state.get('selected_fund', None)
             
-            # Check if performance data is available
-            if not perf_data:
-                st.error("❌ No performance data found. Run Step 7 first.")
-            else:
-                # Allow user to select a fund for bullet points
-                sel = st.selectbox(
-                    "Select Fund for Bullet Points",
-                    [itm["Fund Scorecard Name"] for itm in perf_data],
-                    key="bullet_fund_select"
-                )
-                
-                # Retrieve the selected fund's data
-                item = next(x for x in perf_data if x["Fund Scorecard Name"] == sel)
+            if selected_fund:
+                # Retrieve the performance data for the selected fund
+                perf_data = st.session_state.get("fund_performance_data", [])
+                item = next(x for x in perf_data if x["Fund Scorecard Name"] == selected_fund)
         
                 # First bullet point: Performance vs Benchmark
                 filled = "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], [Year] by [QTD_bps_diff] bps ([QTD_vs])."
                 for field, val in item.items():
                     filled = filled.replace(f"[{field}]", str(val))
                 st.markdown(f"- {filled}")
-                
+        
                 # Second bullet point: IPS Screening Status
                 is_passing_ips = item.get("IPS Status") == "Passed IPS Screen"
                 if is_passing_ips:
@@ -1474,24 +1469,17 @@ def run():
                 
                     # Get the rank of the selected fund for 3Yr Sharpe and 5Yr Sharpe with fallback
                     rank_3yr = next(
-                        (r.get("Sharpe Ratio Rank 3Yr", "Rank Not Available") for r in peer_ranks if r.get("Fund Name") == item["Fund Scorecard Name"]),
+                        (r.get("Sharpe Ratio Rank 3Yr", "Rank Not Available") for r in peer_ranks if r.get("Fund Name") == selected_fund),
                         "Rank Not Available"
                     )
                     rank_5yr = next(
-                        (r.get("Sharpe Ratio Rank 5Yr", "Rank Not Available") for r in peer_ranks if r.get("Fund Name") == item["Fund Scorecard Name"]),
+                        (r.get("Sharpe Ratio Rank 5Yr", "Rank Not Available") for r in peer_ranks if r.get("Fund Name") == selected_fund),
                         "Rank Not Available"
                     )
                 
                     # Determine if the fund is in the top or bottom half of the peer group
-                    if rank_3yr != "Rank Not Available" and int(rank_3yr) <= 50:
-                        rank_3yr_position = "top"
-                    else:
-                        rank_3yr_position = "bottom"
-                
-                    if rank_5yr != "Rank Not Available" and int(rank_5yr) <= 50:
-                        rank_5yr_position = "top"
-                    else:
-                        rank_5yr_position = "bottom"
+                    rank_3yr_position = "top" if rank_3yr != "Rank Not Available" and int(rank_3yr) <= 50 else "bottom"
+                    rank_5yr_position = "top" if rank_5yr != "Rank Not Available" and int(rank_5yr) <= 50 else "bottom"
                 
                     # Fill the bullet point for non-passing funds
                     filled = (
@@ -1504,11 +1492,13 @@ def run():
                 
                 # Display the second bullet point
                 st.markdown(f"- {filled}")
-
+        
                 # Third bullet point: Action for Formal Watch
                 if status == "Formal Watch":
                     action = "Action: Consider replacing this fund."
                     st.markdown(f"- {action}")
+            else:
+                st.error("❌ No fund selected. Please select a fund from Step 15.")
 
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
