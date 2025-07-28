@@ -1028,7 +1028,7 @@ def step15_display_selected_fund():
     # === Step 3: Scorecard Metrics ===
     st.markdown("**Step 3: Scorecard Metrics**")
     blocks = st.session_state.get("fund_blocks", [])
-    block  = next((b for b in blocks if b["Fund Name"]==choice), None)
+    block = next((b for b in blocks if b["Fund Name"] == selected_fund), None)
     if block:
         for m in block["Metrics"]:
             st.write(f"- {m['Metric']}: {m['Info']}")
@@ -1039,7 +1039,7 @@ def step15_display_selected_fund():
     st.markdown("**Slide 1 Table**")
 
     # 1) Category from factsheet
-    fs_rec   = next(f for f in facts if f["Matched Fund Name"]==choice)
+    fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected_fund), {})
     category = fs_rec.get("Category","")
 
     # 2) Build first 11 IPS criteria
