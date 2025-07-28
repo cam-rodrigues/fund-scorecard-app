@@ -410,14 +410,14 @@ def step6_process_factsheets(pdf, fund_names):
 
 #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
-# === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr & Net Expense Ratio ===
+# === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr & Net Expense Ratio & Bench QTD ===
 def step7_extract_returns(pdf):
     import re
     import pandas as pd
     import streamlit as st
     from rapidfuzz import fuzz
 
-    st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr & Net Expense Ratio")
+    st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr / Net Expense & Benchmark QTD")
 
     # 1) Where to scan
     perf_page = st.session_state.get("performance_page")
@@ -428,7 +428,7 @@ def step7_extract_returns(pdf):
         return
 
     # 2) Prep output slots
-    fields = ["QTD", "1Yr", "3Yr", "5Yr", "10Yr", "Net Expense Ratio"]
+    fields = ["QTD", "1Yr", "3Yr", "5Yr", "10Yr", "Net Expense Ratio", "Bench QTD"]
     for itm in perf_data:
         for f in fields:
             itm.setdefault(f, None)
@@ -447,14 +447,13 @@ def step7_extract_returns(pdf):
         name = item["Fund Scorecard Name"]
         tk   = item["Ticker"].upper().strip()
 
-        # a) Try exact ticker match
+        # a) Exact-ticker match
         idx = next(
             (i for i, ln in enumerate(lines)
              if re.search(rf"\b{re.escape(tk)}\b", ln)),
             None
         )
-
-        # b) Fuzzy‑name fallback
+        # b) Fuzzy-name fallback
         if idx is None:
             scores = [(i, fuzz.token_sort_ratio(name.lower(), ln.lower()))
                       for i, ln in enumerate(lines)]
@@ -462,28 +461,18 @@ def step7_extract_returns(pdf):
             if best_score > 60:
                 idx = best_i
             else:
-                st.warning(f"⚠️ {name} ({tk}): no ticker or name match found.")
+                st.warning(f"⚠️ {name} ({tk}): no match found.")
                 continue
 
-        # c) Need at least one line above to get numbers
-        if idx == 0:
-            st.warning(f"⚠️ {name} ({tk}): nothing above matched line to extract returns.")
-            continue
-
-        # d) Pull all decimals from the line above
-        raw = num_rx.findall(lines[idx - 1])
-
-        # e) If fewer than 8 tokens, also prepend from two lines above
+        # c) Pull fund numbers from line above (and two above if needed)
+        raw = num_rx.findall(lines[idx - 1]) if idx >= 1 else []
         if len(raw) < 8 and idx >= 2:
             raw = num_rx.findall(lines[idx - 2]) + raw
-
-        # f) Clean and pad to exactly 8 slots
         clean = [n.strip("()%").rstrip("%") for n in raw]
         if len(clean) < 8:
             clean += [None] * (8 - len(clean))
 
-        # g) Map returns and net expense:
-        #    idx 0=QTD, 2=1Yr, 3=3Yr, 4=5Yr, 5=10Yr, (-2)=Net Expense Ratio
+        # d) Map fund returns & net expense
         item["QTD"]               = clean[0]
         item["1Yr"]               = clean[2]
         item["3Yr"]               = clean[3]
@@ -491,16 +480,26 @@ def step7_extract_returns(pdf):
         item["10Yr"]              = clean[5]
         item["Net Expense Ratio"] = clean[-2]
 
+        # e) Pull benchmark QTD from the very next line (or one more down)
+        bench_raw = []
+        if idx + 1 < len(lines):
+            bench_raw = num_rx.findall(lines[idx + 1])
+        if len(bench_raw) < 1 and idx + 2 < len(lines):
+            bench_raw = num_rx.findall(lines[idx + 2])
+        bench_clean = [n.strip("()%").rstrip("%") for n in bench_raw]
+        item["Bench QTD"] = bench_clean[0] if bench_clean else None
+
         matched += 1
 
-    # 5) Save back to session and display
+    # 5) Save & display
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
 
     st.success(f"✅ Matched {matched} fund(s) with return data.")
     for itm in perf_data:
-        if any(itm[f] in (None, "") for f in fields):
-            st.warning(f"⚠️ Incomplete for {itm['Fund Scorecard Name']} ({itm['Ticker']})")
+        missing = [f for f in fields if not itm.get(f)]
+        if missing:
+            st.warning(f"⚠️ Incomplete for {itm['Fund Scorecard Name']} ({itm['Ticker']}): missing {', '.join(missing)}")
 
     st.dataframe(
         df[["Fund Scorecard Name", "Ticker"] + fields],
