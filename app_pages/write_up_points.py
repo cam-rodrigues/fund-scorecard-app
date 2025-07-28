@@ -1103,9 +1103,9 @@ def step15_display_selected_fund():
     st.markdown("**Slide 3 Table 1**")
     # grab performance data for the selected fund
     perf_data = st.session_state.get("fund_performance_data", [])
-    perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == choice), {})
+    perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == selected_fund), {})
     # build Investment Manager label with ticker
-    inv_mgr = f"{choice} ({perf_item.get('Ticker','')})"
+    inv_mgr = f"{selected_fund} ({perf_item.get('Ticker','')})"
     # extract Net Expense Ratio and append '%' if not already present
     net_exp = perf_item.get("Net Expense Ratio", "")
     if net_exp and not str(net_exp).endswith("%"):
@@ -1121,9 +1121,9 @@ def step15_display_selected_fund():
     st.markdown("**Slide 3 Table 2**")
     # grab the annualized returns for the selected fund
     perf_data = st.session_state.get("fund_performance_data", [])
-    perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name")==choice), {})
+    perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name")==selected_fund), {})
     # build Investment Manager label with ticker in parentheses
-    inv_mgr    = f"{choice} ({perf_item.get('Ticker','')})"
+    inv_mgr    = f"{selected_fund} ({perf_item.get('Ticker','')})"
     # use report_date as the QTD column header
     date_label = st.session_state.get("report_date", "QTD")
 
@@ -1169,9 +1169,9 @@ def step15_display_selected_fund():
    #  st.write(f"Benchmark data keys: {bench_cy[0].keys() if bench_cy else 'No data'}")
     
     # 3) Find the selected fund’s record and its benchmark record
-    fund_rec = next((r for r in fund_cy if r.get("Name") == choice), None)  # Changed "Fund Name" to "Name"
+    fund_rec = next((r for r in fund_cy if r.get("Name") == selected_fund), None)  # Changed "Fund Name" to "Name"
     if not fund_rec:
-        st.error(f"❌ Could not find data for selected fund: {choice}")
+        st.error(f"❌ Could not find data for selected fund: {selected_fund}")
         return
     
     # 4) Try to match the benchmark data using Name or Ticker
@@ -1180,7 +1180,7 @@ def step15_display_selected_fund():
     
     # If benchmark record is not found
     if not bench_rec:
-        st.error(f"❌ Could not find benchmark data for selected fund: {choice}")
+        st.error(f"❌ Could not find benchmark data for selected fund: {selected_fund}")
         return
     
     # 5) Get the years from the calendar year columns (using the first record)
@@ -1190,7 +1190,7 @@ def step15_display_selected_fund():
     rows = []
     
     # 7) Add the selected fund's data
-    row_fund = {"Investment Manager": f"{choice} ({fund_rec.get('Ticker','')})"}
+    row_fund = {"Investment Manager": f"{selected_fund} ({fund_rec.get('Ticker','')})"}
     for year in year_cols:
         row_fund[year] = fund_rec.get(year, "")
     rows.append(row_fund)
@@ -1212,13 +1212,13 @@ def step15_display_selected_fund():
     st.markdown("**Slide 4 Table 1**")
     # grab 3‑Yr MPT stats
     mpt3 = st.session_state.get("step9_mpt_stats", [])
-    stats3 = next((r for r in mpt3 if r["Fund Name"] == choice), {})
+    stats3 = next((r for r in mpt3 if r["Fund Name"] == selected_fund), {})
     # grab 5‑Yr MPT stats
     mpt5 = st.session_state.get("step10_mpt_stats", [])
-    stats5 = next((r for r in mpt5 if r["Fund Name"] == choice), {})
+    stats5 = next((r for r in mpt5 if r["Fund Name"] == selected_fund), {})
     # build Investment Manager with ticker
     ticker = stats3.get("Ticker", stats5.get("Ticker", ""))
-    inv_mgr = f"{choice} ({ticker})"
+    inv_mgr = f"{selected_fund} ({ticker})"
     # assemble the row
     row = {
         "Investment Manager":        inv_mgr,
@@ -1239,12 +1239,12 @@ def step15_display_selected_fund():
     # grab risk‑adjusted returns and peer ranks for the selected fund
     risk_table = st.session_state.get("step13_risk_adjusted_table", [])
     peer_table = st.session_state.get("step14_peer_rank_table", [])
-    risk_rec = next((r for r in risk_table if r["Fund Name"] == choice), {})
-    peer_rec = next((r for r in peer_table if r["Fund Name"] == choice), {})
+    risk_rec = next((r for r in risk_table if r["Fund Name"] == selected_fund), {})
+    peer_rec = next((r for r in peer_table if r["Fund Name"] == selected_fund), {})
     
     # build Investment Manager label with ticker
     ticker = risk_rec.get("Ticker") or peer_rec.get("Ticker", "")
-    inv_mgr = f"{choice} ({ticker})"
+    inv_mgr = f"{selected_fund} ({ticker})"
     
     # helper to combine value and peer rank without calculation
     def frac(metric, period):
@@ -1271,7 +1271,7 @@ def step15_display_selected_fund():
     st.markdown("**Slide 5 Table 1**")
     # grab the scorecard metrics for the selected fund
     blocks      = st.session_state.get("fund_blocks", [])
-    block       = next((b for b in blocks if b["Fund Name"] == choice), {})
+    block       = next((b for b in blocks if b["Fund Name"] == selected_fund), {})
     raw_tenure  = next((m["Info"] for m in block.get("Metrics", []) if m["Metric"] == "Manager Tenure"), "")
     # extract just the numeric years and append "years"
     import re
@@ -1280,7 +1280,7 @@ def step15_display_selected_fund():
 
     # build Investment Manager label with ticker
     perf_data = st.session_state.get("fund_performance_data", [])
-    perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == choice), {})
+    perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == selected_fund), {})
     inv_mgr   = f"{choice} ({perf_item.get('Ticker','')})"
 
     # assemble and display
@@ -1294,10 +1294,10 @@ def step15_display_selected_fund():
     st.markdown("**Slide 5 Table 2**")
     # grab factsheet details for the selected fund
     facts = st.session_state.get("fund_factsheets_data", [])
-    fs_rec = next((f for f in facts if f["Matched Fund Name"] == choice), {})
+    fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected_fund), {})
     # grab ticker for label
     perf_data = st.session_state.get("fund_performance_data", [])
-    perf_item = next((p for p in perf_data if p["Fund Scorecard Name"] == choice), {})
+    perf_item = next((p for p in perf_data if p["Fund Scorecard Name"] == selected_fund), {})
     # build Investment Manager label
     inv_mgr    = f"{choice} ({perf_item.get('Ticker','')})"
     # extract Net Assets and Avg. Market Cap
