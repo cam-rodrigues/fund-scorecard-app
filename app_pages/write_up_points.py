@@ -1036,46 +1036,68 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         f["Page #"]:(f["Matched Fund Name"], f["Matched Ticker"])
         for f in factsheets
     }
-
-    # integer‐only regex: four groups of digits (no decimals)
-    pattern = r"{metric}\D*(\d+)\D+(\d+)\D+(\d+)\D+(\d+)"
-
     metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
     records = []
 
     for pnum, (fund, ticker) in page_map.items():
         page = pdf.pages[pnum-1]
-        text = (page.extract_text() or "").replace('\n', ' ')
+        words = page.extract_words(use_text_flow=True)
+
+        # 1) find the heading word‐index
+        heading_idx = None
+        for i in range(len(words)-3):
+            if (words[i]["text"].lower() == "peer"
+             and words[i+1]["text"].lower().startswith("risk")
+             and words[i+2]["text"].lower() == "return"
+             and words[i+3]["text"].lower() == "rank"):
+                heading_idx = i
+                break
+
+        if heading_idx is None:
+            st.warning(f"⚠️ {fund} ({ticker}): peer‑rank heading not found.")
+            continue
+
         rec = {"Fund Name": fund, "Ticker": ticker}
-
-        any_found = False
         for metric in metrics:
-            regex = re.compile(pattern.format(metric=re.escape(metric)), re.IGNORECASE)
-            m = regex.search(text)
-            if m:
-                any_found = True
-                rec[f"{metric} 1Yr"]  = m.group(1)
-                rec[f"{metric} 3Yr"]  = m.group(2)
-                rec[f"{metric} 5Yr"]  = m.group(3)
-                rec[f"{metric} 10Yr"] = m.group(4)
-            else:
-                rec[f"{metric} 1Yr"]  = None
-                rec[f"{metric} 3Yr"]  = None
-                rec[f"{metric} 5Yr"]  = None
-                rec[f"{metric} 10Yr"] = None
+            t0, t1 = metric.lower().split()  # e.g. ["sharpe","ratio"]
 
-        if not any_found:
-            st.warning(f"⚠️ {fund} ({ticker}): no integer‐only peer ranks found.")
-        else:
-            records.append(rec)
+            # 2) locate the metric label after the heading
+            metric_idx = None
+            for j in range(heading_idx+4, len(words)-1):
+                if (words[j]["text"].lower() == t0
+                 and words[j+1]["text"].lower() == t1):
+                    metric_idx = j
+                    break
+
+            # 3) grab the next four pure‐digit words
+            vals = []
+            if metric_idx is not None:
+                for w in words[metric_idx+2:]:
+                    if w["text"].isdigit():
+                        vals.append(w["text"])
+                        if len(vals) == 4:
+                            break
+
+            if len(vals) == 4:
+                rec[f"{metric} 1Yr"]  = vals[0]
+                rec[f"{metric} 3Yr"]  = vals[1]
+                rec[f"{metric} 5Yr"]  = vals[2]
+                rec[f"{metric} 10Yr"] = vals[3]
+            else:
+                st.warning(f"⚠️ {fund} ({ticker}): '{metric}' peer values not found.")
+                for col in ["1Yr","3Yr","5Yr","10Yr"]:
+                    rec[f"{metric} {col}"] = None
+
+        records.append(rec)
 
     if not records:
-        st.warning("❌ No Peer Risk‑Adjusted Return Rank data extracted.")
+        st.warning("❌ No Peer data extracted.")
         return
 
     df = pd.DataFrame(records)
     st.session_state["step14_peer_rank_table"] = records
     st.dataframe(df, use_container_width=True)
+
 
 #-------------------------------------------------------------------------------------------
 
