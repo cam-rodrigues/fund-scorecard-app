@@ -1317,12 +1317,6 @@ def step15_display_selected_fund():
 
 # –– Powerpoint ––––––––––––––––––––––––––––––––––––
 
-from pptx import Presentation
-from pptx.util import Inches, Pt
-from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
-from pptx.dml.color import RGBColor
-from pptx.oxml.xmlchemy import OxmlElement
-
 def load_template():
     # Load the PowerPoint template from the file path in 'assets/template.pptx'
     template_path = "assets/template.pptx"  # Ensure it's a .pptx file
@@ -1357,7 +1351,7 @@ def format_quarter(raw):
     
     return raw  # fallback if it doesn't match
 
-def slide_1_table(selected_fund):
+def slide_1_table(df, selected_fund):
     prs = Presentation()
     blank_slide_layout = prs.slide_layouts[6]  # Layout 6 is typically a blank slide
     slide = prs.slides.add_slide(blank_slide_layout)
@@ -1370,7 +1364,7 @@ def slide_1_table(selected_fund):
     tf.clear()
     p = tf.paragraphs[0]
     run = p.add_run()
-    run.text = "Investment Watchlist"  # Change this to "Slide 1 Table"
+    run.text = "Slide 1 Table"  # Change this to "Slide 1 Table"
     run.font.size = Pt(20)
     run.font.name = "Helvetica"
     run.font.color.rgb = RGBColor(33, 43, 88)  # #212b58
@@ -1694,35 +1688,44 @@ def run():
             else:
                 st.error("❌ No fund selected. Please select a fund from Step 15.")
                 
-        #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-        # === Export PowerPoint ===
+    #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+    # Initialize slide_1_table in session state
+    if "slide_1_table" not in st.session_state:
+        st.session_state["slide_1_table"] = None
+
+    with pdfplumber.open(uploaded) as pdf:
+        # Step 1
+        with st.expander("Step 1: Details", expanded=False):
+            first = pdf.pages[0].extract_text() or ""
+            process_page1(first)
+
+        # Step 2
+        with st.expander("Step 2: Table of Contents", expanded=False):
+            toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
+            process_toc(toc_text)
+
+        # Step 3: Scorecard Metrics and other steps here...
+        
+        # Export to PowerPoint section
         st.markdown("---")
         st.subheader("Export Selected Fund to PowerPoint")
-        
-        # Ensure that df_summary is initialized
-        if "summary_df" not in st.session_state:
-            st.session_state["slide_1_table"] = slide_1_table  # Make sure df_summary exists
-        
-        # Check if the selected fund and summary data are available before exporting
-        if st.button("Export to PowerPoint"):
-            if selected_fund and not st.session_state["slide_1_table"].empty:
-                # Pass both the data and selected fund to generate the slide
-                ppt_stream = slide_1_table(st.session_state["slide_1_table"], selected_fund)
-                output = BytesIO()
-                ppt_stream.save(output)
-        
-                # Display download button for the PowerPoint file
-                st.download_button(
-                    label="Download PowerPoint File",
-                    data=output.getvalue(),
-                    file_name=f"{selected_fund}_Watchlist.pptx",
-                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                )
-            else:
-                st.warning("Please select a fund and ensure data is loaded.")
 
+        selected_fund = st.session_state.get('selected_fund', None)
+
+        if selected_fund:
+            ppt_stream = slide_1_table(st.session_state["slide_1_table"], selected_fund)
+            output = BytesIO()
+            ppt_stream.save(output)
+
+            # Display download button for PowerPoint file
+            st.download_button(
+                label="Download PowerPoint File",
+                data=output.getvalue(),
+                file_name=f"{selected_fund}_Watchlist.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
+        else:
+            st.warning("Please select a fund and ensure data is loaded.")
 
 if __name__ == "__main__":
     run()
-
-
