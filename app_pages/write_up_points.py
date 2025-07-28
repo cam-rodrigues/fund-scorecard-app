@@ -565,7 +565,7 @@ def step8_match_calendar_tickers(pdf):
     else:
         st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
-# === Step 8.5: Extract Calendar Year Returns (with Benchmarks) ===
+# === Step 8.5: Extract Calendar Year Returns (with Benchmark) ===
 def step8_5_extract_calendar_returns(pdf):
     import re, pandas as pd, streamlit as st
 
@@ -594,54 +594,49 @@ def step8_5_extract_calendar_returns(pdf):
     years = ["20" + y for y in years]
     n = len(years)
 
-    # regex to grab numeric values (allowing parentheses and %)
     num_rx = re.compile(r"\(?-?\d+\.\d+%?\)?")
 
     results = []
     for name, ticker in tickers_map.items():
-        ticker = ticker.upper()
+        ticker     = ticker.upper()
         fund_vals  = [None] * n
         bench_vals = [None] * n
 
-        # scan from section start forward
+        # scan for the fund’s ticker line
         for pnum in range(start_pg-1, len(pdf.pages)):
             lines = (pdf.pages[pnum].extract_text() or "").splitlines()
             idx = next((i for i, ln in enumerate(lines) if ticker in ln), None)
             if idx is None:
                 continue
 
-            # --- fund's calendar-year returns (use the line above) ---
-            raw = num_rx.findall(lines[idx-1] if idx > 0 else "")
+            # --- fund returns: try line above, then two above if needed ---
+            raw = num_rx.findall(lines[idx-1]) if idx > 0 else []
+            if len(raw) < n and idx > 1:
+                raw = num_rx.findall(lines[idx-2])
             clean = [t.strip("()%").rstrip("%") for t in raw]
-            if len(clean) < n:
-                clean += [None] * (n - len(clean))
+            clean += [None] * (n - len(clean))
             fund_vals = clean[:n]
 
-            # --- benchmark's calendar-year returns (use the line below) ---
+            # --- benchmark returns: single line below the ticker line ---
             bi = idx + 1
             if bi < len(lines):
                 rawb = num_rx.findall(lines[bi])
                 cleanb = [t.strip("()%").rstrip("%") for t in rawb]
-                if len(cleanb) < n:
-                    cleanb += [None] * (n - len(cleanb))
+                cleanb += [None] * (n - len(cleanb))
                 bench_vals = cleanb[:n]
 
-            break
+            break  # done for this fund
 
-        # build the row with fund + benchmark columns
-        row = {
-            "Fund Name": name,
-            "Ticker":    ticker,
-        }
+        # build output row
+        row = {"Fund Name": name, "Ticker": ticker}
         for i, yr in enumerate(years):
-            row[yr]                = fund_vals[i]
-            row[f"Benchmark {yr}"] = bench_vals[i]
+            row       [yr]               = fund_vals[i]
+            row[f"Benchmark {yr}"]       = bench_vals[i]
         results.append(row)
 
     df = pd.DataFrame(results)
     st.session_state["step8_returns"] = results
     st.dataframe(df, use_container_width=True)
-
 
 # === Step 9: Match Tickers in the Risk Analysis (3Yr) Section ===
 def step9_match_risk_tickers(pdf):
