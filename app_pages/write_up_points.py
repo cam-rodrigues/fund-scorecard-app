@@ -723,7 +723,7 @@ def step11_create_summary(pdf=None):
     import pandas as pd
     import streamlit as st
 
-    st.subheader("Step 11: Combined MPT Statistics Summary")
+    st.subheader("Step 11: MPT Statistics Summary")
 
     # 1) Load your 3‑Yr and 5‑Yr stats from session state
     mpt3 = st.session_state.get("step9_mpt_stats", [])
@@ -773,7 +773,7 @@ def step12_process_fund_facts(pdf):
     import streamlit as st
     import pandas as pd
 
-    st.subheader("Step 12: Extract Fund Facts Details")
+    st.subheader("Step 12: Fund Facts")
 
     fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
@@ -839,7 +839,7 @@ def step13_process_risk_adjusted_returns(pdf):
     import streamlit as st
     import pandas as pd
 
-    st.subheader("Step 13: Extract Risk‑Adjusted Returns Details")
+    st.subheader("Step 13: Risk‑Adjusted Returns")
 
     fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
@@ -984,7 +984,7 @@ def step15_display_selected_fund():
     import pandas as pd
     import streamlit as st
 
-    st.subheader("Step 15: View Single Fund Details")
+    st.subheader("Step 15: Single Fund Details")
     # — ensure prior data exists —
     facts = st.session_state.get("fund_factsheets_data", [])
     if not facts:
@@ -1003,7 +1003,7 @@ def step15_display_selected_fund():
     st.write(f"- Prepared By:   {st.session_state.get('prepared_by','N/A')}")
 
     # === Step 2: Table of Contents Pages ===
-    st.markdown("**Step 2: Table of Contents Pages**")
+    st.markdown("**Step 2: Table of Contents**")
     for key,label in [
         ("performance_page","Fund Performance Current vs Proposed"),
         ("calendar_year_page","Fund Performance Calendar Year"),
@@ -1014,8 +1014,8 @@ def step15_display_selected_fund():
     ]:
         st.write(f"- {label}: {st.session_state.get(key,'N/A')}")
 
-    # === Step 3: Scorecard Details ===
-    st.markdown("**Step 3: Scorecard Details**")
+    # === Step 3: Scorecard Metrics ===
+    st.markdown("**Step 3: Scorecard Metrics**")
     blocks = st.session_state.get("fund_blocks", [])
     block  = next((b for b in blocks if b["Fund Name"]==choice), None)
     if block:
@@ -1313,17 +1313,17 @@ def run():
 
     with pdfplumber.open(uploaded) as pdf:
         # Step 1
-        with st.expander("Step 1: Page 1 Extraction", expanded=False):
+        with st.expander("Step 1: Details", expanded=False):
             first = pdf.pages[0].extract_text() or ""
             process_page1(first)
 
         # Step 2
-        with st.expander("Step 2: Table of Contents Extraction", expanded=False):
+        with st.expander("Step 2: Table of Contents", expanded=False):
             toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
             process_toc(toc_text)
 
         # Step 3
-        with st.expander("Step 3: Scorecard Extraction", expanded=False):
+        with st.expander("Step 3: Scorecard Metrics", expanded=False):
             sp = st.session_state.get('scorecard_page')
             tot = st.session_state.get('total_options')
             if sp and tot is not None:
@@ -1336,7 +1336,7 @@ def run():
             step4_ips_screen()
 
         # Step 5
-        with st.expander("Step 5: Fund Performance Extraction", expanded=False):
+        with st.expander("Step 5: Fund Performance", expanded=False):
             pp = st.session_state.get('performance_page')
             names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
             if pp and names:
@@ -1345,12 +1345,12 @@ def run():
                 st.error("Missing performance page or fund blocks")
 
         # Step 6
-        with st.expander("Step 6: Fund Factsheets Extraction", expanded=True):
+        with st.expander("Step 6: Fund Factsheets", expanded=True):
             names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
             step6_process_factsheets(pdf, names)
 
         # Step 7
-        with st.expander("Step 7: Extract Annualized Returns", expanded=False):
+        with st.expander("Step 7: Annualized Returns", expanded=False):
             step7_extract_returns(pdf)
         
         # Step 8: Calendar Year Section
@@ -1358,15 +1358,15 @@ def run():
             step8_calendar_returns(pdf)
 
         # Step 9: Match Tickers
-        with st.expander("Step 9: Match Tickers in Risk Analysis (3Yr)", expanded=False):
+        with st.expander("Step 9: Risk Analysis (3Yr)", expanded=False):
             step9_risk_analysis_3yr(pdf)
 
         # Step 10: Match Tickers
-        with st.expander("Step 10: Match Tickers in Risk Analysis (5Yr)", expanded=False):
+        with st.expander("Step 10: Risk Analysis (5Yr)", expanded=False):
             step10_risk_analysis_5yr(pdf)
 
         # Step 11: MPT Statistics Summary
-        with st.expander("Step 11: Combined MPT Statistics Summary", expanded=False):
+        with st.expander("Step 11: MPT Statistics Summary", expanded=False):
             step11_create_summary()
             
         # Step 12: Find Factsheet Sub‑Headings
@@ -1382,7 +1382,7 @@ def run():
             step14_extract_peer_risk_adjusted_return_rank(pdf)
 
         # Step 15: View Single Fund Details
-        with st.expander("Step 15: View Single Fund Details", expanded=False):
+        with st.expander("Step 15: Single Fund Details", expanded=False):
             step15_display_selected_fund()
 
 
