@@ -1418,21 +1418,23 @@ def run():
             step15_display_selected_fund()
                     
         # ── Bullet Points Section ─────────────────────────────────────────────────────────────────
-        
         with st.expander("Bullet Points", expanded=False):
             perf_data = st.session_state.get("fund_performance_data", [])
+            
+            # Check if performance data is available
             if not perf_data:
-                st.error("❌ No performance data found. Run Step 7 first.")
+                st.error("❌ No performance data found. Run Step 7 first.")
             else:
+                # Allow user to select a fund for bullet points
                 sel = st.selectbox(
                     "Select Fund for Bullet Points",
                     [itm["Fund Scorecard Name"] for itm in perf_data],
                     key="bullet_fund_select"
                 )
+                
+                # Retrieve the selected fund's data
                 item = next(x for x in perf_data if x["Fund Scorecard Name"] == sel)
         
-                templates = st.session_state.get("bullet_point_templates", [])
-                
                 # First bullet point: Performance vs Benchmark
                 filled = "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], [Year] by [QTD_bps_diff] bps ([QTD_vs])."
                 for field, val in item.items():
@@ -1444,6 +1446,7 @@ def run():
                 if is_passing_ips:
                     filled = "The Fund passed the IPS Screening."
                 else:
+                    # Determine the Watch status based on IPS status
                     status = "Informal Watch" if "IW" in item.get("IPS Status", "") else "Formal Watch"
                     
                     # Extract relevant data for the returns and risk-adjusted returns
@@ -1497,8 +1500,6 @@ def run():
                 
                 # Display the second bullet point
                 st.markdown(f"- {filled}")
-
-
 
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
