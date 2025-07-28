@@ -1491,7 +1491,7 @@ def run():
                 
                     # Logic to combine or separate the ranking based on whether both are top/bottom
                     if rank_3yr_position == rank_5yr_position:
-                        rank_statement = f"now rank in the {rank_3yr_position} half of their peer group for both 3Yr Sharpe and 5Yr Sharpe."
+                        rank_statement = f"now rank in the {rank_3yr_position} half of their peer group."
                     else:
                         rank_statement = f"now rank in the {rank_3yr_position} half of their peer group for 3Yr Sharpe and {rank_5yr_position} half for 5Yr Sharpe."
                 
