@@ -1462,8 +1462,13 @@ def run():
                     bench_three_year_str = f"{bench_three_year:.2f}%"
                     bench_five_year_str = f"{bench_five_year:.2f}%"
         
-                    # Risk-adjusted returns
+                    # Risk-adjusted returns (Check the structure of step13_risk_adjusted_table)
                     risk_adjusted_returns = st.session_state.get("step13_risk_adjusted_table", [])
+                    
+                    # Debug: Check the keys in step13_risk_adjusted_table
+                    st.write("Step 13 Risk-Adjusted Returns Structure:", risk_adjusted_returns)
+        
+                    # Extract the Sharpe and Sortino rankings for 3-Year
                     sharpe_rank_3yr = next((r["Sharpe Rank 3Yr"] for r in risk_adjusted_returns if r["Fund Name"] == item["Fund Scorecard Name"]), "Unknown")
                     sortino_rank_3yr = next((r["Sortino Rank 3Yr"] for r in risk_adjusted_returns if r["Fund Name"] == item["Fund Scorecard Name"]), "Unknown")
                     
@@ -1478,7 +1483,6 @@ def run():
         
                 # Display the second bullet point
                 st.markdown(f"- {filled}")
-
 
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
