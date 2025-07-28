@@ -1430,20 +1430,22 @@ def run():
                     key="bullet_fund_select"
                 )
                 item = next(x for x in perf_data if x["Fund Scorecard Name"] == sel)
+                
                 templates = st.session_state.get("bullet_point_templates", [])
                 for tpl in templates:
                     filled = tpl
-                    # Replace placeholders with actual values
+                    # Replace placeholders with actual values for the template
                     for field, val in item.items():
-                        if field != "QTD_vs":
+                        if field != "QTD_vs":  # Skip QTD_vs, as we handle it separately
                             filled = filled.replace(f"[{field}]", str(val))
-                    
-                    # Ensure the QTD_vs placeholder is properly formatted with "vs" between the fund and benchmark percentages
-                    filled = filled.replace("[QTD_vs]", f"({item['QTD_pct_diff']} vs. {item['QTD_pct_diff']})")
+        
+                    # Format the QTD_vs field correctly with separate percentages for the fund and benchmark
+                    fund_pct = f"{item.get('QTD', '0.00'):.2f}%"  # Ensure two decimal places for consistency
+                    bench_pct = f"{item.get('Bench QTD', '0.00'):.2f}%"  # Same for benchmark
+                    filled = filled.replace("[QTD_vs]", f"({fund_pct} vs. {bench_pct})")
         
                     st.markdown(f"- {filled}")
 
-        
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 if __name__ == "__main__":
