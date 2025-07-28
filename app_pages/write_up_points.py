@@ -1225,9 +1225,9 @@ def step15_display_selected_fund():
     st.markdown("**Slide 3 Table 2**")
     # grab the annualized returns for the selected fund
     perf_data = st.session_state.get("fund_performance_data", [])
-    perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == choice), {})
-    # build Investment Manager label
-    inv_mgr    = f"{choice} ({perf_item.get('Ticker','')})"
+    perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name")==choice), {})
+    # build Investment Manager label with ticker in parentheses
+    inv_mgr = f"{choice} ({perf_item.get('Ticker','')})"
     # use report_date as the QTD column header
     date_label = st.session_state.get("report_date", "QTD")
     # assemble the row
