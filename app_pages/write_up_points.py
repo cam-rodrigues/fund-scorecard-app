@@ -1416,7 +1416,7 @@ def run():
         # Step 15: View Single Fund Details
         with st.expander("Step 15: Single Fund Details", expanded=False):
             step15_display_selected_fund()
-
+            
         # ── Bullet Points Section ─────────────────────────────────────────────────────────────────
         
         with st.expander("Bullet Points", expanded=False):
@@ -1430,7 +1430,7 @@ def run():
                     key="bullet_fund_select"
                 )
                 item = next(x for x in perf_data if x["Fund Scorecard Name"] == sel)
-                
+        
                 templates = st.session_state.get("bullet_point_templates", [])
                 for tpl in templates:
                     filled = tpl
@@ -1443,18 +1443,20 @@ def run():
                     try:
                         fund_pct = float(item.get('QTD', 0))  # Default to 0 if missing
                         bench_pct = float(item.get('Bench QTD', 0))  # Default to 0 if missing
-                        
+        
                         # Format as percentages with two decimal places
                         fund_pct_str = f"{fund_pct:.2f}%"
                         bench_pct_str = f"{bench_pct:.2f}%"
-                        
-                        # Replace the placeholder [QTD_vs] with the formatted string "xx.xx% vs. yy.yy%"
+        
+                        # Ensure [QTD_vs] gets replaced with the correct format
+                        # We replace the placeholder directly with the formatted percentage string
                         filled = filled.replace("[QTD_vs]", f"({fund_pct_str} vs. {bench_pct_str})")
                     except ValueError:
                         # If QTD or Bench QTD is not a valid number, replace [QTD_vs] with placeholder text
                         filled = filled.replace("[QTD_vs]", "(Invalid Data vs. Invalid Data)")
         
                     st.markdown(f"- {filled}")
+
 
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
