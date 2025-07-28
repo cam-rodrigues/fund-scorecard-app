@@ -410,14 +410,14 @@ def step6_process_factsheets(pdf, fund_names):
 
 #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
-# === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr & Net Expense Ratio & Bench QTD ===
+# === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr / Net Expense Ratio & Bench QTD ===
 def step7_extract_returns(pdf):
     import re
     import pandas as pd
     import streamlit as st
     from rapidfuzz import fuzz
 
-    st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr / Net Expense & Benchmark QTD")
+    st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr / Net Expense & Benchmark QTD")
 
     # 1) Where to scan
     perf_page = st.session_state.get("performance_page")
@@ -428,7 +428,7 @@ def step7_extract_returns(pdf):
         return
 
     # 2) Prep output slots
-    fields = ["QTD", "1Yr", "3Yr", "5Yr", "10Yr", "Net Expense Ratio", "Bench QTD"]
+    fields = ["QTD", "1Yr", "3Yr", "5Yr", "10Yr", "Net Expense Ratio", "Bench QTD", "Bench 3Yr", "Bench 5Yr"]
     for itm in perf_data:
         for f in fields:
             itm.setdefault(f, None)
@@ -488,6 +488,17 @@ def step7_extract_returns(pdf):
             bench_raw = num_rx.findall(lines[idx + 2])
         bench_clean = [n.strip("()%").rstrip("%") for n in bench_raw]
         item["Bench QTD"] = bench_clean[0] if bench_clean else None
+        
+        # f) Pull benchmark 3Yr and 5Yr from the lines below the fund data
+        bench_3yr_raw = []
+        bench_5yr_raw = []
+        if idx + 3 < len(lines):
+            bench_3yr_raw = num_rx.findall(lines[idx + 3])  # 3Yr Benchmark
+            bench_5yr_raw = num_rx.findall(lines[idx + 4])  # 5Yr Benchmark
+
+        # Clean benchmark data and assign to item
+        item["Bench 3Yr"] = bench_3yr_raw[0] if bench_3yr_raw else None
+        item["Bench 5Yr"] = bench_5yr_raw[0] if bench_5yr_raw else None
 
         matched += 1
 
@@ -505,6 +516,7 @@ def step7_extract_returns(pdf):
         df[["Fund Scorecard Name", "Ticker"] + fields],
         use_container_width=True
     )
+
 
 #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
