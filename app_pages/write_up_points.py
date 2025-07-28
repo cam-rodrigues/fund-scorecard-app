@@ -642,61 +642,75 @@ def step9_risk_analysis_3yr(pdf):
 
 #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
-# === Step 10: Risk Analysis (5Yr) – MPT Statistics ===
+# === Step 10: Risk Analysis (5Yr) – Match & Extract MPT Statistics ===
 def step10_risk_analysis_5yr(pdf):
     import re, streamlit as st, pandas as pd
 
-    st.subheader("Step 10: Risk Analysis (5Yr) – MPT Statistics")
+    st.subheader("Step 10: Risk Analysis (5Yr) – MPT Statistics")
 
-    # 1) Grab your fund→ticker map from Step 5
+    # 1) Your fund→ticker map from Step 5
     fund_map = st.session_state.get("tickers", {})
     if not fund_map:
-        st.error("❌ No ticker mapping found. Run Step 5 first.")
+        st.error("❌ No ticker mapping found. Run Step 5 first.")
         return
 
-    # 2) Find the 5‑Yr section
-    start_page = next(
+    # 2) Locate the “Risk Analysis: MPT Statistics (5Yr)” section
+    section_page = next(
         (i for i, pg in enumerate(pdf.pages, start=1)
          if "Risk Analysis: MPT Statistics (5Yr)" in (pg.extract_text() or "")),
         None
     )
-    if not start_page:
-        st.error("❌ ‘Risk Analysis: MPT Statistics (5Yr)’ page not found; run Step 2 first.")
+    if section_page is None:
+        st.error("❌ Could not find ‘Risk Analysis: MPT Statistics (5Yr)’ section.")
         return
 
-    # 3) Scan forward to locate each ticker (hidden from display)
+    # 3) Under‑the‑hood: scan pages until each ticker is located
     locs = {}
-    for p in range(start_page, len(pdf.pages) + 1):
-        text = pdf.pages[p-1].extract_text() or ""
-        for idx, ln in enumerate(text.splitlines()):
+    total = len(fund_map)
+    for pnum in range(section_page, len(pdf.pages) + 1):
+        lines = (pdf.pages[pnum-1].extract_text() or "").splitlines()
+        for li, ln in enumerate(lines):
             tokens = ln.split()
-            for fname, tk in fund_map.items():
-                if fname in locs:
+            for name, tk in fund_map.items():
+                if name in locs:
                     continue
                 if tk.upper() in tokens:
-                    locs[fname] = {"page": p, "line": idx}
-        if len(locs) == len(fund_map):
+                    locs[name] = {"page": pnum, "line": li}
+        if len(locs) == total:
             break
 
-    # 4) Extract the first four numeric values from each matched line
+    # 4) Wrap‑aware extraction of the first four floats after each ticker line
     num_rx = re.compile(r"-?\d+\.\d+")
     results = []
-    for name, info in locs.items():
-        lines = (pdf.pages[info["page"]-1].extract_text() or "").splitlines()
-        snippet = lines[info["line"]]
-        nums = num_rx.findall(snippet)
-        nums += [None] * (4 - len(nums))
-        alpha5, beta5, up5, down5 = nums[:4]
+    for name, tk in fund_map.items():
+        info = locs.get(name)
+        vals = [None] * 4
+        if info:
+            page = pdf.pages[info["page"] - 1]
+            text_lines = (page.extract_text() or "").splitlines()
+            idx = info["line"]
+            nums = []
+            # look on the line of the ticker and up to the next 2 lines
+            for j in range(idx, min(idx + 3, len(text_lines))):
+                nums += num_rx.findall(text_lines[j])
+                if len(nums) >= 4:
+                    break
+            nums += [None] * (4 - len(nums))
+            vals = nums[:4]
+        else:
+            st.warning(f"⚠️ {name} ({tk.upper()}): not found after page {section_page}.")
+
+        alpha5, beta5, up5, down5 = vals
         results.append({
-            "Fund Name":                name,
-            "Ticker":                   fund_map[name].upper(),
-            "5 Yr Alpha":               alpha5,
-            "5 Yr Beta":                beta5,
-            "5 Yr Upside Capture":      up5,
-            "5 Yr Downside Capture":    down5
+            "Fund Name":               name,
+            "Ticker":                  tk.upper(),
+            "5 Year Alpha":            alpha5,
+            "5 Year Beta":             beta5,
+            "5 Year Upside Capture":   up5,
+            "5 Year Downside Capture": down5,
         })
 
-    # 5) Save & show only the consolidated table
+    # 5) Save & display only the consolidated table
     st.session_state["step10_mpt_stats"] = results
     df = pd.DataFrame(results)
     st.dataframe(df, use_container_width=True)
@@ -1349,7 +1363,11 @@ def run():
 
         # Step 10: Match Tickers
         with st.expander("Step 10: Match Tickers in Risk Analysis (5Yr)", expanded=False):
-            step10_risk_analysis_5yr(pdf)
+            step10_match_risk_tickers(pdf)
+
+        # Step 10.5: Extract Extract MPT Statistics (5Yr)
+        with st.expander("Step 10.5: Extract MPT Statistics (5Yr)", expanded=False):
+            step10_extract_mpt_statistics(pdf)
 
         # Step 11: MPT Statistics Summary
         with st.expander("Step 11: Combined MPT Statistics Summary", expanded=False):
@@ -1374,6 +1392,5 @@ def run():
 
 if __name__ == "__main__":
     run()
-
 
 
