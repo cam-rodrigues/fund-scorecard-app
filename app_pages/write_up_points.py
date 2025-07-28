@@ -997,8 +997,14 @@ def step15_display_selected_fund():
     fund_names = [f["Matched Fund Name"] for f in facts]
     selected_fund = st.selectbox("Select a fund to view details:", fund_names)
     
-    # Store the selected fund in session state
+    # Save the selected fund in session state
     st.session_state.selected_fund = selected_fund  # Save the selected fund in session_state
+
+    # Now use this selected fund for further details
+    st.write(f"Details for: {selected_fund}")
+
+    # Display the fund details as before
+    # --- (Existing code for displaying the details of the selected fund) ---
 
     # === Step 1: Page 1 Metadata ===
     st.markdown("**Step 1: Page 1 Metadata**")
@@ -1423,7 +1429,7 @@ def run():
         with st.expander("Step 15: Single Fund Details", expanded=False):
             step15_display_selected_fund()
                     
-        # ── Bullet Points Section ────────────────────────────────────────────────────────────────
+        # ── Bullet Points Section ─────────────────────────────────────────────────────────────────
         with st.expander("Bullet Points", expanded=False):
             # Get the selected fund from session state
             selected_fund = st.session_state.get('selected_fund', None)
@@ -1497,6 +1503,7 @@ def run():
                     st.markdown(f"- {action}")
             else:
                 st.error("❌ No fund selected. Please select a fund from Step 15.")
+
 
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
