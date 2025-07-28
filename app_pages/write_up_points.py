@@ -20,8 +20,10 @@ def extract_report_date(text):
     return None
     
 # === Step 1 & 1.5: Page 1 Extraction ===
+import re  # ensure at top of file
+
 def process_page1(text):
-    """Extracts page‑1 metadata and returns it as a dict."""
+    """Extracts page‑1 metadata, renders it, and returns a dict."""
     out = {}
     out['report_date']   = extract_report_date(text)
 
@@ -37,7 +39,27 @@ def process_page1(text):
         pb = "Procyon Partners, LLC"
     out['prepared_by']   = pb
 
+    # --- UI rendering ---
+    st.subheader("Page 1 Metadata")
+    if out['report_date']:
+        st.write(f"- **Report Date:** {out['report_date']}")
+    else:
+        st.write("- **Report Date:** _not found_")
+
+    if out['total_options'] is not None:
+        st.write(f"- **Total Options:** {out['total_options']}")
+    else:
+        st.write("- **Total Options:** _not found_")
+
+    if out['prepared_for']:
+        st.write(f"- **Prepared For:** {out['prepared_for']}")
+    else:
+        st.write("- **Prepared For:** _not found_")
+
+    st.write(f"- **Prepared By:** {out['prepared_by']}")
+
     return out
+
 
 # === Step 2: Table of Contents Extraction ===
 def process_toc(text):
@@ -1157,11 +1179,10 @@ def run():
 
     with pdfplumber.open(uploaded) as pdf:
         # Step 1
-        with st.expander("Step 1: Page 1 Extraction", expanded=False):
+        with st.expander("Step 1: Page 1 Extraction", expanded=False):
             first = pdf.pages[0].extract_text() or ""
-            data1 = process_page1(first)                      # call & capture
-            st.session_state["step1_page1_data"] = data1      # store under key
-            st.write(data1)                                   # display returned dict
+            data1 = process_page1(first)
+            st.session_state["step1_page1_data"] = data1
 
 
         # Step 2
