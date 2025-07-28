@@ -480,25 +480,17 @@ def step7_extract_returns(pdf):
         item["10Yr"]              = clean[5]
         item["Net Expense Ratio"] = clean[-2]
 
-        # e) Pull benchmark QTD from the very next line (or one more down)
+        # e) Pull benchmark QTD, 3Yr, and 5Yr from the very next line (or one more down)
         bench_raw = []
         if idx + 1 < len(lines):
             bench_raw = num_rx.findall(lines[idx + 1])
         if len(bench_raw) < 1 and idx + 2 < len(lines):
             bench_raw = num_rx.findall(lines[idx + 2])
         bench_clean = [n.strip("()%").rstrip("%") for n in bench_raw]
-        item["Bench QTD"] = bench_clean[0] if bench_clean else None
-        
-        # f) Pull benchmark 3Yr and 5Yr from the lines below the fund data
-        bench_3yr_raw = []
-        bench_5yr_raw = []
-        if idx + 3 < len(lines):
-            bench_3yr_raw = num_rx.findall(lines[idx + 3])  # 3Yr Benchmark
-            bench_5yr_raw = num_rx.findall(lines[idx + 4])  # 5Yr Benchmark
 
-        # Clean benchmark data and assign to item
-        item["Bench 3Yr"] = bench_3yr_raw[0] if bench_3yr_raw else None
-        item["Bench 5Yr"] = bench_5yr_raw[0] if bench_5yr_raw else None
+        item["Bench QTD"] = bench_clean[0] if bench_clean else None
+        item["Bench 3Yr"] = bench_clean[3] if len(bench_clean) > 3 else None
+        item["Bench 5Yr"] = bench_clean[4] if len(bench_clean) > 4 else None
 
         matched += 1
 
@@ -516,6 +508,7 @@ def step7_extract_returns(pdf):
         df[["Fund Scorecard Name", "Ticker"] + fields],
         use_container_width=True
     )
+
 
 
 #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
