@@ -1435,14 +1435,14 @@ def run():
                     filled = tpl
                     # Replace placeholders with actual values
                     for field, val in item.items():
-                        # Replace the placeholders except for QTD_vs
                         if field != "QTD_vs":
                             filled = filled.replace(f"[{field}]", str(val))
                     
-                    # Ensure the QTD_vs placeholder remains as it is, with "vs" separated outside parentheses
-                    filled = filled.replace("[QTD_vs]", f"({item['QTD_vs']})")
+                    # Ensure the QTD_vs placeholder is properly formatted with "vs" between the fund and benchmark percentages
+                    filled = filled.replace("[QTD_vs]", f"({item['QTD_pct_diff']} vs. {item['QTD_pct_diff']})")
         
                     st.markdown(f"- {filled}")
+
         
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
