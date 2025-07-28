@@ -1448,15 +1448,13 @@ def run():
                         fund_pct_str = f"{fund_pct:.2f}%"
                         bench_pct_str = f"{bench_pct:.2f}%"
         
-                        # Ensure [QTD_vs] gets replaced with the correct format
-                        # We replace the placeholder directly with the formatted percentage string
+                        # Insert the QTD vs value without applying any math
                         filled = filled.replace("[QTD_vs]", f"({fund_pct_str} vs. {bench_pct_str})")
                     except ValueError:
                         # If QTD or Bench QTD is not a valid number, replace [QTD_vs] with placeholder text
                         filled = filled.replace("[QTD_vs]", "(Invalid Data vs. Invalid Data)")
         
                     st.markdown(f"- {filled}")
-
 
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
