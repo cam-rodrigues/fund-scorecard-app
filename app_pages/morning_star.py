@@ -1,96 +1,101 @@
-# page_module.py
-
 import re
 import streamlit as st
 import pdfplumber
 import pandas as pd
-from calendar import month_name
 
-# ─── Utility Functions ─────────────────────────────────────────────────────────────
+# === Utility: Extract Split by Two-or-More Spaces ===
+def split_cols(line: str) -> list[str]:
+    return re.split(r"\s{2,}", line.strip())
 
-def extract_report_date(text: str) -> str | None:
-    """Find first quarter‑end or mm/dd/yyyy and format human‑readable."""
-    dates = re.findall(r'(\d{1,2})/(\d{1,2})/(20\d{2})', text or "")
-    for m_str, d_str, y in dates:
-        m, d = int(m_str), int(d_str)
-        if (m, d) in [(3,31),(6,30),(9,30),(12,31)]:
-            q = { (3,31):"1st",(6,30):"2nd",(9,30):"3rd",(12,31):"4th"}[(m,d)]
-            return f"{q} QTR, {y}"
-        return f"As of {month_name[m]} {d}, {y}"
-    return None
-
-# ─── Step Functions ────────────────────────────────────────────────────────────────
-
-def process_overview(pdf):
-    """Extract fund name, ticker, strategy, date, etc."""
-    txt = pdf.pages[0].extract_text() or ""
-    st.subheader("Overview / Page 1")
-    name = re.search(r"Morningstar Fund Report:\s*(.+)", txt)
-    if name:
-        st.write(f"- **Fund Name:** {name.group(1).strip()}")
-    rd = extract_report_date(txt)
-    if rd:
-        st.write(f"- **Report Date:** {rd}")
-    # …and any other top‐of‐page fields you need…
-
-def process_performance(pdf):
-    """Extract performance table (YTD, 1Yr, 3Yr, 5Yr, 10Yr, etc.)."""
-    st.subheader("Performance Summary")
-    # Locate the page or pages that contain the performance table
-    perf_lines = []
-    for p in pdf.pages:
-        text = p.extract_text() or ""
-        if "Performance as of" in text:
-            perf_lines += text.splitlines()
-    # Parse perf_lines into a DataFrame
-    # TODO: adapt regex to your Morningstar layout
-    data = []
-    for ln in perf_lines:
-        m = re.match(r"^(?P<label>[^ ]+)\s+(?P<ytd>-?\d+\.\d+)%\s+(?P<one>-?\d+\.\d+)%\s+(?P<three>-?\d+\.\d+)%\s+(?P<five>-?\d+\.\d+)%\s+(?P<ten>-?\d+\.\d+)%", ln)
-        if m:
-            data.append(m.groupdict())
-    if data:
-        df = pd.DataFrame(data).set_index("label")
-        st.dataframe(df, use_container_width=True)
-    else:
-        st.write("_Could not parse performance table_")
-
-def process_holdings(pdf):
-    """Extract top‐holdings table."""
-    st.subheader("Top Holdings")
-    # TODO: find page(s) with 'Top 10 Holdings' and parse into a DataFrame
-    # e.g. look for lines starting with rank numbers 1–10, extract name + weight
-    st.write("_Holdings parsing not yet implemented._")
-
-def process_risk_metrics(pdf):
-    """Extract risk measures (Sharpe, Sortino, Beta, etc.)."""
-    st.subheader("Risk Metrics")
-    # TODO: locate 'Risk Statistics' section and parse metrics
-    st.write("_Risk‑metric parsing not yet implemented._")
-
-# ─── Main App Entry Point ─────────────────────────────────────────────────────────
-
-def run():
-    st.title("Morningstar Report Reader")
-    uploaded = st.file_uploader("Upload Morningstar PDF", type="pdf")
-    if not uploaded:
-        st.info("Please upload a Morningstar PDF report to get started.")
+# === Step 1: Overview / Page 1 ===
+def process_overview(page):
+    text = page.extract_text() or ""
+    lines = text.splitlines()
+    # locate 'Overview' header
+    try:
+        idx = lines.index('Overview')
+    except ValueError:
+        st.error("❌ 'Overview' section not found on page 1.")
         return
+    # header keys and values
+    header_line = lines[idx+1]
+    value_line  = lines[idx+2]
+    keys = split_cols(header_line)
+    vals = split_cols(value_line)
+    overview = dict(zip(keys, vals))
 
+    st.subheader('Step 1: Overview / Page 1')
+    for k, v in overview.items():
+        st.write(f"- {k}: {v}")
+
+    st.session_state['overview'] = overview
+
+# === Step 2: Performance Summary ===
+def process_performance(pdf):
+    st.subheader('Step 2: Performance Summary')
+    # gather lines after finding 'Returns Annual'
+    lines = []
+    recording = False
+    for page in pdf.pages:
+        text = page.extract_text() or ''
+        for ln in text.splitlines():
+            if recording:
+                lines.append(ln)
+            if ln.strip().startswith('Returns Annual'):
+                recording = True
+        if recording and len(lines) > 20:
+            break
+
+    if not lines:
+        st.error("❌ 'Returns Annual' section not found.")
+        return
+    # first line: year labels
+    year_line = lines[0]
+    # match years or YTD
+    years = re.findall(r'20\d{2}|YTD', year_line)
+
+    # each of Investment, Category, Index
+    data = {}
+    for label in ['Investment', 'Category', 'Index']:
+        if label in lines:
+            i = lines.index(label)
+            vals_line = lines[i+1] if i+1 < len(lines) else ''
+            vals = re.findall(r'-?\d+\.?\d*', vals_line)
+            # ensure length matches years
+            vals = vals[:len(years)] + [None] * (len(years) - len(vals))
+        else:
+            vals = [None] * len(years)
+        data[label] = vals
+
+    # build DataFrame: rows=labels, cols=years
+    df = pd.DataFrame(data, index=years).T
+    st.dataframe(df, use_container_width=True)
+    st.session_state['performance'] = df
+
+# === Step 3: Top Holdings ===
+def process_holdings(pdf):
+    st.subheader('Step 3: Top Holdings')
+    # placeholder: not yet implemented
+    st.write('Holdings parsing not yet implemented.')
+
+# === Step 4: Risk Metrics ===
+def process_risk_metrics(pdf):
+    st.subheader('Step 4: Risk Metrics')
+    # placeholder: not yet implemented
+    st.write('Risk-metric parsing not yet implemented.')
+
+# === Main App ===
+def run():
+    st.title('Morningstar Report Reader')
+    st.write('Upload Morningstar PDF')
+    uploaded = st.file_uploader('', type='pdf')
+    if not uploaded:
+        return
     with pdfplumber.open(uploaded) as pdf:
-        with st.expander("Step 1: Overview / Page 1", expanded=True):
-            process_overview(pdf)
+        process_overview(pdf.pages[0])
+        process_performance(pdf)
+        process_holdings(pdf)
+        process_risk_metrics(pdf)
 
-        with st.expander("Step 2: Performance Summary", expanded=False):
-            process_performance(pdf)
-
-        with st.expander("Step 3: Top Holdings", expanded=False):
-            process_holdings(pdf)
-
-        with st.expander("Step 4: Risk Metrics", expanded=False):
-            process_risk_metrics(pdf)
-
-        # …add more expanders/steps as needed…
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     run()
