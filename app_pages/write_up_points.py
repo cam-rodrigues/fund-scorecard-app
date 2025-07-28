@@ -582,12 +582,12 @@ def step8_calendar_returns(pdf):
 
 #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
-# === Step 9: 3‑Yr Risk Analysis – Match Tickers & Extract MPT Stats ===
+# === Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching) ===
 def step9_risk_analysis_3yr(pdf):
     import re, streamlit as st, pandas as pd
     from rapidfuzz import fuzz
 
-    st.subheader("Step 9: Risk Analysis (3Yr) – Match Tickers & Extract MPT Stats")
+    st.subheader("Step 9: Risk Analysis (3Yr) – MPT Statistics")
 
     # 1) Get your fund→ticker map
     fund_map = st.session_state.get("tickers", {})
@@ -601,7 +601,7 @@ def step9_risk_analysis_3yr(pdf):
         st.error("❌ ‘Risk Analysis: MPT Statistics (3Yr)’ page not found; run Step 2 first.")
         return
 
-    # 3) Scan forward until you’ve seen each ticker
+    # 3) Scan forward until you’ve seen each ticker (no display)
     locs = {}
     for pnum in range(start_page, len(pdf.pages) + 1):
         lines = (pdf.pages[pnum-1].extract_text() or "").splitlines()
@@ -615,16 +615,7 @@ def step9_risk_analysis_3yr(pdf):
         if len(locs) == len(fund_map):
             break
 
-    # 4) Report who you found
-    st.subheader("Ticker Locations")
-    for name in fund_map:
-        if name in locs:
-            info = locs[name]
-            st.write(f"- {name}: {fund_map[name].upper()} @ page {info['page']}, line {info['line']+1} ✅")
-        else:
-            st.write(f"- {name}: ❌ not found")
-
-    # 5) Extract the first four numeric MPT stats from that same line
+    # 4) Extract the first four numeric MPT stats from that same line
     num_rx = re.compile(r"-?\d+\.\d+")
     results = []
     for name, info in locs.items():
@@ -643,10 +634,11 @@ def step9_risk_analysis_3yr(pdf):
             "3 Year Downside Capture": down
         })
 
-    st.subheader("3‑Yr MPT Statistics")
-    df = pd.DataFrame(results)
+    # 5) Display final table only
     st.session_state["step9_mpt_stats"] = results
+    df = pd.DataFrame(results)
     st.dataframe(df, use_container_width=True)
+
 
 #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
