@@ -1417,7 +1417,8 @@ def run():
         with st.expander("Step 15: Single Fund Details", expanded=False):
             step15_display_selected_fund()
 
-        # ─── Bullet Points Section ───────────────────────────────────────────────
+        # ── Bullet Points Section ─────────────────────────────────────────────────────────────────
+        
         with st.expander("Bullet Points", expanded=False):
             perf_data = st.session_state.get("fund_performance_data", [])
             if not perf_data:
@@ -1429,12 +1430,21 @@ def run():
                     key="bullet_fund_select"
                 )
                 item = next(x for x in perf_data if x["Fund Scorecard Name"] == sel)
-                for tpl in st.session_state["bullet_point_templates"]:
+                templates = st.session_state.get("bullet_point_templates", [])
+                for tpl in templates:
                     filled = tpl
+                    # Replace placeholders with actual values
                     for field, val in item.items():
-                        filled = filled.replace(f"[{field}]", str(val))
+                        # Replace the placeholders except for QTD_vs
+                        if field != "QTD_vs":
+                            filled = filled.replace(f"[{field}]", str(val))
+                    
+                    # Ensure the QTD_vs placeholder remains as it is, with "vs" separated outside parentheses
+                    filled = filled.replace("[QTD_vs]", f"({item['QTD_vs']})")
+        
                     st.markdown(f"- {filled}")
-                        
+        
+        #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 if __name__ == "__main__":
     run()
