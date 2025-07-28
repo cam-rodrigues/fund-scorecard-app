@@ -591,82 +591,60 @@ def step8_5_extract_calendar_returns(pdf):
     df = pd.DataFrame(rows).set_index("Fund Name")
     st.dataframe(df, use_container_width=True)
 
-
 # === Step 8.5: Benchmark Calendar Year Returns ===
 def benchmarkcal(pdf):
     import re, pandas as pd, streamlit as st
 
     st.subheader("Benchmark Calendar Year Returns")
-    cy_page = st.session_state.get("calendar_year_page")
-    if cy_page is None:
-        st.error("❌ 'Fund Performance: Calendar Year' page not found in TOC.")
+
+    cy_start = st.session_state.get("calendar_year_page")
+    cy_end   = (st.session_state.get("r3yr_page") or (len(pdf.pages)+1)) - 1
+    if cy_start is None:
+        st.error("❌ Could not find 'Fund Performance: Calendar Year' page in TOC.")
         return
 
-    # 1) grab the header row to detect which years to extract
-    header_line = None
-    for p in range(cy_page-1, min(cy_page+2, len(pdf.pages))):
-        for ln in (pdf.pages[p].extract_text() or "").splitlines():
-            if "Ticker" in ln and re.search(r"\b20(1[5-9]|2[0-4])\b", ln):
-                header_line = ln
-                break
-        if header_line:
-            break
+    # 1) collect all lines in that same range
+    all_lines = []
+    for p in range(cy_start-1, cy_end):
+        all_lines.extend((pdf.pages[p].extract_text() or "").splitlines())
 
+    # 2) find years header once
+    header_line = next((ln for ln in all_lines if "Ticker" in ln and re.search(r"\b20(1[5-9]|2[0-4])\b", ln)), None)
     if not header_line:
-        st.error("❌ Couldn't find the calendar‑year header row.")
+        st.error("❌ Couldn't find calendar‑year header row.")
         return
 
     years = re.findall(r"\b20(1[5-9]|2[0-4])\b", header_line)
     years = ["20" + y for y in years]
     n     = len(years)
 
-    # 2) pull your list of (Fund → Benchmark → Ticker) from the factsheets step
-    facts      = st.session_state.get("fund_factsheets_data", [])
-    bench_list = [
-        (f["Matched Fund Name"], f["Benchmark"].strip(), f["Matched Ticker"])
-        for f in facts
-        if f.get("Benchmark") and f.get("Matched Ticker")
-    ]
-    if not bench_list:
-        st.error("⚠️ No benchmarks found in your factsheet data.")
-        return
-
-    # 3) grab every line from the calendar‑year pages
-    all_lines = []
-    for p in range(cy_page-1, min(cy_page+2, len(pdf.pages))):
-        all_lines.extend((pdf.pages[p].extract_text() or "").splitlines())
+    # 3) build list of (fund → benchmark name → ticker) from factsheets
+    facts     = st.session_state.get("fund_factsheets_data", [])
+    bench_map = [(f["Matched Fund Name"], f["Benchmark"].strip(), f["Matched Ticker"]) 
+                 for f in facts if f.get("Benchmark")]
 
     rows = []
-    for fund_name, bench, tk in bench_list:
-        # find the exact line that starts with your benchmark name
-        ln = next((l for l in all_lines if l.startswith(bench)), None)
-
-        if not ln:
-            st.warning(f"⚠️ No calendar‑year row found for benchmark '{bench}'.")
-            vals = [None] * n
+    for fund_name, bench, tk in bench_map:
+        line = next((l for l in all_lines if l.startswith(bench)), None)
+        if not line:
+            st.warning(f"⚠️ No row found for benchmark '{bench}'.")
+            vals = [None]*n
         else:
-            parts = ln[len(bench):].strip().split()
-            # if the first token is the ticker, drop it
+            parts = line[len(bench):].split()
+            # drop ticker if present
             if parts and parts[0] == tk:
                 parts = parts[1:]
             vals = parts[:n]
 
-        # assemble a row with one column per year
-        row = {
-            "Fund Name": fund_name,
-            "Benchmark": bench,
-            "Ticker":    tk
-        }
+        row = {"Fund Name": fund_name, "Benchmark": bench, "Ticker": tk}
         for year, val in zip(years, vals):
             row[year] = val.rstrip("%") if isinstance(val, str) else val
 
         rows.append(row)
 
-    # 4) show it (one line per fund → benchmark)
     df = pd.DataFrame(rows).set_index("Fund Name")
     st.dataframe(df, use_container_width=True)
     st.session_state["benchmark_calendar_returns"] = rows
-
 
 
 # === Step 9: Match Tickers in the Risk Analysis (3Yr) Section ===
