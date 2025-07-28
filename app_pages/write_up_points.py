@@ -1455,31 +1455,41 @@ def run():
                     # Calculate the difference in bps
                     bps_three_year = (three_year_return - bench_three_year) * 100
                     bps_five_year = (five_year_return - bench_five_year) * 100
-        
+                
                     # Format as percentages with two decimal places
                     three_year_return_str = f"{three_year_return:.2f}%"
                     five_year_return_str = f"{five_year_return:.2f}%"
                     bench_three_year_str = f"{bench_three_year:.2f}%"
                     bench_five_year_str = f"{bench_five_year:.2f}%"
-        
+                
                     # Peer Risk-Adjusted Return Rank (Step 14)
                     peer_ranks = st.session_state.get("step14_peer_rank_table", [])
-                    
-                    # Get the rank of the selected fund
-                    rank_3yr = next((r for r in peer_ranks if r["Fund Name"] == item["Fund Scorecard Name"]), {}).get("Sharpe Ratio Rank 3Yr", "Unknown")
-                    rank_5yr = next((r for r in peer_ranks if r["Fund Name"] == item["Fund Scorecard Name"]), {}).get("Sharpe Ratio Rank 5Yr", "Unknown")
-        
-                    # Fill in the bullet point for non-passing funds
+                
+                    # Debugging: Check if the table is properly populated
+                    st.write("Peer Rank Table:", peer_ranks)
+                
+                    # Get the rank of the selected fund for 3Yr Sharpe and 5Yr Sharpe with fallback
+                    rank_3yr = next(
+                        (r.get("Sharpe Ratio Rank 3Yr", "Rank Not Available") for r in peer_ranks if r.get("Fund Name") == item["Fund Scorecard Name"]),
+                        "Rank Not Available"
+                    )
+                    rank_5yr = next(
+                        (r.get("Sharpe Ratio Rank 5Yr", "Rank Not Available") for r in peer_ranks if r.get("Fund Name") == item["Fund Scorecard Name"]),
+                        "Rank Not Available"
+                    )
+                
+                    # Fill the bullet point for non-passing funds
                     filled = (
                         f"The fund is now on {status}. Its three-year return currently trails the benchmark by "
                         f"{bps_three_year} bps ({three_year_return_str} vs. {bench_three_year_str}) "
                         f"and its five-year return trails by {bps_five_year} bps ({five_year_return_str} vs. {bench_five_year_str}). "
                         f"In addition, the fund’s three-year absolute and risk-adjusted returns, as measured by Sharpe and Sortino ratios, "
-                        f"now rank in the {rank_3yr}th place for 3Yr Sharpe and {rank_5yr}th place for 5Yr Sharpe within their peer group."
+                        f"now rank in the {rank_3yr} for 3Yr Sharpe and {rank_5yr} for 5Yr Sharpe within their peer group."
                     )
-        
+                
                 # Display the second bullet point
                 st.markdown(f"- {filled}")
+
 
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
