@@ -1208,11 +1208,24 @@ def step15_display_selected_fund():
     fund_cy = st.session_state.get("step8_returns", [])
     bench_cy = st.session_state.get("benchmark_calendar_year_returns", [])
     
-    # 2) Find the selected fund’s record and its benchmark record
-    fund_rec = next((r for r in fund_cy if r["Fund Name"] == choice), {})
-    bench_rec = next((r for r in bench_cy if r["Fund Name"] == choice), {})
+    # Check if data exists
+    if not fund_cy or not bench_cy:
+        st.error("❌ No calendar year returns data found. Ensure Step 8 has been run correctly.")
+        return
     
-    # 3) Get the years from the calendar year columns
+    # 2) Find the selected fund’s record and its benchmark record
+    fund_rec = next((r for r in fund_cy if r["Fund Name"] == choice), None)
+    bench_rec = next((r for r in bench_cy if r["Fund Name"] == choice), None)
+    
+    # If fund or benchmark record is not found
+    if not fund_rec:
+        st.error(f"❌ Could not find data for selected fund: {choice}")
+        return
+    if not bench_rec:
+        st.error(f"❌ Could not find benchmark data for selected fund: {choice}")
+        return
+    
+    # 3) Get the years from the calendar year columns (using the first record)
     year_cols = [col for col in fund_rec.keys() if re.match(r"20\d{2}", col)]
     
     # 4) Prepare the rows for the selected fund and benchmark
@@ -1235,8 +1248,6 @@ def step15_display_selected_fund():
     
     # 8) Display the table
     st.dataframe(df_slide3_3, use_container_width=True)
-
-
 
     # === Slide 4 Table 1 ===
     st.markdown("**Slide 4 Table 1**")
