@@ -1362,16 +1362,6 @@ def generate_watchlist_slide(df, selected_fund):
     blank_slide_layout = prs.slide_layouts[6]  # Layout 6 is typically a blank slide
     slide = prs.slides.add_slide(blank_slide_layout)
 
-    # Add Procyon logo in upper-right corner with padding and larger size
-    logo_path = "assets/procyon_logo.png"
-    logo_width = Inches(1.75)  # Larger size
-    logo_top = Inches(0.5)     # Padding from top
-    right_padding = Inches(0.5)  # Padding from right
-    
-    # Standard 10" slide width - logo width - right padding
-    logo_left = Inches(10) - logo_width - right_padding
-    slide.shapes.add_picture(logo_path, logo_left, logo_top, width=logo_width)
-
     # Manually add left-aligned title textbox to match logo padding
     title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.5), Inches(6), Inches(0.5))  # left and top = 0.5"
     title_box.line.fill.background()  # remove outline
@@ -1380,7 +1370,7 @@ def generate_watchlist_slide(df, selected_fund):
     tf.clear()
     p = tf.paragraphs[0]
     run = p.add_run()
-    run.text = "Investment Watchlist"
+    run.text = "Slide 1 Table"  # Change this to "Slide 1 Table"
     run.font.size = Pt(20)
     run.font.name = "Helvetica"
     run.font.color.rgb = RGBColor(33, 43, 88)  # #212b58
