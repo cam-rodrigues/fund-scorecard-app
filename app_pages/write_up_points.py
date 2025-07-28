@@ -1068,8 +1068,7 @@ def step14_find_peer_risk_adjusted_return_rank(pdf):
     else:
         st.session_state["step14_peer_rank_headings"] = rows
         st.table(pd.DataFrame(rows))
-
-
+        
 # === Step 14: Peer Risk‑Adjusted Return Rank & Metrics Extraction ===
 def step14_extract_peer_risk_adjusted_return_rank(pdf):
     import re
@@ -1090,7 +1089,7 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         for f in factsheets
     }
 
-    # 1) locate each subheading
+    # 1) find each heading location
     headings = []
     for pnum in range(fs_start, len(pdf.pages)+1):
         if pnum not in page_map:
@@ -1098,62 +1097,56 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         text = pdf.pages[pnum-1].extract_text() or ""
         for idx, ln in enumerate(text.splitlines()):
             if "peer risk-adjusted return rank" in ln.lower():
-                fund_name, tk = page_map[pnum]
-                headings.append({
-                    "page_idx": pnum-1,
-                    "line_idx": idx,
-                    "Fund Name": fund_name,
-                    "Ticker": tk
-                })
+                name, tk = page_map[pnum]
+                headings.append({"page": pnum-1, "line": idx, "Fund Name": name, "Ticker": tk})
                 break
 
     if not headings:
         st.warning("❌ No 'PEER RISK‑ADJUSTED RETURN RANK' headings found.")
         return
 
-    # 2) regex to grab numbers (integers here)
-    num_rx = re.compile(r"\b\d+\b")
+    # 2) regex to grab integer tokens
+    num_rx = re.compile(r"\b(\d+)\b")
 
     metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
     records = []
 
-    # 3) for each heading, scan the next lines
+    # 3) for each heading, look below it for the metric lines
     for h in headings:
-        lines = (pdf.pages[h["page_idx"]].extract_text() or "").splitlines()
-        rec   = {
-            "Fund Name": h["Fund Name"],
-            "Ticker":    h["Ticker"]
-        }
-        found = set()
+        lines = (pdf.pages[h["page"]].extract_text() or "").splitlines()
+        rec   = {"Fund Name": h["Fund Name"], "Ticker": h["Ticker"]}
 
-        # snippet starts two lines below heading to skip the "1 Yr 3 Yrs 5 Yrs 10 Yrs" header
-        snippet = lines[h["line_idx"]+2 : h["line_idx"]+8]
+        # scan the next 10 lines after the heading
+        snippet = lines[h["line"]+1 : h["line"]+11]
 
-        for ln in snippet:
-            norm = ln.strip()
-            low  = norm.lower()
-            for m in metrics:
-                if m.lower() in low and m not in found:
-                    nums = num_rx.findall(norm)
-                    # expect 4 integers
+        for m in metrics:
+            found = False
+            for ln in snippet:
+                text = ln.strip()
+                # match metric at start (case-insensitive)
+                if text.lower().startswith(m.lower()):
+                    nums = num_rx.findall(text)
                     nums += [None] * (4 - len(nums))
                     rec[f"{m} 1Yr"]  = nums[0]
                     rec[f"{m} 3Yr"]  = nums[1]
                     rec[f"{m} 5Yr"]  = nums[2]
                     rec[f"{m} 10Yr"] = nums[3]
-                    found.add(m)
-        # warnings for anything missing
-        for m in metrics:
-            if m not in found:
+                    found = True
+                    break
+            if not found:
                 st.warning(f"⚠️ {h['Fund Name']} ({h['Ticker']}): '{m}' line not found.")
+                # still create empty cols so DataFrame is consistent
+                rec[f"{m} 1Yr"]  = None
+                rec[f"{m} 3Yr"]  = None
+                rec[f"{m} 5Yr"]  = None
+                rec[f"{m} 10Yr"] = None
+
         records.append(rec)
 
-    # 4) show results
+    # 4) display results
     df = pd.DataFrame(records)
     st.session_state["step14_peer_rank_table"] = records
     st.dataframe(df, use_container_width=True)
-
-
 
 #-------------------------------------------------------------------------------------------
 
