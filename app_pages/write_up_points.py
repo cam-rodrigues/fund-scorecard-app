@@ -1038,14 +1038,14 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         for f in factsheets
     }
 
-    # regex to find heading, allowing non‑standard dash
+    # catch the Peer heading (allow any dash/space)
     heading_rx = re.compile(
         r"peer\s*risk[\W_]*adjusted\s*return\s*rank",
         re.IGNORECASE
     )
 
-    # regex to pull four ints or decimals in sequence
-    nums_rx = re.compile(r"(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)")
+    # grab 4 numbers (int or decimal) in a row
+    nums_rx = r"(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)"
 
     metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
     records = []
@@ -1053,37 +1053,40 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
     for pnum, (fund, ticker) in page_map.items():
         page = pdf.pages[pnum-1]
         raw = page.extract_text() or ""
-        flat = " ".join(raw.split())  # collapse all whitespace
+        flat = " ".join(raw.split())
 
-        # 1) heading check
-        if not heading_rx.search(flat):
-            st.warning(f"⚠️ {fund} ({ticker}): heading not found.")
+        # find heading
+        m_head = heading_rx.search(flat)
+        if not m_head:
+            st.warning(f"⚠️ {fund} ({ticker}): Peer heading not found.")
             continue
+
+        # slice text *after* heading to avoid Risk-Adjusted section
+        peer_text = flat[m_head.end():]
 
         rec = {"Fund Name": fund, "Ticker": ticker}
 
-        # 2) for each metric, look for “Metric … 4 numbers”
-        for mname in metrics:
-            # build a pattern like “Sharpe Ratio…# # # #”
+        for metric in metrics:
+            # look for “Metric … ####”
             pat = re.compile(
-                re.escape(mname) + r".*?" + nums_rx.pattern,
+                re.escape(metric) + r".*?" + nums_rx,
                 re.IGNORECASE
             )
-            m = pat.search(flat)
+            m = pat.search(peer_text)
             if m:
-                rec[f"{mname} 1Yr"]  = m.group(1)
-                rec[f"{mname} 3Yr"]  = m.group(2)
-                rec[f"{mname} 5Yr"]  = m.group(3)
-                rec[f"{mname} 10Yr"] = m.group(4)
+                rec[f"{metric} 1Yr"]  = m.group(1)
+                rec[f"{metric} 3Yr"]  = m.group(2)
+                rec[f"{metric} 5Yr"]  = m.group(3)
+                rec[f"{metric} 10Yr"] = m.group(4)
             else:
-                st.warning(f"⚠️ {fund} ({ticker}): '{mname}' values not found.")
+                st.warning(f"⚠️ {fund} ({ticker}): '{metric}' values not found.")
                 for col in ["1Yr","3Yr","5Yr","10Yr"]:
-                    rec[f"{mname} {col}"] = None
+                    rec[f"{metric} {col}"] = None
 
         records.append(rec)
 
     if not records:
-        st.warning("❌ No Peer Risk-Adjusted Return Rank data extracted.")
+        st.warning("❌ No Peer data extracted.")
         return
 
     df = pd.DataFrame(records)
