@@ -1330,14 +1330,12 @@ def run():
     if not uploaded:
         return
 
-    # ── Initialize your bullet‑point templates once per session ──
-    st.session_state.setdefault(
-        "bullet_point_templates",
-        [
-            "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], "
-            "[Year] by [QTD_bps_diff] bps ([QTD_pct_diff])."
-        ],
-    )
+    # ── Initialize templates exactly once ──–––––––––––––––––––––––––––––––––––––––––––––––
+    if "bullet_point_templates" not in st.session_state:
+        st.session_state["bullet_point_templates"] = [
+            "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], [Year] by [QTD_bps_diff] bps ([QTD_pct_diff])."
+        ]
+    # ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
     
     with pdfplumber.open(uploaded) as pdf:
         # Step 1
