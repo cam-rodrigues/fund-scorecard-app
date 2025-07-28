@@ -21,30 +21,23 @@ def extract_report_date(text):
     
 # === Step 1 & 1.5: Page 1 Extraction ===
 def process_page1(text):
-    report_date = extract_report_date(text)
-    if report_date:
-        st.session_state['report_date'] = report_date
-        st.success(f"Report Date: {report_date}")
-    else:
-        st.error("Could not detect report date on page 1.")
+    """Extracts page‑1 metadata and returns it as a dict."""
+    out = {}
+    out['report_date']   = extract_report_date(text)
 
     m = re.search(r"Total Options:\s*(\d+)", text or "")
-    st.session_state['total_options'] = int(m.group(1)) if m else None
+    out['total_options'] = int(m.group(1)) if m else None
 
     m = re.search(r"Prepared For:\s*\n(.*)", text or "")
-    st.session_state['prepared_for'] = m.group(1).strip() if m else None
+    out['prepared_for']  = m.group(1).strip() if m else None
 
     m = re.search(r"Prepared By:\s*(.*)", text or "")
     pb = m.group(1).strip() if m else ""
     if not pb or "mpi stylus" in pb.lower():
         pb = "Procyon Partners, LLC"
-    st.session_state['prepared_by'] = pb
+    out['prepared_by']   = pb
 
-    st.subheader("Page 1 Metadata")
-    st.write(f"- Total Options: {st.session_state['total_options']}")
-    st.write(f"- Prepared For: {st.session_state['prepared_for']}")
-    st.write(f"- Prepared By: {pb}")
-
+    return out
 
 # === Step 2: Table of Contents Extraction ===
 def process_toc(text):
@@ -1166,7 +1159,10 @@ def run():
         # Step 1
         with st.expander("Step 1: Page 1 Extraction", expanded=False):
             first = pdf.pages[0].extract_text() or ""
-            process_page1(first)
+            data1 = process_page1(first)                      # call & capture
+            st.session_state["step1_page1_data"] = data1      # store under key
+            st.write(data1)                                   # display returned dict
+
 
         # Step 2
         with st.expander("Step 2: Table of Contents Extraction", expanded=False):
