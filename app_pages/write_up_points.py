@@ -1147,11 +1147,17 @@ def step15_display_selected_fund():
     # Step 6: Factsheet details
     st.markdown("**Step 6: Fund Factsheet Details**")
     facts_df = pd.DataFrame(facts)
-    df6 = facts_df[facts_df['Parsed Fund Name'] == choice] if 'Parsed Fund Name' in facts_df.columns else df6=[]
+    
+    if 'Parsed Fund Name' in facts_df.columns:
+        df6 = facts_df[facts_df['Parsed Fund Name'] == choice]
+    else:
+        df6 = pd.DataFrame()  # empty DataFrame
+    
     if not df6.empty:
         st.dataframe(df6, use_container_width=True)
     else:
         st.write("_No factsheet data for this fund._")
+
 
     # Step 7: Annualized returns & expense
     st.markdown("**Step 7: Annualized Returns / Expense**")
