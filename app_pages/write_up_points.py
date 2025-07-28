@@ -1439,18 +1439,22 @@ def run():
                         if field != "QTD_vs":  # Skip QTD_vs, as we handle it separately
                             filled = filled.replace(f"[{field}]", str(val))
         
-                    # Convert QTD and Bench QTD to floats and then format them correctly
+                    # Convert QTD and Bench QTD to floats and format them as percentages
                     try:
                         fund_pct = float(item.get('QTD', 0))  # Default to 0 if missing
                         bench_pct = float(item.get('Bench QTD', 0))  # Default to 0 if missing
-                        fund_pct_str = f"{fund_pct:.2f}%"  # Ensure two decimal places for consistency
-                        bench_pct_str = f"{bench_pct:.2f}%"  # Same for benchmark
+                        
+                        # Format as percentages with two decimal places
+                        fund_pct_str = f"{fund_pct:.2f}%"
+                        bench_pct_str = f"{bench_pct:.2f}%"
+                        
+                        # Replace the placeholder [QTD_vs] with the formatted string "xx.xx% vs. yy.yy%"
                         filled = filled.replace("[QTD_vs]", f"({fund_pct_str} vs. {bench_pct_str})")
                     except ValueError:
+                        # If QTD or Bench QTD is not a valid number, replace [QTD_vs] with placeholder text
                         filled = filled.replace("[QTD_vs]", "(Invalid Data vs. Invalid Data)")
         
                     st.markdown(f"- {filled}")
-
 
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
