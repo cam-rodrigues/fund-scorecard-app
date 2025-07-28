@@ -565,7 +565,7 @@ def step8_match_calendar_tickers(pdf):
     else:
         st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
-# === Step 8.5: Extract Calendar Year Returns (with Benchmark) ===
+# === Step 8.5: Extract Calendar Year Returns (with Benchmarks) ===
 def step8_5_extract_calendar_returns(pdf):
     import re, pandas as pd, streamlit as st
 
@@ -573,76 +573,73 @@ def step8_5_extract_calendar_returns(pdf):
 
     tickers_map = st.session_state.get("step8_tickers", {})
     start_pg    = st.session_state.get("step8_start_page", 1)
-    facts       = st.session_state.get("fund_factsheets_data", [])
     if not tickers_map:
         st.error("❌ No ticker mapping found. Run Step 8 first.")
         return
 
-    # map fund → its benchmark label
-    bench_map = {f["Matched Fund Name"]: f["Benchmark"] for f in facts}
-
-    # find header row to pull years
+    # 1) Find header row to get year labels
     header_line = None
     for pnum in range(start_pg-1, len(pdf.pages)):
         for ln in (pdf.pages[pnum].extract_text() or "").splitlines():
-            if "Ticker" in ln and re.search(r"\b20(1[5-9]|2[0-4])\b", ln):
+            if "Ticker" in ln and "2015" in ln:
                 header_line = ln
                 break
         if header_line:
             break
     if not header_line:
-        st.error("❌ Couldn’t find header row with Ticker + years.")
+        st.error("❌ Couldn’t find header row with Ticker+2015.")
         return
 
     years = re.findall(r"\b20(1[5-9]|2[0-4])\b", header_line)
-    years = ["20"+y for y in years]
+    years = ["20" + y for y in years]
     n = len(years)
+
+    # regex to grab numeric values (allowing parentheses and %)
     num_rx = re.compile(r"\(?-?\d+\.\d+%?\)?")
 
-    rows = []
+    results = []
     for name, ticker in tickers_map.items():
-        ticker    = ticker.upper()
-        fund_vals = [None]*n
-        bench_vals= [None]*n
+        ticker = ticker.upper()
+        fund_vals  = [None] * n
+        bench_vals = [None] * n
 
-        # scan for the line containing the fund’s ticker
+        # scan from section start forward
         for pnum in range(start_pg-1, len(pdf.pages)):
             lines = (pdf.pages[pnum].extract_text() or "").splitlines()
-            idx   = next((i for i,ln in enumerate(lines) if ticker in ln), None)
+            idx = next((i for i, ln in enumerate(lines) if ticker in ln), None)
             if idx is None:
                 continue
 
-            # — FUND returns —
-            # try the line immediately above
-            raw = num_rx.findall(lines[idx-1]) if idx>=1 else []
-            # if that was the parentheses‑only row, fallback two above
-            if len(raw) < n and idx>=2:
-                raw = num_rx.findall(lines[idx-2])
+            # --- fund's calendar-year returns (use the line above) ---
+            raw = num_rx.findall(lines[idx-1] if idx > 0 else "")
             clean = [t.strip("()%").rstrip("%") for t in raw]
-            clean += [None]*(n - len(clean))
+            if len(clean) < n:
+                clean += [None] * (n - len(clean))
             fund_vals = clean[:n]
 
-            # — BENCHMARK returns —
-            # look on the very next line after the fund’s ticker line
-            if idx+1 < len(lines):
-                rawb = num_rx.findall(lines[idx+1])
+            # --- benchmark's calendar-year returns (use the line below) ---
+            bi = idx + 1
+            if bi < len(lines):
+                rawb = num_rx.findall(lines[bi])
                 cleanb = [t.strip("()%").rstrip("%") for t in rawb]
-                cleanb += [None]*(n - len(cleanb))
+                if len(cleanb) < n:
+                    cleanb += [None] * (n - len(cleanb))
                 bench_vals = cleanb[:n]
 
-            break  # done with this fund
+            break
 
+        # build the row with fund + benchmark columns
         row = {
             "Fund Name": name,
             "Ticker":    ticker,
         }
         for i, yr in enumerate(years):
-            row    [yr]               = fund_vals[i]
-            row[f"Benchmark {yr}"]    = bench_vals[i]
-        rows.append(row)
+            row[yr]                = fund_vals[i]
+            row[f"Benchmark {yr}"] = bench_vals[i]
+        results.append(row)
 
-    df = pd.DataFrame(rows)
-    st.session_state["step8_returns"] = rows
+    df = pd.DataFrame(results)
+    st.session_state["step8_returns"] = results
     st.dataframe(df, use_container_width=True)
 
 
