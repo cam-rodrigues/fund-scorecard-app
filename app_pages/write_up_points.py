@@ -1299,7 +1299,7 @@ def step15_display_selected_fund():
     perf_data = st.session_state.get("fund_performance_data", [])
     perf_item = next((p for p in perf_data if p["Fund Scorecard Name"] == selected_fund), {})
     # build Investment Manager label
-    inv_mgr    = f"{choice} ({perf_item.get('Ticker','')})"
+    inv_mgr    = f"{selected_fund} ({perf_item.get('Ticker','')})"
     # extract Net Assets and Avg. Market Cap
     assets     = fs_rec.get("Net Assets", "")
     avg_cap    = fs_rec.get("Avg. Market Cap", "")
