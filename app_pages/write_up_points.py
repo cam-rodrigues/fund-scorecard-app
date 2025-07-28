@@ -20,45 +20,30 @@ def extract_report_date(text):
     return None
     
 # === Step 1 & 1.5: Page 1 Extraction ===
-import re  # ensure at top of file
-
 def process_page1(text):
-    """Extracts page‑1 metadata, renders it, and returns a dict."""
-    out = {}
-    out['report_date']   = extract_report_date(text)
+    report_date = extract_report_date(text)
+    if report_date:
+        st.session_state['report_date'] = report_date
+        st.success(f"Report Date: {report_date}")
+    else:
+        st.error("Could not detect report date on page 1.")
 
     m = re.search(r"Total Options:\s*(\d+)", text or "")
-    out['total_options'] = int(m.group(1)) if m else None
+    st.session_state['total_options'] = int(m.group(1)) if m else None
 
     m = re.search(r"Prepared For:\s*\n(.*)", text or "")
-    out['prepared_for']  = m.group(1).strip() if m else None
+    st.session_state['prepared_for'] = m.group(1).strip() if m else None
 
     m = re.search(r"Prepared By:\s*(.*)", text or "")
     pb = m.group(1).strip() if m else ""
     if not pb or "mpi stylus" in pb.lower():
         pb = "Procyon Partners, LLC"
-    out['prepared_by']   = pb
+    st.session_state['prepared_by'] = pb
 
-    # --- UI rendering ---
     st.subheader("Page 1 Metadata")
-    if out['report_date']:
-        st.write(f"- **Report Date:** {out['report_date']}")
-    else:
-        st.write("- **Report Date:** _not found_")
-
-    if out['total_options'] is not None:
-        st.write(f"- **Total Options:** {out['total_options']}")
-    else:
-        st.write("- **Total Options:** _not found_")
-
-    if out['prepared_for']:
-        st.write(f"- **Prepared For:** {out['prepared_for']}")
-    else:
-        st.write("- **Prepared For:** _not found_")
-
-    st.write(f"- **Prepared By:** {out['prepared_by']}")
-
-    return out
+    st.write(f"- Total Options: {st.session_state['total_options']}")
+    st.write(f"- Prepared For: {st.session_state['prepared_for']}")
+    st.write(f"- Prepared By: {pb}")
 
 
 # === Step 2: Table of Contents Extraction ===
@@ -520,12 +505,12 @@ def step7_extract_returns(pdf):
 def step8_match_calendar_tickers(pdf):
     import re, streamlit as st
 
-    st.subheader("Step 8: Match Tickers in Calendar Year Section")
+    st.subheader("Step 8: Match Tickers in Calendar Year Section")
 
-    # 1) Your original fund→ticker mapping from Step 5
+    # 1) Your original fund→ticker mapping from Step 5
     fund_map5 = st.session_state.get("tickers", {})
     if not fund_map5:
-        st.error("❌ No ticker mapping found. Run Step 5 first.")
+        st.error("❌ No ticker mapping found. Run Step 5 first.")
         return
 
     # 2) Find the start page of "Calendar Year Performance"
@@ -564,7 +549,7 @@ def step8_match_calendar_tickers(pdf):
     st.session_state["step8_locations"] = locs
     st.session_state["step8_start_page"] = section_page
 
-    st.subheader("Extracted Tickers & Locations (Step 8)")
+    st.subheader("Extracted Tickers & Locations (Step 8)")
     for name in fund_map5:
         if name in found:
             info = locs[name]
@@ -580,16 +565,16 @@ def step8_match_calendar_tickers(pdf):
     else:
         st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
-# === Step 8.5: Extract Calendar Year Returns ===
+# === Step 8.5: Extract Calendar Year Returns ===
 def step8_5_extract_calendar_returns(pdf):
     import re, pandas as pd, streamlit as st
 
-    st.subheader("Step 8.5: Calendar Year Returns")
+    st.subheader("Step 8.5: Calendar Year Returns")
 
     tickers_map = st.session_state.get("step8_tickers", {})
     start_pg    = st.session_state.get("step8_start_page", 1)
     if not tickers_map:
-        st.error("❌ No ticker mapping found. Run Step 8 first.")
+        st.error("❌ No ticker mapping found. Run Step 8 first.")
         return
 
     # 1) Find header row to get year labels
@@ -643,22 +628,22 @@ def step8_5_extract_calendar_returns(pdf):
     st.session_state["step8_returns"] = results
     st.dataframe(df)
 
-# === Step 9: Match Tickers in the Risk Analysis (3Yr) Section ===
+# === Step 9: Match Tickers in the Risk Analysis (3Yr) Section ===
 def step9_match_risk_tickers(pdf):
     import re, streamlit as st
 
-    st.subheader("Step 9: Match Tickers in Risk Analysis (3Yr)")
+    st.subheader("Step 9: Match Tickers in Risk Analysis (3Yr)")
 
-    # 1) your original fund→ticker map from Step 5
+    # 1) your original fund→ticker map from Step 5
     fund_map = st.session_state.get("tickers", {})
     if not fund_map:
-        st.error("❌ No ticker mapping found. Run Step 5 first.")
+        st.error("❌ No ticker mapping found. Run Step 5 first.")
         return
 
     # 2) locate the start page of “Risk Analysis: MPT Statistics (3Yr)”
     section_page = st.session_state.get("r3yr_page")
     if not section_page:
-        st.error("❌ ‘Risk Analysis: MPT Statistics (3Yr)’ page not found; run Step 2 first.")
+        st.error("❌ ‘Risk Analysis: MPT Statistics (3Yr)’ page not found; run Step 2 first.")
         return
 
     # 3) scan from that page forward until all tickers are found
@@ -682,11 +667,11 @@ def step9_match_risk_tickers(pdf):
     st.session_state["step9_locations"] = locs
     st.session_state["step9_start_page"] = section_page
 
-    st.subheader("Extracted Tickers & Locations (Step 9)")
+    st.subheader("Extracted Tickers & Locations (Step 9)")
     for name in fund_map:
         if name in found:
             info = locs[name]
-            st.write(f"- {name}: {found[name]} (page {info['page']}, line {info['line']+1}) ✅")
+            st.write(f"- {name}: {found[name]} (page {info['page']}, line {info['line']+1}) ✅")
         else:
             st.write(f"- {name}: ❌ not found")
 
@@ -699,17 +684,17 @@ def step9_match_risk_tickers(pdf):
         st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
 
-# === Step 9.5: Extract 3‑Yr MPT Statistics (renamed columns) ===
+# === Step 9.5: Extract 3‑Yr MPT Statistics (renamed columns) ===
 def step9_extract_mpt_statistics(pdf):
     import re, pandas as pd, streamlit as st
 
-    st.subheader("Step 9.5: Extract MPT Statistics (3Yr)")
+    st.subheader("Step 9.5: Extract MPT Statistics (3Yr)")
 
-    # 1) Load the mapping & locations from Step 9
+    # 1) Load the mapping & locations from Step 9
     tickers = st.session_state.get("step9_tickers", {})
     locs    = st.session_state.get("step9_locations", {})
     if not tickers or not locs:
-        st.error("❌ Missing Step 9 data. Run Step 9 first.")
+        st.error("❌ Missing Step 9 data. Run Step 9 first.")
         return
 
     # 2) Regex to grab floats
@@ -744,16 +729,16 @@ def step9_extract_mpt_statistics(pdf):
     st.dataframe(df)
 
 
-# === Step 10: Match Tickers in Risk Analysis (5Yr) Section ===
+# === Step 10: Match Tickers in Risk Analysis (5Yr) Section ===
 def step10_match_risk_tickers(pdf):
     import streamlit as st
 
-    st.subheader("Step 10: Match Tickers in Risk Analysis (5Yr)")
+    st.subheader("Step 10: Match Tickers in Risk Analysis (5Yr)")
 
-    # 1) Your fund→ticker map from Step 5
+    # 1) Your fund→ticker map from Step 5
     fund_map = st.session_state.get("tickers", {})
     if not fund_map:
-        st.error("❌ No ticker mapping found. Run Step 5 first.")
+        st.error("❌ No ticker mapping found. Run Step 5 first.")
         return
 
     # 2) Locate the 5‑Yr section
@@ -786,7 +771,7 @@ def step10_match_risk_tickers(pdf):
     st.session_state["step10_locations"]  = locs
     st.session_state["step10_start_page"] = section_page
 
-    st.subheader("Extracted Tickers & Locations (Step 10)")
+    st.subheader("Extracted Tickers & Locations (Step 10)")
     for name in fund_map:
         if name in found:
             info = locs[name]
@@ -803,17 +788,17 @@ def step10_match_risk_tickers(pdf):
         st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
 
-# === Step 10.5: Extract 5‑Yr MPT Statistics with Wrap‑Aware Parsing ===
+# === Step 10.5: Extract 5‑Yr MPT Statistics with Wrap‑Aware Parsing ===
 def step10_extract_mpt_statistics(pdf):
     import re, pandas as pd, streamlit as st
 
-    st.subheader("Step 10.5: Extract MPT Statistics (5Yr)")
+    st.subheader("Step 10.5: Extract MPT Statistics (5Yr)")
 
-    # 1) Load Step 10 mapping & locations
+    # 1) Load Step 10 mapping & locations
     tickers = st.session_state.get("step10_tickers", {})
     locs     = st.session_state.get("step10_locations", {})
     if not tickers or not locs:
-        st.error("❌ Missing Step 10 data. Run Step 10 first.")
+        st.error("❌ Missing Step 10 data. Run Step 10 first.")
         return
 
     # 2) Regex for floats (no parentheses)
@@ -855,18 +840,18 @@ def step10_extract_mpt_statistics(pdf):
     st.session_state["step10_mpt_stats"] = results
     st.dataframe(df)
 
-# === Step 11: Combined MPT Statistics Summary ===
+# === Step 11: Combined MPT Statistics Summary ===
 def step11_create_summary(pdf=None):
     import pandas as pd
     import streamlit as st
 
-    st.subheader("Step 11: Combined MPT Statistics Summary")
+    st.subheader("Step 11: Combined MPT Statistics Summary")
 
     # 1) Load your 3‑Yr and 5‑Yr stats from session state
     mpt3 = st.session_state.get("step9_mpt_stats", [])
     mpt5 = st.session_state.get("step10_mpt_stats", [])
     if not mpt3 or not mpt5:
-        st.error("❌ Missing MPT stats. Run Steps 9 & 10 first.")
+        st.error("❌ Missing MPT stats. Run Steps 9 & 10 first.")
         return
 
     # 2) Build DataFrames
@@ -913,7 +898,7 @@ def step12_process_fund_facts(pdf):
     fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
     if not fs_start or not factsheets:
-        st.error("❌ Run Step 6 first to populate your factsheet pages.")
+        st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
     # map factsheet pages to fund name & ticker
@@ -1034,8 +1019,7 @@ def step13_process_risk_adjusted_returns(pdf):
     st.session_state["step13_risk_adjusted_table"] = records
     df = pd.DataFrame(records)
     st.dataframe(df, use_container_width=True)
-    
-# === Step 14: Extract Peer Risk‑Adjusted Return Rank ===
+
 def step14_extract_peer_risk_adjusted_return_rank(pdf):
     import re
     import streamlit as st
@@ -1045,7 +1029,7 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
 
     factsheets = st.session_state.get("fund_factsheets_data", [])
     if not factsheets:
-        st.error("❌ Run Step 6 first to populate your factsheet pages.")
+        st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
     page_map = {
@@ -1109,64 +1093,145 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
     st.session_state["step14_peer_rank_table"] = records
     st.dataframe(df, use_container_width=True)
 
-
-# === Step 15: Display ===
+#--------------------------------------------------------------------------------------------
+# == Step 15 ==
 def step15_display_selected_fund():
-    import streamlit as st
-    import pandas as pd
-
-    st.subheader("Step 15: View Single Fund Details")
-
-    # Pull the list of funds from the last completed step
-    peer = st.session_state.get("step14_peer_rank_table", [])
-    if not peer:
-        st.info("Run Steps 1–14 first to populate data, then come back here.")
+    st.subheader("Step 15: View Single Fund Details")
+    # list of funds from factsheets step
+    facts = st.session_state.get("fund_factsheets_data", [])
+    if not facts:
+        st.info("Run Steps 1–14 to populate data before viewing fund details.")
         return
+    fund_names = [f["Matched Fund Name"] for f in facts]
+    choice = st.selectbox("Select a fund to view details:", fund_names)
 
-    fund_names = [r["Fund Name"] for r in peer]
-    fund_choice = st.selectbox("Select a fund to view all details:", fund_names)
+    # Step 1: Page 1 metadata
+    st.markdown("**Step 1: Page 1 Metadata**")
+    st.write(f"- Report Date: {st.session_state.get('report_date', 'N/A')}")
+    st.write(f"- Total Options: {st.session_state.get('total_options', 'N/A')}")
+    st.write(f"- Prepared For: {st.session_state.get('prepared_for', 'N/A')}")
+    st.write(f"- Prepared By: {st.session_state.get('prepared_by', 'N/A')}")
 
-    # mapping of session_state keys → labels to display
-    steps = {
-        "step1_page1_data": "Step 1: Page 1 Extraction",
-        "step2_toc_entries": "Step 2: Table of Contents",
-        "step3_scorecard_data": "Step 3: Scorecard Extraction",
-        "step4_ips_results": "Step 4: IPS Screening",
-        "step5_performance_data": "Step 5: Fund Performance",
-        "step6_factsheets_data": "Step 6: Fund Factsheets",
-        "step7_annual_returns": "Step 7: Annualized Returns",
-        "step8_5_calendar_returns": "Step 8.5: Calendar Year Returns",
-        "step9_5_mpt3yr": "Step 9.5: MPT Statistics (3Yr)",
-        "step10_5_mpt5yr": "Step 10.5: MPT Statistics (5Yr)",
-        "step11_mpt_summary": "Step 11: Combined MPT Summary",
-        "step12_fund_facts": "Step 12: Fund Facts",
-        "step13_risk_adjusted_returns": "Step 13: Risk‑Adjusted Returns",
-        "step14_peer_rank_table": "Step 14: Peer Risk‑Adjusted Return Rank",
-    }
+    # Step 2: TOC pages
+    st.markdown("**Step 2: Table of Contents Pages**")
+    for key, label in [
+        ("performance_page", "Fund Performance Current vs Proposed"),
+        ("calendar_year_page", "Fund Performance Calendar Year"),
+        ("r3yr_page", "MPT 3Yr Risk Analysis"),
+        ("r5yr_page", "MPT 5Yr Risk Analysis"),
+        ("scorecard_page", "Fund Scorecard"),
+        ("factsheets_page", "Fund Factsheets")
+    ]:
+        st.write(f"- {label}: {st.session_state.get(key, 'N/A')}")
 
-    def lookup_and_display(key, label):
-        data = st.session_state.get(key, [])
-        # convert to DataFrame if necessary, then filter
-        if isinstance(data, list):
-            df = pd.DataFrame(data)
-        else:
-            df = data.copy()
-        if "Fund Name" in df.columns:
-            df = df[df["Fund Name"] == fund_choice]
-        # show only if there’s something to show
-        if not df.empty:
-            with st.expander(label, expanded=True):
-                st.dataframe(df, use_container_width=True)
-        else:
-            # you can comment this out if you prefer silence over empty tables
-            st.write(f"_{label}_: no data for {fund_choice}.")
+    # Step 3: Scorecard metrics
+    st.markdown("**Step 3: Scorecard Details**")
+    blocks = st.session_state.get('fund_blocks', [])
+    block = next((b for b in blocks if b['Fund Name'] == choice), None)
+    if block:
+        for m in block['Metrics']:
+            st.write(f"- {m['Metric']}: {m['Info']}")
+    else:
+        st.write("_No scorecard data for this fund._")
 
-    # loop through and display
-    for key, label in steps.items():
-        lookup_and_display(key, label)
+    # Step 5: Fund performance mapping
+    st.markdown("**Step 5: Performance Ticker Mapping**")
+    perf = st.session_state.get('fund_performance_data', [])
+    df5 = pd.DataFrame(perf)
+    df5 = df5[df5['Fund Scorecard Name'] == choice]
+    if not df5.empty:
+        st.dataframe(df5, use_container_width=True)
+    else:
+        st.write("_No performance mapping for this fund._")
 
-# In your main run(), call it last:
+    # Step 6: Factsheet details
+    st.markdown("**Step 6: Fund Factsheet Details**")
+    facts_df = pd.DataFrame(facts)
+    df6 = facts_df[facts_df['Parsed Fund Name'] == choice] if 'Parsed Fund Name' in facts_df.columns else df6=[]
+    if not df6.empty:
+        st.dataframe(df6, use_container_width=True)
+    else:
+        st.write("_No factsheet data for this fund._")
 
+    # Step 7: Annualized returns & expense
+    st.markdown("**Step 7: Annualized Returns / Expense**")
+    perf_data = st.session_state.get('fund_performance_data', [])
+    df7 = pd.DataFrame(perf_data)
+    df7 = df7[df7['Fund Scorecard Name'] == choice]
+    if not df7.empty:
+        st.dataframe(df7.set_index('Fund Scorecard Name'), use_container_width=True)
+    else:
+        st.write("_No return data for this fund._")
+
+    # Step 8.5: Calendar Year Returns
+    st.markdown("**Step 8.5: Calendar Year Returns**")
+    cy = st.session_state.get('step8_returns', [])
+    df8 = pd.DataFrame(cy)
+    df8 = df8[df8['Fund Name'] == choice]
+    if not df8.empty:
+        st.dataframe(df8.set_index('Fund Name'), use_container_width=True)
+    else:
+        st.write("_No calendar year returns for this fund._")
+
+    # Step 9.5: 3Yr MPT
+    st.markdown("**Step 9.5: MPT Statistics (3Yr)**")
+    mpt3 = st.session_state.get('step9_mpt_stats', [])
+    df9 = pd.DataFrame(mpt3)
+    df9 = df9[df9['Fund Name'] == choice]
+    if not df9.empty:
+        st.dataframe(df9.set_index('Fund Name'), use_container_width=True)
+    else:
+        st.write("_No 3Yr MPT stats for this fund._")
+
+    # Step 10.5: 5Yr MPT
+    st.markdown("**Step 10.5: MPT Statistics (5Yr)**")
+    mpt5 = st.session_state.get('step10_mpt_stats', [])
+    df10 = pd.DataFrame(mpt5)
+    df10 = df10[df10['Fund Name'] == choice]
+    if not df10.empty:
+        st.dataframe(df10.set_index('Fund Name'), use_container_width=True)
+    else:
+        st.write("_No 5Yr MPT stats for this fund._")
+
+    # Step 11: Combined MPT Summary
+    st.markdown("**Step 11: Combined MPT Summary**")
+    sum11 = st.session_state.get('step11_summary', [])
+    df11 = pd.DataFrame(sum11)
+    df11 = df11[df11['Investment Manager'].str.contains(choice)] if not df11.empty else df11
+    if not df11.empty:
+        st.dataframe(df11, use_container_width=True)
+    else:
+        st.write("_No combined MPT summary for this fund._")
+
+    # Step 12: Fund Facts Table
+    st.markdown("**Step 12: Fund Facts Table**")
+    facts12 = st.session_state.get('step12_fund_facts_table', [])
+    df12 = pd.DataFrame(facts12)
+    df12 = df12[df12['Fund Name'] == choice]
+    if not df12.empty:
+        st.dataframe(df12.set_index('Fund Name'), use_container_width=True)
+    else:
+        st.write("_No fund facts for this fund._")
+
+    # Step 13: Risk-Adjusted Returns
+    st.markdown("**Step 13: Risk-Adjusted Returns**")
+    risk13 = st.session_state.get('step13_risk_adjusted_table', [])
+    df13 = pd.DataFrame(risk13)
+    df13 = df13[df13['Fund Name'] == choice]
+    if not df13.empty:
+        st.dataframe(df13.set_index('Fund Name'), use_container_width=True)
+    else:
+        st.write("_No risk-adjusted returns for this fund._")
+
+    # Step 14: Peer Risk-Adjusted Return Rank
+    st.markdown("**Step 14: Peer Risk-Adjusted Return Rank**")
+    peer14 = st.session_state.get('step14_peer_rank_table', [])
+    df14 = pd.DataFrame(peer14)
+    df14 = df14[df14['Fund Name'] == choice]
+    if not df14.empty:
+        st.dataframe(df14.set_index('Fund Name'), use_container_width=True)
+    else:
+        st.write("_No peer rank data for this fund._")
 
 #-------------------------------------------------------------------------------------------
 
@@ -1179,11 +1244,9 @@ def run():
 
     with pdfplumber.open(uploaded) as pdf:
         # Step 1
-        with st.expander("Step 1: Page 1 Extraction", expanded=False):
+        with st.expander("Step 1: Page 1 Extraction", expanded=False):
             first = pdf.pages[0].extract_text() or ""
-            data1 = process_page1(first)
-            st.session_state["step1_page1_data"] = data1
-
+            process_page1(first)
 
         # Step 2
         with st.expander("Step 2: Table of Contents Extraction", expanded=False):
@@ -1221,43 +1284,43 @@ def run():
         with st.expander("Step 7: Extract Annualized Returns", expanded=False):
             step7_extract_returns(pdf)
         
-        # Step 8: Match Tickers
-        with st.expander("Step 8: Match Tickers in Calendar Year Section", expanded=False):
+        # Step 8: Match Tickers
+        with st.expander("Step 8: Match Tickers in Calendar Year Section", expanded=False):
             step8_match_calendar_tickers(pdf)
         
-        # Step 8.5: Extract Calendar Year Returns
-        with st.expander("Step 8.5: Extract Calendar Year Returns", expanded=False):
+        # Step 8.5: Extract Calendar Year Returns
+        with st.expander("Step 8.5: Extract Calendar Year Returns", expanded=False):
             step8_5_extract_calendar_returns(pdf)
 
-        # Step 9: Match Tickers
-        with st.expander("Step 9: Match Tickers in Risk Analysis (3Yr)", expanded=False):
+        # Step 9: Match Tickers
+        with st.expander("Step 9: Match Tickers in Risk Analysis (3Yr)", expanded=False):
             step9_match_risk_tickers(pdf)
 
-        # Step 9.5: Extract MPT Statistics (3Yr)
-        with st.expander("Step 9.5: Extract MPT Statistics (3Yr)", expanded=False):
+        # Step 9.5: Extract MPT Statistics (3Yr)
+        with st.expander("Step 9.5: Extract MPT Statistics (3Yr)", expanded=False):
             step9_extract_mpt_statistics(pdf)
 
-        # Step 10: Match Tickers
-        with st.expander("Step 10: Match Tickers in Risk Analysis (5Yr)", expanded=False):
+        # Step 10: Match Tickers
+        with st.expander("Step 10: Match Tickers in Risk Analysis (5Yr)", expanded=False):
             step10_match_risk_tickers(pdf)
 
-        # Step 10.5: Extract Extract MPT Statistics (5Yr)
-        with st.expander("Step 10.5: Extract MPT Statistics (5Yr)", expanded=False):
+        # Step 10.5: Extract Extract MPT Statistics (5Yr)
+        with st.expander("Step 10.5: Extract MPT Statistics (5Yr)", expanded=False):
             step10_extract_mpt_statistics(pdf)
 
         # Step 11: MPT Statistics Summary
-        with st.expander("Step 11: Combined MPT Statistics Summary", expanded=False):
+        with st.expander("Step 11: Combined MPT Statistics Summary", expanded=False):
             step11_create_summary()
             
-        # Step 12: Find Factsheet Sub‑Headings
+        # Step 12: Find Factsheet Sub‑Headings
         with st.expander("Step 12: Fund Facts ", expanded=False):
             step12_process_fund_facts(pdf)
 
-        # Step 13: Risk Adjusted Returns
+        # Step 13: Risk Adjusted Returns
         with st.expander("Step 13: Find 'RISK‑ADJUSTED RETURNS' Subheading", expanded=False):
             step13_process_risk_adjusted_returns(pdf)
 
-        # Step 14: Peer Risk-Adjusted Return Rank
+        # Step 14: Peer Risk-Adjusted Return Rank
         with st.expander("Step 14: Find 'PEER RISK‑ADJUSTED RETURN RANK' Subheading", expanded=False):
             step14_extract_peer_risk_adjusted_return_rank(pdf)
 
@@ -1265,5 +1328,7 @@ def run():
         with st.expander("Step 15: View Single Fund Details", expanded=False):
             step15_display_selected_fund()
 
+
 if __name__ == "__main__":
     run()
+
