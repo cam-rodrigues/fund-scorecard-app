@@ -565,16 +565,16 @@ def step8_match_calendar_tickers(pdf):
     else:
         st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
-# === Step 8.5: Extract Calendar Year Returns (with Benchmark) ===
+# === Step 8.5: Extract Calendar Year Returns ===
 def step8_5_extract_calendar_returns(pdf):
     import re, pandas as pd, streamlit as st
 
-    st.subheader("Step 8.5: Calendar Year Returns")
+    st.subheader("Step 8.5: Calendar Year Returns")
 
     tickers_map = st.session_state.get("step8_tickers", {})
     start_pg    = st.session_state.get("step8_start_page", 1)
     if not tickers_map:
-        st.error("❌ No ticker mapping found. Run Step 8 first.")
+        st.error("❌ No ticker mapping found. Run Step 8 first.")
         return
 
     # 1) Find header row to get year labels
@@ -594,49 +594,41 @@ def step8_5_extract_calendar_returns(pdf):
     years = ["20" + y for y in years]
     n = len(years)
 
+    # regex to grab numeric values (allowing parentheses and %)
     num_rx = re.compile(r"\(?-?\d+\.\d+%?\)?")
 
     results = []
     for name, ticker in tickers_map.items():
-        ticker     = ticker.upper()
-        fund_vals  = [None] * n
-        bench_vals = [None] * n
+        ticker = ticker.upper()
+        vals = None
 
-        # scan for the fund’s ticker line
+        # scan from section start forward
         for pnum in range(start_pg-1, len(pdf.pages)):
             lines = (pdf.pages[pnum].extract_text() or "").splitlines()
             idx = next((i for i, ln in enumerate(lines) if ticker in ln), None)
-            if idx is None:
-                continue
+            if idx is not None:
+                num_line = lines[idx-1] if idx > 0 else ""
+                raw = num_rx.findall(num_line)
+                clean = [t.strip("()%").rstrip("%") for t in raw]
+                if len(clean) < n:
+                    clean += [None] * (n - len(clean))
+                vals = clean[:n]
+                break
 
-            # --- fund returns: try line above, then two above if needed ---
-            raw = num_rx.findall(lines[idx-1]) if idx > 0 else []
-            if len(raw) < n and idx > 1:
-                raw = num_rx.findall(lines[idx-2])
-            clean = [t.strip("()%").rstrip("%") for t in raw]
-            clean += [None] * (n - len(clean))
-            fund_vals = clean[:n]
+        if not vals:
+            vals = [None] * n
 
-            # --- benchmark returns: single line below the ticker line ---
-            bi = idx + 1
-            if bi < len(lines):
-                rawb = num_rx.findall(lines[bi])
-                cleanb = [t.strip("()%").rstrip("%") for t in rawb]
-                cleanb += [None] * (n - len(cleanb))
-                bench_vals = cleanb[:n]
-
-            break  # done for this fund
-
-        # build output row
-        row = {"Fund Name": name, "Ticker": ticker}
-        for i, yr in enumerate(years):
-            row       [yr]               = fund_vals[i]
-            row[f"Benchmark {yr}"]       = bench_vals[i]
-        results.append(row)
+        results.append({
+            "Fund Name": name,
+            "Ticker":    ticker,
+            **{years[i]: vals[i] for i in range(n)}
+        })
 
     df = pd.DataFrame(results)
     st.session_state["step8_returns"] = results
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df)
+
+
 
 # === Step 9: Match Tickers in the Risk Analysis (3Yr) Section ===
 def step9_match_risk_tickers(pdf):
