@@ -1032,56 +1032,53 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
-    # map page → (Fund Name, Ticker)
-    page_map = {
-        f["Page #"]:(f["Matched Fund Name"], f["Matched Ticker"])
-        for f in factsheets
-    }
-
-    # catch the Peer heading (allow any dash/space)
-    heading_rx = re.compile(
-        r"peer\s*risk[\W_]*adjusted\s*return\s*rank",
-        re.IGNORECASE
-    )
-
-    # grab 4 numbers (int or decimal) in a row
-    nums_rx = r"(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)"
+    page_map = { f["Page #"]:(f["Matched Fund Name"], f["Matched Ticker"])
+                 for f in factsheets }
 
     metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
     records = []
 
     for pnum, (fund, ticker) in page_map.items():
         page = pdf.pages[pnum-1]
-        raw = page.extract_text() or ""
-        flat = " ".join(raw.split())
+        words = page.extract_words(use_text_flow=True)
 
-        # find heading
-        m_head = heading_rx.search(flat)
-        if not m_head:
-            st.warning(f"⚠️ {fund} ({ticker}): Peer heading not found.")
+        # 1) locate the peer‑rank heading
+        heading = [w for w in words
+                   if re.match(r"peer\s*risk[\W_]*adjusted\s*return\s*rank",
+                               w["text"], re.IGNORECASE)]
+        if not heading:
+            st.warning(f"⚠️ {fund} ({ticker}): heading not found.")
             continue
-
-        # slice text *after* heading to avoid Risk-Adjusted section
-        peer_text = flat[m_head.end():]
+        heading_y = heading[0]["top"]
 
         rec = {"Fund Name": fund, "Ticker": ticker}
-
         for metric in metrics:
-            # look for “Metric … ####”
-            pat = re.compile(
-                re.escape(metric) + r".*?" + nums_rx,
-                re.IGNORECASE
-            )
-            m = pat.search(peer_text)
-            if m:
-                rec[f"{metric} 1Yr"]  = m.group(1)
-                rec[f"{metric} 3Yr"]  = m.group(2)
-                rec[f"{metric} 5Yr"]  = m.group(3)
-                rec[f"{metric} 10Yr"] = m.group(4)
-            else:
-                st.warning(f"⚠️ {fund} ({ticker}): '{metric}' values not found.")
+            # 2) find the metric word just below the heading
+            candidates = [w for w in words
+                          if w["text"].lower() == metric.lower()
+                          and w["top"] > heading_y]
+            if not candidates:
+                st.warning(f"⚠️ {fund} ({ticker}): '{metric}' not found below heading.")
                 for col in ["1Yr","3Yr","5Yr","10Yr"]:
                     rec[f"{metric} {col}"] = None
+                continue
+
+            m_word = sorted(candidates, key=lambda w: w["top"])[0]
+            y_line = m_word["top"]
+
+            # 3) grab all numeric words on that same line
+            nums = [w for w in words
+                    if abs(w["top"] - y_line) < 3
+                    and re.fullmatch(r"\d+(?:\.\d+)?", w["text"])]
+            # sort by horizontal position
+            nums = sorted(nums, key=lambda w: w["x0"])
+
+            # 4) take first four numbers
+            vals = [w["text"] for w in nums[:4]] + [None]*4
+            rec[f"{metric} 1Yr"]  = vals[0]
+            rec[f"{metric} 3Yr"]  = vals[1]
+            rec[f"{metric} 5Yr"]  = vals[2]
+            rec[f"{metric} 10Yr"] = vals[3]
 
         records.append(rec)
 
@@ -1092,6 +1089,7 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
     df = pd.DataFrame(records)
     st.session_state["step14_peer_rank_table"] = records
     st.dataframe(df, use_container_width=True)
+
 
 
 #-------------------------------------------------------------------------------------------
