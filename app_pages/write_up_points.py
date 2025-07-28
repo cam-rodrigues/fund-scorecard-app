@@ -1519,10 +1519,6 @@ def run():
         st.session_state["bullet_point_templates"] = [
             "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], [Year] by [QTD_bps_diff] bps ([QTD_pct_diff])."
         ]
-
-        # Initialize slide_1_table in session state
-    if "slide_1_table" not in st.session_state:
-        st.session_state["slide_1_table"] = None
     # ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
     
     with pdfplumber.open(uploaded) as pdf:
@@ -1701,26 +1697,30 @@ def run():
                 st.error("❌ No fund selected. Please select a fund from Step 15.")
                 
     #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-        # Export to PowerPoint section
-        st.markdown("---")
-        st.subheader("Export Selected Fund to PowerPoint")
 
-        selected_fund = st.session_state.get('selected_fund', None)
+            # --- PowerPoint Export Section ---
+            if selected_fund:
+                # Ensure the necessary data is available for PowerPoint creation
+                fund_data = st.session_state.get("fund_performance_data", [])
+                selected_fund_data = next((item for item in fund_data if item['Fund Scorecard Name'] == selected_fund), None)
 
-        if selected_fund:
-            ppt_stream = slide_1_table(st.session_state["slide_1_table"], selected_fund)
-            output = BytesIO()
-            ppt_stream.save(output)
+                if selected_fund_data:
+                    # Create the PowerPoint
+                    ppt = slide_1_table(st.session_state["slide_1_table"], selected_fund)  # Generate PowerPoint
 
-            # Display download button for PowerPoint file
-            st.download_button(
-                label="Download PowerPoint File",
-                data=output.getvalue(),
-                file_name=f"{selected_fund}_Watchlist.pptx",
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
-        else:
-            st.warning("Please select a fund and ensure data is loaded.")
+                    # Prepare the output stream for download
+                    output = BytesIO()
+                    ppt.save(output)
+
+                    # Provide download button for PowerPoint file
+                    st.download_button(
+                        label="Download PowerPoint Report",
+                        data=output.getvalue(),
+                        file_name=f"{selected_fund}_Report.pptx",
+                        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                    )
+                else:
+                    st.error(f"No data found for selected fund: {selected_fund}")
 
 if __name__ == "__main__":
     run()
