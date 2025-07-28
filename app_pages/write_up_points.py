@@ -1229,9 +1229,6 @@ def run():
 
         # Step 14: Peer Risk-Adjusted Return Rank
         with st.expander("Step 14: Find 'PEER RISK‑ADJUSTED RETURN RANK' Subheading", expanded=False):
-            step14_find_peer_risk_adjusted_return_rank(pdf)
-        
-        with st.expander("Step 14.5: Extract Peer Risk‑Adjusted Return Ranks", expanded=False):
             step14_extract_peer_risk_adjusted_return_rank(pdf)
 
 
