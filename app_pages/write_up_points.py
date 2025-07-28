@@ -1284,6 +1284,39 @@ def step15_display_selected_fund():
     df_slide4_1 = pd.DataFrame([row])
     st.dataframe(df_slide4_1, use_container_width=True)
 
+    # === Slide 4 Table 2 ===
+    st.markdown("**Slide 4 Table 2**")
+    # grab risk‑adjusted returns and peer ranks for the selected fund
+    risk_table = st.session_state.get("step13_risk_adjusted_table", [])
+    peer_table = st.session_state.get("step14_peer_rank_table", [])
+    risk_rec = next((r for r in risk_table if r["Fund Name"] == choice), {})
+    peer_rec = next((r for r in peer_table if r["Fund Name"] == choice), {})
+    
+    # build Investment Manager label with ticker
+    ticker = risk_rec.get("Ticker") or peer_rec.get("Ticker", "")
+    inv_mgr = f"{choice} ({ticker})"
+    
+    # helper to combine value and peer rank without calculation
+    def frac(metric, period):
+        r = risk_rec.get(f"{metric} {period}", "")
+        p = peer_rec.get(f"{metric} {period}", "")
+        return f"{r} / {p}"
+    
+    # assemble the row
+    row = {
+        "Investment Manager": inv_mgr,
+        "3 Year Sharpe Ratio / Peer Ranking %": frac("Sharpe Ratio", "3Yr"),
+        "5 Year Sharpe Ratio / Peer Ranking %": frac("Sharpe Ratio", "5Yr"),
+        "3 Year Sortino Ratio / Peer Ranking %": frac("Sortino Ratio", "3Yr"),
+        "5 Year Sortino Ratio / Peer Ranking %": frac("Sortino Ratio", "5Yr"),
+        "3 Year Information Ratio / Peer Ranking %": frac("Information Ratio", "3Yr"),
+        "5 Year Information Ratio / Peer Ranking %": frac("Information Ratio", "5Yr"),
+    }
+    
+    df_slide4_2 = pd.DataFrame([row])
+    st.dataframe(df_slide4_2, use_container_width=True)
+
+    
     # === Slide 5 Table 1 ===
     st.markdown("**Slide 5 Table 1**")
     # grab the scorecard metrics for the selected fund
