@@ -500,20 +500,19 @@ def step7_extract_returns(pdf):
         use_container_width=True
     )
 
-
 # === Step 8: Match Tickers in “Calendar Year Performance” Section ===
 def step8_match_calendar_tickers(pdf):
     import streamlit as st
 
-    fund_map5   = st.session_state.get("tickers", {})
-    section_pg  = st.session_state.get("calendar_year_page")
+    fund_map5  = st.session_state.get("tickers", {})
+    section_pg = st.session_state.get("calendar_year_page")
     if not fund_map5 or section_pg is None:
+        st.error("❌ Missing ticker map or Calendar Year page; run Steps 5 & 2 first.")
         return
 
     found, locs = {}, {}
     total       = len(fund_map5)
 
-    # Scan forward until we've seen every ticker
     for pnum in range(section_pg, len(pdf.pages) + 1):
         lines = (pdf.pages[pnum-1].extract_text() or "").splitlines()
         for li, ln in enumerate(lines):
@@ -527,9 +526,9 @@ def step8_match_calendar_tickers(pdf):
         if len(found) == total:
             break
 
-    # Store quietly for Step 8.5
-    st.session_state["step8_tickers"]   = found
-    st.session_state["step8_locations"] = locs
+    # store for Step 8.5
+    st.session_state["step8_tickers"]    = found
+    st.session_state["step8_locations"]  = locs
     st.session_state["step8_start_page"] = section_pg
 
 
@@ -545,7 +544,7 @@ def step8_5_extract_calendar_returns(pdf):
         st.error("⚠️ Run Step 8 first to map tickers.")
         return
 
-    # Find header row for years
+    # find header line with years
     header = None
     for pnum in range(start_pg-1, len(pdf.pages)):
         for ln in (pdf.pages[pnum].extract_text() or "").splitlines():
@@ -556,20 +555,20 @@ def step8_5_extract_calendar_returns(pdf):
             break
 
     if not header:
-        st.error("❌ Can't locate calendar‑year header.")
+        st.error("❌ Couldn’t find the calendar‑year header row.")
         return
 
     years = re.findall(r"\b20(1[5-9]|2[0-4])\b", header)
-    years = ["20" + y for y in years]
+    years = ["20"+y for y in years]
     n     = len(years)
     num_rx = re.compile(r"\(?-?\d+\.\d+%?\)?")
 
     rows = []
     for name, tk in tickers_map.items():
-        tk    = tk.upper()
-        vals  = None
+        tk   = tk.upper()
+        vals = None
 
-        # scan forward for the fund's line
+        # scan forward for ticker line
         for pnum in range(start_pg-1, len(pdf.pages)):
             lines = (pdf.pages[pnum].extract_text() or "").splitlines()
             idx   = next((i for i, ln in enumerate(lines) if tk in ln.split()), None)
@@ -585,12 +584,12 @@ def step8_5_extract_calendar_returns(pdf):
             vals = [None]*n
 
         row = {"Fund Name": name, "Ticker": tk}
-        for i, y in enumerate(years):
+        for i,y in enumerate(years):
             row[y] = vals[i]
         rows.append(row)
 
-    df = pd.DataFrame(rows)
-    st.dataframe(df.set_index("Fund Name"), use_container_width=True)
+    df = pd.DataFrame(rows).set_index("Fund Name")
+    st.dataframe(df, use_container_width=True)
 
 
 # === Benchmark Calendar Year Annualized Returns ===
@@ -604,13 +603,14 @@ def benchmarkcal(pdf):
         st.error("❌ 'Calendar Year' page not in TOC.")
         return
 
+    # gather lines from that page
     lines = []
     for p in pdf.pages[cy_page-1:cy_page+2]:
         lines.extend((p.extract_text() or "").splitlines())
 
-    # match exactly one line per benchmark: name + ten years of decimals
+    # regex for a single‐line benchmark + 10 returns
     pattern = re.compile(
-        r"^(?P<name>[\w\s\-\&]+?)\s+" +
+        r"^(?P<name>[\w\s\-&]+?)\s+" +
         r"(?P<r15>-?\d+\.\d+)%?\s+" +
         r"(?P<r16>-?\d+\.\d+)%?\s+" +
         r"(?P<r17>-?\d+\.\d+)%?\s+" +
@@ -630,7 +630,7 @@ def benchmarkcal(pdf):
             continue
         d = m.groupdict()
         row = {"Benchmark": d.pop("name")}
-        for yy in range(15, 25):
+        for yy in range(15,25):
             row[f"20{yy}"] = d[f"r{yy:02d}"]
         rows.append(row)
 
@@ -640,14 +640,25 @@ def benchmarkcal(pdf):
 
     df = pd.DataFrame(rows)
 
-    # now add fund‐ticker mapping from factsheets
+    # attach each fund's ticker via factsheet mapping
     facts = st.session_state.get("fund_factsheets_data", [])
-    bmk2tk = {f["Benchmark"]: f["Matched Ticker"] for f in facts}
+    bmk2tk = { f["Benchmark"]: f["Matched Ticker"] for f in facts }
     df["Ticker"] = df["Benchmark"].map(lambda b: bmk2tk.get(b, ""))
 
-    # display with Ticker first
-    cols = ["Ticker"] + [c for c in df.columns if c!="Ticker"]
-    st.dataframe(df.set_index("Benchmark")[cols], use_container_width=True)
+    # now set Benchmark → index, and show Ticker + each year only
+    year_cols = [c for c in df.columns if re.match(r"20\d\d", c)]
+    display_cols = ["Ticker"] + year_cols
+
+    df2 = df.set_index("Benchmark")[display_cols]
+    st.dataframe(df2, use_container_width=True)
+
+
+# === in your Main App ===
+with st.expander("Step 8: Calendar Year Returns", expanded=False):
+    step8_match_calendar_tickers(pdf)      # hidden mapping
+    step8_5_extract_calendar_returns(pdf)  # fund returns table
+    benchmarkcal(pdf)                      # benchmark returns table
+
 
 # === Step 9: Match Tickers in the Risk Analysis (3Yr) Section ===
 def step9_match_risk_tickers(pdf):
