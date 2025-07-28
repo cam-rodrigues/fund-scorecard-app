@@ -1095,47 +1095,107 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
 
 #--------------------------------------------------------------------------------------------
 # == Step 15 ==
-import streamlit as st
-import pandas as pd
-
 def step15_display_selected_fund():
-    st.subheader("Step 15: View Single Fund Details")
-    # list of funds from factsheets step
+    import re
+    import pandas as pd
+    import streamlit as st
+
+    st.subheader("Step 15: View Single Fund Details")
     facts = st.session_state.get("fund_factsheets_data", [])
     if not facts:
-        st.info("Run Steps 1–14 to populate data before viewing fund details.")
+        st.info("Run Steps 1–14 to populate data before viewing fund details.")
         return
+
+    # Fund selector
     fund_names = [f["Matched Fund Name"] for f in facts]
-    choice = st.selectbox("Select a fund to view details:", fund_names)
+    choice     = st.selectbox("Select a fund to view details:", fund_names)
 
-    # Step 1: Page 1 metadata
-    st.markdown("**Step 1: Page 1 Metadata**")
-    st.write(f"- Report Date: {st.session_state.get('report_date', 'N/A')}")
-    st.write(f"- Total Options: {st.session_state.get('total_options', 'N/A')}")
-    st.write(f"- Prepared For: {st.session_state.get('prepared_for', 'N/A')}")
-    st.write(f"- Prepared By: {st.session_state.get('prepared_by', 'N/A')}")
+    # Step 1: Page 1 metadata
+    st.markdown("**Step 1: Page 1 Metadata**")
+    st.write(f"- Report Date:   {st.session_state.get('report_date','N/A')}")
+    st.write(f"- Total Options: {st.session_state.get('total_options','N/A')}")
+    st.write(f"- Prepared For:  {st.session_state.get('prepared_for','N/A')}")
+    st.write(f"- Prepared By:   {st.session_state.get('prepared_by','N/A')}")
 
-    # Step 2: TOC pages
-    st.markdown("**Step 2: Table of Contents Pages**")
-    for key, label in [
-        ("performance_page", "Fund Performance Current vs Proposed"),
-        ("calendar_year_page", "Fund Performance Calendar Year"),
-        ("r3yr_page", "MPT 3Yr Risk Analysis"),
-        ("r5yr_page", "MPT 5Yr Risk Analysis"),
-        ("scorecard_page", "Fund Scorecard"),
-        ("factsheets_page", "Fund Factsheets")
+    # Step 2: TOC
+    st.markdown("**Step 2: Table of Contents Pages**")
+    for key,label in [
+        ("performance_page","Fund Performance Current vs Proposed"),
+        ("calendar_year_page","Fund Performance Calendar Year"),
+        ("r3yr_page","MPT 3Yr Risk Analysis"),
+        ("r5yr_page","MPT 5Yr Risk Analysis"),
+        ("scorecard_page","Fund Scorecard"),
+        ("factsheets_page","Fund Factsheets")
     ]:
-        st.write(f"- {label}: {st.session_state.get(key, 'N/A')}")
+        st.write(f"- {label}: {st.session_state.get(key,'N/A')}")
 
-    # Step 3: Scorecard metrics
-    st.markdown("**Step 3: Scorecard Details**")
-    blocks = st.session_state.get('fund_blocks', [])
-    block = next((b for b in blocks if b['Fund Name'] == choice), None)
+    # Step 3: Scorecard
+    st.markdown("**Step 3: Scorecard Details**")
+    blocks = st.session_state.get("fund_blocks", [])
+    block  = next((b for b in blocks if b["Fund Name"]==choice), None)
     if block:
-        for m in block['Metrics']:
+        for m in block["Metrics"]:
             st.write(f"- {m['Metric']}: {m['Info']}")
     else:
-        st.write("_No scorecard data for this fund._")
+        st.write("_No scorecard data found._")
+
+    # === Slide 1 Table ===
+    st.markdown("**Slide 1 Table: IPS Investment Criteria Screening Summary**")
+
+    # Recompute IPS statuses only for this fund
+    IPS = [
+      "Manager Tenure","Excess Performance (3Yr)","R-Squared (3Yr)",
+      "Peer Return Rank (3Yr)","Sharpe Ratio Rank (3Yr)","Sortino Ratio Rank (3Yr)",
+      "Tracking Error Rank (3Yr)","Excess Performance (5Yr)","R-Squared (5Yr)",
+      "Peer Return Rank (5Yr)","Sharpe Ratio Rank (5Yr)","Sortino Ratio Rank (5Yr)",
+      "Tracking Error Rank (5Yr)","Expense Ratio Rank"
+    ]
+    statuses = {}
+    # Manager Tenure
+    info = next((m["Info"] for m in block["Metrics"] if m["Metric"]=="Manager Tenure"),"")
+    yrs  = float(re.search(r"(\d+\.?\d*)",info).group(1)) if re.search(r"(\d+\.?\d*)",info) else 0
+    statuses["Manager Tenure"] = (yrs>=3)
+    # All other criteria
+    for crit in IPS[1:]:
+        raw = next((m["Info"] for m in block["Metrics"] if m["Metric"].startswith(crit.split()[0])),"")
+        if "Excess Performance" in crit:
+            pct = float(re.search(r"([-+]?\d*\.\d+)%",raw).group(1)) if re.search(r"([-+]?\d*\.\d+)%",raw) else 0
+            statuses[crit] = (pct>0)
+        elif "R-Squared" in crit:
+            statuses[crit] = True
+        else:
+            rk = int(re.search(r"(\d+)",raw).group(1)) if re.search(r"(\d+)",raw) else 999
+            statuses[crit] = (rk<=50)
+    # Overall status
+    fails = sum(not statuses[c] for c in IPS)
+    if   fails<=4:  overall = "Passed IPS Screen"
+    elif fails==5:  overall = "Informal Watch (IW)"
+    else:           overall = "Formal Watch (FW)"
+
+    # Build DataFrame
+    ticker = st.session_state.get("tickers",{}).get(choice,"")
+    row = {
+      "Investment Option": choice,
+      "Ticker":            ticker,
+      "Time Period":       st.session_state.get("report_date",""),
+      "Plan Assets":       "$"
+    }
+    for i,crit in enumerate(IPS, start=1):
+        row[str(i)] = statuses[crit]
+    row["IPS Status"] = overall
+
+    df_ips = pd.DataFrame([row])
+    def color_bool(v): return "background-color: green" if v else "background-color: red"
+    def style_status(v):
+        if v=="Passed IPS Screen":    return "background-color: green; color: white"
+        if "Informal Watch" in v:      return "background-color: orange; color: white"
+        if "Formal Watch" in v:        return "background-color: red; color: white"
+        return ""
+    styled = df_ips.style\
+        .applymap(color_bool,   subset=[str(i) for i in range(1,len(IPS)+1)])\
+        .applymap(style_status, subset=["IPS Status"])
+
+    st.dataframe(styled, use_container_width=True)
 
     # Step 5: Fund performance mapping
     st.markdown("**Step 5: Performance Ticker Mapping**")
