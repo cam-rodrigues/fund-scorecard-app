@@ -1210,10 +1210,12 @@ def step15_display_selected_fund():
     # grab performance data for the selected fund
     perf_data = st.session_state.get("fund_performance_data", [])
     perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == choice), {})
-    # build Investment Manager label
+    # build Investment Manager label with ticker
     inv_mgr = f"{choice} ({perf_item.get('Ticker','')})"
-    # extract Net Expense Ratio
+    # extract Net Expense Ratio and append '%' if not already present
     net_exp = perf_item.get("Net Expense Ratio", "")
+    if net_exp and not str(net_exp).endswith("%"):
+        net_exp = f"{net_exp}%"
     # assemble and display
     df_slide3 = pd.DataFrame([{
         "Investment Manager": inv_mgr,
@@ -1227,20 +1229,34 @@ def step15_display_selected_fund():
     perf_data = st.session_state.get("fund_performance_data", [])
     perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name")==choice), {})
     # build Investment Manager label with ticker in parentheses
-    inv_mgr = f"{choice} ({perf_item.get('Ticker','')})"
+    inv_mgr    = f"{choice} ({perf_item.get('Ticker','')})"
     # use report_date as the QTD column header
     date_label = st.session_state.get("report_date", "QTD")
+
+    # helper to append '%' if missing
+    def append_pct(val):
+        s = str(val) if val is not None else ""
+        return s if s.endswith("%") or s=="" else f"{s}%"
+
+    # extract and format each return
+    qtd   = append_pct(perf_item.get("QTD",""))
+    one   = append_pct(perf_item.get("1Yr",""))
+    three = append_pct(perf_item.get("3Yr",""))
+    five  = append_pct(perf_item.get("5Yr",""))
+    ten   = append_pct(perf_item.get("10Yr",""))
+
     # assemble the row
     row = {
         "Investment Manager": inv_mgr,
-        date_label:           perf_item.get("QTD", ""),
-        "1 Year":             perf_item.get("1Yr", ""),
-        "3 Year":             perf_item.get("3Yr", ""),
-        "5 Year":             perf_item.get("5Yr", ""),
-        "10 Year":            perf_item.get("10Yr", "")
+        date_label:           qtd,
+        "1 Year":             one,
+        "3 Year":             three,
+        "5 Year":             five,
+        "10 Year":            ten
     }
     df_slide3_2 = pd.DataFrame([row])
     st.dataframe(df_slide3_2, use_container_width=True)
+
 
 
         # === Slide 4 Table 1 ===
