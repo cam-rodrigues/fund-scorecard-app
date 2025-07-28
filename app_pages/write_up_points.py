@@ -499,152 +499,85 @@ def step7_extract_returns(pdf):
         df[["Fund Scorecard Name", "Ticker"] + fields],
         use_container_width=True
     )
+# === Step 8 & 8.5: Calendar Year Returns (Funds + Benchmarks) ===
+def step8_calendar_returns(pdf):
+    import re, streamlit as st, pandas as pd
 
-# === Step 8: Match Tickers in “Calendar Year Performance” Section ===
-def step8_match_calendar_tickers(pdf):
-    import streamlit as st
+    st.subheader("Step 8: Calendar Year Returns")
 
-    fund_map5  = st.session_state.get("tickers", {})
-    section_pg = st.session_state.get("calendar_year_page")
-    if not fund_map5 or section_pg is None:
-        st.error("❌ Missing ticker map or Calendar Year page; run Steps 5 & 2 first.")
+    # 1) Find the TOC page for this section
+    cy_page = st.session_state.get("calendar_year_page")
+    if cy_page is None:
+        st.error("❌ Could not find 'Fund Performance: Calendar Year' section in the TOC.")
         return
 
-    found, locs = {}, {}
-    total       = len(fund_map5)
-
-    for pnum in range(section_pg, len(pdf.pages) + 1):
-        lines = (pdf.pages[pnum-1].extract_text() or "").splitlines()
-        for li, ln in enumerate(lines):
-            tokens = ln.split()
-            for name, tk in fund_map5.items():
-                if name in found:
-                    continue
-                if tk.upper() in tokens:
-                    found[name] = tk.upper()
-                    locs[name]  = {"page": pnum, "line": li}
-        if len(found) == total:
-            break
-
-    # store for Step 8.5
-    st.session_state["step8_tickers"]    = found
-    st.session_state["step8_locations"]  = locs
-    st.session_state["step8_start_page"] = section_pg
-
-
-# === Step 8.5: Extract Calendar Year Returns (Funds) ===
-def step8_5_extract_calendar_returns(pdf):
-    import re, pandas as pd, streamlit as st
-
-    st.subheader("Fund Calendar Year Returns")
-
-    tickers_map = st.session_state.get("step8_tickers", {})
-    start_pg    = st.session_state.get("step8_start_page", 1)
-    if not tickers_map:
-        st.error("⚠️ Run Step 8 first to map tickers.")
-        return
-
-    # find header line with years
-    header = None
-    for pnum in range(start_pg-1, len(pdf.pages)):
-        for ln in (pdf.pages[pnum].extract_text() or "").splitlines():
-            if "Ticker" in ln and re.search(r"20(1[5-9]|2[0-4])", ln):
-                header = ln
-                break
-        if header:
-            break
-
-    if not header:
-        st.error("❌ Couldn’t find the calendar‑year header row.")
-        return
-
-    years = re.findall(r"\b20(1[5-9]|2[0-4])\b", header)
-    years = ["20"+y for y in years]
-    n     = len(years)
-    num_rx = re.compile(r"\(?-?\d+\.\d+%?\)?")
-
-    rows = []
-    for name, tk in tickers_map.items():
-        tk   = tk.upper()
-        vals = None
-
-        # scan forward for ticker line
-        for pnum in range(start_pg-1, len(pdf.pages)):
-            lines = (pdf.pages[pnum].extract_text() or "").splitlines()
-            idx   = next((i for i, ln in enumerate(lines) if tk in ln.split()), None)
-            if idx is not None:
-                raw   = num_rx.findall(lines[idx-1] if idx>0 else "")
-                clean = [v.strip("()%").rstrip("%") for v in raw]
-                if len(clean) < n:
-                    clean += [None]*(n-len(clean))
-                vals = clean[:n]
-                break
-
-        if vals is None:
-            vals = [None]*n
-
-        row = {"Fund Name": name, "Ticker": tk}
-        for i,y in enumerate(years):
-            row[y] = vals[i]
-        rows.append(row)
-
-    df = pd.DataFrame(rows).set_index("Fund Name")
-    st.dataframe(df, use_container_width=True)
-
-# === Step 8.5: Benchmark Calendar Year Returns ===
-def benchmarkcal(pdf):
-    import re, pandas as pd, streamlit as st
-
-    st.subheader("Benchmark Calendar Year Returns")
-
-    cy_start = st.session_state.get("calendar_year_page")
-    cy_end   = (st.session_state.get("r3yr_page") or (len(pdf.pages)+1)) - 1
-    if cy_start is None:
-        st.error("❌ Could not find 'Fund Performance: Calendar Year' page in TOC.")
-        return
-
-    # 1) collect all lines in that same range
+    # 2) Pull all lines from that page and the next 2 for safety
     all_lines = []
-    for p in range(cy_start-1, cy_end):
-        all_lines.extend((pdf.pages[p].extract_text() or "").splitlines())
+    for p in pdf.pages[cy_page - 1 : cy_page + 2]:
+        txt = p.extract_text() or ""
+        all_lines.extend(txt.splitlines())
 
-    # 2) find years header once
-    header_line = next((ln for ln in all_lines if "Ticker" in ln and re.search(r"\b20(1[5-9]|2[0-4])\b", ln)), None)
-    if not header_line:
-        st.error("❌ Couldn't find calendar‑year header row.")
-        return
+    # 3) Locate the header row (which has “Ticker” and a 20XX)
+    header_line = next(
+        (ln for ln in all_lines if "Ticker" in ln and re.search(r"20\d{2}", ln)),
+        ""
+    )
+    years = re.findall(r"\b20\d{2}\b", header_line)
+    n = len(years)
 
-    years = re.findall(r"\b20(1[5-9]|2[0-4])\b", header_line)
-    years = ["20" + y for y in years]
-    n     = len(years)
+    # 4) Regex for numeric tokens (allowing optional “%”)
+    num_rx = re.compile(r"-?\d+\.\d+%?")
 
-    # 3) build list of (fund → benchmark name → ticker) from factsheets
-    facts     = st.session_state.get("fund_factsheets_data", [])
-    bench_map = [(f["Matched Fund Name"], f["Benchmark"].strip(), f["Matched Ticker"]) 
-                 for f in facts if f.get("Benchmark")]
-
-    rows = []
-    for fund_name, bench, tk in bench_map:
-        line = next((l for l in all_lines if l.startswith(bench)), None)
-        if not line:
-            st.warning(f"⚠️ No row found for benchmark '{bench}'.")
-            vals = [None]*n
+    # --- A) Extract **fund** calendar returns ---
+    tickers_map = st.session_state.get("tickers", {})
+    fund_records = []
+    for name, tk in tickers_map.items():
+        ticker = (tk or "").upper()
+        # find the line index containing the ticker
+        idx = next(
+            (i for i, ln in enumerate(all_lines) if ticker in ln.split()),
+            None
+        )
+        if idx and idx > 0:
+            raw = num_rx.findall(all_lines[idx - 1])
+            vals = [v.rstrip("%") for v in raw[:n]] + [None] * max(0, n - len(raw))
         else:
-            parts = line[len(bench):].split()
-            # drop ticker if present
-            if parts and parts[0] == tk:
-                parts = parts[1:]
-            vals = parts[:n]
+            vals = [None] * n
 
-        row = {"Fund Name": fund_name, "Benchmark": bench, "Ticker": tk}
-        for year, val in zip(years, vals):
-            row[year] = val.rstrip("%") if isinstance(val, str) else val
+        rec = {"Fund Name": name, "Ticker": ticker}
+        rec.update({years[i]: vals[i] for i in range(n)})
+        fund_records.append(rec)
 
-        rows.append(row)
+    df_fund = pd.DataFrame(fund_records)
+    st.markdown("**Fund Calendar-Year Returns**")
+    st.dataframe(df_fund, use_container_width=True)
+    st.session_state["step8_returns"] = fund_records
 
-    df = pd.DataFrame(rows).set_index("Fund Name")
-    st.dataframe(df, use_container_width=True)
-    st.session_state["benchmark_calendar_returns"] = rows
+    # --- B) Extract **benchmark** calendar returns ---
+    facts = st.session_state.get("fund_factsheets_data", [])
+    bench_records = []
+    for f in facts:
+        bench_name = f.get("Benchmark", "").strip()
+        # look for a line that starts with that exact benchmark name
+        idx = next(
+            (i for i, ln in enumerate(all_lines) if ln.startswith(bench_name)),
+            None
+        )
+        if idx is not None:
+            raw = num_rx.findall(all_lines[idx])
+            vals = [v.rstrip("%") for v in raw[:n]] + [None] * max(0, n - len(raw))
+        else:
+            vals = [None] * n
+
+        bench_records.append(
+            {"Fund Name": bench_name, "Ticker": "", **{years[i]: vals[i] for i in range(n)}}
+        )
+
+    df_bench = pd.DataFrame(bench_records)
+    st.markdown("**Benchmark Calendar-Year Returns**")
+    st.dataframe(df_bench, use_container_width=True)
+    st.session_state["benchmark_calendar_year_returns"] = bench_records
+
 
 
 # === Step 9: Match Tickers in the Risk Analysis (3Yr) Section ===
@@ -1535,13 +1468,8 @@ def run():
             step7_extract_returns(pdf)
         
         # Step 8: Calendar Year Section
-        with st.expander("Step 8: Calendar Year Returns", expanded=False):
-            # quietly map tickers
-            step8_match_calendar_tickers(pdf)
-            # show fund returns
-            step8_5_extract_calendar_returns(pdf)
-            # show benchmark returns
-            benchmarkcal(pdf)
+        with st.expander("Step 8: Calendar Year Returns", expanded=False):
+            step8_calendar_returns(pdf)
 
         # Step 9: Match Tickers
         with st.expander("Step 9: Match Tickers in Risk Analysis (3Yr)", expanded=False):
