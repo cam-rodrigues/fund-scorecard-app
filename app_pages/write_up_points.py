@@ -982,25 +982,23 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
     st.dataframe(df, use_container_width=True)
 
 #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-# == Step 15 ==
+# === Step 15: Single Fund Details ===
 def step15_display_selected_fund():
-    import re
     import pandas as pd
     import streamlit as st
 
     st.subheader("Step 15: Single Fund Details")
-    # — ensure prior data exists —
     facts = st.session_state.get("fund_factsheets_data", [])
     if not facts:
         st.info("Run Steps 1–14 to populate data before viewing fund details.")
         return
 
-    # — select a fund —
+    # Select a fund
     fund_names = [f["Matched Fund Name"] for f in facts]
-    choice     = st.selectbox("Select a fund to view details:", fund_names)
-
+    selected_fund = st.selectbox("Select a fund to view details:", fund_names)
+    
     # Store the selected fund in session state
-    st.session_state.selected_fund = selected_fund
+    st.session_state.selected_fund = selected_fund  # Save the selected fund in session_state
 
     # === Step 1: Page 1 Metadata ===
     st.markdown("**Step 1: Page 1 Metadata**")
