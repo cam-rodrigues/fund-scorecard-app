@@ -1432,49 +1432,53 @@ def run():
                 item = next(x for x in perf_data if x["Fund Scorecard Name"] == sel)
         
                 templates = st.session_state.get("bullet_point_templates", [])
-                for tpl in templates:
-                    filled = tpl
-                    # Handle IPS Screening status
-                    is_passing_ips = item.get("IPS Status") == "Passed IPS Screen"
-                    if is_passing_ips:
-                        # If the fund passed IPS screening
-                        filled = "The Fund passed the IPS Screening."
-                    else:
-                        # If the fund is on Informal/Formal Watch
-                        status = "Informal Watch" if "IW" in item.get("IPS Status", "") else "Formal Watch"
-                        
-                        # Retrieve relevant data for the returns and risk-adjusted returns
-                        three_year_return = float(item.get("3Yr", 0))  # Convert to float
-                        bench_three_year = float(item.get("Bench 3Yr", 0))  # Convert to float
-                        five_year_return = float(item.get("5Yr", 0))  # Convert to float
-                        bench_five_year = float(item.get("Bench 5Yr", 0))  # Convert to float
-                        sharpe_ratio_3yr = item.get("Sharpe Ratio 3Yr", "")
-                        sortino_ratio_3yr = item.get("Sortino Ratio 3Yr", "")
-                        peer_group_rank_3yr = item.get("Sharpe Rank 3Yr", "Unknown")
-                        peer_group_rank_5yr = item.get("Sharpe Rank 5Yr", "Unknown")
+                
+                # First bullet point: Performance vs Benchmark
+                filled = "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], [Year] by [QTD_bps_diff] bps ([QTD_vs])."
+                for field, val in item.items():
+                    filled = filled.replace(f"[{field}]", str(val))
+                st.markdown(f"- {filled}")
         
-                        # Calculate the difference in bps
-                        bps_three_year = (three_year_return - bench_three_year) * 100
-                        bps_five_year = (five_year_return - bench_five_year) * 100
+                # Second bullet point: IPS Screening Status
+                is_passing_ips = item.get("IPS Status") == "Passed IPS Screen"
+                if is_passing_ips:
+                    filled = "The Fund passed the IPS Screening."
+                else:
+                    status = "Informal Watch" if "IW" in item.get("IPS Status", "") else "Formal Watch"
+                    
+                    # Extract relevant data for the returns and risk-adjusted returns
+                    three_year_return = float(item.get("3Yr", 0))  # Convert to float
+                    bench_three_year = float(item.get("Bench 3Yr", 0))  # Convert to float
+                    five_year_return = float(item.get("5Yr", 0))  # Convert to float
+                    bench_five_year = float(item.get("Bench 5Yr", 0))  # Convert to float
+                    
+                    # Calculate the difference in bps
+                    bps_three_year = (three_year_return - bench_three_year) * 100
+                    bps_five_year = (five_year_return - bench_five_year) * 100
         
-                        # Format as percentages with two decimal places
-                        three_year_return_str = f"{three_year_return:.2f}%"
-                        five_year_return_str = f"{five_year_return:.2f}%"
-                        bench_three_year_str = f"{bench_three_year:.2f}%"
-                        bench_five_year_str = f"{bench_five_year:.2f}%"
+                    # Format as percentages with two decimal places
+                    three_year_return_str = f"{three_year_return:.2f}%"
+                    five_year_return_str = f"{five_year_return:.2f}%"
+                    bench_three_year_str = f"{bench_three_year:.2f}%"
+                    bench_five_year_str = f"{bench_five_year:.2f}%"
         
-                        # Fill in the bullet point
-                        filled = (
-                            f"The fund is now on {status}. Its three-year return currently trails the benchmark by "
-                            f"{bps_three_year} bps ({three_year_return_str} vs. {bench_three_year_str}) "
-                            f"and its five-year return trails by {bps_five_year} bps ({five_year_return_str} vs. {bench_five_year_str}). "
-                            f"In addition, the fund’s three-year absolute and risk-adjusted returns, as measured by Sharpe and Sortino ratios, "
-                            f"now rank in the {peer_group_rank_3yr} half of their peer group."
-                        )
+                    # Risk-adjusted returns
+                    sharpe_ratio_3yr = item.get("Sharpe Ratio 3Yr", "")
+                    sortino_ratio_3yr = item.get("Sortino Ratio 3Yr", "")
+                    peer_group_rank_3yr = item.get("Sharpe Rank 3Yr", "Unknown")
+                    peer_group_rank_5yr = item.get("Sharpe Rank 5Yr", "Unknown")
         
-                    # Display the filled bullet point
-                    st.markdown(f"- {filled}")
-
+                    # Fill in the bullet point for non-passing funds
+                    filled = (
+                        f"The fund is now on {status}. Its three-year return currently trails the benchmark by "
+                        f"{bps_three_year} bps ({three_year_return_str} vs. {bench_three_year_str}) "
+                        f"and its five-year return trails by {bps_five_year} bps ({five_year_return_str} vs. {bench_five_year_str}). "
+                        f"In addition, the fund’s three-year absolute and risk-adjusted returns, as measured by Sharpe and Sortino ratios, "
+                        f"now rank in the {peer_group_rank_3yr} half of their peer group."
+                    )
+        
+                # Display the second bullet point
+                st.markdown(f"- {filled}")
 
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
