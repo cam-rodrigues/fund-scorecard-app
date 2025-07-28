@@ -1213,14 +1213,14 @@ def step15_display_selected_fund():
         st.error("❌ No calendar year returns data found. Ensure Step 8 has been run correctly.")
         return
     
-    # 2) Ensure 'Fund Name' exists in the fund and benchmark records
+    # 2) Ensure 'Name' exists in the fund and benchmark records (using 'Name' instead of 'Fund Name')
     # Debugging output to check structure
     st.write(f"Fund data keys: {fund_cy[0].keys() if fund_cy else 'No data'}")
     st.write(f"Benchmark data keys: {bench_cy[0].keys() if bench_cy else 'No data'}")
     
     # 3) Find the selected fund’s record and its benchmark record
-    fund_rec = next((r for r in fund_cy if r.get("Fund Name") == choice), None)
-    bench_rec = next((r for r in bench_cy if r.get("Fund Name") == choice), None)
+    fund_rec = next((r for r in fund_cy if r.get("Name") == choice), None)  # Changed "Fund Name" to "Name"
+    bench_rec = next((r for r in bench_cy if r.get("Name") == choice), None)  # Changed "Fund Name" to "Name"
     
     # If fund or benchmark record is not found
     if not fund_rec:
