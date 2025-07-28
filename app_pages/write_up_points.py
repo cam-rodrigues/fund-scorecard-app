@@ -1505,7 +1505,10 @@ def run():
                 # Display the second bullet point
                 st.markdown(f"- {filled}")
 
-
+                # Third bullet point: Action for Formal Watch
+                if status == "Formal Watch":
+                    action = "Action: Consider replacing this fund."
+                    st.markdown(f"- {action}")
 
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
