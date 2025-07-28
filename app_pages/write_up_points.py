@@ -1285,15 +1285,16 @@ def step15_display_selected_fund():
     df_slide4_1 = pd.DataFrame([row])
     st.dataframe(df_slide4_1, use_container_width=True)
 
-
     # === Slide 5 Table 1 ===
     st.markdown("**Slide 5 Table 1**")
     # grab the scorecard metrics for the selected fund
-    blocks     = st.session_state.get("fund_blocks", [])
-    block      = next((b for b in blocks if b["Fund Name"] == choice), {})
-    raw_tenure = next((m["Info"] for m in block.get("Metrics", []) if m["Metric"] == "Manager Tenure"), "")
-    # ensure it ends with 'years'
-    tenure = raw_tenure if "year" in raw_tenure.lower() else f"{raw_tenure} years"
+    blocks      = st.session_state.get("fund_blocks", [])
+    block       = next((b for b in blocks if b["Fund Name"] == choice), {})
+    raw_tenure  = next((m["Info"] for m in block.get("Metrics", []) if m["Metric"] == "Manager Tenure"), "")
+    # extract just the numeric years and append "years"
+    import re
+    m = re.search(r"(\d+(\.\d+)?)", raw_tenure)
+    tenure = f"{m.group(1)} years" if m else raw_tenure
 
     # build Investment Manager label with ticker
     perf_data = st.session_state.get("fund_performance_data", [])
@@ -1306,6 +1307,7 @@ def step15_display_selected_fund():
         "Manager Tenure":     tenure
     }])
     st.dataframe(df_slide5, use_container_width=True)
+
 
 #---------------------------------------------------------------------------------------
     
