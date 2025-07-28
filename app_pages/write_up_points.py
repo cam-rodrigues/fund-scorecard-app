@@ -1438,7 +1438,7 @@ def run():
                 for field, val in item.items():
                     filled = filled.replace(f"[{field}]", str(val))
                 st.markdown(f"- {filled}")
-        
+                
                 # Second bullet point: IPS Screening Status
                 is_passing_ips = item.get("IPS Status") == "Passed IPS Screen"
                 if is_passing_ips:
@@ -1465,9 +1465,6 @@ def run():
                     # Peer Risk-Adjusted Return Rank (Step 14)
                     peer_ranks = st.session_state.get("step14_peer_rank_table", [])
                 
-                    # Debugging: Check if the table is properly populated
-                    st.write("Peer Rank Table:", peer_ranks)
-                
                     # Get the rank of the selected fund for 3Yr Sharpe and 5Yr Sharpe with fallback
                     rank_3yr = next(
                         (r.get("Sharpe Ratio Rank 3Yr", "Rank Not Available") for r in peer_ranks if r.get("Fund Name") == item["Fund Scorecard Name"]),
@@ -1478,17 +1475,29 @@ def run():
                         "Rank Not Available"
                     )
                 
+                    # Determine if the fund is in the top or bottom half of the peer group
+                    if rank_3yr != "Rank Not Available" and int(rank_3yr) <= 50:
+                        rank_3yr_position = "top"
+                    else:
+                        rank_3yr_position = "bottom"
+                
+                    if rank_5yr != "Rank Not Available" and int(rank_5yr) <= 50:
+                        rank_5yr_position = "top"
+                    else:
+                        rank_5yr_position = "bottom"
+                
                     # Fill the bullet point for non-passing funds
                     filled = (
                         f"The fund is now on {status}. Its three-year return currently trails the benchmark by "
                         f"{bps_three_year} bps ({three_year_return_str} vs. {bench_three_year_str}) "
                         f"and its five-year return trails by {bps_five_year} bps ({five_year_return_str} vs. {bench_five_year_str}). "
                         f"In addition, the fund’s three-year absolute and risk-adjusted returns, as measured by Sharpe and Sortino ratios, "
-                        f"now rank in the {rank_3yr} for 3Yr Sharpe and {rank_5yr} for 5Yr Sharpe within their peer group."
+                        f"now rank in the {rank_3yr_position} half of their peer group for 3Yr Sharpe and {rank_5yr_position} half for 5Yr Sharpe."
                     )
                 
                 # Display the second bullet point
                 st.markdown(f"- {filled}")
+
 
 
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
