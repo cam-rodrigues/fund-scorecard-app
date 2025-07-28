@@ -1023,14 +1023,13 @@ def step13_process_risk_adjusted_returns(pdf):
 def step14_debug_peer_heading(pdf):
     import streamlit as st
 
-    st.subheader("Debug: Inspect Factsheet Page Text")
+    st.subheader("Debug: Inspect Factsheet Page Text (Lines 18–40)")
 
     factsheets = st.session_state.get("fund_factsheets_data", [])
     if not factsheets:
         st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
-    # Pick the first fund’s page for inspection
     page_num = factsheets[0]["Page #"]
     fund     = factsheets[0]["Matched Fund Name"]
     ticker   = factsheets[0]["Matched Ticker"]
@@ -1039,11 +1038,9 @@ def step14_debug_peer_heading(pdf):
     text = page.extract_text() or ""
     lines = [ln for ln in text.splitlines() if ln.strip()]
 
-    st.caption(f"Showing first 20 lines from page {page_num} for {fund} ({ticker}):")
-    # display the first 20 lines with their indices
-    for i, ln in enumerate(lines[:20]):
-        st.text(f"{i:02d}: {ln}")
-    # stop here so we can inspect
+    st.caption(f"Showing lines 18–40 from page {page_num} for {fund} ({ticker}):")
+    for i in range(18, min(len(lines), 41)):
+        st.text(f"{i:02d}: {lines[i]}")
     return
 
 
