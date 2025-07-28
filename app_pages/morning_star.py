@@ -1,157 +1,156 @@
+# morningstar_parser.py
+
 import re
-import streamlit as st
 import pdfplumber
-from calendar import month_name
 import pandas as pd
 
-# === Utility: Extract & Label Report Date ===
-def extract_report_date(text: str) -> str | None:
-    # look for mm/dd/yyyy or quarter ends
-    dates = re.findall(r'(\d{1,2})/(\d{1,2})/(20\d{2})', text or "")
-    for M, D, Y in dates:
-        m, d, y = int(M), int(D), int(Y)
-        if (m, d) in [(3,31),(6,30),(9,30),(12,31)]:
-            q = { (3,31):"1st", (6,30):"2nd", (9,30):"3rd", (12,31):"4th"}[(m,d)]
-            return f"{q} QTR, {y}"
-        return f"As of {month_name[m]} {d}, {y}"
-    return None
-
-# === Step 1: Cover Page Extraction ===
-def process_cover_page(text: str):
-    st.subheader("Cover Page")
-    date = extract_report_date(text)
-    st.write(f"- Report Date: **{date or 'N/A'}**")
-    # find fund name / ticker
-    m = re.search(r'Fund:\s*(.+?)\s*\((\w+)\)', text or "")
+def extract_overview(pdf):
+    """
+    Grabs from page 1 the Fund Name, Ticker, NAV, NAV change,
+    Total Assets, Expense Ratio, Category, Morningstar Rating,
+    Analyst name, and Medalist Rating.
+    """
+    text = pdf.pages[0].extract_text() or ""
+    # Fund Name & Ticker
+    m = re.search(r'^(.*?)\n.*?Ticker\s*[:\-]?\s*([A-Z]{3,5})', text, re.MULTILINE)
+    name, ticker = (m.group(1).strip(), m.group(2)) if m else ("", "")
+    # NAV & NAV change
+    nav, nav_chg = "", ""
+    m = re.search(r'NAV\s+([\d,]+\.\d+)\s+([+\-]\d+\.\d+%)', text)
     if m:
-        st.write(f"- Fund Name: **{m.group(1).strip()}**")
-        st.write(f"- Ticker: **{m.group(2)}**")
-    else:
-        st.write("_Couldn’t parse Fund Name/Ticker_")
-
-# === Step 2: TOC Parsing ===
-def process_toc(text: str):
-    st.subheader("Table of Contents")
-    # look for common Morningstar sections
-    sections = {
-        "Summary": r"Fund Summary\s+(\d+)",
-        "Performance": r"Performance\s+(\d+)",
-        "Holdings": r"Top 10 Holdings\s+(\d+)",
-        "Risk": r"Risk Analysis\s+(\d+)",
-        "Fees": r"Fees & Expenses\s+(\d+)",
+        nav, nav_chg = m.group(1), m.group(2)
+    # Total Assets
+    m = re.search(r'([\d\.]+)\s*(?:B|M|K)il', text)
+    assets = m.group(0) if m else ""
+    # Expense Ratio
+    m = re.search(r'Adj\.Expense Ratio\s+([\d\.]+%?)', text)
+    expense = m.group(1) if m else ""
+    # Category & Morningstar Rating (★)
+    cat = re.search(r'Category\s+([A-Za-z &\-]+)', text)
+    stars = re.search(r'Morningstar.*?(\d) Star', text)
+    category = cat.group(1).strip() if cat else ""
+    rating   = f"{stars.group(1)}‑star" if stars else ""
+    # Analyst & Medalist Rating
+    analyst = re.search(r'^(.*?)\nSenior Analyst', text, re.MULTILINE)
+    medalist = re.search(r'Morningstar Medalist Rating.*?(\w+)', text)
+    return {
+        "Fund Name": name,
+        "Ticker": ticker,
+        "NAV": nav,
+        "NAV Change": nav_chg,
+        "Total Assets": assets,
+        "Expense Ratio": expense,
+        "Category": category,
+        "Morningstar Rating": rating,
+        "Analyst": analyst.group(1).strip() if analyst else "",
+        "Medalist Rating": medalist.group(1) if medalist else ""
     }
-    for label, rx in sections.items():
-        m = re.search(rx, text or "")
-        st.write(f"- {label}: **{m.group(1) if m else '–'}**")
 
-    # store pages for later
-    for k, rx in sections.items():
-        m = re.search(rx, text or "")
-        st.session_state[f"ms_{k.lower()}_page"] = int(m.group(1)) if m else None
+def extract_returns(pdf):
+    """
+    Finds the calendar‐year returns table (usually labeled "Returns"
+    with years as row or column headers), and returns a DataFrame
+    with Fund vs. Category vs. Index for each year.
+    """
+    # concatenate pages until we've seen "Returns" and year headers
+    text = ""
+    for p in pdf.pages[:5]:
+        text += p.extract_text() + "\n"
+    # locate the block starting at “Returns” through a blank line
+    lines = text.splitlines()
+    start = next(i for i,l in enumerate(lines) if l.strip().startswith("Returns"))
+    block = []
+    for l in lines[start+1:]:
+        if not l.strip():
+            break
+        block.append(l)
+    # parse header years
+    header = re.split(r'\s{2,}', block[0].strip())
+    years = [h for h in header if re.match(r'\d{4}', h)]
+    rows = []
+    for l in block[1:]:
+        parts = re.split(r'\s{2,}', l.strip())
+        if len(parts) >= len(years)+1:
+            name = parts[0]
+            vals = parts[1:1+len(years)]
+            rows.append([name] + vals)
+    df = pd.DataFrame(rows, columns=["Name"] + years)
+    return df
 
-# === Step 3: Summary Bullets Extraction ===
-def extract_summary(pdf, page: int):
-    st.subheader("Fund Summary")
-    if not page:
-        st.error("Missing Summary page")
-        return
-    txt = pdf.pages[page-1].extract_text() or ""
-    # grab first 5 bullets
-    bullets = [ln for ln in txt.splitlines() if ln.strip().startswith("•")]
-    for b in bullets[:5]:
-        st.write(b)
+def extract_mpt_stats(pdf, period="3Yr"):
+    """
+    Extracts MPT stats (Alpha, Beta, Upside/Downside capture)
+    for either 3Yr or 5Yr section.
+    """
+    target = f"MPT Statistics ({period})"
+    # find page
+    page_num = next((i for i,p in enumerate(pdf.pages) if target in (p.extract_text() or "")), None)
+    if page_num is None:
+        return pd.DataFrame()
+    lines = pdf.pages[page_num].extract_text().splitlines()
+    data = []
+    hdr = ["Name","Alpha","Beta","Upside Cap","Downside Cap"]
+    for l in lines:
+        parts = l.split()
+        # look for lines with TICKER (all caps) + four floats
+        m = re.match(r'^([A-Za-z &\-]+)\s+([A-Za-z]{3,5})\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)', l)
+        if m:
+            nm, tk, a, b, u, d = m.groups()
+            data.append([f"{nm} ({tk})", a, b, u, d])
+    return pd.DataFrame(data, columns=hdr)
 
-# === Step 4: Performance Table ===
-def extract_performance(pdf, page: int):
-    st.subheader("Performance")
-    if not page:
-        st.error("Missing Performance page")
-        return
-    lines = (pdf.pages[page-1].extract_text() or "").splitlines()
-    # assume table header contains "YTD", "1 Year", etc.
-    header = next((ln for ln in lines if "YTD" in ln and "1 Year" in ln), "")
-    cols = header.split()
-    data_line = lines[lines.index(header)+1] if header else ""
-    vals = re.findall(r"-?\d+\.\d+%", data_line)
-    df = pd.DataFrame([vals], columns=cols[: len(vals)])
-    st.dataframe(df, use_container_width=True)
-    st.session_state["ms_performance"] = df
+def extract_peer_rank(pdf):
+    """
+    Extracts Peer Ranking % for Sharpe, Sortino, Information
+    for 1Yr/3Yr/5Yr/10Yr from the factsheet pages.
+    """
+    text = ""
+    for p in pdf.pages:
+        text += p.extract_text() + "\n"
+    lines = text.splitlines()
+    records = []
+    metrics = ["Sharpe Ratio", "Sortino Ratio", "Information Ratio"]
+    for fund in re.findall(r'Fund Facts Details for\s+([A-Za-z &\-]+)\s+\(([A-Z]{3,5})\)', text):
+        name, tk = fund
+        rec = {"Fund": f"{name} ({tk})"}
+        for m in metrics:
+            # find the line e.g. "Sharpe Ratio / Peer Ranking %"
+            idx = next((i for i,l in enumerate(lines) if m in l and "/" in l), None)
+            if idx:
+                vals = re.findall(r'(\d+\.\d+/\d+)', lines[idx])
+                for i,period in enumerate(["3Yr","5Yr","3Yr","5Yr"]):
+                    rec[f"{m} {period}"] = vals[i] if i < len(vals) else None
+        records.append(rec)
+    return pd.DataFrame(records)
 
-# === Step 5: Top 10 Holdings ===
-def extract_holdings(pdf, page: int):
-    st.subheader("Top 10 Holdings")
-    if not page:
-        st.error("Missing Holdings page")
-        return
-    table = []
-    for ln in pdf.pages[page-1].extract_text().splitlines()[1:11]:
-        parts = ln.split()
-        # assume last two cols are % and mkt value
-        name = " ".join(parts[:-2])
-        pct, mkt = parts[-2], parts[-1]
-        table.append({"Holding": name, "%": pct, "Market Value": mkt})
-    st.table(pd.DataFrame(table))
-    st.session_state["ms_holdings"] = table
-
-# === Step 6: Risk Metrics ===
-def extract_risk(pdf, page: int):
-    st.subheader("Risk Metrics")
-    if not page:
-        st.error("Missing Risk page")
-        return
-    txt = pdf.pages[page-1].extract_text() or ""
-    # look for Sharpe, Std Dev, Beta
-    for metric in ["Sharpe Ratio","Standard Deviation","Beta"]:
-        m = re.search(rf"{metric}[:\s]+(-?\d+\.\d+)", txt)
-        st.write(f"- {metric}: **{m.group(1) if m else '–'}**")
-
-# === Step 7: Fees & Expenses ===
-def extract_fees(pdf, page: int):
-    st.subheader("Fees & Expenses")
-    if not page:
-        st.error("Missing Fees page")
-        return
-    txt = pdf.pages[page-1].extract_text() or ""
-    m = re.search(r"Expense Ratio[:\s]+(\d+\.\d+%)", txt)
-    st.write(f"- Expense Ratio: **{m.group(1) if m else '–'}**")
-
-# === Main App ===
-def run():
-    st.title("Morningstar Report Parser")
-    uploaded = st.file_uploader("Upload Morningstar PDF", type="pdf")
-    if not uploaded:
-        return
-
-    with pdfplumber.open(uploaded) as pdf:
-        # cover
-        with st.expander("Step 1: Cover Page", expanded=True):
-            process_cover_page(pdf.pages[0].extract_text() or "")
-
-        # TOC
-        with st.expander("Step 2: Table of Contents", expanded=False):
-            toc_text = "".join(p.extract_text() or "" for p in pdf.pages[:3])
-            process_toc(toc_text)
-
-        # Summary
-        with st.expander("Step 3: Fund Summary", expanded=False):
-            extract_summary(pdf, st.session_state.get("ms_summary_page"))
-
-        # Performance
-        with st.expander("Step 4: Performance", expanded=False):
-            extract_performance(pdf, st.session_state.get("ms_performance_page"))
-
-        # Holdings
-        with st.expander("Step 5: Top 10 Holdings", expanded=False):
-            extract_holdings(pdf, st.session_state.get("ms_holdings_page"))
-
-        # Risk
-        with st.expander("Step 6: Risk Metrics", expanded=False):
-            extract_risk(pdf, st.session_state.get("ms_risk_page"))
-
-        # Fees
-        with st.expander("Step 7: Fees & Expenses", expanded=False):
-            extract_fees(pdf, st.session_state.get("ms_fees_page"))
-
+def parse_morningstar(path):
+    """
+    High‐level entry point: open PDF, run all extractors,
+    and return a dict of DataFrames / dicts.
+    """
+    with pdfplumber.open(path) as pdf:
+        overview     = extract_overview(pdf)
+        returns_yr   = extract_returns(pdf)
+        mpt3         = extract_mpt_stats(pdf, "3Yr")
+        mpt5         = extract_mpt_stats(pdf, "5Yr")
+        peer_ranks   = extract_peer_rank(pdf)
+    return {
+        "overview": overview,
+        "calendar_returns": returns_yr,
+        "mpt_3yr": mpt3,
+        "mpt_5yr": mpt5,
+        "peer_rank": peer_ranks
+    }
 
 if __name__ == "__main__":
-    run()
+    import sys
+    data = parse_morningstar(sys.argv[1])
+    print("== Overview ==")
+    for k,v in data["overview"].items():
+        print(f"- {k}: {v}")
+    print("\n== Calendar Year Returns ==")
+    print(data["calendar_returns"].to_string(index=False))
+    print("\n== 3Yr MPT Stats ==")
+    print(data["mpt_3yr"].to_string(index=False))
+    print("\n== Peer Rankings ==")
+    print(data["peer_rank"].to_string(index=False))
