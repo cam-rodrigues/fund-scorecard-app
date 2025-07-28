@@ -1372,7 +1372,7 @@ def slide_1_table(df, selected_fund):
     tf.clear()
     p = tf.paragraphs[0]
     run = p.add_run()
-    run.text = "Slide 1 Table"  # Change this to "Slide 1 Table"
+    run.text = "Investment Watchlist"  # Change this to "Slide 1 Table"
     run.font.size = Pt(20)
     run.font.name = "Helvetica"
     run.font.color.rgb = RGBColor(33, 43, 88)  # #212b58
