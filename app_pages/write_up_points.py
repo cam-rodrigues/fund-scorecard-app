@@ -1215,8 +1215,8 @@ def step15_display_selected_fund():
     
     # 2) Ensure 'Name' exists in the fund and benchmark records (using 'Name' instead of 'Fund Name')
     # Debugging output to check structure
-    st.write(f"Fund data keys: {fund_cy[0].keys() if fund_cy else 'No data'}")
-    st.write(f"Benchmark data keys: {bench_cy[0].keys() if bench_cy else 'No data'}")
+    # st.write(f"Fund data keys: {fund_cy[0].keys() if fund_cy else 'No data'}")
+   #  st.write(f"Benchmark data keys: {bench_cy[0].keys() if bench_cy else 'No data'}")
     
     # 3) Find the selected fund’s record and its benchmark record
     fund_rec = next((r for r in fund_cy if r.get("Name") == choice), None)  # Changed "Fund Name" to "Name"
@@ -1256,8 +1256,6 @@ def step15_display_selected_fund():
     
     # 10) Display the table
     st.dataframe(df_slide3_3, use_container_width=True)
-
-    
 
 
     # === Slide 4 Table 1 ===
@@ -1329,113 +1327,7 @@ def step15_display_selected_fund():
         "Average Market Capitalization":  avg_cap
     }])
     st.dataframe(df_slide5_2, use_container_width=True)
-
-#---------------------------------------------------------------------------------------
     
-    # Step 5: Fund performance mapping
-    st.markdown("**Step 5: Performance Ticker Mapping**")
-    perf = st.session_state.get('fund_performance_data', [])
-    df5 = pd.DataFrame(perf)
-    df5 = df5[df5['Fund Scorecard Name'] == choice]
-    if not df5.empty:
-        st.dataframe(df5, use_container_width=True)
-    else:
-        st.write("_No performance mapping for this fund._")
-
-    # Step 6: Factsheet details
-    st.markdown("**Step 6: Fund Factsheet Details**")
-    facts_df = pd.DataFrame(facts)
-    # filter on Matched Fund Name instead of Parsed Fund Name
-    if 'Matched Fund Name' in facts_df.columns:
-        df6 = facts_df[facts_df['Matched Fund Name'] == choice]
-    else:
-        df6 = pd.DataFrame()
-
-    if not df6.empty:
-        st.dataframe(df6, use_container_width=True)
-    else:
-        st.write("_No factsheet data for this fund._")
-
-    # Step 7: Annualized returns & expense
-    st.markdown("**Step 7: Annualized Returns / Expense**")
-    perf_data = st.session_state.get('fund_performance_data', [])
-    df7 = pd.DataFrame(perf_data)
-    df7 = df7[df7['Fund Scorecard Name'] == choice]
-    if not df7.empty:
-        st.dataframe(df7.set_index('Fund Scorecard Name'), use_container_width=True)
-    else:
-        st.write("_No return data for this fund._")
-
-    # Step 8.5: Calendar Year Returns
-    st.markdown("**Step 8.5: Calendar Year Returns**")
-    cy = st.session_state.get('step8_returns', [])
-    df8 = pd.DataFrame(cy)
-    df8 = df8[df8['Fund Name'] == choice]
-    if not df8.empty:
-        st.dataframe(df8.set_index('Fund Name'), use_container_width=True)
-    else:
-        st.write("_No calendar year returns for this fund._")
-
-    # Step 9.5: 3Yr MPT
-    st.markdown("**Step 9.5: MPT Statistics (3Yr)**")
-    mpt3 = st.session_state.get('step9_mpt_stats', [])
-    df9 = pd.DataFrame(mpt3)
-    df9 = df9[df9['Fund Name'] == choice]
-    if not df9.empty:
-        st.dataframe(df9.set_index('Fund Name'), use_container_width=True)
-    else:
-        st.write("_No 3Yr MPT stats for this fund._")
-
-    # Step 10.5: 5Yr MPT
-    st.markdown("**Step 10.5: MPT Statistics (5Yr)**")
-    mpt5 = st.session_state.get('step10_mpt_stats', [])
-    df10 = pd.DataFrame(mpt5)
-    df10 = df10[df10['Fund Name'] == choice]
-    if not df10.empty:
-        st.dataframe(df10.set_index('Fund Name'), use_container_width=True)
-    else:
-        st.write("_No 5Yr MPT stats for this fund._")
-
-    # Step 11: Combined MPT Summary
-    st.markdown("**Step 11: Combined MPT Summary**")
-    sum11 = st.session_state.get('step11_summary', [])
-    df11 = pd.DataFrame(sum11)
-    df11 = df11[df11['Investment Manager'].str.contains(choice)] if not df11.empty else df11
-    if not df11.empty:
-        st.dataframe(df11, use_container_width=True)
-    else:
-        st.write("_No combined MPT summary for this fund._")
-
-    # Step 12: Fund Facts Table
-    st.markdown("**Step 12: Fund Facts Table**")
-    facts12 = st.session_state.get('step12_fund_facts_table', [])
-    df12 = pd.DataFrame(facts12)
-    df12 = df12[df12['Fund Name'] == choice]
-    if not df12.empty:
-        st.dataframe(df12.set_index('Fund Name'), use_container_width=True)
-    else:
-        st.write("_No fund facts for this fund._")
-
-    # Step 13: Risk-Adjusted Returns
-    st.markdown("**Step 13: Risk-Adjusted Returns**")
-    risk13 = st.session_state.get('step13_risk_adjusted_table', [])
-    df13 = pd.DataFrame(risk13)
-    df13 = df13[df13['Fund Name'] == choice]
-    if not df13.empty:
-        st.dataframe(df13.set_index('Fund Name'), use_container_width=True)
-    else:
-        st.write("_No risk-adjusted returns for this fund._")
-
-    # Step 14: Peer Risk-Adjusted Return Rank
-    st.markdown("**Step 14: Peer Risk-Adjusted Return Rank**")
-    peer14 = st.session_state.get('step14_peer_rank_table', [])
-    df14 = pd.DataFrame(peer14)
-    df14 = df14[df14['Fund Name'] == choice]
-    if not df14.empty:
-        st.dataframe(df14.set_index('Fund Name'), use_container_width=True)
-    else:
-        st.write("_No peer rank data for this fund._")
-
 
 #-------------------------------------------------------------------------------------------
 
