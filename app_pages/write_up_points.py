@@ -1245,8 +1245,8 @@ def step15_display_selected_fund():
         row_fund[year] = fund_rec.get(year, "")
     rows.append(row_fund)
     
-    # 8) Add the benchmark's data
-    row_benchmark = {"Investment Manager": "Benchmark"}
+    # 8) Add the benchmark's data, using the benchmark's name (or fallback)
+    row_benchmark = {"Investment Manager": f"{bench_rec.get('Name', 'Benchmark')} ({bench_rec.get('Ticker', '')})"}
     for year in year_cols:
         row_benchmark[year] = bench_rec.get(year, "")
     rows.append(row_benchmark)
@@ -1256,6 +1256,7 @@ def step15_display_selected_fund():
     
     # 10) Display the table
     st.dataframe(df_slide3_3, use_container_width=True)
+
     
 
 
