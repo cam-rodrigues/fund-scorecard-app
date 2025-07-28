@@ -1329,8 +1329,6 @@ def load_template():
     return prs
 
 # Function to add formatted title to a slide
-from pptx.util import Inches, Pt
-from pptx.dml.color import RGBColor
 
 def add_title_to_slide(slide, title, category=None):
     title_shape = slide.shapes.title
@@ -1344,9 +1342,10 @@ def add_title_to_slide(slide, title, category=None):
             run.font.size = Pt(19.4)
             run.font.color.rgb = RGBColor(33, 43, 88)  # #212b58
 
-    # Adjust the title position (move the title to the top-left corner)
-    title_shape.top = Inches(0.5)  # Position the title 0.5 inches from the top
-    title_shape.left = Inches(0.5)  # Position the title 0.5 inches from the left
+    # Adjust the title position to be at the top left corner, no rotation
+    title_shape.top = Inches(0.5)  # Position title 0.5 inches from the top
+    title_shape.left = Inches(0.5)  # Position title 0.5 inches from the left
+    title_shape.rotation = 0  # Remove any rotation
 
     # Add a line under the title
     left = Inches(0.5)
@@ -1358,7 +1357,6 @@ def add_title_to_slide(slide, title, category=None):
         left, top, width, height
     )
     line.line.color.rgb = RGBColor(33, 43, 88)  # #212b58 (same as title color)
-
 
 # Function to generate the PowerPoint with titles only
 def generate_ppt_with_titles(category="General"):
