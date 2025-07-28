@@ -1281,7 +1281,7 @@ def step15_display_selected_fund():
     # build Investment Manager label with ticker
     perf_data = st.session_state.get("fund_performance_data", [])
     perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == selected_fund), {})
-    inv_mgr   = f"{choice} ({perf_item.get('Ticker','')})"
+    inv_mgr   = f"{selected_fund} ({perf_item.get('Ticker','')})"
 
     # assemble and display
     df_slide5 = pd.DataFrame([{
