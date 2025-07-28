@@ -1019,7 +1019,8 @@ def step13_process_risk_adjusted_returns(pdf):
     st.session_state["step13_risk_adjusted_table"] = records
     df = pd.DataFrame(records)
     st.dataframe(df, use_container_width=True)
-
+    
+# === Step 14: Extract Peer Risk‑Adjusted Return Rank ===
 def step14_extract_peer_risk_adjusted_return_rank(pdf):
     import re
     import streamlit as st
@@ -1093,6 +1094,64 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
     st.session_state["step14_peer_rank_table"] = records
     st.dataframe(df, use_container_width=True)
 
+
+# === Step 15: Display ===
+def step15_display_selected_fund():
+    import streamlit as st
+    import pandas as pd
+
+    st.subheader("Step 15: View Single Fund Details")
+
+    # Pull the list of funds from the last completed step
+    peer = st.session_state.get("step14_peer_rank_table", [])
+    if not peer:
+        st.info("Run Steps 1–14 first to populate data, then come back here.")
+        return
+
+    fund_names = [r["Fund Name"] for r in peer]
+    fund_choice = st.selectbox("Select a fund to view all details:", fund_names)
+
+    # mapping of session_state keys → labels to display
+    steps = {
+        "step1_page1_data": "Step 1: Page 1 Extraction",
+        "step2_toc_entries": "Step 2: Table of Contents",
+        "step3_scorecard_data": "Step 3: Scorecard Extraction",
+        "step4_ips_results": "Step 4: IPS Screening",
+        "step5_performance_data": "Step 5: Fund Performance",
+        "step6_factsheets_data": "Step 6: Fund Factsheets",
+        "step7_annual_returns": "Step 7: Annualized Returns",
+        "step8_5_calendar_returns": "Step 8.5: Calendar Year Returns",
+        "step9_5_mpt3yr": "Step 9.5: MPT Statistics (3Yr)",
+        "step10_5_mpt5yr": "Step 10.5: MPT Statistics (5Yr)",
+        "step11_mpt_summary": "Step 11: Combined MPT Summary",
+        "step12_fund_facts": "Step 12: Fund Facts",
+        "step13_risk_adjusted_returns": "Step 13: Risk‑Adjusted Returns",
+        "step14_peer_rank_table": "Step 14: Peer Risk‑Adjusted Return Rank",
+    }
+
+    def lookup_and_display(key, label):
+        data = st.session_state.get(key, [])
+        # convert to DataFrame if necessary, then filter
+        if isinstance(data, list):
+            df = pd.DataFrame(data)
+        else:
+            df = data.copy()
+        if "Fund Name" in df.columns:
+            df = df[df["Fund Name"] == fund_choice]
+        # show only if there’s something to show
+        if not df.empty:
+            with st.expander(label, expanded=True):
+                st.dataframe(df, use_container_width=True)
+        else:
+            # you can comment this out if you prefer silence over empty tables
+            st.write(f"_{label}_: no data for {fund_choice}.")
+
+    # loop through and display
+    for key, label in steps.items():
+        lookup_and_display(key, label)
+
+# In your main run(), call it last:
+step15_display_selected_fund()
 
 #-------------------------------------------------------------------------------------------
 
@@ -1185,6 +1244,9 @@ def run():
         with st.expander("Step 14: Find 'PEER RISK‑ADJUSTED RETURN RANK' Subheading", expanded=False):
             step14_extract_peer_risk_adjusted_return_rank(pdf)
 
+        # Step 15: View Single Fund Details
+        with st.expander("Step 15: View Single Fund Details", expanded=False):
+            step15_display_selected_fund()
 
 if __name__ == "__main__":
     run()
