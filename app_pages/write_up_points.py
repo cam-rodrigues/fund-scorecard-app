@@ -1151,7 +1151,7 @@ def step15_display_selected_fund():
         lookup_and_display(key, label)
 
 # In your main run(), call it last:
-step15_display_selected_fund()
+
 
 #-------------------------------------------------------------------------------------------
 
