@@ -1020,7 +1020,6 @@ def step13_process_risk_adjusted_returns(pdf):
     df = pd.DataFrame(records)
     st.dataframe(df, use_container_width=True)
 
-# === Step 14: Extract Peer Risk‑Adjusted Return Ranks ===
 def step14_extract_peer_risk_adjusted_return_rank(pdf):
     import re
     import streamlit as st
@@ -1094,80 +1093,9 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
     st.session_state["step14_peer_rank_table"] = records
     st.dataframe(df, use_container_width=True)
 
-#-------------------------------------------------------------------------------------------
-#=== Step 15: Selected Funds ===
-def step15_display_selected_fund():
-    import streamlit as st
-    import pandas as pd
-
-    st.subheader("Step 15: View Single Fund Details")
-
-    # 1) Gather list of fund names from one of the step tables
-    #    (we assume every step writes a list/dict keyed by fund name into session_state)
-    peer = st.session_state.get("step14_peer_rank_table", [])
-    if not peer:
-        st.error("❌ Run through Step 14 first to populate data.")
-        return
-
-    fund_names = [r["Fund Name"] for r in peer]
-    fund_choice = st.selectbox("Select a fund:", fund_names)
-
-    # 2) helper to filter a table/list of dicts by Fund Name
-    def lookup(key):
-        tbl = st.session_state.get(key, [])
-        if isinstance(tbl, pd.DataFrame):
-            df = tbl
-        else:
-            df = pd.DataFrame(tbl)
-        if "Fund Name" in df.columns:
-            return df[df["Fund Name"] == fund_choice]
-        return df  # fallback
-
-    # 3) Display each step’s data for the chosen fund
-    st.markdown("**Page 1 extraction:**")
-    st.write(lookup("step1_page1_data"))
-
-    st.markdown("**Table of Contents (Step 2):**")
-    st.write(lookup("step2_toc_entries"))
-
-    st.markdown("**Scorecard (Step 3):**")
-    st.write(lookup("step3_scorecard_data"))
-
-    st.markdown("**IPS Screening (Step 4):**")
-    st.write(lookup("step4_ips_results"))
-
-    st.markdown("**Fund Performance (Step 5):**")
-    st.write(lookup("step5_performance_data"))
-
-    st.markdown("**Fund Factsheets (Step 6):**")
-    st.write(lookup("step6_factsheets_data"))
-
-    st.markdown("**Annualized Returns (Step 7):**")
-    st.write(lookup("step7_annual_returns"))
-
-    st.markdown("**Calendar Year Returns (Step 8.5):**")
-    st.write(lookup("step8_5_calendar_returns"))
-
-    st.markdown("**MPT Statistics (3Yr & 5Yr) (Steps 9.5 & 10.5):**")
-    st.write(lookup("step9_5_mpt3yr"))
-    st.write(lookup("step10_5_mpt5yr"))
-
-    st.markdown("**Combined MPT Summary (Step 11):**")
-    st.write(lookup("step11_mpt_summary"))
-
-    st.markdown("**Fund Facts (Step 12):**")
-    st.write(lookup("step12_fund_facts"))
-
-    st.markdown("**Risk‑Adjusted Returns (Step 13):**")
-    st.write(lookup("step13_risk_adjusted_returns"))
-
-    st.markdown("**Peer Risk‑Adjusted Return Rank (Step 14):**")
-    st.write(lookup("step14_peer_rank_table"))
-
-# --- In your main app runner, call it:
-step15_display_selected_fund()
 
 #-------------------------------------------------------------------------------------------
+
 # === Main App ===
 def run():
     st.title("Writeup")
@@ -1250,17 +1178,13 @@ def run():
             step12_process_fund_facts(pdf)
 
         # Step 13: Risk Adjusted Returns
-        with st.expander("Step 13: Risk‑Adjusted Returns", expanded=False):
+        with st.expander("Step 13: Find 'RISK‑ADJUSTED RETURNS' Subheading", expanded=False):
             step13_process_risk_adjusted_returns(pdf)
 
         # Step 14: Peer Risk-Adjusted Return Rank
-        with st.expander("Step 14: Peer Risk‑Adjusted Return Rank", expanded=False):
+        with st.expander("Step 14: Find 'PEER RISK‑ADJUSTED RETURN RANK' Subheading", expanded=False):
             step14_extract_peer_risk_adjusted_return_rank(pdf)
 
-        # Step 15
-        with st.expander("Step 15: Display Selected Fund", expanded=False):
-            step15_display_selected_fund(pdf)
 
 if __name__ == "__main__":
     run()
-
