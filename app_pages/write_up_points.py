@@ -501,105 +501,150 @@ def step7_extract_returns(pdf):
     )
 
 
-# === Step 8: Calendar Year Performance & Returns ===
-def step8_calendar_performance(pdf):
-    import re, pandas as pd, streamlit as st
+# === Step 8: Match Tickers in “Calendar Year Performance” Section ===
+def step8_match_calendar_tickers(pdf):
+    import streamlit as st
 
-    st.subheader("Step 8: Calendar Year Performance")
-
-    # 1) Match tickers in the “Calendar Year Performance” section
-    fund_map = st.session_state.get("tickers", {})
-    if not fund_map:
-        st.error("❌ No ticker mapping found. Run Step 5 first.")
-        return
-
-    section_page = st.session_state.get("calendar_year_page")
-    if section_page is None:
-        st.error("❌ Could not find 'Fund Performance: Calendar Year' in the TOC.")
+    fund_map5   = st.session_state.get("tickers", {})
+    section_pg  = st.session_state.get("calendar_year_page")
+    if not fund_map5 or section_pg is None:
         return
 
     found, locs = {}, {}
-    total = len(fund_map)
-    # scan pages until every ticker is located
-    for pnum in range(section_page, len(pdf.pages) + 1):
+    total       = len(fund_map5)
+
+    # Scan forward until we've seen every ticker
+    for pnum in range(section_pg, len(pdf.pages) + 1):
         lines = (pdf.pages[pnum-1].extract_text() or "").splitlines()
-        for i, ln in enumerate(lines):
+        for li, ln in enumerate(lines):
             tokens = ln.split()
-            for name, tk in fund_map.items():
+            for name, tk in fund_map5.items():
                 if name in found:
                     continue
                 if tk.upper() in tokens:
                     found[name] = tk.upper()
-                    locs[name]  = {"page": pnum, "line": i}
+                    locs[name]  = {"page": pnum, "line": li}
         if len(found) == total:
             break
 
+    # Store quietly for Step 8.5
     st.session_state["step8_tickers"]   = found
     st.session_state["step8_locations"] = locs
-    st.session_state["step8_start_page"] = section_page
+    st.session_state["step8_start_page"] = section_pg
 
-    st.markdown("**Extracted Tickers & Locations**")
-    for name in fund_map:
-        if name in found:
-            info = locs[name]
-            st.write(f"- {name}: {found[name]} (page {info['page']}, line {info['line']+1}) ✅")
-        else:
-            st.write(f"- {name}: ❌ not found")
-    st.write(f"Expected: **{total}**, Found: **{len(found)}**")
-    if len(found) == total:
-        st.success("✅ All tickers located.")
-    else:
-        st.error(f"❌ Missing {total - len(found)} ticker(s).")
 
-    # 2) Extract calendar‑year returns and benchmarks
-    # find header row to identify which years
-    header_line = None
-    for pnum in range(section_page-1, len(pdf.pages)):
-        for ln in (pdf.pages[pnum].extract_text() or "").splitlines():
-            if "Ticker" in ln and re.search(r"\b20(1[5-9]|2[0-4])\b", ln):
-                header_line = ln
-                break
-        if header_line:
-            break
-    if not header_line:
-        st.error("❌ Couldn’t find header row with year labels.")
+# === Step 8.5: Extract Calendar Year Returns (Funds) ===
+def step8_5_extract_calendar_returns(pdf):
+    import re, pandas as pd, streamlit as st
+
+    st.subheader("Fund Calendar Year Returns")
+
+    tickers_map = st.session_state.get("step8_tickers", {})
+    start_pg    = st.session_state.get("step8_start_page", 1)
+    if not tickers_map:
+        st.error("⚠️ Run Step 8 first to map tickers.")
         return
 
-    years = re.findall(r"\b20(1[5-9]|2[0-4])\b", header_line)
-    years = [f"20{y}" for y in years]
-    n = len(years)
+    # Find header row for years
+    header = None
+    for pnum in range(start_pg-1, len(pdf.pages)):
+        for ln in (pdf.pages[pnum].extract_text() or "").splitlines():
+            if "Ticker" in ln and re.search(r"20(1[5-9]|2[0-4])", ln):
+                header = ln
+                break
+        if header:
+            break
+
+    if not header:
+        st.error("❌ Can't locate calendar‑year header.")
+        return
+
+    years = re.findall(r"\b20(1[5-9]|2[0-4])\b", header)
+    years = ["20" + y for y in years]
+    n     = len(years)
     num_rx = re.compile(r"\(?-?\d+\.\d+%?\)?")
 
     rows = []
-    for name, ticker in found.items():
-        info = locs[name]
-        page_lines = (pdf.pages[info["page"]-1].extract_text() or "").splitlines()
-        idx = info["line"]
+    for name, tk in tickers_map.items():
+        tk    = tk.upper()
+        vals  = None
 
-        # fund returns: try line above, then two above if needed
-        raw = num_rx.findall(page_lines[idx-1]) if idx > 0 else []
-        if len(raw) < n and idx > 1:
-            raw = num_rx.findall(page_lines[idx-2])
-        fund_vals = [t.strip("()%") for t in raw] + [None]*(n - len(raw))
+        # scan forward for the fund's line
+        for pnum in range(start_pg-1, len(pdf.pages)):
+            lines = (pdf.pages[pnum].extract_text() or "").splitlines()
+            idx   = next((i for i, ln in enumerate(lines) if tk in ln.split()), None)
+            if idx is not None:
+                raw   = num_rx.findall(lines[idx-1] if idx>0 else "")
+                clean = [v.strip("()%").rstrip("%") for v in raw]
+                if len(clean) < n:
+                    clean += [None]*(n-len(clean))
+                vals = clean[:n]
+                break
 
-        # benchmark returns: single line below the ticker line
-        bench_vals = [None]*n
-        if idx + 1 < len(page_lines):
-            rawb = num_rx.findall(page_lines[idx+1])
-            bench_vals = [t.strip("()%") for t in rawb] + [None]*(n - len(rawb))
+        if vals is None:
+            vals = [None]*n
 
-        # assemble row
-        row = {"Fund Name": name, "Ticker": ticker}
-        for i, yr in enumerate(years):
-            row[yr]                = fund_vals[i]
-            row[f"Benchmark {yr}"] = bench_vals[i]
+        row = {"Fund Name": name, "Ticker": tk}
+        for i, y in enumerate(years):
+            row[y] = vals[i]
         rows.append(row)
 
-    # display calendar‑year returns table
-    st.markdown("**Calendar Year Returns**")
     df = pd.DataFrame(rows)
-    st.session_state["step8_calendar_year_data"] = rows
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df.set_index("Fund Name"), use_container_width=True)
+
+
+# === Benchmark Calendar Year Annualized Returns ===
+def benchmarkcal(pdf):
+    import re, pandas as pd, streamlit as st
+
+    st.subheader("Benchmark Calendar Year Returns")
+
+    cy_page = st.session_state.get("calendar_year_page")
+    if cy_page is None:
+        st.error("❌ 'Calendar Year' page not in TOC.")
+        return
+
+    all_lines = []
+    for p in pdf.pages[cy_page-1:cy_page+2]:
+        txt = p.extract_text() or ""
+        all_lines.extend(txt.splitlines())
+
+    # match any line that looks like a benchmark (no wrapped lines)
+    pattern = re.compile(
+        r"^(?P<name>[\w\s]+)\s+" +
+        r"(?P<r15>-?\d+\.\d+)%?\s+" +
+        r"(?P<r16>-?\d+\.\d+)%?\s+" +
+        r"(?P<r17>-?\d+\.\d+)%?\s+" +
+        r"(?P<r18>-?\d+\.\d+)%?\s+" +
+        r"(?P<r19>-?\d+\.\d+)%?\s+" +
+        r"(?P<r20>-?\d+\.\d+)%?\s+" +
+        r"(?P<r21>-?\d+\.\d+)%?\s+" +
+        r"(?P<r22>-?\d+\.\d+)%?\s+" +
+        r"(?P<r23>-?\d+\.\d+)%?\s+" +
+        r"(?P<r24>-?\d+\.\d+)%?$"
+    )
+
+    rows = []
+    for ln in all_lines:
+        m = pattern.match(ln.strip())
+        if not m:
+            continue
+        data = m.groupdict()
+        row = {"Benchmark": data.pop("name")}
+        # reassemble year columns 2015–2024
+        for year in range(2015, 2025):
+            key = f"r{str(year)[2:]}"
+            row[str(year)] = data.get(key)
+        rows.append(row)
+
+    if not rows:
+        st.error("❌ No benchmark data found.")
+        return
+
+    df = pd.DataFrame(rows)
+    st.dataframe(df.set_index("Benchmark"), use_container_width=True)
+
+
 
 # === Step 9: Match Tickers in the Risk Analysis (3Yr) Section ===
 def step9_match_risk_tickers(pdf):
@@ -1073,38 +1118,38 @@ def step15_display_selected_fund():
     import pandas as pd
     import streamlit as st
 
-    st.subheader("Step 15: View Single Fund Details")
+    st.subheader("Step 15: View Single Fund Details")
     # — ensure prior data exists —
     facts = st.session_state.get("fund_factsheets_data", [])
     if not facts:
-        st.info("Run Steps 1–14 to populate data before viewing fund details.")
+        st.info("Run Steps 1–14 to populate data before viewing fund details.")
         return
 
     # — select a fund —
     fund_names = [f["Matched Fund Name"] for f in facts]
     choice     = st.selectbox("Select a fund to view details:", fund_names)
 
-    # === Step 1: Page 1 Metadata ===
-    st.markdown("**Step 1: Page 1 Metadata**")
+    # === Step 1: Page 1 Metadata ===
+    st.markdown("**Step 1: Page 1 Metadata**")
     st.write(f"- Report Date:   {st.session_state.get('report_date','N/A')}")
     st.write(f"- Total Options: {st.session_state.get('total_options','N/A')}")
     st.write(f"- Prepared For:  {st.session_state.get('prepared_for','N/A')}")
     st.write(f"- Prepared By:   {st.session_state.get('prepared_by','N/A')}")
 
-    # === Step 2: Table of Contents Pages ===
-    st.markdown("**Step 2: Table of Contents Pages**")
+    # === Step 2: Table of Contents Pages ===
+    st.markdown("**Step 2: Table of Contents Pages**")
     for key,label in [
         ("performance_page","Fund Performance Current vs Proposed"),
         ("calendar_year_page","Fund Performance Calendar Year"),
-        ("r3yr_page","MPT 3Yr Risk Analysis"),
-        ("r5yr_page","MPT 5Yr Risk Analysis"),
+        ("r3yr_page","MPT 3Yr Risk Analysis"),
+        ("r5yr_page","MPT 5Yr Risk Analysis"),
         ("scorecard_page","Fund Scorecard"),
         ("factsheets_page","Fund Factsheets")
     ]:
         st.write(f"- {label}: {st.session_state.get(key,'N/A')}")
 
-    # === Step 3: Scorecard Details ===
-    st.markdown("**Step 3: Scorecard Details**")
+    # === Step 3: Scorecard Details ===
+    st.markdown("**Step 3: Scorecard Details**")
     blocks = st.session_state.get("fund_blocks", [])
     block  = next((b for b in blocks if b["Fund Name"]==choice), None)
     if block:
@@ -1113,8 +1158,8 @@ def step15_display_selected_fund():
     else:
         st.write("_No scorecard data found._")
 
-    # === Slide 1 Table ===
-    st.markdown("**Slide 1 Table**")
+    # === Slide 1 Table ===
+    st.markdown("**Slide 1 Table**")
 
     # 1) Category from factsheet
     fs_rec   = next(f for f in facts if f["Matched Fund Name"]==choice)
@@ -1178,8 +1223,8 @@ def step15_display_selected_fund():
 
     st.dataframe(styled, use_container_width=True)
 
-    # === Slide 3 Table 1 ===
-    st.markdown("**Slide 3 Table 1**")
+    # === Slide 3 Table 1 ===
+    st.markdown("**Slide 3 Table 1**")
     # grab performance data for the selected fund
     perf_data = st.session_state.get("fund_performance_data", [])
     perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == choice), {})
@@ -1196,8 +1241,8 @@ def step15_display_selected_fund():
     }])
     st.dataframe(df_slide3, use_container_width=True)
 
-    # === Slide 3 Table 2 ===
-    st.markdown("**Slide 3 Table 2**")
+    # === Slide 3 Table 2 ===
+    st.markdown("**Slide 3 Table 2**")
     # grab the annualized returns for the selected fund
     perf_data = st.session_state.get("fund_performance_data", [])
     perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name")==choice), {})
@@ -1232,8 +1277,8 @@ def step15_display_selected_fund():
 
 
 
-    # === Slide 4 Table 1 ===
-    st.markdown("**Slide 4 Table 1**")
+    # === Slide 4 Table 1 ===
+    st.markdown("**Slide 4 Table 1**")
     # grab 3‑Yr MPT stats
     mpt3 = st.session_state.get("step9_mpt_stats", [])
     stats3 = next((r for r in mpt3 if r["Fund Name"] == choice), {})
@@ -1258,8 +1303,8 @@ def step15_display_selected_fund():
     df_slide4_1 = pd.DataFrame([row])
     st.dataframe(df_slide4_1, use_container_width=True)
 
-    # === Slide 5 Table 1 ===
-    st.markdown("**Slide 5 Table 1**")
+    # === Slide 5 Table 1 ===
+    st.markdown("**Slide 5 Table 1**")
     # grab the scorecard metrics for the selected fund
     blocks      = st.session_state.get("fund_blocks", [])
     block       = next((b for b in blocks if b["Fund Name"] == choice), {})
@@ -1281,8 +1326,8 @@ def step15_display_selected_fund():
     }])
     st.dataframe(df_slide5, use_container_width=True)
 
-    # === Slide 5 Table 2 ===
-    st.markdown("**Slide 5 Table 2**")
+    # === Slide 5 Table 2 ===
+    st.markdown("**Slide 5 Table 2**")
     # grab factsheet details for the selected fund
     facts = st.session_state.get("fund_factsheets_data", [])
     fs_rec = next((f for f in facts if f["Matched Fund Name"] == choice), {})
@@ -1460,9 +1505,14 @@ def run():
         with st.expander("Step 7: Extract Annualized Returns", expanded=False):
             step7_extract_returns(pdf)
         
-        # Step 8: Match Tickers in Calendar Year Section
-        with st.expander("Step 8: Match Tickers in Calendar Year Section", expanded=False):
-            step8_calendar_performance(pdf)
+        # Step 8: Calendar Year Section
+        with st.expander("Step 8: Calendar Year Returns", expanded=False):
+            # quietly map tickers
+            step8_match_calendar_tickers(pdf)
+            # show fund returns
+            step8_5_extract_calendar_returns(pdf)
+            # show benchmark returns
+            benchmarkcal(pdf)
 
         # Step 9: Match Tickers
         with st.expander("Step 9: Match Tickers in Risk Analysis (3Yr)", expanded=False):
@@ -1496,10 +1546,13 @@ def run():
         with st.expander("Step 14: Peer Risk-Adjusted Return Rank", expanded=False):
             step14_extract_peer_risk_adjusted_return_rank(pdf)
 
-        # Step 15: View Single Fund Details
-        with st.expander("Step 15: View Single Fund Details", expanded=False):
+        # Step 15: View Single Fund Details
+        with st.expander("Step 15: View Single Fund Details", expanded=False):
             step15_display_selected_fund()
 
 
 if __name__ == "__main__":
     run()
+
+
+
