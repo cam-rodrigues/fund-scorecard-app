@@ -1299,7 +1299,27 @@ def step15_display_selected_fund():
         "Average Market Capitalization":  avg_cap
     }])
     st.dataframe(df_slide5_2, use_container_width=True)
-    
+
+
+# ── Bullet Points Section ─────────────────────────────────────────────────────────────────
+
+with st.expander("Bullet Points", expanded=False):
+    perf_data = st.session_state.get("fund_performance_data", [])
+    if not perf_data:
+        st.error("❌ No performance data found. Run Step 7 first.")
+    else:
+        sel = st.selectbox(
+            "Select Fund for Bullet Points",
+            [itm["Fund Scorecard Name"] for itm in perf_data],
+            key="bullet_fund_select"
+        )
+        item = next(x for x in perf_data if x["Fund Scorecard Name"] == sel)
+        templates = st.session_state["bullet_point_templates"]
+        for tpl in templates:
+            filled = tpl
+            for field, val in item.items():
+                filled = filled.replace(f"[{field}]", str(val))
+            st.markdown(f"- {filled}")
 
 #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
@@ -1310,6 +1330,15 @@ def run():
     if not uploaded:
         return
 
+    # ── Initialize your bullet‑point templates once per session ──
+    st.session_state.setdefault(
+        "bullet_point_templates",
+        [
+            "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], "
+            "[Year] by [QTD_bps_diff] bps ([QTD_pct_diff])."
+        ],
+    )
+    
     with pdfplumber.open(uploaded) as pdf:
         # Step 1
         with st.expander("Step 1: Details", expanded=False):
@@ -1351,6 +1380,21 @@ def run():
         # Step 7
         with st.expander("Step 7: Annualized Returns", expanded=False):
             step7_extract_returns(pdf)
+
+        # ── Data Prep for Bullet Points ───────────────────────────────────────────────
+        report_date = st.session_state.get("report_date", "")
+        m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
+        quarter = m.group(1) if m else ""
+        year    = m.group(2) if m else ""
+        for itm in st.session_state["fund_performance_data"]:
+            qtd       = float(itm.get("QTD") or 0)
+            bench_qtd = float(itm.get("Bench QTD") or 0)
+            itm["Perf Direction"] = "overperformed" if qtd >= bench_qtd else "underperformed"
+            itm["Quarter"], itm["Year"] = quarter, year
+            bps_diff = round((qtd - bench_qtd) * 100, 1)
+            itm["QTD_bps_diff"] = str(bps_diff)
+            itm["QTD_pct_diff"] = f"{(qtd - bench_qtd):.2f}%"
+        # ───────────────────────────────────────────────────────────────────────────────
         
         # Step 8: Calendar Year Section
         with st.expander("Step 8: Calendar Year Returns", expanded=False):
@@ -1384,6 +1428,32 @@ def run():
         with st.expander("Step 15: Single Fund Details", expanded=False):
             step15_display_selected_fund()
 
+        # ─── Bullet Points Section ───────────────────────────────────────────────
+        with st.expander("Bullet Points", expanded=False):
+            perf_data = st.session_state.get("fund_performance_data", [])
+            if not perf_data:
+                st.error("❌ No performance data found. Run Step 7 first.")
+            else:
+                sel = st.selectbox(
+                    "Select Fund for Bullet Points",
+                    [itm["Fund Scorecard Name"] for itm in perf_data],
+                    key="bullet_fund_select"
+                )
+                item = next(x for x in perf_data if x["Fund Scorecard Name"] == sel)
+
+                templates = st.session_state.get("bullet_point_templates", [])
+                if not templates:
+                    st.info(
+                        "No bullet‑point templates defined. "
+                        "Add them to session_state['bullet_point_templates']."
+                    )
+                else:
+                    for tpl in templates:
+                        filled = tpl
+                        for field, val in item.items():
+                            filled = filled.replace(f"[{field}]", str(val))
+                        st.markdown(f"- {filled}")
+                        
 
 if __name__ == "__main__":
     run()
