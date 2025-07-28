@@ -1384,14 +1384,25 @@ def run():
         m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
         quarter = m.group(1) if m else ""
         year    = m.group(2) if m else ""
+
         for itm in st.session_state["fund_performance_data"]:
             qtd       = float(itm.get("QTD") or 0)
             bench_qtd = float(itm.get("Bench QTD") or 0)
             itm["Perf Direction"] = "overperformed" if qtd >= bench_qtd else "underperformed"
             itm["Quarter"], itm["Year"] = quarter, year
-            bps_diff = round((qtd - bench_qtd) * 100, 1)
-            itm["QTD_bps_diff"] = str(bps_diff)
+            itm["QTD_bps_diff"] = str(round((qtd - bench_qtd)*100, 1))
+            fund_pct  = f"{qtd:.2f}%"
+            bench_pct = f"{bench_qtd:.2f}%"
             itm["QTD_pct_diff"] = f"{(qtd - bench_qtd):.2f}%"
+            itm["QTD_vs"] = f"{fund_pct} vs. {bench_pct}"
+
+        # Initialize your template exactly once
+        if "bullet_point_templates" not in st.session_state:
+            st.session_state["bullet_point_templates"] = [
+                "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], "
+                "[Year] by [QTD_bps_diff] bps ([QTD_vs])."
+            ]
+
         # ───────────────────────────────────────────────────────────────────────────────
         
         # Step 8: Calendar Year Section
@@ -1438,19 +1449,11 @@ def run():
                     key="bullet_fund_select"
                 )
                 item = next(x for x in perf_data if x["Fund Scorecard Name"] == sel)
-
-                templates = st.session_state.get("bullet_point_templates", [])
-                if not templates:
-                    st.info(
-                        "No bullet‑point templates defined. "
-                        "Add them to session_state['bullet_point_templates']."
-                    )
-                else:
-                    for tpl in templates:
-                        filled = tpl
-                        for field, val in item.items():
-                            filled = filled.replace(f"[{field}]", str(val))
-                        st.markdown(f"- {filled}")
+                for tpl in st.session_state["bullet_point_templates"]:
+                    filled = tpl
+                    for field, val in item.items():
+                        filled = filled.replace(f"[{field}]", str(val))
+                    st.markdown(f"- {filled}")
                         
 
 if __name__ == "__main__":
