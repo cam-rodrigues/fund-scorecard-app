@@ -1209,40 +1209,33 @@ def step15_display_selected_fund():
     bench_cy = st.session_state.get("benchmark_calendar_year_returns", [])
     
     # 2) Find the selected fund’s record and its benchmark record
-    fund_rec = next((r for r in fund_cy if r["Name"] == choice), {})
-    bench_rec = next((r for r in bench_cy if r["Ticker"] == fund_rec.get("Ticker")), {})
+    fund_rec = next((r for r in fund_cy if r["Fund Name"] == choice), {})
+    bench_rec = next((r for r in bench_cy if r["Fund Name"] == choice), {})
     
-    # 3) Build the Investment Manager label (Fund Name with Ticker)
-    inv_mgr = f"{choice} ({fund_rec.get('Ticker','')})"
+    # 3) Get the years from the calendar year columns
+    year_cols = [col for col in fund_rec.keys() if re.match(r"20\d{2}", col)]
     
-    # 4) Prepare the table rows for the selected fund, its replacement funds, and the benchmark
-    year_cols = [c for c in fund_rec.keys() if re.match(r"20\d{2}", c)]  # Extract the year columns
-    replacement_funds = [
-        # Add your replacement fund names here
-    ]
-    
-    # Build the rows
+    # 4) Prepare the rows for the selected fund and benchmark
     rows = []
-    row_fund = {"Investment Manager": inv_mgr}
+    
+    # 5) Add the selected fund's data
+    row_fund = {"Investment Manager": f"{choice} ({fund_rec.get('Ticker','')})"}
+    for year in year_cols:
+        row_fund[year] = fund_rec.get(year, "")
+    rows.append(row_fund)
+    
+    # 6) Add the benchmark's data
     row_benchmark = {"Investment Manager": "Benchmark"}
-    for yr in year_cols:
-        row_fund[yr] = fund_rec.get(yr, "")
-        row_benchmark[yr] = bench_rec.get(yr, "")
-    
-    # Add the rows for each replacement fund
-    for replacement in replacement_funds:
-        row_replacement = {"Investment Manager": replacement}
-        for yr in year_cols:
-            row_replacement[yr] = fund_rec.get(yr, "")  # Assuming replacements have similar data to the selected fund
-        rows.append(row_replacement)
-    
-    # Add the fund and benchmark rows to the list
-    rows.insert(0, row_fund)
+    for year in year_cols:
+        row_benchmark[year] = bench_rec.get(year, "")
     rows.append(row_benchmark)
     
-    # Create and display the table
+    # 7) Create a DataFrame for the table
     df_slide3_3 = pd.DataFrame(rows, columns=["Investment Manager"] + year_cols)
+    
+    # 8) Display the table
     st.dataframe(df_slide3_3, use_container_width=True)
+
 
 
     # === Slide 4 Table 1 ===
