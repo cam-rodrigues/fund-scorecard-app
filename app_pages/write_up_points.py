@@ -509,8 +509,6 @@ def step7_extract_returns(pdf):
         use_container_width=True
     )
 
-
-
 #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 # === Step 8 Calendar Year Returns (funds + benchmarks) ===
@@ -1503,8 +1501,6 @@ def run():
                     st.markdown(f"- {action}")
             else:
                 st.error("❌ No fund selected. Please select a fund from Step 15.")
-
-
         #––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 if __name__ == "__main__":
