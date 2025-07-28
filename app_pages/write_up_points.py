@@ -1711,7 +1711,7 @@ def run():
 
         if st.button("Export to PowerPoint"):
             if selected_fund:
-                ppt_stream = generate_watchlist_slide(selected_fund)  # Updated function without df_summary
+                ppt_stream = generate_watchlist_slide(selected_fund)  # Pass selected_fund here
                 output = BytesIO()
                 ppt_stream.save(output)
     
