@@ -1462,14 +1462,7 @@ def run():
         
         # Step 8: Match Tickers in Calendar Year Section
         with st.expander("Step 8: Match Tickers in Calendar Year Section", expanded=False):
-            step8_match_calendar_tickers(pdf)
-
-        # Step 8.5: Calendar Year Returns (fund + benchmark)
-        with st.expander("Step 8.5: Extract Calendar Year Returns", expanded=False):
-            # fund returns
-            step8_5_extract_calendar_returns(pdf)
-            # benchmark returns
-            benchmarkcal(pdf)
+            step8_calendar_performance(pdf)
 
         # Step 9: Match Tickers
         with st.expander("Step 9: Match Tickers in Risk Analysis (3Yr)", expanded=False):
