@@ -653,13 +653,6 @@ def benchmarkcal(pdf):
     st.dataframe(df2, use_container_width=True)
 
 
-# === in your Main App ===
-with st.expander("Step 8: Calendar Year Returns", expanded=False):
-    step8_match_calendar_tickers(pdf)      # hidden mapping
-    step8_5_extract_calendar_returns(pdf)  # fund returns table
-    benchmarkcal(pdf)                      # benchmark returns table
-
-
 # === Step 9: Match Tickers in the Risk Analysis (3Yr) Section ===
 def step9_match_risk_tickers(pdf):
     import re, streamlit as st
