@@ -18,7 +18,9 @@ def extract_report_date(text):
         # fallback: human‐readable
         return f"As of {month_name[m]} {d}, {year}"
     return None
-    
+
+#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
 # === Step 1 & 1.5: Page 1 Extraction ===
 def process_page1(text):
     report_date = extract_report_date(text)
@@ -80,7 +82,7 @@ def process_toc(text):
     st.session_state['r3yr_page'] = r3yr_page
     st.session_state['r5yr_page'] = r5yr_page
 
-
+#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 # === Step 3 ===
 def step3_process_scorecard(pdf, start_page, declared_total):
@@ -141,6 +143,8 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         st.success("✅ Counts match.")
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
+
+#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 # === Step 4: IPS Screening ===
 def step4_ips_screen():
@@ -229,6 +233,7 @@ def step4_ips_screen():
             sym = "✅" if statuses.get(m,False) else "❌"
             st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
 
+#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 # === Step 5: Fund Performance Section Extraction (with fallback) ===
 def step5_process_performance(pdf, start_page, fund_names):
@@ -313,7 +318,7 @@ def extract_field(text: str, label: str, stop_at: str = None) -> str:
     except ValueError:
         return ""
 
-
+#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 # === Step 6: Fund Factsheets ===
 def step6_process_factsheets(pdf, fund_names):
@@ -402,6 +407,8 @@ def step6_process_factsheets(pdf, fund_names):
             st.success(f"All {matched_count} funds matched the declared Total Options from Page 1.")
         else:
             st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
+
+#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 # === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr & Net Expense Ratio ===
 def step7_extract_returns(pdf):
@@ -500,8 +507,9 @@ def step7_extract_returns(pdf):
         use_container_width=True
     )
 
+#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
-# === Step 8 & 8.5: Calendar Year Returns (funds + benchmarks) ===
+# === Step 8 Calendar Year Returns (funds + benchmarks) ===
 def step8_calendar_returns(pdf):
     import re, streamlit as st, pandas as pd
 
@@ -572,106 +580,75 @@ def step8_calendar_returns(pdf):
     else:
         st.warning("No benchmark returns extracted.")
 
-# === Step 9: Match Tickers in the Risk Analysis (3Yr) Section ===
-def step9_match_risk_tickers(pdf):
-    import re, streamlit as st
+#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
-    st.subheader("Step 9: Match Tickers in Risk Analysis (3Yr)")
+# === Step 9: 3‑Yr Risk Analysis – Match Tickers & Extract MPT Stats ===
+def step9_risk_analysis_3yr(pdf):
+    import re, streamlit as st, pandas as pd
+    from rapidfuzz import fuzz
 
-    # 1) your original fund→ticker map from Step 5
+    st.subheader("Step 9: Risk Analysis (3Yr) – Match Tickers & Extract MPT Stats")
+
+    # 1) Get your fund→ticker map
     fund_map = st.session_state.get("tickers", {})
     if not fund_map:
         st.error("❌ No ticker mapping found. Run Step 5 first.")
         return
 
-    # 2) locate the start page of “Risk Analysis: MPT Statistics (3Yr)”
-    section_page = st.session_state.get("r3yr_page")
-    if not section_page:
+    # 2) Locate the “Risk Analysis: MPT Statistics (3Yr)” page
+    start_page = st.session_state.get("r3yr_page")
+    if not start_page:
         st.error("❌ ‘Risk Analysis: MPT Statistics (3Yr)’ page not found; run Step 2 first.")
         return
 
-    # 3) scan from that page forward until all tickers are found
-    found, locs = {}, {}
-    total = len(fund_map)
-    for pnum in range(section_page, len(pdf.pages) + 1):
+    # 3) Scan forward until you’ve seen each ticker
+    locs = {}
+    for pnum in range(start_page, len(pdf.pages) + 1):
         lines = (pdf.pages[pnum-1].extract_text() or "").splitlines()
         for li, ln in enumerate(lines):
             tokens = ln.split()
             for fname, tk in fund_map.items():
-                if fname in found:
+                if fname in locs: 
                     continue
                 if tk.upper() in tokens:
-                    found[fname] = tk.upper()
-                    locs[fname]  = {"page": pnum, "line": li}
-        if len(found) == total:
+                    locs[fname] = {"page": pnum, "line": li}
+        if len(locs) == len(fund_map):
             break
 
-    # 4) save & report
-    st.session_state["step9_tickers"]   = found
-    st.session_state["step9_locations"] = locs
-    st.session_state["step9_start_page"] = section_page
-
-    st.subheader("Extracted Tickers & Locations (Step 9)")
+    # 4) Report who you found
+    st.subheader("Ticker Locations")
     for name in fund_map:
-        if name in found:
+        if name in locs:
             info = locs[name]
-            st.write(f"- {name}: {found[name]} (page {info['page']}, line {info['line']+1}) ✅")
+            st.write(f"- {name}: {fund_map[name].upper()} @ page {info['page']}, line {info['line']+1} ✅")
         else:
             st.write(f"- {name}: ❌ not found")
 
-    st.subheader("Ticker Count Validation")
-    st.write(f"- Expected: **{total}**")
-    st.write(f"- Found:    **{len(found)}**")
-    if len(found) == total:
-        st.success("✅ All tickers found.")
-    else:
-        st.error(f"❌ Missing {total - len(found)} ticker(s).")
-
-
-# === Step 9.5: Extract 3‑Yr MPT Statistics (renamed columns) ===
-def step9_extract_mpt_statistics(pdf):
-    import re, pandas as pd, streamlit as st
-
-    st.subheader("Step 9.5: Extract MPT Statistics (3Yr)")
-
-    # 1) Load the mapping & locations from Step 9
-    tickers = st.session_state.get("step9_tickers", {})
-    locs    = st.session_state.get("step9_locations", {})
-    if not tickers or not locs:
-        st.error("❌ Missing Step 9 data. Run Step 9 first.")
-        return
-
-    # 2) Regex to grab floats
+    # 5) Extract the first four numeric MPT stats from that same line
     num_rx = re.compile(r"-?\d+\.\d+")
-
     results = []
-    for name, ticker in tickers.items():
-        info = locs.get(name)
-        if not info:
-            continue
-        page = pdf.pages[info["page"] - 1]
+    for name, info in locs.items():
+        page = pdf.pages[info["page"]-1]
         lines = (page.extract_text() or "").splitlines()
-        line = lines[info["line"]] if info["line"] < len(lines) else ""
-
-        # 3) Pull the first four numeric tokens from that line
+        line = lines[info["line"]]
         nums = num_rx.findall(line)
         nums += [None] * (4 - len(nums))
-        alpha, beta, up_mkt, down_mkt = nums[:4]
-
+        alpha, beta, up, down = nums[:4]
         results.append({
-            "Fund Name":                name,
-            "Ticker":                   ticker.upper(),
-            "3 Year Alpha":             alpha,
-            "3 Year Beta":              beta,
-            "3 Year Upside Capture":    up_mkt,
-            "3 Year Downside Capture":  down_mkt
+            "Fund Name":               name,
+            "Ticker":                  fund_map[name].upper(),
+            "3 Year Alpha":            alpha,
+            "3 Year Beta":             beta,
+            "3 Year Upside Capture":   up,
+            "3 Year Downside Capture": down
         })
 
-    # 4) Render
+    st.subheader("3‑Yr MPT Statistics")
     df = pd.DataFrame(results)
     st.session_state["step9_mpt_stats"] = results
-    st.dataframe(df)
+    st.dataframe(df, use_container_width=True)
 
+#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 # === Step 10: Match Tickers in Risk Analysis (5Yr) Section ===
 def step10_match_risk_tickers(pdf):
@@ -784,6 +761,8 @@ def step10_extract_mpt_statistics(pdf):
     st.session_state["step10_mpt_stats"] = results
     st.dataframe(df)
 
+#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
 # === Step 11: Combined MPT Statistics Summary ===
 def step11_create_summary(pdf=None):
     import pandas as pd
@@ -830,6 +809,8 @@ def step11_create_summary(pdf=None):
     # 6) Display
     st.session_state["step11_summary"] = df.to_dict("records")
     st.dataframe(df)
+
+#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 # === Step 12: Extract “FUND FACTS” & Its Table Details in One Go ===
 def step12_process_fund_facts(pdf):
@@ -895,6 +876,7 @@ def step12_process_fund_facts(pdf):
     df = pd.DataFrame(records)
     st.dataframe(df, use_container_width=True)
 
+#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 # === Step 13: Extract Risk‑Adjusted Returns Metrics ===
 def step13_process_risk_adjusted_returns(pdf):
@@ -964,6 +946,9 @@ def step13_process_risk_adjusted_returns(pdf):
     df = pd.DataFrame(records)
     st.dataframe(df, use_container_width=True)
 
+#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+# == Step 14: Peer Risk-Adjusted Return Rank ==
 def step14_extract_peer_risk_adjusted_return_rank(pdf):
     import re
     import streamlit as st
@@ -1037,7 +1022,7 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
     st.session_state["step14_peer_rank_table"] = records
     st.dataframe(df, use_container_width=True)
 
-#--------------------------------------------------------------------------------------------
+#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 # == Step 15 ==
 def step15_display_selected_fund():
     import re
@@ -1362,7 +1347,7 @@ def step15_display_selected_fund():
     st.dataframe(df_slide5_2, use_container_width=True)
     
 
-#-------------------------------------------------------------------------------------------
+#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 # === Main App ===
 def run():
@@ -1419,11 +1404,7 @@ def run():
 
         # Step 9: Match Tickers
         with st.expander("Step 9: Match Tickers in Risk Analysis (3Yr)", expanded=False):
-            step9_match_risk_tickers(pdf)
-
-        # Step 9.5: Extract MPT Statistics (3Yr)
-        with st.expander("Step 9.5: Extract MPT Statistics (3Yr)", expanded=False):
-            step9_extract_mpt_statistics(pdf)
+            step9_risk_analysis_3yr(pdf)
 
         # Step 10: Match Tickers
         with st.expander("Step 10: Match Tickers in Risk Analysis (5Yr)", expanded=False):
