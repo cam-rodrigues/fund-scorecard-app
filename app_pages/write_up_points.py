@@ -1175,7 +1175,7 @@ def step15_display_selected_fund():
         return
     
     # 4) Try to match the benchmark data using Name or Ticker
-    benchmark_name = choice  # Assume benchmark matches the fund's name, we can refine this logic if needed
+    benchmark_name = selected_fund  # Assume benchmark matches the fund's name, we can refine this logic if needed
     bench_rec = next((r for r in bench_cy if r.get("Name") == benchmark_name or r.get("Ticker") == fund_rec.get("Ticker")), None)
     
     # If benchmark record is not found
