@@ -1634,8 +1634,7 @@ def step17_export_to_ppt_headings():
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-    # inside step17_export_to_ppt_headings(), after Slide 1…
-
+    # — Slide 2: Expense & Return —  
     if len(prs.slides) > 1:
         slide2 = prs.slides[1]
         import pandas as pd, re
@@ -1643,25 +1642,64 @@ def step17_export_to_ppt_headings():
         from pptx.util import Inches, Pt
         from pptx.dml.color import RGBColor
 
-        # … build df1, df2, df3 exactly as before …
+        # 1) Build the three DataFrames
 
-        # helper (identical to your last version) …
+        # df1: Net Expense Ratio
+        perf_data = st.session_state["fund_performance_data"]
+        perf_item = next(p for p in perf_data if p["Fund Scorecard Name"] == selected)
+        inv_mgr   = f"{selected} ({perf_item['Ticker']})"
+        net_exp   = perf_item["Net Expense Ratio"]
+        if net_exp and not str(net_exp).endswith("%"):
+            net_exp = f"{net_exp}%"
+        df1 = pd.DataFrame([{
+            "Investment Manager": inv_mgr,
+            "Net Expense Ratio":  net_exp
+        }])
+
+        # df2: QTD / 1Yr / 3Yr / 5Yr / 10Yr
+        date_label = st.session_state["report_date"]
+        def _pct(v):
+            return f"{v}%" if v and not str(v).endswith("%") else (v or "")
+        df2 = pd.DataFrame([{
+            "Investment Manager": inv_mgr,
+            date_label:           _pct(perf_item.get("QTD")),
+            "1 Year":             _pct(perf_item.get("1Yr")),
+            "3 Year":             _pct(perf_item.get("3Yr")),
+            "5 Year":             _pct(perf_item.get("5Yr")),
+            "10 Year":            _pct(perf_item.get("10Yr")),
+        }])
+
+        # df3: Last 10 calendar‑year returns
+        fund_cy  = st.session_state["step8_returns"]
+        bench_cy = st.session_state["benchmark_calendar_year_returns"]
+        fund_rec = next(r for r in fund_cy  if r["Name"] == selected)
+        bench_rec= next(r for r in bench_cy if r["Name"] == selected or r["Ticker"] == fund_rec["Ticker"])
+        years    = sorted([c for c in fund_rec if re.match(r"20\\d{2}", c)], reverse=True)[:10]
+        rows3 = [
+            {"Investment Manager": inv_mgr, **{y: fund_rec[y]   for y in years}},
+            {"Investment Manager": f"{bench_rec['Name']} ({bench_rec['Ticker']})",
+             **{y: bench_rec[y] for y in years}}
+        ]
+        df3 = pd.DataFrame(rows3, columns=["Investment Manager"] + years)
+
+        # 2) Helper to draw and style a table
         def draw_table(slide, df, left, top, width, height, col_widths):
             tbl = slide.shapes.add_table(len(df)+1, len(df.columns),
                                          Inches(left), Inches(top),
                                          Inches(width), Inches(height)).table
-            # columns
+            # set column widths
             for i, w in enumerate(col_widths):
                 tbl.columns[i].width = Inches(w)
-            # header
+            # header row
             for c, name in enumerate(df.columns):
                 cell = tbl.cell(0, c)
                 cell.text = name
                 cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(33,43,88)
                 p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-                run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.bold=True
+                run = p.runs[0]
+                run.font.name = "Cambria"; run.font.size = Pt(12); run.font.bold = True
                 run.font.color.rgb = RGBColor(255,255,255)
-            # body
+            # body rows
             for r in range(len(df)):
                 for c, _ in enumerate(df.columns):
                     cell = tbl.cell(r+1, c)
@@ -1669,46 +1707,41 @@ def step17_export_to_ppt_headings():
                     if r % 2 == 0:
                         cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(240,245,255)
                     p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-                    run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.color.rgb = RGBColor(0,0,0)
+                    run = p.runs[0]; run.font.name = "Cambria"; run.font.size = Pt(12); run.font.color.rgb = RGBColor(0,0,0)
 
-        # layout constants
+        # 3) Compute layout in inches
         slide_w_in = prs.slide_width / Inches(1)
-        left_m     = 0.5
-        right_m    = 0.5
-        gap        = 0.2
-        usable     = slide_w_in - left_m - right_m - gap
-        half_w     = usable / 2
-        top_y      = 1.0
-        small_h    = 1.2
+        left_m, right_m, gap = 0.5, 0.5, 0.2
+        usable = slide_w_in - left_m - right_m - gap
+        half   = usable / 2
+        top_y  = 1.0
+        small_h= 1.2
+        bot_top= top_y + small_h + 0.3
+        bot_h  = 2.0
 
-        # draw first two tables with identical top & height
+        # 4) Draw the two top tables side by side
         draw_table(
             slide2, df1,
             left_m, top_y,
-            half_w, small_h,
-            col_widths=[2.0, half_w-2.0]
+            half, small_h,
+            col_widths=[2.0, half-2.0]
         )
         draw_table(
             slide2, df2,
-            left_m+half_w+gap, top_y,
-            half_w, small_h,
-            col_widths=[2.0] + [(half_w-2.0)/5]*5
+            left_m + half + gap, top_y,
+            half, small_h,
+            col_widths=[2.0] + [(half-2.0)/5]*5
         )
 
-        # then draw the bottom table lower down
-        bot_top = top_y + small_h + 0.3
-        bot_h   = 2.0
+        # 5) Draw the bottom table full‑width
         first_w = 2.5
-        rem_w   = (usable - first_w) / (len(df3.columns)-1)
-
+        rem     = (usable - first_w) / (len(df3.columns)-1)
         draw_table(
             slide2, df3,
             left_m, bot_top,
             usable, bot_h,
-            col_widths=[first_w] + [rem_w]*(len(df3.columns)-1)
+            col_widths=[first_w] + [rem] * (len(df3.columns)-1)
         )
-
-
 
     # ── Download button ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     buf = BytesIO(); prs.save(buf); buf.seek(0)
