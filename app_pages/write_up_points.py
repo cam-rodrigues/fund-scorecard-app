@@ -1454,17 +1454,34 @@ def step17_export_to_ppt_headings():
     set_or_add_title(prs.slides[2], f"{category} – Risk Adjusted Statistics")
     set_or_add_title(prs.slides[3], f"{category} – Qualitative Factors")
 
-    # 5) Save and offer download
+    # 5) Add subheader on Slide 1 with the fund’s name
+    slide1 = prs.slides[0]
+    # Position just under the main title
+    left = Inches(0.5)
+    top  = Inches(1.3)
+    width = prs.slide_width - Inches(1.0)
+    height = Inches(0.4)
+    sub = slide1.shapes.add_textbox(left, top, width, height)
+    sf = sub.text_frame.paragraphs[0]
+    sf.text = selected
+    run = sf.runs[0]
+    run.font.name = "Cambria"
+    run.font.size = Pt(12)
+    run.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
+    run.font.bold = True
+    run.font.underline = True
+    sf.alignment = 1  # centered
+
+    # ─── Save and offer download ────────────────────────────────────────────────────────────────────────────────────────────────
     buf = BytesIO()
     prs.save(buf)
     buf.seek(0)
     st.download_button(
-        label="Download PPTX with Styled Headings",
+        label="Download PPTX with Styled Headings & Subheader",
         data=buf,
         file_name=f"{selected.replace(' ','_')}_headings.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
     )
-
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
