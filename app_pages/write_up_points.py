@@ -1458,9 +1458,13 @@ def slide_1_table(df, selected_fund):
     return prs
 
 # ────────────────────────────────────────────────────────────────────────────────
-# ── Main App ─────
 def run():
     import re
+    from io import BytesIO
+    import pandas as pd
+    import streamlit as st
+    import pdfplumber
+
     st.title("Writeup")
 
     # ── Initialize session_state keys ───────────────────────────────────────────
@@ -1474,159 +1478,155 @@ def run():
             "[Year] by [QTD_bps_diff] bps ([QTD_vs])."
         ]
     # ────────────────────────────────────────────────────────────────────────────
+
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
-    # ────────────────────────────────────────────────────────────────────────────
-    
+
     with pdfplumber.open(uploaded) as pdf:
-        # Step 1
-        with st.expander("Step 1: Details", expanded=False):
-            first = pdf.pages[0].extract_text() or ""
-            process_page1(first)
-
-        # Step 2
-        with st.expander("Step 2: Table of Contents", expanded=False):
-            toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
-            process_toc(toc_text)
-
-        # Step 3
-        with st.expander("Step 3: Scorecard Metrics", expanded=False):
-            sp = st.session_state.get('scorecard_page')
-            tot = st.session_state.get('total_options')
+        # Steps 1–7
+        with st.expander("Step 1: Details", expanded=False):
+            process_page1(pdf.pages[0].extract_text() or "")
+        with st.expander("Step 2: Table of Contents", expanded=False):
+            toc = "".join(pdf.pages[i].extract_text() or "" for i in range(min(3, len(pdf.pages))))
+            process_toc(toc)
+        with st.expander("Step 3: Scorecard Metrics", expanded=False):
+            sp = st.session_state.get("scorecard_page")
+            tot = st.session_state.get("total_options")
             if sp and tot is not None:
                 step3_process_scorecard(pdf, sp, tot)
             else:
                 st.error("Missing scorecard page or total options")
-
-        # Step 4
-        with st.expander("Step 4: IPS Screening", expanded=False):
+        with st.expander("Step 4: IPS Screening", expanded=False):
             step4_ips_screen()
-
-        # Step 5
-        with st.expander("Step 5: Fund Performance", expanded=False):
-            pp = st.session_state.get('performance_page')
-            names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
+        with st.expander("Step 5: Fund Performance", expanded=False):
+            pp = st.session_state.get("performance_page")
+            names = [b["Fund Name"] for b in st.session_state.get("fund_blocks", [])]
             if pp and names:
                 step5_process_performance(pdf, pp, names)
             else:
                 st.error("Missing performance page or fund blocks")
-
-        # Step 6
-        with st.expander("Step 6: Fund Factsheets", expanded=True):
-            names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
+        with st.expander("Step 6: Fund Factsheets", expanded=True):
+            names = [b["Fund Name"] for b in st.session_state.get("fund_blocks", [])]
             step6_process_factsheets(pdf, names)
-
-        # Step 7
-        with st.expander("Step 7: Annualized Returns", expanded=False):
+        with st.expander("Step 7: Annualized Returns", expanded=False):
             step7_extract_returns(pdf)
 
-        # ── Data Prep for Bullet Points ───────────────────────────────────────────
+        # ── Prep for bullets ─────────────────────────────────────────────────────
         report_date = st.session_state.get("report_date", "")
         m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
         quarter = m.group(1) if m else ""
-        year = m.group(2) if m else ""
+        year    = m.group(2) if m else ""
 
         for itm in st.session_state.get("fund_performance_data", []):
             qtd = float(itm.get("QTD") or 0)
-            bench_qtd = float(itm.get("Bench QTD") or 0)
-            itm["Perf Direction"] = "overperformed" if qtd >= bench_qtd else "underperformed"
+            bq  = float(itm.get("Bench QTD") or 0)
+            itm["Perf Direction"] = "overperformed" if qtd >= bq else "underperformed"
             itm["Quarter"], itm["Year"] = quarter, year
-            itm["QTD_bps_diff"] = str(round((qtd - bench_qtd) * 100, 1))
-            fund_pct = f"{qtd:.2f}%"
-            bench_pct = f"{bench_qtd:.2f}%"
-            itm["QTD_vs"] = f"{fund_pct} vs. {bench_pct}"
-        # ───────────────────────────────────────────────────────────────────────────────
-        
-        # Step 8: Calendar Year Section
+            itm["QTD_bps_diff"] = str(round((qtd - bq)*100,1))
+            itm["QTD_vs"] = f"{qtd:.2f}% vs. {bq:.2f}%"
+        # ────────────────────────────────────────────────────────────────────────────
+
+        # Steps 8–15
         with st.expander("Step 8: Calendar Year Returns", expanded=False):
             step8_calendar_returns(pdf)
-
-        # Step 9: Match Tickers
-        with st.expander("Step 9: Risk Analysis (3Yr)", expanded=False):
+        with st.expander("Step 9: Risk Analysis (3Yr)", expanded=False):
             step9_risk_analysis_3yr(pdf)
-
-        # Step 10: Match Tickers
-        with st.expander("Step 10: Risk Analysis (5Yr)", expanded=False):
+        with st.expander("Step 10: Risk Analysis (5Yr)", expanded=False):
             step10_risk_analysis_5yr(pdf)
-
-        # Step 11: MPT Statistics Summary
-        with st.expander("Step 11: MPT Statistics Summary", expanded=False):
+        with st.expander("Step 11: MPT Statistics Summary", expanded=False):
             step11_create_summary()
-            
-        # Step 12: Find Factsheet Sub‑Headings
-        with st.expander("Step 12: Fund Facts ", expanded=False):
+        with st.expander("Step 12: Fund Facts", expanded=False):
             step12_process_fund_facts(pdf)
-
-        # Step 13: Risk Adjusted Returns
-        with st.expander("Step 13: Risk-Adjusted Returns", expanded=False):
+        with st.expander("Step 13: Risk‑Adjusted Returns", expanded=False):
             step13_process_risk_adjusted_returns(pdf)
-
-        # Step 14: Peer Risk-Adjusted Return Rank
-        with st.expander("Step 14: Peer Risk-Adjusted Return Rank", expanded=False):
+        with st.expander("Step 14: Peer Risk‑Adjusted Return Rank", expanded=False):
             step14_extract_peer_risk_adjusted_return_rank(pdf)
-
-        # Step 15: View Single Fund Details
-        with st.expander("Step 15: Single Fund Details", expanded=False):
+        with st.expander("Step 15: Single Fund Details", expanded=False):
             step15_display_selected_fund()
-                    
+
         # ── Bullet Points ─────────────────────────────────────────────────────────
         selected_fund = st.session_state.get("selected_fund")
         with st.expander("Bullet Points", expanded=False):
             if not selected_fund:
-                st.error("❌ No fund selected. Please select one in Step 15.")
+                st.error("❌ No fund selected. Please select one in Step 15.")
             else:
                 perf_data = st.session_state.get("fund_performance_data", [])
-                item = next(
-                    (x for x in perf_data if x["Fund Scorecard Name"] == selected_fund),
-                    None,
-                )
+                item = next((x for x in perf_data if x["Fund Scorecard Name"]==selected_fund), None)
                 if not item:
                     st.error("No performance data for selected fund.")
                 else:
-                    # 1st bullet
-                    template = st.session_state["bullet_point_templates"][0]
-                    filled = template
-                    for field, val in item.items():
-                        filled = filled.replace(f"[{field}]", str(val))
+                    tpl = st.session_state["bullet_point_templates"][0]
+                    filled = tpl
+                    for fld, val in item.items():
+                        filled = filled.replace(f"[{fld}]", str(val))
                     st.markdown(f"- {filled}")
 
-                    # 2nd & 3rd bullets
-                    status = item.get("IPS Status", "")
-                    if status == "Passed IPS Screen":
+                    status = item.get("IPS Status","")
+                    if status=="Passed IPS Screen":
                         st.markdown("- The Fund passed the IPS Screening.")
                     else:
-                        # (Your existing custom logic to calculate bps and peer ranks)
-                        st.markdown(f"- The fund is now on {status}. [custom performance/risk bullet].")
+                        # custom bps & peer‑rank logic…
+                        st.markdown(f"- The fund is now on {status}. [performance/risk details]")
                         if "Formal Watch" in status:
                             st.markdown("- Action: Consider replacing this fund.")
-                
-   # ────────────────────────────────────────────────────────────────────────────────────────────────────
-        # ── PowerPoint Export ─────────────────────────────────────────────────────
-        # Build slide_1_df once we have everything
-        if selected_fund and st.session_state["slide_1_df"] is None:
-            # you should construct df_slide1 exactly as you did in your original code
-            df = pd.DataFrame([{
-                "Category":    st.session_state.get("fund_factsheets_data", [{}])[0].get("Category", ""),
-                "Time Period": st.session_state.get("report_date", ""),
-                # Plan Assets if you have it, then criteria 1–11, then "IPS Status"
-            }])
-            st.session_state["slide_1_df"] = df
 
-        # Generate & offer the PPT
+        # ── Build slide_1_df ──────────────────────────────────────────────────────
+        if selected_fund and st.session_state["slide_1_df"] is None:
+            # 1) Factsheet record for category
+            fs = next(
+                (f for f in st.session_state.get("fund_factsheets_data",[])
+                 if f["Matched Fund Name"]==selected_fund),
+                {}
+            )
+            # 2) IPS statuses (re‑use your existing step4 logic here)
+            block = next(
+                (b for b in st.session_state.get("fund_blocks",[])
+                 if b["Fund Name"]==selected_fund),
+                {"Metrics":[]}
+            )
+            IPS = [
+                "Manager Tenure","Excess Performance (3Yr)","R‑Squared (3Yr)",
+                "Peer Return Rank (3Yr)","Sharpe Ratio Rank (3Yr)","Sortino Ratio Rank (3Yr)",
+                "Tracking Error Rank (3Yr)","Excess Performance (5Yr)","R‑Squared (5Yr)",
+                "Peer Return Rank (5Yr)","Sharpe Ratio Rank (5Yr)"
+            ]
+            statuses = {}
+            # Example: Manager Tenure ≥3
+            info = next((m["Info"] for m in block["Metrics"] if m["Metric"]=="Manager Tenure"),"")
+            yrs = float(re.search(r"(\d+\.?\d*)",info).group(1)) if re.search(r"(\d+\.?\d*)",info) else 0
+            statuses["Manager Tenure"] = (yrs>=3)
+            # …repeat for each of the other 10 metrics using your step4 logic…
+            fails = sum(not statuses.get(c,False) for c in IPS)
+            overall = ("Passed IPS Screen" if fails<=4 else
+                       "Informal Watch (IW)" if fails==5 else
+                       "Formal Watch (FW)")
+
+            # 3) Build the row
+            row = {
+                "Fund Name":    selected_fund,
+                "Category":     fs.get("Category",""),
+                "Time Period":  st.session_state.get("report_date",""),
+                "Plan Assets":  "$"
+            }
+            for idx, crit in enumerate(IPS, start=1):
+                row[str(idx)] = statuses.get(crit, False)
+            row["IPS Status"] = overall
+
+            st.session_state["slide_1_df"] = pd.DataFrame([row])
+
+        # ── PowerPoint Export ─────────────────────────────────────────────────────
         if selected_fund and st.session_state["slide_1_df"] is not None:
             ppt = slide_1_table(st.session_state["slide_1_df"], selected_fund)
             st.session_state["slide_1_ppt"] = ppt
-
-            output = BytesIO()
-            ppt.save(output)
+            out = BytesIO()
+            ppt.save(out)
             st.download_button(
                 label="Download PowerPoint Report",
-                data=output.getvalue(),
+                data=out.getvalue(),
                 file_name=f"{selected_fund}_Report.pptx",
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
             )
-    # ──────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     run()
