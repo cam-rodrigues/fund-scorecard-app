@@ -1315,197 +1315,147 @@ def step15_display_selected_fund():
     }])
     st.dataframe(df_slide5_2, use_container_width=True)
 
-# –– Powerpoint ––––––––––––––––––––––––––––––––––––
+# ─── PowerPoint ────────────────────────────────────────────────────────────────────────────
 
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
-from pptx.dml.color import RGBColor  # Make sure this is included
+from pptx.enum.shapes import MSO_SHAPE
+from pptx.dml.color import RGBColor
 from pptx.oxml.xmlchemy import OxmlElement
-
-# Existing functions...
-
-def load_template():
-    # Load the PowerPoint template from the file path in 'assets/template.pptx'
-    template_path = "assets/template.pptx"  # Ensure it's a .pptx file
-    prs = Presentation(template_path)  # Load the template
-    return prs
+import re
 
 def set_cell_border(cell, border_color=RGBColor(0, 0, 0)):
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
     r, g, b = border_color[0], border_color[1], border_color[2]
-    hex_color = "%02X%02X%02X" % (r, g, b)
-    for line in ["a:lnL", "a:lnR", "a:lnT", "a:lnB"]:
-        ln = OxmlElement(line)
+    hex_color = f"{r:02X}{g:02X}{b:02X}"
+    for ln_tag in ("a:lnL", "a:lnR", "a:lnT", "a:lnB"):
+        ln = OxmlElement(ln_tag)
         ln.set("w", "12700")
-        solidFill = OxmlElement("a:solidFill")
-        srgbClr = OxmlElement("a:srgbClr")
-        srgbClr.set("val", hex_color)
-        solidFill.append(srgbClr)
-        ln.append(solidFill)
+        solid = OxmlElement("a:solidFill")
+        clr   = OxmlElement("a:srgbClr")
+        clr.set("val", hex_color)
+        solid.append(clr)
+        ln.append(solid)
         tcPr.append(ln)
 
 def format_quarter(raw):
-    import re
-    raw = str(raw).strip()
-    
-    # Patterns like "Q1: 3/31/2025" or "Q1, 2025"
-    match = re.search(r"Q([1-4])[,:\s-]*(\d{4})?", raw, re.IGNORECASE)
-    if match:
-        qtr, year = match.groups()
-        suffix = {"1": "1st", "2": "2nd", "3": "3rd", "4": "4th"}[qtr]
-        return f"{suffix} QTR {year}" if year else f"{suffix} QTR"
-    
-    return raw  # fallback if it doesn't match
+    raw = str(raw)
+    m = re.search(r"Q([1-4])[,:\s-]*(\d{4})?", raw)
+    if m:
+        q, y = m.groups()
+        suffix = {"1":"1st","2":"2nd","3":"3rd","4":"4th"}[q]
+        return f"{suffix} QTR {y}" if y else f"{suffix} QTR"
+    return raw
 
 def slide_1_table(df, selected_fund):
+    # Create a blank Presentation
     prs = Presentation()
-    blank_slide_layout = prs.slide_layouts[6]  # Layout 6 is typically a blank slide
-    slide = prs.slides.add_slide(blank_slide_layout)
+    blank = prs.slide_layouts[6]
+    slide = prs.slides.add_slide(blank)
 
-    # Manually add left-aligned title textbox to match logo padding
-    title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.5), Inches(6), Inches(0.5))  # left and top = 0.5"
-    title_box.line.fill.background()  # remove outline
-    
-    tf = title_box.text_frame
-    tf.clear()
-    p = tf.paragraphs[0]
-    run = p.add_run()
-    run.text = "Investment Watchlist"  # Change this to "Slide 1 Table"
-    run.font.size = Pt(20)
-    run.font.name = "Helvetica"
-    run.font.color.rgb = RGBColor(33, 43, 88)  # #212b58
+    # Title
+    tb = slide.shapes.add_textbox(Inches(0.5), Inches(0.5), Inches(6), Inches(0.5))
+    tb.line.fill.background()
+    tf = tb.text_frame; tf.clear()
+    p = tf.paragraphs[0]; run = p.add_run()
+    run.text = "Investment Watchlist"
+    run.font.name = "Helvetica"; run.font.size = Pt(20)
+    run.font.color.rgb = RGBColor(33,43,88)
     p.alignment = PP_ALIGN.LEFT
 
-    top = Inches(1.1)
-    subheading = slide.shapes.add_textbox(Inches(0.5), top, Inches(9), Inches(0.3))
-    tf = subheading.text_frame
-    p = tf.paragraphs[0]
-    run = p.add_run()
+    # Subheading with fund name
+    sub = slide.shapes.add_textbox(Inches(0.5), Inches(1.1), Inches(9), Inches(0.3))
+    tf = sub.text_frame; p = tf.paragraphs[0]; run = p.add_run()
     run.text = selected_fund
-    run.font.name = "Cambria"
-    run.font.size = Pt(12)
-    run.font.bold = True
-    run.font.underline = True
-    run.font.color.rgb = RGBColor(0, 0, 0)
+    run.font.name = "Cambria"; run.font.size = Pt(12)
+    run.font.bold = True; run.font.underline = True
+    run.font.color.rgb = RGBColor(0,0,0)
 
-    # Prepare table with fund data
-    matching_rows = df[df["Fund Name"] == selected_fund]
-    rows = len(matching_rows)
+    # Filter the DataFrame
+    matching = df[df["Fund Name"] == selected_fund]
+    rows = len(matching)
     cols = 15
-    col_widths = [1.2, 1.2, 1.2] + [0.4] * 11 + [1]
+    col_widths = [1.2,1.2,1.2] + [0.4]*11 + [1]
 
-    table_top = Inches(1.5)
-    table_left = Inches(0.3)
-    table_width = Inches(9)
-    table_height = Inches(0.25 * (rows + 1))
+    # Add the table
+    left, top = Inches(0.3), Inches(1.5)
+    width, height = Inches(9), Inches(0.25*(rows+1))
+    table = slide.shapes.add_table(rows+1, cols, left, top, width, height).table
 
-    table = slide.shapes.add_table(rows + 1, cols, table_left, table_top, table_width, table_height).table
+    # Set column widths
+    for idx, w in enumerate(col_widths):
+        table.columns[idx].width = Inches(w)
 
-    for i, width in enumerate(col_widths):
-        table.columns[i].width = Inches(width)
-
-    headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
-
-    for col_idx, header in enumerate(headers):
-        cell = table.cell(0, col_idx)
-        cell.text = header
+    # Headers
+    headers = ["Category","Time Period","Plan Assets"] + [str(i) for i in range(1,12)] + ["IPS Status"]
+    for c, h in enumerate(headers):
+        cell = table.cell(0,c)
+        cell.text = h
         set_cell_border(cell)
-        cell.fill.solid()
-        cell.fill.fore_color.rgb = RGBColor(255, 255, 255)
+        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
+        tf = cell.text_frame
+        tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
+        tf.margin_top = tf.margin_bottom = 0
+        p = tf.paragraphs[0]
+        p.font.name = "Cambria"; p.font.size = Pt(12); p.font.bold = True
+        p.font.color.rgb = RGBColor(0,0,0); p.alignment = PP_ALIGN.CENTER
 
-        text_frame = cell.text_frame
-        text_frame.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
-        text_frame.margin_top = 0
-        text_frame.margin_bottom = 0
+    # Populate rows
+    for r_idx, (_, row) in enumerate(matching.iterrows(), start=1):
+        # Collect cell values
+        values = [
+            row.get("Category",""),
+            format_quarter(row.get("Time Period","")),
+            row.get("Plan Assets",""),
+        ] + [row.get(str(i),"") for i in range(1,12)] + [row.get("IPS Status","")]
 
-        p = text_frame.paragraphs[0]
-        p.font.name = "Cambria"
-        p.font.size = Pt(12)
-        p.font.bold = True
-        p.font.color.rgb = RGBColor(0, 0, 0)
-        p.alignment = PP_ALIGN.CENTER
-
-    for row_idx, (_, r) in enumerate(matching_rows.iterrows(), start=1):
-        row_vals = [
-            r.get("Category", ""),
-            format_quarter(r.get("Time Period", "")),
-            r.get("Plan Assets", ""),
-        ] + [r.get(str(i), "") for i in range(1, 12)] + [r.get("IPS Status", "")]
-
-        for col_idx, val in enumerate(row_vals):
-            cell = table.cell(row_idx, col_idx)
+        for c_idx, val in enumerate(values):
+            cell = table.cell(r_idx, c_idx)
             set_cell_border(cell)
-            cell.fill.solid()
-            cell.fill.fore_color.rgb = RGBColor(255, 255, 255)
+            cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
+            tf = cell.text_frame
+            tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
+            tf.margin_top = tf.margin_bottom = 0
+            p = tf.paragraphs[0]
+            p.font.name = "Cambria"; p.font.size = Pt(12)
+            p.font.color.rgb = RGBColor(0,0,0); p.alignment = PP_ALIGN.CENTER
 
-            text_frame = cell.text_frame
-            text_frame.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
-            text_frame.margin_top = 0
-            text_frame.margin_bottom = 0
+            # Boolean icons
+            if val == "Pass" and c_idx < 14:
+                p.text = "✔"; p.font.color.rgb = RGBColor(0,176,80)
+            elif val == "Review" and c_idx < 14:
+                p.text = "✖"; p.font.color.rgb = RGBColor(192,0,0)
 
-            p = text_frame.paragraphs[0]
-            p.font.size = Pt(12)
-            p.font.name = "Cambria"
-            p.font.color.rgb = RGBColor(0, 0, 0)
-            p.alignment = PP_ALIGN.CENTER
-
-            if val == "Pass" and col_idx != 14:
-                p.text = "✔"
-                p.font.color.rgb = RGBColor(0, 176, 80)
-            elif val == "Review" and col_idx != 14:
-                p.text = "✖"
-                p.font.color.rgb = RGBColor(192, 0, 0)
-            elif col_idx == 14:
-                p.text = ""
-                val_str = str(val).strip().lower()
-
-                if val_str == "formal warning":
-                    badge_text = "FW"
-                    badge_color = RGBColor(192, 0, 0)
-                    font_color = RGBColor(255, 255, 255)
-                elif val_str == "informal warning":
-                    badge_text = "IW"
-                    badge_color = RGBColor(255, 165, 0)
-                    font_color = RGBColor(255, 255, 255)
-                elif val_str == "passed ips screen":
-                    badge_text = "✔"
-                    badge_color = RGBColor(0, 176, 80)
-                    font_color = RGBColor(255, 255, 255)
+            # IPS Status badge
+            elif c_idx == 14:
+                text = str(val).lower()
+                if "formal" in text:
+                    badge, color = "FW", RGBColor(192,0,0)
+                elif "informal" in text:
+                    badge, color = "IW", RGBColor(255,165,0)
+                elif "passed" in text:
+                    badge, color = "✔", RGBColor(0,176,80)
                 else:
                     continue
 
-                badge_left = table_left + sum(Inches(w) for w in col_widths[:col_idx]) + Inches(0.3)
-                badge_top = table_top + Inches(0.25 * row_idx) + Inches(0.06)
-
+                # draw badge
+                left_offset = sum(Inches(w) for w in col_widths[:c_idx]) + left + Inches(0.3)
+                top_offset  = top + Inches(0.25*r_idx) + Inches(0.06)
                 shape = slide.shapes.add_shape(
-                    MSO_SHAPE.OVAL,
-                    left=badge_left,
-                    top=badge_top,
-                    width=Inches(0.5),
-                    height=Inches(0.25),
+                    MSO_SHAPE.OVAL, left_offset, top_offset,
+                    Inches(0.5), Inches(0.25)
                 )
-                shape.fill.solid()
-                shape.fill.fore_color.rgb = badge_color
-                shape.line.color.rgb = RGBColor(255, 255, 255)
-
-                tf = shape.text_frame
-                tf.clear()
-                para = tf.paragraphs[0]
-                para.alignment = PP_ALIGN.CENTER
-                run = para.add_run()
-                run.text = badge_text
-                run.font.bold = True
-                run.font.size = Pt(12 if badge_text == "✔" else 11)
-                run.font.color.rgb = font_color
-            else:
-                p.text = str(val)
-
-    st.session_state["slide_1_df"] = df_slide1
+                shape.fill.solid(); shape.fill.fore_color.rgb = color
+                shape.line.color.rgb = RGBColor(255,255,255)
+                tf2 = shape.text_frame; tf2.clear()
+                p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.CENTER
+                r2 = p2.add_run(); r2.text = badge; r2.font.bold = True
+                r2.font.size = Pt(12 if badge == "✔" else 11)
+                r2.font.color.rgb = RGBColor(255,255,255)
 
     return prs
-
 
 # ────────────────────────────────────────────────────────────────────────────────
 # ── Main App ─────
