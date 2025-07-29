@@ -1510,7 +1510,7 @@ def step17_export_to_ppt_headings():
     top     = int(Inches(2.0))
     height  = int(Inches(0.6))
     cols    = 15
-    col_w   = [2.5, 2.0, 1.0] + [0.2]*11 + [1.3]
+    col_w   = [1.2, 1.2, 1.2] + [0.4] * 11 + [1]
     tbl     = slide1.shapes.add_table(2, cols, left, top, table_w, height).table
     for idx, w in enumerate(col_w):
         tbl.columns[idx].width = int(Inches(w))
