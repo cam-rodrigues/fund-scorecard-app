@@ -1400,7 +1400,7 @@ def step17_export_to_ppt_headings():
     from io import BytesIO
     import re
 
-    st.subheader("Step 17: Export to PowerPoint with Bullets")
+    st.subheader("Step 17: Export to PowerPoint")
 
     # — 1) Selected fund & category —
     selected = st.session_state.get("selected_fund")
