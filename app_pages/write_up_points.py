@@ -1388,263 +1388,188 @@ def step16_bullet_points():
         st.markdown("- **Action:** Consider replacing this fund.")
 
 #── Build Powerpoint───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+# === Step 17: Export to PowerPoint with Centered Table & Badges ===
 def step17_export_to_ppt_headings():
     import streamlit as st
     from pptx import Presentation
-    from pptx.util import Inches, Pt
+    from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
+    from pptx.enum.shapes import MSO_SHAPE
     from pptx.dml.color import RGBColor
-    from pptx.enum.text import PP_ALIGN
+    from pptx.util import Inches, Pt
+    from pptx.oxml.xmlchemy import OxmlElement
     from io import BytesIO
-    import re
-    import pandas as pd
 
-    st.subheader("Step 17: Export to PowerPoint Headings")
+    st.subheader("Step 17: Export to PowerPoint with Centered Table & Badges")
 
-    # 1) Ensure a fund is selected
+    # 1) Ensure fund selected
     selected = st.session_state.get("selected_fund")
     if not selected:
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
 
-    # 2) Lookup the category for this fund
+    # 2) Lookup category
     facts = st.session_state.get("fund_factsheets_data", [])
     rec = next((f for f in facts if f["Matched Fund Name"] == selected), None)
-    if not rec:
+    if not rec or not rec.get("Category"):
         st.error(f"❌ Could not find category for '{selected}'.")
         return
-    category = rec.get("Category", "").strip()
-    if not category:
-        st.error(f"❌ Category is empty for '{selected}'.")
-        return
-        
-    #──────── 3) Rebuild the Slide 1 table (same logic as in step 15) ──────────────────────────────────────
-    blocks = st.session_state.get("fund_blocks", [])
-    block = next((b for b in blocks if b["Fund Name"] == selected), {})
-    # Build IPS criteria list
-    IPS = [
-      "Manager Tenure","Excess Performance (3Yr)","R‑Squared (3Yr)",
-      "Peer Return Rank (3Yr)","Sharpe Ratio Rank (3Yr)","Sortino Ratio Rank (3Yr)",
-      "Tracking Error Rank (3Yr)","Excess Performance (5Yr)","R‑Squared (5Yr)",
-      "Peer Return Rank (5Yr)","Sharpe Ratio Rank (5Yr)"
-    ]
-    # Compute statuses
-    statuses = {}
-    info = next((m["Info"] for m in block.get("Metrics", []) if m["Metric"]=="Manager Tenure"), "")
-    yrs = float(re.search(r"(\d+\.?\d*)", info).group(1)) if re.search(r"(\d+\.?\d*)", info) else 0
-    statuses["Manager Tenure"] = yrs >= 3
-    for crit in IPS[1:]:
-        raw = next((m["Info"] for m in block.get("Metrics", []) if m["Metric"].startswith(crit.split()[0])), "")
-        if "Excess Performance" in crit:
-            pct = float(re.search(r"([-+]?\d*\.\d+)%", raw).group(1)) if re.search(r"([-+]?\d*\.\d+)%", raw) else 0
-            statuses[crit] = pct > 0
-        elif "R‑Squared" in crit:
-            statuses[crit] = True
-        else:
-            rk = int(re.search(r"(\d+)", raw).group(1)) if re.search(r"(\d+)", raw) else 999
-            statuses[crit] = rk <= 50
-    fails = sum(not statuses[c] for c in IPS)
-    if   fails <= 4:  overall = "Passed IPS Screen"
-    elif fails == 5:  overall = "Informal Watch (IW)"
-    else:             overall = "Formal Watch (FW)"
-    report_date = st.session_state.get("report_date","")
-    row = {"Category": category, "Time Period": report_date, "Plan Assets": "$"}
-    for idx, crit in enumerate(IPS, start=1):
-        row[str(idx)] = statuses[crit]
-    row["IPS Status"] = overall
-    df_slide1 = pd.DataFrame([row])
-    #────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-    
-    # 3) Load your template
-    template_path = "assets/template.pptx"
+    category = rec["Category"].strip()
+
+    # 3) Load template
     try:
-        prs = Presentation(template_path)
+        prs = Presentation("assets/template.pptx")
     except Exception as e:
-        st.error(f"❌ Could not load template at '{template_path}': {e}")
+        st.error(f"❌ Could not load template: {e}")
         return
 
-    # Helper to set or add a styled title
-    def set_or_add_title(slide, text):
-        # Try placeholder title
-        title_shape = slide.shapes.title
-        if title_shape:
-            tx = title_shape.text_frame.paragraphs[0]
-        else:
-            # Otherwise add a textbox
-            left = Inches(0.5)
-            top  = Inches(0.3)
-            width = prs.slide_width - Inches(1.0)
-            height = Inches(0.7)
-            tx_box = slide.shapes.add_textbox(left, top, width, height)
-            tx = tx_box.text_frame.paragraphs[0]
-
-        # Apply text + styling
-        tx.text = text
-        run = tx.runs[0]
-        run.font.name = "Helvetica"
-        run.font.size = Pt(20)
-        run.font.color.rgb = RGBColor(0x21, 0x2B, 0x58)
-        run.font.bold = True
-        tx.alignment = 1  # centered
-
-    # 4) Update slides 1–4
-    set_or_add_title(prs.slides[0], "Investment Watchlist")
-    set_or_add_title(prs.slides[1], f"{category} – Expense & Return")
-    set_or_add_title(prs.slides[2], f"{category} – Risk Adjusted Statistics")
-    set_or_add_title(prs.slides[3], f"{category} – Qualitative Factors")
-
-    # 5) Add subheader on Slide 1 with the fund’s name, left‑aligned
     slide1 = prs.slides[0]
-    left = Inches(0.5)
-    top  = Inches(1.3)
-    width = prs.slide_width - Inches(1.0)
-    height = Inches(0.4)
+
+    # 4) Styled titles on slides 1–4
+    from pptx.dml.color import RGBColor as _RGB
+    def set_title(slide, text):
+        if slide.shapes.title:
+            tx = slide.shapes.title.text_frame.paragraphs[0]
+        else:
+            left, top = Inches(0.5), Inches(0.3)
+            width, height = prs.slide_width - Inches(1), Inches(0.7)
+            box = slide.shapes.add_textbox(left, top, width, height)
+            tx = box.text_frame.paragraphs[0]
+        tx.text = text
+        r = tx.runs[0]
+        r.font.name = "Helvetica"
+        r.font.size = Pt(20)
+        r.font.bold = True
+        r.font.color.rgb = _RGB(0x21,0x2B,0x58)
+        tx.alignment = PP_ALIGN.LEFT
+
+    set_title(slide1, "Investment Watchlist")
+    if len(prs.slides) > 1: set_title(prs.slides[1], f"{category} – Expense & Return")
+    if len(prs.slides) > 2: set_title(prs.slides[2], f"{category} – Risk Adjusted Statistics")
+    if len(prs.slides) > 3: set_title(prs.slides[3], f"{category} – Qualitative Factors")
+
+    # 5) Subheader on Slide 1
+    left, top = Inches(0.5), Inches(1.3)
+    width, height = prs.slide_width - Inches(1), Inches(0.4)
     sub = slide1.shapes.add_textbox(left, top, width, height)
     sf = sub.text_frame.paragraphs[0]
     sf.text = selected
     run = sf.runs[0]
     run.font.name = "Cambria"
     run.font.size = Pt(12)
-    run.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
     run.font.bold = True
     run.font.underline = True
+    run.font.color.rgb = RGBColor(0,0,0)
     sf.alignment = PP_ALIGN.LEFT
-    
-    # ── Insert the Slide 1 table below the subheader ───────────────────────────────
-    from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
-    from pptx.enum.shapes import MSO_SHAPE
-    from pptx.dml.color import RGBColor
-    from pptx.util import Inches, Pt
-    from pptx.oxml.xmlchemy import OxmlElement
 
-    # helper to draw a thin black border on all sides of a table cell
-    def _set_border(cell, color=RGBColor(0,0,0)):
-        tc = cell._tc
-        tcPr = tc.get_or_add_tcPr()
-        hex_val = "{:02X}{:02X}{:02X}".format(color[0], color[1], color[2])
-        for ln_tag in ("a:lnL","a:lnR","a:lnT","a:lnB"):
-            ln = OxmlElement(ln_tag)
-            lnPr = OxmlElement("a:solidFill")
-            srgb = OxmlElement("a:srgbClr")
-            srgb.set("val", hex_val)
-            lnPr.append(srgb)
-            ln.append(lnPr)
-            tcPr.append(ln)
-
-    # 1) Build the data row dictionary
-    row = {
-        "Category":    category,
-        "Time Period": st.session_state.get("report_date",""),
-        "Plan Assets": "$"
-    }
-    for idx, crit in enumerate(IPS, start=1):
-        row[str(idx)] = statuses[crit]
+    # 6) Build data for Slide 1 Table
+    IPS = [  # same as in Step 15
+      "Manager Tenure","Excess Performance (3Yr)","R‑Squared (3Yr)",
+      "Peer Return Rank (3Yr)","Sharpe Ratio Rank (3Yr)","Sortino Ratio Rank (3Yr)",
+      "Tracking Error Rank (3Yr)","Excess Performance (5Yr)","R‑Squared (5Yr)",
+      "Peer Return Rank (5Yr)","Sharpe Ratio Rank (5Yr)"
+    ]
+    blocks = st.session_state.get("fund_blocks", [])
+    block = next((b for b in blocks if b["Fund Name"] == selected), {})
+    statuses = {}
+    import re
+    info = next((m["Info"] for m in block.get("Metrics",[]) if m["Metric"]=="Manager Tenure"), "")
+    yrs = float(re.search(r"(\d+\.?\d*)",info).group(1)) if re.search(r"(\d+\.?\d*)",info) else 0
+    statuses["Manager Tenure"] = yrs>=3
+    for crit in IPS[1:]:
+        raw = next((m["Info"] for m in block.get("Metrics",[]) if m["Metric"].startswith(crit.split()[0])),"")
+        if "Excess Performance" in crit:
+            pct = float(re.search(r"([-+]?\d*\.\d+)%",raw).group(1)) if re.search(r"([-+]?\d*\.\d+)%",raw) else 0
+            statuses[crit] = pct>0
+        elif "R‑Squared" in crit:
+            statuses[crit] = True
+        else:
+            rk = int(re.search(r"(\d+)",raw).group(1)) if re.search(r"(\d+)",raw) else 999
+            statuses[crit] = rk<=50
+    fails = sum(not statuses[c] for c in IPS)
+    overall = "Passed IPS Screen" if fails<=4 else ("Informal Watch (IW)" if fails==5 else "Formal Watch (FW)")
+    report_date = st.session_state.get("report_date","")
+    row = {"Category":category, "Time Period":report_date, "Plan Assets":"$"}
+    for i,crit in enumerate(IPS,1): row[str(i)] = statuses[crit]
     row["IPS Status"] = overall
 
-    # 2) Add the 2×15 table
-    cols = 15
-    col_w = [1.2, 1.2, 1.2] + [0.4]*11 + [1.0]
-    left   = int(Inches(0.5))
-    top    = int(Inches(1.5))
-    width  = int(Inches(9))
-    height = int(Inches(0.6))
-    tbl = slide1.shapes.add_table(2, cols, left, top, width, height).table
+    # 7) Define border helper
+    def _set_border(cell, color=RGBColor(0,0,0)):
+        tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+        hex_val = "{:02X}{:02X}{:02X}".format(color[0],color[1],color[2])
+        for ln_tag in ("a:lnL","a:lnR","a:lnT","a:lnB"):
+            ln = OxmlElement(ln_tag); lnPr = OxmlElement("a:solidFill")
+            srgb = OxmlElement("a:srgbClr"); srgb.set("val",hex_val)
+            lnPr.append(srgb); ln.append(lnPr); tcPr.append(ln)
 
-    # 3) Set custom column widths
-    for i, w in enumerate(col_w):
-        tbl.columns[i].width = int(Inches(w))
+    # 8) Insert table centered and lowered
+    slide_w = prs.slide_width
+    table_w = int(Inches(9))
+    left    = int((slide_w - table_w)//2)
+    top     = int(Inches(2.0))
+    height  = int(Inches(0.6))
+    cols    = 15
+    col_w   = [1.2,1.2,1.2] + [0.4]*11 + [1.0]
+    tbl = slide1.shapes.add_table(2, cols, left, top, table_w, height).table
+    for i,w in enumerate(col_w): tbl.columns[i].width = int(Inches(w))
 
-    # 4) Prepare headers & values
     headers = ["Category","Time Period","Plan Assets"] + [str(i) for i in range(1,12)] + ["IPS Status"]
-    vals    = [
-        row["Category"],
-        row["Time Period"],
-        row["Plan Assets"],
-    ] + [row[str(i)] for i in range(1,12)] + [row["IPS Status"]]
+    vals    = [row["Category"],row["Time Period"],row["Plan Assets"]] + [row[str(i)] for i in range(1,12)] + [row["IPS Status"]]
 
-    # 5) Populate header row (Cambria 12pt bold, centered)
-    for c, h in enumerate(headers):
-        cell = tbl.cell(0, c)
-        _set_border(cell)
+    # 9) Populate header row
+    for c,h in enumerate(headers):
+        cell = tbl.cell(0,c); _set_border(cell)
         cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
-        tf = cell.text_frame
-        tf.clear()
-        tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
-        tf.margin_top = tf.margin_bottom = 0
-        p = tf.paragraphs[0]
-        run = p.add_run()
-        run.text = h
-        run.font.name = "Cambria"
-        run.font.size = Pt(12)
-        run.font.bold = True
-        run.font.color.rgb = RGBColor(0,0,0)
+        tf = cell.text_frame; tf.clear()
+        tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE; tf.margin_top=tf.margin_bottom=0
+        p = tf.paragraphs[0]; run = p.add_run(); run.text = h
+        run.font.name="Cambria"; run.font.size=Pt(12); run.font.bold=True; run.font.color.rgb=RGBColor(0,0,0)
         p.alignment = PP_ALIGN.CENTER
 
-    # 6) Populate data row (Cambria 12pt regular, centered; ✓/✖ and badge)
-    for c, val in enumerate(vals):
-        cell = tbl.cell(1, c)
-        _set_border(cell)
+    # 10) Populate data row with centered badges
+    badge_size = int(Inches(0.4))
+    for c,val in enumerate(vals):
+        cell = tbl.cell(1,c); _set_border(cell)
         cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
-        tf = cell.text_frame
-        tf.clear()
-        tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
-        tf.margin_top = tf.margin_bottom = 0
-        p = tf.paragraphs[0]
-        p.font.name = "Cambria"
-        p.font.size = Pt(12)
-        p.font.bold = False
+        tf = cell.text_frame; tf.clear()
+        tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE; tf.margin_top=tf.margin_bottom=0
+        p = tf.paragraphs[0]; p.font.name="Cambria"; p.font.size=Pt(12); p.font.bold=False
         p.alignment = PP_ALIGN.CENTER
 
-        if c < 14:
-            # metric columns: ✓ or ✖
+        if c<14:
             if val is True:
-                p.text = "✔"
-                p.runs[0].font.color.rgb = RGBColor(0,176,80)
+                p.text="✔"; p.runs[0].font.color.rgb=RGBColor(0,176,80)
             elif val is False:
-                p.text = "✖"
-                p.runs[0].font.color.rgb = RGBColor(192,0,0)
+                p.text="✖"; p.runs[0].font.color.rgb=RGBColor(192,0,0)
             else:
-                p.text = str(val)
-                p.runs[0].font.color.rgb = RGBColor(0,0,0)
+                p.text=str(val); p.runs[0].font.color.rgb=RGBColor(0,0,0)
         else:
-            # IPS Status badge
-            txt = str(val).lower()
-            badge = None
-            if "formal" in txt:
-                badge, color = "FW", RGBColor(192,0,0)
-            elif "informal" in txt:
-                badge, color = "IW", RGBColor(255,165,0)
-            elif "passed" in txt:
-                badge, color = "✔", RGBColor(0,176,80)
-
+            txt = str(val).lower(); badge=None
+            if "formal" in txt:    badge,color="FW",RGBColor(192,0,0)
+            elif "informal" in txt: badge,color="IW",RGBColor(255,165,0)
+            elif "passed" in txt:   badge,color="✔",RGBColor(0,176,80)
             if badge:
-                # draw colored circle
-                bx = left + sum(int(Inches(w)) for w in col_w[:c]) + int(Inches(0.1))
-                by = top  + int(Inches(0.2))
-                shp = slide1.shapes.add_shape(
-                    MSO_SHAPE.OVAL, bx, by,
-                    int(Inches(0.4)), int(Inches(0.4))
-                )
-                shp.fill.solid(); shp.fill.fore_color.rgb = color
-                shp.line.color.rgb = RGBColor(255,255,255)
-                # add badge text
-                tf2 = shp.text_frame; tf2.clear()
-                p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.CENTER
-                r2 = p2.add_run()
-                r2.text = badge
-                r2.font.name = "Cambria"
-                r2.font.size = Pt(10)
-                r2.font.bold = True
-                r2.font.color.rgb = RGBColor(255,255,255)
+                # center badge in cell
+                cell_left = left + sum(int(Inches(w)) for w in col_w[:c])
+                cell_height = height
+                cell_width  = int(Inches(col_w[c]))
+                bx = cell_left + (cell_width-badge_size)//2
+                by = top + (cell_height-badge_size)//2
+                shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, bx, by, badge_size, badge_size)
+                shp.fill.solid(); shp.fill.fore_color.rgb=color
+                shp.line.color.rgb=RGBColor(255,255,255)
+                tf2=shp.text_frame; tf2.clear()
+                p2=tf2.paragraphs[0]; p2.alignment=PP_ALIGN.CENTER
+                r2=p2.add_run(); r2.text=badge
+                r2.font.name="Cambria"; r2.font.size=Pt(10); r2.font.bold=True; r2.font.color.rgb=RGBColor(255,255,255)
 
 
     # ─── Save and offer download ────────────────────────────────────────────────────────────────────────────────────────────────
-    buf = BytesIO()
-    prs.save(buf)
-    buf.seek(0)
+    # 11) Download button
+    buf = BytesIO(); prs.save(buf); buf.seek(0)
     st.download_button(
-        label="Download PPTX with Styled Headings & Subheader",
+        label="Download PPTX",
         data=buf,
-        file_name=f"{selected.replace(' ','_')}_headings.pptx",
+        file_name=f"{selected.replace(' ','_')}.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
     )
 
