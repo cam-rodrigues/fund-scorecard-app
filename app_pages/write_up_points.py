@@ -1510,12 +1510,12 @@ def step17_export_to_ppt_headings():
     sf.alignment = PP_ALIGN.LEFT
     
     #─────Insert the Slide 1 table below the subheader─────────────────────────────────────────────────────────────────────────────────
-    # ── Step 17: Insert Slide 1 Table with Custom Layout ─────────────────────────
+    # ── Step 17: Insert Slide 1 Table with Integral EMU values ───────────────────
     from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     from pptx.enum.shapes import MSO_SHAPE
     from pptx.dml.color import RGBColor
     from pptx.util import Inches, Pt
-
+    
     # 1) Prepare the single row of data
     row = {
         "Category":    category,
@@ -1526,16 +1526,18 @@ def step17_export_to_ppt_headings():
         row[str(idx)] = statuses[crit]
     row["IPS Status"] = overall
 
-    # 2) Insert table at the top half
+    # 2) Insert table at the top half with int(Inches())
     cols = 15
-    # widths in inches: 3 wide for first three, 11 at 0.4 each, then 1" for IPS Status
     col_w = [1.2, 1.2, 1.2] + [0.4]*11 + [1]
-    left, top = Inches(0.5), Inches(1.5)
-    tbl = slide1.shapes.add_table(2, cols, left, top, Inches(9), Inches(0.6)).table
+    left = int(Inches(0.5))
+    top  = int(Inches(1.5))
+    width  = int(Inches(9))
+    height = int(Inches(0.6))
+    tbl = slide1.shapes.add_table(2, cols, left, top, width, height).table
 
-    # 3) Apply column widths
+    # 3) Apply column widths (cast to int)
     for i, w in enumerate(col_w):
-        tbl.columns[i].width = Inches(w)
+        tbl.columns[i].width = int(Inches(w))
 
     # 4) Header row
     headers = ["Category","Time Period","Plan Assets"] + [str(i) for i in range(1,12)] + ["IPS Status"]
@@ -1543,8 +1545,7 @@ def step17_export_to_ppt_headings():
         cell = tbl.cell(0, c)
         cell.text = h
         _set_border(cell)
-        cell.fill.solid()
-        cell.fill.fore_color.rgb = RGBColor(255,255,255)
+        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
         tf = cell.text_frame
         tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
         tf.margin_top = tf.margin_bottom = 0
@@ -1555,7 +1556,7 @@ def step17_export_to_ppt_headings():
         p.font.bold = True
         p.alignment = PP_ALIGN.CENTER
 
-    # 5) Data row
+    # 5) Data row with checkmarks and badge
     vals = [
         row["Category"],
         row["Time Period"],
@@ -1565,8 +1566,7 @@ def step17_export_to_ppt_headings():
     for c, val in enumerate(vals):
         cell = tbl.cell(1, c)
         _set_border(cell)
-        cell.fill.solid()
-        cell.fill.fore_color.rgb = RGBColor(255,255,255)
+        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
         tf = cell.text_frame
         tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
         tf.margin_top = tf.margin_bottom = 0
@@ -1577,18 +1577,13 @@ def step17_export_to_ppt_headings():
         p.alignment = PP_ALIGN.CENTER
 
         if c < 14:
-            # boolean -> check/X
             if val is True:
-                p.text = "✔"
-                p.font.color.rgb = RGBColor(0,176,80)
+                p.text = "✔"; p.font.color.rgb = RGBColor(0,176,80)
             elif val is False:
-                p.text = "✖"
-                p.font.color.rgb = RGBColor(192,0,0)
+                p.text = "✖"; p.font.color.rgb = RGBColor(192,0,0)
             else:
-                p.text = str(val)
-                p.font.color.rgb = RGBColor(0,0,0)
+                p.text = str(val); p.font.color.rgb = RGBColor(0,0,0)
         else:
-            # IPS badge
             txt = str(val).lower()
             badge = None
             if "formal" in txt:
@@ -1598,28 +1593,21 @@ def step17_export_to_ppt_headings():
             elif "passed" in txt:
                 badge, color = "✔", RGBColor(0,176,80)
             if badge:
-                # draw colored circle behind badge
-                bx = left + sum(Inches(w) for w in col_w[:c]) + Inches(0.1)
-                by = top  + Inches(0.2)
+                # position the badge circle
+                bx = left + sum(int(Inches(w)) for w in col_w[:c]) + int(Inches(0.1))
+                by = top  + int(Inches(0.2))
                 shp = slide1.shapes.add_shape(
-                    MSO_SHAPE.OVAL, bx, by, Inches(0.4), Inches(0.4)
+                    MSO_SHAPE.OVAL, bx, by, int(Inches(0.4)), int(Inches(0.4))
                 )
-                shp.fill.solid()
-                shp.fill.fore_color.rgb = color
+                shp.fill.solid(); shp.fill.fore_color.rgb = color
                 shp.line.color.rgb = RGBColor(255,255,255)
-
-                # add badge text
-                tf2 = shp.text_frame
-                tf2.clear()
-                p2 = tf2.paragraphs[0]
-                p2.alignment = PP_ALIGN.CENTER
-                r2 = p2.add_run()
-                r2.text = badge
+                tf2 = shp.text_frame; tf2.clear()
+                p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.CENTER
+                r2 = p2.add_run(); r2.text = badge
                 r2.font.name = "Cambria"
                 r2.font.size = Pt(10)
                 r2.font.bold = True
                 r2.font.color.rgb = RGBColor(255,255,255)
-
 
 
     # ─── Save and offer download ────────────────────────────────────────────────────────────────────────────────────────────────
