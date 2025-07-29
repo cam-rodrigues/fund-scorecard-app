@@ -1316,56 +1316,75 @@ def step15_display_selected_fund():
 
 
 # ── Step 16: Bullet Points ───────────────────────────────────────────
+# === Step 16: Bullet Points ===
 def step16_bullet_points():
     import streamlit as st
-    import re
 
     st.subheader("Step 16: Bullet Points")
 
+    # 1) Ensure a fund is selected
     selected_fund = st.session_state.get('selected_fund')
     if not selected_fund:
-        st.error("❌ No fund selected. Please select a fund from Step 15.")
+        st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
 
-    # Retrieve performance data for the selected fund
+    # 2) Retrieve the performance item
     perf_data = st.session_state.get("fund_performance_data", [])
     item = next((x for x in perf_data if x["Fund Scorecard Name"] == selected_fund), None)
     if not item:
-        st.error(f"❌ Could not find performance data for {selected_fund}.")
+        st.error(f"❌ Performance data for '{selected_fund}' not found.")
         return
 
-    # — Bullet 1: Performance vs Benchmark
-    template = st.session_state["bullet_point_templates"][0]
+    # — Bullet 1: Performance vs. Benchmark —
+    template = st.session_state.get("bullet_point_templates", [""])[0]
     filled = template
     for field, val in item.items():
         filled = filled.replace(f"[{field}]", str(val))
     st.markdown(f"- {filled}")
 
-    # — Bullet 2: IPS Screening Status
+    # — Bullet 2: IPS Screening Status & Returns Comparison —
     ips_status = item.get("IPS Status", "")
     if ips_status == "Passed IPS Screen":
         st.markdown("- The Fund passed the IPS Screening.")
     else:
+        # Determine Informal vs Formal Watch
         status_label = "Informal Watch" if "IW" in ips_status else "Formal Watch"
-        # calculate 3‑ and 5‑yr differences
-        three, bench3 = float(item.get("3Yr", 0)), float(item.get("Bench 3Yr", 0))
-        five,  bench5 = float(item.get("5Yr", 0)), float(item.get("Bench 5Yr", 0))
-        bps3  = round((three - bench3)*100, 1)
-        bps5  = round((five  - bench5)*100, 1)
-        # peer ranks
+
+        # Safely parse returns
+        three   = float(item.get("3Yr")     or 0)
+        bench3  = float(item.get("Bench 3Yr") or 0)
+        five    = float(item.get("5Yr")     or 0)
+        bench5  = float(item.get("Bench 5Yr") or 0)
+
+        # Compute bps differences
+        bps3 = round((three  - bench3)*100, 1)
+        bps5 = round((five   - bench5)*100, 1)
+
+        # Peer ranks table
         peer = st.session_state.get("step14_peer_rank_table", [])
-        rank3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer if r.get("Fund Name")==selected_fund), "N/A")
-        rank5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer if r.get("Fund Name")==selected_fund), "N/A")
-        pos3  = "top" if rank3!="N/A" and int(rank3)<=50 else "bottom"
-        pos5  = "top" if rank5!="N/A" and int(rank5)<=50 else "bottom"
+        raw3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer if r.get("Fund Name")==selected_fund), None)
+        raw5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer if r.get("Fund Name")==selected_fund), None)
+        rank3 = raw3 or "N/A"
+        rank5 = raw5 or "N/A"
+
+        # Determine top/bottom half safely
+        try:
+            pos3 = "top" if int(rank3) <= 50 else "bottom"
+        except Exception:
+            pos3 = "bottom"
+        try:
+            pos5 = "top" if int(rank5) <= 50 else "bottom"
+        except Exception:
+            pos5 = "bottom"
+
         st.markdown(
             f"- The fund is now on {status_label}. Its three‑year return trails the benchmark by "
-            f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its five‑year return trails by {bps5} bps "
-            f"({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half of peers "
+            f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its five‑year return trails by "
+            f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half of peers "
             f"and its 5‑Yr Sharpe ranks in the {pos5} half."
         )
 
-    # — Bullet 3: Formal Watch Action
+    # — Bullet 3: Action for Formal Watch —
     if "Formal Watch" in ips_status:
         st.markdown("- **Action:** Consider replacing this fund.")
 
