@@ -1488,20 +1488,6 @@ def step17_export_to_ppt_headings():
         )
         b3 = "- **Action:** Consider replacing this fund." if status=="Formal Watch" else ""
 
-    # — 6) Add bullet textbox under subheader, left‑aligned —
-    bx = sub_left
-    by = sub_top + Inches(0.5)
-    bw = prs.slide_width - Inches(1)
-    bh = Inches(1.5)
-    tb = slide1.shapes.add_textbox(bx, by, bw, bh)
-    tf = tb.text_frame
-    tf.clear()
-    for line in [b1, b2] + ([b3] if b3 else []):
-        p = tf.add_paragraph()
-        p.text = line.strip("- ").strip()
-        p.font.name  = "Cambria"
-        p.font.size  = Pt(11)
-        p.alignment  = PP_ALIGN.LEFT
 
     # 6) Build data for Slide 1 Table
     IPS = [
@@ -1616,7 +1602,21 @@ def step17_export_to_ppt_headings():
                 r2 = p2.add_run(); r2.text = badge
                 r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255,255,255)
 
-
+    # — 6) Add bullet textbox under subheader, left‑aligned —
+    bx = sub_left
+    by = sub_top + Inches(0.5)
+    bw = prs.slide_width - Inches(1)
+    bh = Inches(1.5)
+    tb = slide1.shapes.add_textbox(bx, by, bw, bh)
+    tf = tb.text_frame
+    tf.clear()
+    for line in [b1, b2] + ([b3] if b3 else []):
+        p = tf.add_paragraph()
+        p.text = line.strip("- ").strip()
+        p.font.name  = "Cambria"
+        p.font.size  = Pt(11)
+        p.alignment  = PP_ALIGN.LEFT
+        
     # 11) Download button
     buf = BytesIO(); prs.save(buf); buf.seek(0)
     st.download_button(
