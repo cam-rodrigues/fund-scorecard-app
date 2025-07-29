@@ -1509,54 +1509,63 @@ def step17_export_to_ppt_headings():
     run.font.underline = True
     sf.alignment = PP_ALIGN.LEFT
     
-    #────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-    # 7) Insert the Slide 1 table below the subheader
-    rows, cols = df_slide1.shape
-    table_top = Inches(1.8)
-    table_left = Inches(0.5)
-    table_width = prs.slide_width - Inches(1.0)
-    table_height = Inches(1.2)
-    table = slide1.shapes.add_table(rows+1, cols, table_left, table_top,
-                                     table_width, table_height).table
+    #─────Insert the Slide 1 table below the subheader─────────────────────────────────────────────────────────────────────────────────
+    from pptx.enum.text import PP_ALIGN
 
-    # write header row
+    # 1) Table dimensions
+    rows, cols = df_slide1.shape
+    table_top   = Inches(1.8)
+    table_left  = Inches(0.5)
+    table_width = prs.slide_width - Inches(1.0)
+    table_height= Inches(1.2)
+
+    # 2) Add the table
+    table = slide1.shapes.add_table(rows+1, cols,
+                                    table_left, table_top,
+                                    table_width, table_height).table
+
+    # 3) Prepare list of IPS metric columns ("1".."11")
+    metric_cols = [str(i) for i in range(1, len(IPS)+1)]
+
+    # 4) Populate header row
     for c, col_name in enumerate(df_slide1.columns):
         cell = table.cell(0, c)
-        cell.text = str(col_name)
-        for paragraph in cell.text_frame.paragraphs:
-            for run in paragraph.runs:
-                run.font.bold = True
-                run.font.size = Pt(10)
+        cell.text = col_name
+        para = cell.text_frame.paragraphs[0]
+        para.alignment = PP_ALIGN.CENTER
+        run = para.runs[0]
+        run.font.name = "Cambria"
+        run.font.size = Pt(12)
+        run.font.bold = True
+        run.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
 
-    # write data rows
-    for r in range(rows):
-        for c, col_name in enumerate(df_slide1.columns):
-            val = df_slide1.iloc[r, c]
-            cell = table.cell(r+1, c)
-            cell.text = str(val)
-
-    # assume your IPS metrics are the numbered columns "1" through "11"
-    metric_cols = [str(i) for i in range(1, len(IPS)+1)]
+    # 5) Populate data rows
     for r in range(rows):
         for c, col_name in enumerate(df_slide1.columns):
             val = df_slide1.iloc[r, c]
             cell = table.cell(r+1, c)
             para = cell.text_frame.paragraphs[0]
             para.clear()
+            para.alignment = PP_ALIGN.CENTER
             run = para.add_run()
-            # if this is one of the IPS metric columns, draw check or cross
+
             if col_name in metric_cols:
+                # check or cross for metrics
                 if val:
                     run.text = "✓"
-                    run.font.color.rgb = RGBColor(0x00, 0x80, 0x00)  # green
+                    run.font.color.rgb = RGBColor(0x00, 0x80, 0x00)
                 else:
                     run.text = "✗"
-                    run.font.color.rgb = RGBColor(0xFF, 0x00, 0x00)  # red
+                    run.font.color.rgb = RGBColor(0xFF, 0x00, 0x00)
             else:
-                # for other columns, just show the raw value
+                # raw text for other columns
                 run.text = str(val)
                 run.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
-            run.font.size = Pt(10)
+
+            run.font.name = "Cambria"
+            run.font.size = Pt(12)
+            run.font.bold = False
+
 
     # ─── Save and offer download ────────────────────────────────────────────────────────────────────────────────────────────────
     buf = BytesIO()
