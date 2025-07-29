@@ -1637,27 +1637,29 @@ def step17_export_to_ppt_headings():
     # — Slide 2: Expense & Return —  
     if len(prs.slides) > 1:
         slide2 = prs.slides[1]
+    
         import pandas as pd, re
         from pptx.enum.text import PP_ALIGN
         from pptx.util import Inches, Pt
         from pptx.dml.color import RGBColor
-
-        # 1) Build the three DataFrames
-
-        # df1: Net Expense Ratio
+    
+        # 1) Build DataFrames
+    
         perf_data = st.session_state["fund_performance_data"]
         perf_item = next(p for p in perf_data if p["Fund Scorecard Name"] == selected)
         inv_mgr   = f"{selected} ({perf_item['Ticker']})"
-        net_exp   = perf_item["Net Expense Ratio"]
+    
+        # df1: Net Expense Ratio
+        net_exp = perf_item.get("Net Expense Ratio", "")
         if net_exp and not str(net_exp).endswith("%"):
             net_exp = f"{net_exp}%"
         df1 = pd.DataFrame([{
-            "Investment Manager": inv_mgr,
-            "Net Expense Ratio":  net_exp
+            "Investment Manager":   inv_mgr,
+            "Net Expense Ratio":    net_exp
         }])
-
+    
         # df2: QTD / 1Yr / 3Yr / 5Yr / 10Yr
-        date_label = st.session_state["report_date"]
+        date_label = st.session_state.get("report_date", "QTD")
         def _pct(v):
             return f"{v}%" if v and not str(v).endswith("%") else (v or "")
         df2 = pd.DataFrame([{
@@ -1668,38 +1670,37 @@ def step17_export_to_ppt_headings():
             "5 Year":             _pct(perf_item.get("5Yr")),
             "10 Year":            _pct(perf_item.get("10Yr")),
         }])
-
-        # df3: Last 10 calendar‑year returns
-        fund_cy  = st.session_state["step8_returns"]
-        bench_cy = st.session_state["benchmark_calendar_year_returns"]
-        fund_rec = next(r for r in fund_cy  if r["Name"] == selected)
-        bench_rec= next(r for r in bench_cy if r["Name"] == selected or r["Ticker"] == fund_rec["Ticker"])
-        years    = sorted([c for c in fund_rec if re.match(r"20\\d{2}", c)], reverse=True)[:10]
+    
+        # df3: Last up to 10 calendar‑year returns
+        fund_cy  = st.session_state.get("step8_returns", [])
+        bench_cy = st.session_state.get("benchmark_calendar_year_returns", [])
+        fund_rec = next((r for r in fund_cy  if r.get("Name") == selected), {})
+        bench_rec= next((r for r in bench_cy if r.get("Name") == selected or r.get("Ticker") == fund_rec.get("Ticker")), {})
+        years    = sorted([c for c in fund_rec.keys() if re.match(r"20\\d{2}", c)], reverse=True)[:10]
         rows3 = [
-            {"Investment Manager": inv_mgr, **{y: fund_rec[y]   for y in years}},
-            {"Investment Manager": f"{bench_rec['Name']} ({bench_rec['Ticker']})",
-             **{y: bench_rec[y] for y in years}}
+            {"Investment Manager": inv_mgr, **{y: fund_rec.get(y, "") for y in years}},
+            {"Investment Manager": f"{bench_rec.get('Name','Benchmark')} ({bench_rec.get('Ticker','')})",
+             **{y: bench_rec.get(y, "") for y in years}}
         ]
         df3 = pd.DataFrame(rows3, columns=["Investment Manager"] + years)
-
-        # 2) Helper to draw and style a table
+    
+        # 2) Helper to draw & style
         def draw_table(slide, df, left, top, width, height, col_widths):
             tbl = slide.shapes.add_table(len(df)+1, len(df.columns),
                                          Inches(left), Inches(top),
                                          Inches(width), Inches(height)).table
-            # set column widths
+            # column widths
             for i, w in enumerate(col_widths):
                 tbl.columns[i].width = Inches(w)
-            # header row
+            # header styling
             for c, name in enumerate(df.columns):
                 cell = tbl.cell(0, c)
                 cell.text = name
                 cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(33,43,88)
                 p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-                run = p.runs[0]
-                run.font.name = "Cambria"; run.font.size = Pt(12); run.font.bold = True
+                run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.bold=True
                 run.font.color.rgb = RGBColor(255,255,255)
-            # body rows
+            # body styling
             for r in range(len(df)):
                 for c, _ in enumerate(df.columns):
                     cell = tbl.cell(r+1, c)
@@ -1707,9 +1708,9 @@ def step17_export_to_ppt_headings():
                     if r % 2 == 0:
                         cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(240,245,255)
                     p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-                    run = p.runs[0]; run.font.name = "Cambria"; run.font.size = Pt(12); run.font.color.rgb = RGBColor(0,0,0)
-
-        # 3) Compute layout in inches
+                    run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.color.rgb = RGBColor(0,0,0)
+    
+        # 3) Layout math (all units in inches)
         slide_w_in = prs.slide_width / Inches(1)
         left_m, right_m, gap = 0.5, 0.5, 0.2
         usable = slide_w_in - left_m - right_m - gap
@@ -1718,29 +1719,34 @@ def step17_export_to_ppt_headings():
         small_h= 1.2
         bot_top= top_y + small_h + 0.3
         bot_h  = 2.0
-
-        # 4) Draw the two top tables side by side
+    
+        # 4) Draw top tables side by side
         draw_table(
             slide2, df1,
             left_m, top_y,
             half, small_h,
-            col_widths=[2.0, half-2.0]
+            col_widths=[2.0, max(half-2.0, 0.5)]
         )
         draw_table(
             slide2, df2,
             left_m + half + gap, top_y,
             half, small_h,
-            col_widths=[2.0] + [(half-2.0)/5]*5
+            col_widths=[2.0] + [max((half-2.0)/5, 0.3)]*5
         )
-
-        # 5) Draw the bottom table full‑width
+    
+        # 5) Draw bottom table full width
         first_w = 2.5
-        rem     = (usable - first_w) / (len(df3.columns)-1)
+        rem_cols = len(df3.columns) - 1
+        if rem_cols > 0:
+            rem = (usable - first_w) / rem_cols
+            widths3 = [first_w] + [rem]*rem_cols
+        else:
+            widths3 = [usable]
         draw_table(
             slide2, df3,
             left_m, bot_top,
             usable, bot_h,
-            col_widths=[first_w] + [rem] * (len(df3.columns)-1)
+            col_widths=widths3
         )
 
     # ── Download button ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
