@@ -1514,15 +1514,37 @@ def step17_export_to_ppt_headings():
 
     # 1) Table dimensions
     rows, cols = df_slide1.shape
-    table_top   = Inches(1.8)
-    table_left  = Inches(0.5)
-    table_width = prs.slide_width - Inches(1.0)
-    table_height= Inches(1.2)
+    table_left   = Inches(0.5)
+    table_top    = Inches(1.8)
+    table_width  = prs.slide_width - Inches(1.0)
+    table_height = Inches(1.2)
 
     # 2) Add the table
     table = slide1.shapes.add_table(rows+1, cols,
                                     table_left, table_top,
                                     table_width, table_height).table
+
+    # 3) Define custom widths: 
+    #    - Category: 2.5"
+    #    - Time Period: 1.8"
+    #    - Plan Assets:  1.8"
+    #    - Remaining columns share the rest equally
+    first_three = [Inches(2.5), Inches(1.8), Inches(1.8)]
+    remaining_cols = cols - 3
+    if remaining_cols > 0:
+        rem_width = table_width - sum(first_three)
+        width_per = rem_width / remaining_cols
+    else:
+        width_per = Inches(1)
+    col_widths = first_three + [width_per] * remaining_cols
+
+    # Apply widths
+    for idx, w in enumerate(col_widths):
+        table.columns[idx].width = w
+
+    # 4) Prepare list of IPS metric columns ("1".."11")
+    metric_cols = [str(i) for i in range(1, len(IPS)+1)]
+
 
     # 3) Prepare list of IPS metric columns ("1".."11")
     metric_cols = [str(i) for i in range(1, len(IPS)+1)]
