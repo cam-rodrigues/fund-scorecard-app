@@ -1388,7 +1388,7 @@ def step16_bullet_points():
         st.markdown("- **Action:** Consider replacing this fund.")
 
 #── Build Powerpoint───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-# === Step 17: Export to PowerPoint with Centered Table & Badges ===
+# === Step 17: Export to PowerPoint with Centered Table & Perfectly Centered Badges ===
 def step17_export_to_ppt_headings():
     import streamlit as st
     from pptx import Presentation
@@ -1398,6 +1398,7 @@ def step17_export_to_ppt_headings():
     from pptx.util import Inches, Pt
     from pptx.oxml.xmlchemy import OxmlElement
     from io import BytesIO
+    import re
 
     st.subheader("Step 17: Export to PowerPoint with Centered Table & Badges")
 
@@ -1421,11 +1422,9 @@ def step17_export_to_ppt_headings():
     except Exception as e:
         st.error(f"❌ Could not load template: {e}")
         return
-
     slide1 = prs.slides[0]
 
     # 4) Styled titles on slides 1–4
-    from pptx.dml.color import RGBColor as _RGB
     def set_title(slide, text):
         if slide.shapes.title:
             tx = slide.shapes.title.text_frame.paragraphs[0]
@@ -1439,13 +1438,16 @@ def step17_export_to_ppt_headings():
         r.font.name = "Helvetica"
         r.font.size = Pt(20)
         r.font.bold = True
-        r.font.color.rgb = _RGB(0x21,0x2B,0x58)
+        r.font.color.rgb = RGBColor(0x21,0x2B,0x58)
         tx.alignment = PP_ALIGN.LEFT
 
     set_title(slide1, "Investment Watchlist")
-    if len(prs.slides) > 1: set_title(prs.slides[1], f"{category} – Expense & Return")
-    if len(prs.slides) > 2: set_title(prs.slides[2], f"{category} – Risk Adjusted Statistics")
-    if len(prs.slides) > 3: set_title(prs.slides[3], f"{category} – Qualitative Factors")
+    if len(prs.slides) > 1:
+        set_title(prs.slides[1], f"{category} – Expense & Return")
+    if len(prs.slides) > 2:
+        set_title(prs.slides[2], f"{category} – Risk Adjusted Statistics")
+    if len(prs.slides) > 3:
+        set_title(prs.slides[3], f"{category} – Qualitative Factors")
 
     # 5) Subheader on Slide 1
     left, top = Inches(0.5), Inches(1.3)
@@ -1462,37 +1464,37 @@ def step17_export_to_ppt_headings():
     sf.alignment = PP_ALIGN.LEFT
 
     # 6) Build data for Slide 1 Table
-    IPS = [  # same as in Step 15
-      "Manager Tenure","Excess Performance (3Yr)","R‑Squared (3Yr)",
-      "Peer Return Rank (3Yr)","Sharpe Ratio Rank (3Yr)","Sortino Ratio Rank (3Yr)",
-      "Tracking Error Rank (3Yr)","Excess Performance (5Yr)","R‑Squared (5Yr)",
-      "Peer Return Rank (5Yr)","Sharpe Ratio Rank (5Yr)"
+    IPS = [
+        "Manager Tenure","Excess Performance (3Yr)","R‑Squared (3Yr)",
+        "Peer Return Rank (3Yr)","Sharpe Ratio Rank (3Yr)","Sortino Ratio Rank (3Yr)",
+        "Tracking Error Rank (3Yr)","Excess Performance (5Yr)","R‑Squared (5Yr)",
+        "Peer Return Rank (5Yr)","Sharpe Ratio Rank (5Yr)"
     ]
     blocks = st.session_state.get("fund_blocks", [])
     block = next((b for b in blocks if b["Fund Name"] == selected), {})
     statuses = {}
-    import re
     info = next((m["Info"] for m in block.get("Metrics",[]) if m["Metric"]=="Manager Tenure"), "")
     yrs = float(re.search(r"(\d+\.?\d*)",info).group(1)) if re.search(r"(\d+\.?\d*)",info) else 0
-    statuses["Manager Tenure"] = yrs>=3
+    statuses["Manager Tenure"] = yrs >= 3
     for crit in IPS[1:]:
         raw = next((m["Info"] for m in block.get("Metrics",[]) if m["Metric"].startswith(crit.split()[0])),"")
         if "Excess Performance" in crit:
             pct = float(re.search(r"([-+]?\d*\.\d+)%",raw).group(1)) if re.search(r"([-+]?\d*\.\d+)%",raw) else 0
-            statuses[crit] = pct>0
+            statuses[crit] = pct > 0
         elif "R‑Squared" in crit:
             statuses[crit] = True
         else:
             rk = int(re.search(r"(\d+)",raw).group(1)) if re.search(r"(\d+)",raw) else 999
-            statuses[crit] = rk<=50
+            statuses[crit] = rk <= 50
     fails = sum(not statuses[c] for c in IPS)
-    overall = "Passed IPS Screen" if fails<=4 else ("Informal Watch (IW)" if fails==5 else "Formal Watch (FW)")
+    overall = "Passed IPS Screen" if fails <= 4 else ("Informal Watch (IW)" if fails == 5 else "Formal Watch (FW)")
     report_date = st.session_state.get("report_date","")
     row = {"Category":category, "Time Period":report_date, "Plan Assets":"$"}
-    for i,crit in enumerate(IPS,1): row[str(i)] = statuses[crit]
+    for i,crit in enumerate(IPS,1):
+        row[str(i)] = statuses[crit]
     row["IPS Status"] = overall
 
-    # 7) Define border helper
+    # 7) Border helper
     def _set_border(cell, color=RGBColor(0,0,0)):
         tc = cell._tc; tcPr = tc.get_or_add_tcPr()
         hex_val = "{:02X}{:02X}{:02X}".format(color[0],color[1],color[2])
@@ -1501,69 +1503,76 @@ def step17_export_to_ppt_headings():
             srgb = OxmlElement("a:srgbClr"); srgb.set("val",hex_val)
             lnPr.append(srgb); ln.append(lnPr); tcPr.append(ln)
 
-    # 8) Insert table centered and lowered
+    # 8) Insert table centered horizontally, lowered vertically
     slide_w = prs.slide_width
     table_w = int(Inches(9))
-    left    = int((slide_w - table_w)//2)
+    left    = int((slide_w - table_w) // 2)
     top     = int(Inches(2.0))
     height  = int(Inches(0.6))
     cols    = 15
     col_w   = [1.2,1.2,1.2] + [0.4]*11 + [1.0]
-    tbl = slide1.shapes.add_table(2, cols, left, top, table_w, height).table
-    for i,w in enumerate(col_w): tbl.columns[i].width = int(Inches(w))
+    tbl     = slide1.shapes.add_table(2, cols, left, top, table_w, height).table
+    for idx, w in enumerate(col_w):
+        tbl.columns[idx].width = int(Inches(w))
 
     headers = ["Category","Time Period","Plan Assets"] + [str(i) for i in range(1,12)] + ["IPS Status"]
     vals    = [row["Category"],row["Time Period"],row["Plan Assets"]] + [row[str(i)] for i in range(1,12)] + [row["IPS Status"]]
 
     # 9) Populate header row
-    for c,h in enumerate(headers):
-        cell = tbl.cell(0,c); _set_border(cell)
+    for c, h in enumerate(headers):
+        cell = tbl.cell(0, c); _set_border(cell)
         cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
         tf = cell.text_frame; tf.clear()
-        tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE; tf.margin_top=tf.margin_bottom=0
+        tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE; tf.margin_top = tf.margin_bottom = 0
         p = tf.paragraphs[0]; run = p.add_run(); run.text = h
-        run.font.name="Cambria"; run.font.size=Pt(12); run.font.bold=True; run.font.color.rgb=RGBColor(0,0,0)
+        run.font.name = "Cambria"; run.font.size = Pt(12); run.font.bold = True; run.font.color.rgb = RGBColor(0,0,0)
         p.alignment = PP_ALIGN.CENTER
 
-    # 10) Populate data row with centered badges
+    # 10) Populate data row and center the badge perfectly
     badge_size = int(Inches(0.4))
-    for c,val in enumerate(vals):
-        cell = tbl.cell(1,c); _set_border(cell)
+    row_height = height // 2
+    data_row_top = top + row_height
+    for c, val in enumerate(vals):
+        cell = tbl.cell(1, c); _set_border(cell)
         cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
         tf = cell.text_frame; tf.clear()
-        tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE; tf.margin_top=tf.margin_bottom=0
-        p = tf.paragraphs[0]; p.font.name="Cambria"; p.font.size=Pt(12); p.font.bold=False
+        tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE; tf.margin_top = tf.margin_bottom = 0
+        p = tf.paragraphs[0]; p.font.name = "Cambria"; p.font.size = Pt(12); p.font.bold = False
         p.alignment = PP_ALIGN.CENTER
 
-        if c<14:
+        if c < 14:
             if val is True:
-                p.text="✔"; p.runs[0].font.color.rgb=RGBColor(0,176,80)
+                p.text = "✔"; p.runs[0].font.color.rgb = RGBColor(0,176,80)
             elif val is False:
-                p.text="✖"; p.runs[0].font.color.rgb=RGBColor(192,0,0)
+                p.text = "✖"; p.runs[0].font.color.rgb = RGBColor(192,0,0)
             else:
-                p.text=str(val); p.runs[0].font.color.rgb=RGBColor(0,0,0)
+                p.text = str(val); p.runs[0].font.color.rgb = RGBColor(0,0,0)
         else:
-            txt = str(val).lower(); badge=None
-            if "formal" in txt:    badge,color="FW",RGBColor(192,0,0)
-            elif "informal" in txt: badge,color="IW",RGBColor(255,165,0)
-            elif "passed" in txt:   badge,color="✔",RGBColor(0,176,80)
+            txt = str(val).lower()
+            if "formal" in txt:
+                badge, color = "FW", RGBColor(192,0,0)
+            elif "informal" in txt:
+                badge, color = "IW", RGBColor(255,165,0)
+            elif "passed" in txt:
+                badge, color = "✔", RGBColor(0,176,80)
+            else:
+                badge = None
+
             if badge:
-                # center badge in cell
                 cell_left = left + sum(int(Inches(w)) for w in col_w[:c])
-                cell_height = height
-                cell_width  = int(Inches(col_w[c]))
-                bx = cell_left + (cell_width-badge_size)//2
-                by = top + (cell_height-badge_size)//2
+                cell_w    = int(Inches(col_w[c]))
+                bx = cell_left + (cell_w - badge_size)//2
+                by = data_row_top + (row_height - badge_size)//2
+
                 shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, bx, by, badge_size, badge_size)
-                shp.fill.solid(); shp.fill.fore_color.rgb=color
-                shp.line.color.rgb=RGBColor(255,255,255)
-                tf2=shp.text_frame; tf2.clear()
-                p2=tf2.paragraphs[0]; p2.alignment=PP_ALIGN.CENTER
-                r2=p2.add_run(); r2.text=badge
-                r2.font.name="Cambria"; r2.font.size=Pt(10); r2.font.bold=True; r2.font.color.rgb=RGBColor(255,255,255)
+                shp.fill.solid(); shp.fill.fore_color.rgb = color
+                shp.line.color.rgb = RGBColor(255,255,255)
 
+                tf2 = shp.text_frame; tf2.clear()
+                p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.CENTER
+                r2 = p2.add_run(); r2.text = badge
+                r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255,255,255)
 
-    # ─── Save and offer download ────────────────────────────────────────────────────────────────────────────────────────────────
     # 11) Download button
     buf = BytesIO(); prs.save(buf); buf.seek(0)
     st.download_button(
@@ -1571,6 +1580,8 @@ def step17_export_to_ppt_headings():
         data=buf,
         file_name=f"{selected.replace(' ','_')}.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    )
+
     )
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
