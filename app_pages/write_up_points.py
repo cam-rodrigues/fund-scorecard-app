@@ -1377,12 +1377,6 @@ def run():
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
-
-    # ── Initialize templates exactly once ──────────────────────────────────────────────────────────────────────────────────────
-    if "bullet_point_templates" not in st.session_state:
-        st.session_state["bullet_point_templates"] = [
-            "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], [Year] by [QTD_bps_diff] bps ([QTD_pct_diff])."
-        ]
    #──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     
     with pdfplumber.open(uploaded) as pdf:
@@ -1432,18 +1426,28 @@ def run():
         m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
         quarter = m.group(1) if m else ""
         year    = m.group(2) if m else ""
-
-        for itm in st.session_state["fund_performance_data"]:
+        
+        # make sure we have a list to iterate
+        for itm in st.session_state.get("fund_performance_data", []):
+            # force numeric defaults
             qtd       = float(itm.get("QTD") or 0)
             bench_qtd = float(itm.get("Bench QTD") or 0)
+        
+            # direction, quarter/year
             itm["Perf Direction"] = "overperformed" if qtd >= bench_qtd else "underperformed"
-            itm["Quarter"], itm["Year"] = quarter, year
-            itm["QTD_bps_diff"] = str(round((qtd - bench_qtd)*100, 1))
+            itm["Quarter"]        = quarter
+            itm["Year"]           = year
+        
+            # basis‑points difference
+            diff_bps = round((qtd - bench_qtd) * 100, 1)
+            itm["QTD_bps_diff"] = str(diff_bps)
+        
+            # percent strings
             fund_pct  = f"{qtd:.2f}%"
             bench_pct = f"{bench_qtd:.2f}%"
             itm["QTD_pct_diff"] = f"{(qtd - bench_qtd):.2f}%"
-            itm["QTD_vs"] = f"{fund_pct} vs. {bench_pct}"
-
+            itm["QTD_vs"]       = f"{fund_pct} vs. {bench_pct}"
+        
         # Initialize your template exactly once
         if "bullet_point_templates" not in st.session_state:
             st.session_state["bullet_point_templates"] = [
