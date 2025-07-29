@@ -1315,150 +1315,58 @@ def step15_display_selected_fund():
     }])
     st.dataframe(df_slide5_2, use_container_width=True)
 
-# ─── PowerPoint ────────────────────────────────────────────────────────────────────────────
+# ────────────────────────────────────────────────────────────────────────────────
 
-from pptx import Presentation
-from pptx.util import Inches, Pt
-from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
-from pptx.enum.shapes import MSO_SHAPE
-from pptx.dml.color import RGBColor
-from pptx.oxml.xmlchemy import OxmlElement
-import re
+# === Step 16: Bullet Points ===
+def step16_bullet_points():
+    import re
+    import streamlit as st
 
-def set_cell_border(cell, border_color=RGBColor(0, 0, 0)):
-    tc = cell._tc
-    tcPr = tc.get_or_add_tcPr()
-    hex_color = f"{border_color[0]:02X}{border_color[1]:02X}{border_color[2]:02X}"
-    for ln_tag in ("a:lnL", "a:lnR", "a:lnT", "a:lnB"):
-        ln = OxmlElement(ln_tag)
-        ln.set("w", "12700")
-        solid = OxmlElement("a:solidFill")
-        clr   = OxmlElement("a:srgbClr")
-        clr.set("val", hex_color)
-        solid.append(clr)
-        ln.append(solid)
-        tcPr.append(ln)
+    selected_fund = st.session_state.get("selected_fund")
+    if not selected_fund:
+        st.error("❌ No fund selected. Please select one in Step 15.")
+        return
 
-def format_quarter(raw):
-    raw = str(raw)
-    m = re.search(r"Q([1-4])[,:\s-]*(\d{4})?", raw)
-    if m:
-        q, y = m.groups()
-        suffix = {"1":"1st","2":"2nd","3":"3rd","4":"4th"}[q]
-        return f"{suffix} QTR {y}" if y else f"{suffix} QTR"
-    return raw
+    perf_data = st.session_state.get("fund_performance_data", [])
+    item = next((x for x in perf_data if x["Fund Scorecard Name"] == selected_fund), None)
+    if not item:
+        st.error("No performance data for selected fund.")
+        return
 
-def slide_1_table(df, selected_fund):
-    # Determine which column holds the fund name
-    if "Fund Name" in df.columns:
-        name_col = "Fund Name"
-    elif "Fund Scorecard Name" in df.columns:
-        name_col = "Fund Scorecard Name"
+    # 1st bullet: QTD performance
+    tpl = st.session_state["bullet_point_templates"][0]
+    b1 = tpl
+    for fld, val in item.items():
+        b1 = b1.replace(f"[{fld}]", str(val))
+    st.markdown(f"- {b1}")
+
+    # 2nd bullet: IPS Screening result
+    status = item.get("IPS Status", "")
+    if status == "Passed IPS Screen":
+        st.markdown("- The Fund passed the IPS Screening.")
     else:
-        name_col = df.columns[0]
+        # Calculate 3Yr & 5Yr bps diffs
+        three = float(item.get("3Yr") or 0)
+        bench3= float(item.get("Bench 3Yr") or 0)
+        five  = float(item.get("5Yr") or 0)
+        bench5= float(item.get("Bench 5Yr") or 0)
+        bps3  = round((three - bench3)*100,1)
+        bps5  = round((five  - bench5)*100,1)
+        bullets = (
+            f"- The fund is now on {status}. Its three‑year return trails the benchmark by "
+            f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its five‑year return trails by "
+            f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%)."
+        )
+        st.markdown(bullets)
 
-    # Filter the DataFrame
-    matching = df[df[name_col] == selected_fund]
-    rows = len(matching)
-    if rows == 0:
-        raise ValueError(f"No rows found for '{selected_fund}' in column '{name_col}'")
+    # 3rd bullet: Formal Watch action
+    if "Formal Watch" in status:
+        st.markdown("- Action: Consider replacing this fund.")
 
-    # Create presentation and slide
-    prs = Presentation()
-    slide = prs.slides.add_slide(prs.slide_layouts[6])
-
-    # Title
-    tb = slide.shapes.add_textbox(Inches(0.5), Inches(0.5), Inches(6), Inches(0.5))
-    tb.line.fill.background()
-    tf = tb.text_frame; tf.clear()
-    p = tf.paragraphs[0]; run = p.add_run()
-    run.text = "Investment Watchlist"
-    run.font.name = "Helvetica"; run.font.size = Pt(20)
-    run.font.color.rgb = RGBColor(33,43,88)
-    p.alignment = PP_ALIGN.LEFT
-
-    # Subheading
-    sub = slide.shapes.add_textbox(Inches(0.5), Inches(1.1), Inches(9), Inches(0.3))
-    tf = sub.text_frame; p = tf.paragraphs[0]; run = p.add_run()
-    run.text = selected_fund
-    run.font.name = "Cambria"; run.font.size = Pt(12)
-    run.font.bold = True; run.font.underline = True
-    run.font.color.rgb = RGBColor(0,0,0)
-
-    # Build table
-    cols = 15
-    col_widths = [1.2,1.2,1.2] + [0.4]*11 + [1]
-    left, top = Inches(0.3), Inches(1.5)
-    table = slide.shapes.add_table(rows+1, cols, left, top,
-                                   Inches(9), Inches(0.25*(rows+1))).table
-    for idx, w in enumerate(col_widths):
-        table.columns[idx].width = Inches(w)
-
-    # Headers
-    headers = ["Category","Time Period","Plan Assets"] + [str(i) for i in range(1,12)] + ["IPS Status"]
-    for c, h in enumerate(headers):
-        cell = table.cell(0,c)
-        cell.text = h
-        set_cell_border(cell)
-        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
-        tf = cell.text_frame
-        tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
-        tf.margin_top = tf.margin_bottom = 0
-        p = tf.paragraphs[0]
-        p.font.name = "Cambria"; p.font.size = Pt(12); p.font.bold = True
-        p.font.color.rgb = RGBColor(0,0,0); p.alignment = PP_ALIGN.CENTER
-
-    # Populate rows
-    for r_idx, (_, row) in enumerate(matching.iterrows(), start=1):
-        values = [
-            row.get("Category",""),
-            format_quarter(row.get("Time Period","")),
-            row.get("Plan Assets",""),
-        ] + [row.get(str(i),"") for i in range(1,12)] + [row.get("IPS Status","")]
-
-        for c_idx, val in enumerate(values):
-            cell = table.cell(r_idx, c_idx)
-            set_cell_border(cell)
-            cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
-            tf = cell.text_frame
-            tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
-            tf.margin_top = tf.margin_bottom = 0
-            p = tf.paragraphs[0]
-            p.font.name = "Cambria"; p.font.size = Pt(12)
-            p.font.color.rgb = RGBColor(0,0,0); p.alignment = PP_ALIGN.CENTER
-
-            # Icons and badges
-            if val == "Pass" and c_idx < 14:
-                p.text = "✔"; p.font.color.rgb = RGBColor(0,176,80)
-            elif val == "Review" and c_idx < 14:
-                p.text = "✖"; p.font.color.rgb = RGBColor(192,0,0)
-            elif c_idx == 14:
-                txt = str(val).lower()
-                if "formal" in txt:
-                    badge, color = "FW", RGBColor(192,0,0)
-                elif "informal" in txt:
-                    badge, color = "IW", RGBColor(255,165,0)
-                elif "passed" in txt:
-                    badge, color = "✔", RGBColor(0,176,80)
-                else:
-                    continue
-
-                lx = sum(Inches(w) for w in col_widths[:c_idx]) + left + Inches(0.3)
-                ty = top + Inches(0.25*r_idx) + Inches(0.06)
-                shp = slide.shapes.add_shape(
-                    MSO_SHAPE.OVAL, lx, ty, Inches(0.5), Inches(0.25)
-                )
-                shp.fill.solid(); shp.fill.fore_color.rgb = color
-                shp.line.color.rgb = RGBColor(255,255,255)
-                tf2 = shp.text_frame; tf2.clear()
-                p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.CENTER
-                run2 = p2.add_run(); run2.text = badge; run2.font.bold=True
-                run2.font.size = Pt(12 if badge=="✔" else 11)
-                run2.font.color.rgb = RGBColor(255,255,255)
-
-    return prs
+            
 
 # ────────────────────────────────────────────────────────────────────────────────
+
 def run():
     import re
     from io import BytesIO
@@ -1513,19 +1421,6 @@ def run():
         with st.expander("Step 7: Annualized Returns", expanded=False):
             step7_extract_returns(pdf)
 
-        # ── Prep for bullet points ────────────────────────────────────────────────
-        report_date = st.session_state.get("report_date", "")
-        m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
-        quarter = m.group(1) if m else ""
-        year    = m.group(2) if m else ""
-
-        for itm in st.session_state.get("fund_performance_data", []):
-            qtd = float(itm.get("QTD") or 0)
-            bq  = float(itm.get("Bench QTD") or 0)
-            itm["Perf Direction"] = "overperformed" if qtd >= bq else "underperformed"
-            itm["Quarter"], itm["Year"] = quarter, year
-            itm["QTD_bps_diff"] = str(round((qtd - bq) * 100, 1))
-            itm["QTD_vs"] = f"{qtd:.2f}% vs. {bq:.2f}%"
         # ────────────────────────────────────────────────────────────────────────────
 
         # Steps 8–15 (unchanged)
@@ -1545,93 +1440,10 @@ def run():
             step14_extract_peer_risk_adjusted_return_rank(pdf)
         with st.expander("Step 15: Single Fund Details", expanded=False):
             step15_display_selected_fund()
+        with st.expander("wait Bullet Points", expanded=False):
+            step16_bullet_points()
 
-        # ── Bullet Points ─────────────────────────────────────────────────────────
-        selected_fund = st.session_state.get("selected_fund")
-        with st.expander("Bullet Points", expanded=False):
-            if not selected_fund:
-                st.error("❌ No fund selected. Please select one in Step 15.")
-            else:
-                perf_data = st.session_state.get("fund_performance_data", [])
-                item = next((x for x in perf_data if x["Fund Scorecard Name"] == selected_fund), None)
-                if not item:
-                    st.error("No performance data for selected fund.")
-                else:
-                    # First bullet
-                    tpl = st.session_state["bullet_point_templates"][0]
-                    filled = tpl
-                    for fld, val in item.items():
-                        filled = filled.replace(f"[{fld}]", str(val))
-                    st.markdown(f"- {filled}")
 
-                    # Second & third bullets (your existing logic)
-                    status = item.get("IPS Status", "")
-                    if status == "Passed IPS Screen":
-                        st.markdown("- The Fund passed the IPS Screening.")
-                    else:
-                        # … calculate bps & peer ranks …
-                        st.markdown(f"- The fund is now on {status}. [performance/risk details]")
-                        if "Formal Watch" in status:
-                            st.markdown("- Action: Consider replacing this fund.")
-
-        # ── Build slide_1_df ──────────────────────────────────────────────────────
-        if selected_fund and st.session_state["slide_1_df"] is None:
-            # 1) Find category from factsheets_data
-            fs = next(
-                (f for f in st.session_state.get("fund_factsheets_data", [])
-                 if f["Matched Fund Name"] == selected_fund),
-                {}
-            )
-            # 2) Compute IPS statuses by re‑using your step4 logic
-            block = next(
-                (b for b in st.session_state.get("fund_blocks", [])
-                 if b["Fund Name"] == selected_fund),
-                {"Metrics": []}
-            )
-            IPS = [
-                "Manager Tenure","Excess Performance (3Yr)","R‑Squared (3Yr)",
-                "Peer Return Rank (3Yr)","Sharpe Ratio Rank (3Yr)","Sortino Ratio Rank (3Yr)",
-                "Tracking Error Rank (3Yr)","Excess Performance (5Yr)","R‑Squared (5Yr)",
-                "Peer Return Rank (5Yr)","Sharpe Ratio Rank (5Yr)"
-            ]
-            statuses = {}
-            # Example for tenure; repeat for all 11 using the same logic as step4_ips_screen
-            info = next((m["Info"] for m in block["Metrics"] if m["Metric"]=="Manager Tenure"), "")
-            yrs = float(re.search(r"(\d+\.?\d*)", info).group(1)) if re.search(r"(\d+\.?\d*)", info) else 0
-            statuses["Manager Tenure"] = (yrs >= 3)
-            # … fill statuses for the other 10 metrics …
-
-            fails = sum(not statuses.get(c, False) for c in IPS)
-            overall = (
-                "Passed IPS Screen" if fails <= 4 else
-                "Informal Watch (IW)" if fails == 5 else
-                "Formal Watch (FW)"
-            )
-
-            # 3) Build df row with **Fund Name** and everything slide_1_table needs
-            row = {
-                "Fund Name":    selected_fund,
-                "Category":     fs.get("Category", ""),
-                "Time Period":  st.session_state.get("report_date", ""),
-                "Plan Assets":  "$"  # or pull actual if you have it
-            }
-            for idx, crit in enumerate(IPS, start=1):
-                row[str(idx)] = statuses.get(crit, False)
-            row["IPS Status"] = overall
-
-            st.session_state["slide_1_df"] = pd.DataFrame([row])
-
-        # ── PowerPoint Export ─────────────────────────────────────────────────────
-        if selected_fund and st.session_state["slide_1_df"] is not None:
-            ppt = slide_1_table(st.session_state["slide_1_df"], selected_fund)
-            out = BytesIO()
-            ppt.save(out)
-            st.download_button(
-                label="Download PowerPoint Report",
-                data=out.getvalue(),
-                file_name=f"{selected_fund}_Report.pptx",
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            )
 
 if __name__ == "__main__":
     run()
