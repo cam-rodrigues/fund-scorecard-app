@@ -1582,8 +1582,6 @@ def step17_export_to_ppt_headings():
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
     )
 
-    )
-
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
 def run():
