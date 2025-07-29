@@ -1510,83 +1510,116 @@ def step17_export_to_ppt_headings():
     sf.alignment = PP_ALIGN.LEFT
     
     #─────Insert the Slide 1 table below the subheader─────────────────────────────────────────────────────────────────────────────────
-    from pptx.enum.text import PP_ALIGN
+    # ── Step 17: Insert Slide 1 Table with Custom Layout ─────────────────────────
+    from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
+    from pptx.enum.shapes import MSO_SHAPE
+    from pptx.dml.color import RGBColor
+    from pptx.util import Inches, Pt
 
-    # 1) Table dimensions
-    rows, cols = df_slide1.shape
-    table_left   = Inches(0.5)
-    table_top    = Inches(1.8)
-    table_width  = prs.slide_width - Inches(1.0)
-    table_height = Inches(1.2)
+    # 1) Prepare the single row of data
+    row = {
+        "Category":    category,
+        "Time Period": st.session_state.get("report_date",""),
+        "Plan Assets": "$"
+    }
+    for idx, crit in enumerate(IPS, start=1):
+        row[str(idx)] = statuses[crit]
+    row["IPS Status"] = overall
 
-    # 2) Add the table
-    table = slide1.shapes.add_table(rows+1, cols,
-                                    table_left, table_top,
-                                    table_width, table_height).table
+    # 2) Insert table at the top half
+    cols = 15
+    # widths in inches: 3 wide for first three, 11 at 0.4 each, then 1" for IPS Status
+    col_w = [1.2, 1.2, 1.2] + [0.4]*11 + [1]
+    left, top = Inches(0.5), Inches(1.5)
+    tbl = slide1.shapes.add_table(2, cols, left, top, Inches(9), Inches(0.6)).table
 
-    # 3) Define custom widths: 
-    #    - Category: 2.5"
-    #    - Time Period: 1.8"
-    #    - Plan Assets:  1.8"
-    #    - Remaining columns share the rest equally
-    first_three = [Inches(2.5), Inches(1.8), Inches(1.8)]
-    remaining_cols = cols - 3
-    if remaining_cols > 0:
-        rem_width = table_width - sum(first_three)
-        width_per = rem_width / remaining_cols
-    else:
-        width_per = Inches(1)
-    col_widths = first_three + [width_per] * remaining_cols
+    # 3) Apply column widths
+    for i, w in enumerate(col_w):
+        tbl.columns[i].width = Inches(w)
 
-    # Apply widths
-    for idx, w in enumerate(col_widths):
-        table.columns[idx].width = w
+    # 4) Header row
+    headers = ["Category","Time Period","Plan Assets"] + [str(i) for i in range(1,12)] + ["IPS Status"]
+    for c, h in enumerate(headers):
+        cell = tbl.cell(0, c)
+        cell.text = h
+        _set_border(cell)
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = RGBColor(255,255,255)
+        tf = cell.text_frame
+        tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
+        tf.margin_top = tf.margin_bottom = 0
+        p = tf.paragraphs[0]
+        p.text = h
+        p.font.name = "Cambria"
+        p.font.size = Pt(12)
+        p.font.bold = True
+        p.alignment = PP_ALIGN.CENTER
 
-    # 4) Prepare list of IPS metric columns ("1".."11")
-    metric_cols = [str(i) for i in range(1, len(IPS)+1)]
+    # 5) Data row
+    vals = [
+        row["Category"],
+        row["Time Period"],
+        row["Plan Assets"],
+    ] + [row[str(i)] for i in range(1,12)] + [row["IPS Status"]]
 
+    for c, val in enumerate(vals):
+        cell = tbl.cell(1, c)
+        _set_border(cell)
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = RGBColor(255,255,255)
+        tf = cell.text_frame
+        tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
+        tf.margin_top = tf.margin_bottom = 0
+        p = tf.paragraphs[0]
+        p.clear()
+        p.font.name = "Cambria"
+        p.font.size = Pt(12)
+        p.alignment = PP_ALIGN.CENTER
 
-    # 3) Prepare list of IPS metric columns ("1".."11")
-    metric_cols = [str(i) for i in range(1, len(IPS)+1)]
-
-    # 4) Populate header row
-    for c, col_name in enumerate(df_slide1.columns):
-        cell = table.cell(0, c)
-        cell.text = col_name
-        para = cell.text_frame.paragraphs[0]
-        para.alignment = PP_ALIGN.CENTER
-        run = para.runs[0]
-        run.font.name = "Cambria"
-        run.font.size = Pt(12)
-        run.font.bold = True
-        run.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
-
-    # 5) Populate data rows
-    for r in range(rows):
-        for c, col_name in enumerate(df_slide1.columns):
-            val = df_slide1.iloc[r, c]
-            cell = table.cell(r+1, c)
-            para = cell.text_frame.paragraphs[0]
-            para.clear()
-            para.alignment = PP_ALIGN.CENTER
-            run = para.add_run()
-
-            if col_name in metric_cols:
-                # check or cross for metrics
-                if val:
-                    run.text = "✓"
-                    run.font.color.rgb = RGBColor(0x00, 0x80, 0x00)
-                else:
-                    run.text = "✗"
-                    run.font.color.rgb = RGBColor(0xFF, 0x00, 0x00)
+        if c < 14:
+            # boolean -> check/X
+            if val is True:
+                p.text = "✔"
+                p.font.color.rgb = RGBColor(0,176,80)
+            elif val is False:
+                p.text = "✖"
+                p.font.color.rgb = RGBColor(192,0,0)
             else:
-                # raw text for other columns
-                run.text = str(val)
-                run.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
+                p.text = str(val)
+                p.font.color.rgb = RGBColor(0,0,0)
+        else:
+            # IPS badge
+            txt = str(val).lower()
+            badge = None
+            if "formal" in txt:
+                badge, color = "FW", RGBColor(192,0,0)
+            elif "informal" in txt:
+                badge, color = "IW", RGBColor(255,165,0)
+            elif "passed" in txt:
+                badge, color = "✔", RGBColor(0,176,80)
+            if badge:
+                # draw colored circle behind badge
+                bx = left + sum(Inches(w) for w in col_w[:c]) + Inches(0.1)
+                by = top  + Inches(0.2)
+                shp = slide1.shapes.add_shape(
+                    MSO_SHAPE.OVAL, bx, by, Inches(0.4), Inches(0.4)
+                )
+                shp.fill.solid()
+                shp.fill.fore_color.rgb = color
+                shp.line.color.rgb = RGBColor(255,255,255)
 
-            run.font.name = "Cambria"
-            run.font.size = Pt(12)
-            run.font.bold = False
+                # add badge text
+                tf2 = shp.text_frame
+                tf2.clear()
+                p2 = tf2.paragraphs[0]
+                p2.alignment = PP_ALIGN.CENTER
+                r2 = p2.add_run()
+                r2.text = badge
+                r2.font.name = "Cambria"
+                r2.font.size = Pt(10)
+                r2.font.bold = True
+                r2.font.color.rgb = RGBColor(255,255,255)
+
 
 
     # ─── Save and offer download ────────────────────────────────────────────────────────────────────────────────────────────────
