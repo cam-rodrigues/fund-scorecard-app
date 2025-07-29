@@ -1388,7 +1388,7 @@ def step16_bullet_points():
         st.markdown("- **Action:** Consider replacing this fund.")
 
 #── Build Powerpoint───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-# === Step 17: Export to PowerPoint with Centered Table & Perfectly Centered Badges ===
+# === Step 17: Export to PowerPoint + Bullet Points Textbox ===
 def step17_export_to_ppt_headings():
     import streamlit as st
     from pptx import Presentation
@@ -1400,23 +1400,21 @@ def step17_export_to_ppt_headings():
     from io import BytesIO
     import re
 
-    st.subheader("Step 17: Export to PowerPoint with Centered Table & Badges")
+    st.subheader("Step 17: Export to PowerPoint with Bullets")
 
-    # 1) Ensure fund selected
+    # — 1) Selected fund & category —
     selected = st.session_state.get("selected_fund")
     if not selected:
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
-
-    # 2) Lookup category
     facts = st.session_state.get("fund_factsheets_data", [])
-    rec = next((f for f in facts if f["Matched Fund Name"] == selected), None)
+    rec   = next((f for f in facts if f["Matched Fund Name"]==selected), None)
     if not rec or not rec.get("Category"):
         st.error(f"❌ Could not find category for '{selected}'.")
         return
     category = rec["Category"].strip()
 
-    # 3) Load template
+    # — 2) Load PPTX template —
     try:
         prs = Presentation("assets/template.pptx")
     except Exception as e:
@@ -1424,44 +1422,86 @@ def step17_export_to_ppt_headings():
         return
     slide1 = prs.slides[0]
 
-    # 4) Styled titles on slides 1–4
+    # — 3) Titles on slides 1–4 (unchanged) —
     def set_title(slide, text):
         if slide.shapes.title:
             tx = slide.shapes.title.text_frame.paragraphs[0]
         else:
             left, top = Inches(0.5), Inches(0.3)
-            width, height = prs.slide_width - Inches(1), Inches(0.7)
-            box = slide.shapes.add_textbox(left, top, width, height)
+            box = slide.shapes.add_textbox(left, top, prs.slide_width-Inches(1), Inches(0.7))
             tx = box.text_frame.paragraphs[0]
         tx.text = text
         r = tx.runs[0]
-        r.font.name = "Helvetica"
-        r.font.size = Pt(20)
-        r.font.bold = True
+        r.font.name  = "Helvetica"
+        r.font.size  = Pt(20)
+        r.font.bold  = True
         r.font.color.rgb = RGBColor(0x21,0x2B,0x58)
         tx.alignment = PP_ALIGN.LEFT
 
     set_title(slide1, "Investment Watchlist")
-    if len(prs.slides) > 1:
-        set_title(prs.slides[1], f"{category} – Expense & Return")
-    if len(prs.slides) > 2:
-        set_title(prs.slides[2], f"{category} – Risk Adjusted Statistics")
-    if len(prs.slides) > 3:
-        set_title(prs.slides[3], f"{category} – Qualitative Factors")
+    if len(prs.slides)>1: set_title(prs.slides[1], f"{category} – Expense & Return")
+    if len(prs.slides)>2: set_title(prs.slides[2], f"{category} – Risk Adjusted Statistics")
+    if len(prs.slides)>3: set_title(prs.slides[3], f"{category} – Qualitative Factors")
 
-    # 5) Subheader on Slide 1
-    left, top = Inches(0.5), Inches(1.3)
-    width, height = prs.slide_width - Inches(1), Inches(0.4)
-    sub = slide1.shapes.add_textbox(left, top, width, height)
+    # — 4) Subheader on Slide 1 —    
+    sub_left, sub_top = Inches(0.5), Inches(1.3)
+    sub = slide1.shapes.add_textbox(sub_left, sub_top, prs.slide_width-Inches(1), Inches(0.4))
     sf = sub.text_frame.paragraphs[0]
     sf.text = selected
     run = sf.runs[0]
-    run.font.name = "Cambria"
-    run.font.size = Pt(12)
-    run.font.bold = True
+    run.font.name      = "Cambria"
+    run.font.size      = Pt(12)
+    run.font.bold      = True
     run.font.underline = True
     run.font.color.rgb = RGBColor(0,0,0)
-    sf.alignment = PP_ALIGN.LEFT
+    sf.alignment       = PP_ALIGN.LEFT
+
+    # — 5) Generate bullets from step16 logic —
+    perf_data = st.session_state.get("fund_performance_data", [])
+    item = next((x for x in perf_data if x["Fund Scorecard Name"]==selected), {})
+    # bullet 1
+    tmpl = st.session_state.get("bullet_point_templates", [""])[0]
+    b1 = tmpl
+    for fld,val in item.items():
+        b1 = b1.replace(f"[{fld}]", str(val))
+    # bullet 2 & 3
+    ips = item.get("IPS Status","")
+    if ips=="Passed IPS Screen":
+        b2, b3 = "The Fund passed the IPS Screening.", ""
+    else:
+        status = "Informal Watch" if "IW" in ips else "Formal Watch"
+        three, bench3 = float(item.get("3Yr") or 0), float(item.get("Bench 3Yr") or 0)
+        five,  bench5 = float(item.get("5Yr") or 0), float(item.get("Bench 5Yr") or 0)
+        bps3 = round((three-bench3)*100,1); bps5 = round((five-bench5)*100,1)
+        # peer ranks
+        peer = st.session_state.get("step14_peer_rank_table", [])
+        raw3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer if r.get("Fund Name")==selected),None)
+        raw5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer if r.get("Fund Name")==selected),None)
+        rank3 = raw3 or "N/A"; rank5 = raw5 or "N/A"
+        pos3 = "top" if rank3!="N/A" and int(rank3)<=50 else "bottom"
+        pos5 = "top" if rank5!="N/A" and int(rank5)<=50 else "bottom"
+        b2 = (
+            f"- The fund is now on {status}. Its three‑year return trails the benchmark by "
+            f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its five‑year return trails by "
+            f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half and "
+            f"its 5‑Yr Sharpe ranks in the {pos5} half."
+        )
+        b3 = "- **Action:** Consider replacing this fund." if status=="Formal Watch" else ""
+
+    # — 6) Add bullet textbox under subheader, left‑aligned —
+    bx = sub_left
+    by = sub_top + Inches(0.5)
+    bw = prs.slide_width - Inches(1)
+    bh = Inches(1.5)
+    tb = slide1.shapes.add_textbox(bx, by, bw, bh)
+    tf = tb.text_frame
+    tf.clear()
+    for line in [b1, b2] + ([b3] if b3 else []):
+        p = tf.add_paragraph()
+        p.text = line.strip("- ").strip()
+        p.font.name  = "Cambria"
+        p.font.size  = Pt(11)
+        p.alignment  = PP_ALIGN.LEFT
 
     # 6) Build data for Slide 1 Table
     IPS = [
@@ -1564,7 +1604,7 @@ def step17_export_to_ppt_headings():
                 bx = cell_left + (cell_w - badge_size)//2
             
                 # extra downward nudge
-                extra = int(Inches(0.05))
+                extra = int(Inches(0.07))
                 by = data_row_top + (row_height - badge_size)//2 + extra
             
                 shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, bx, by, badge_size, badge_size)
