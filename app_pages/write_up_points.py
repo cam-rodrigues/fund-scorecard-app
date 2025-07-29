@@ -1387,8 +1387,7 @@ def step16_bullet_points():
     if "Formal Watch" in ips_status:
         st.markdown("- **Action:** Consider replacing this fund.")
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-# === Step 17: Export to PowerPoint Headings (styled) ===
+#── Build Powerpoint───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 def step17_export_to_ppt_headings():
     import streamlit as st
     from pptx import Presentation
@@ -1536,6 +1535,29 @@ def step17_export_to_ppt_headings():
             cell = table.cell(r+1, c)
             cell.text = str(val)
 
+    # assume your IPS metrics are the numbered columns "1" through "11"
+    metric_cols = [str(i) for i in range(1, len(IPS)+1)]
+    for r in range(rows):
+        for c, col_name in enumerate(df_slide1.columns):
+            val = df_slide1.iloc[r, c]
+            cell = table.cell(r+1, c)
+            para = cell.text_frame.paragraphs[0]
+            para.clear()
+            run = para.add_run()
+            # if this is one of the IPS metric columns, draw check or cross
+            if col_name in metric_cols:
+                if val:
+                    run.text = "✓"
+                    run.font.color.rgb = RGBColor(0x00, 0x80, 0x00)  # green
+                else:
+                    run.text = "✗"
+                    run.font.color.rgb = RGBColor(0xFF, 0x00, 0x00)  # red
+            else:
+                # for other columns, just show the raw value
+                run.text = str(val)
+                run.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
+            run.font.size = Pt(10)
+
     # ─── Save and offer download ────────────────────────────────────────────────────────────────────────────────────────────────
     buf = BytesIO()
     prs.save(buf)
@@ -1671,7 +1693,7 @@ def run():
         with st.expander("Step 16: Bullet Points", expanded=False):
             step16_bullet_points()
             
-        with st.expander("Step 17: Export to PowerPoint Headings", expanded=False):
+        with st.expander("Step 17: Export to PowerPoint", expanded=False):
             step17_export_to_ppt_headings()
 
 
