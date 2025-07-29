@@ -1511,9 +1511,16 @@ def run():
     import re
     st.title("Writeup")
 
-    # Initialize session state keys first
+    # Initialize safely
     if "slide_1_table" not in st.session_state:
-        st.session_state["slide_1_table"] = None  # initial value
+        st.session_state["slide_1_table"] = None
+    
+    # Later, ensure it's not None before accessing it
+    if st.session_state["slide_1_table"] is not None:
+        result = st.session_state["slide_1_table"][key_or_index]
+    else:
+        st.warning("slide_1_table hasn't been generated yet.")
+
 
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
