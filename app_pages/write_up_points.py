@@ -1520,7 +1520,8 @@ def step17_export_to_ppt_headings():
     def _set_border(cell, color=RGBColor(0,0,0)):
         tc = cell._tc
         tcPr = tc.get_or_add_tcPr()
-        hex_val = f"{int(color):06X}"
+        # build hex from the RGB tuple
+        hex_val = "{:02X}{:02X}{:02X}".format(color[0], color[1], color[2])
         for ln_tag in ("a:lnL","a:lnR","a:lnT","a:lnB"):
             ln = OxmlElement(ln_tag)
             lnPr = OxmlElement("a:solidFill")
@@ -1543,10 +1544,10 @@ def step17_export_to_ppt_headings():
     # 2) Insert table at the top half (2×15)
     cols = 15
     col_w = [1.2, 1.2, 1.2] + [0.4]*11 + [1.0]
-    left  = int(Inches(0.5))
-    top   = int(Inches(1.5))
-    width = int(Inches(9))
-    height= int(Inches(0.6))
+    left   = int(Inches(0.5))
+    top    = int(Inches(1.5))
+    width  = int(Inches(9))
+    height = int(Inches(0.6))
     tbl = slide1.shapes.add_table(2, cols, left, top, width, height).table
 
     # 3) Apply column widths
@@ -1591,7 +1592,7 @@ def step17_export_to_ppt_headings():
         p.alignment = PP_ALIGN.CENTER
 
         if c < 14:
-            # ✓/✖ for metrics
+            # ✓/✖ for metric columns
             if val is True:
                 p.text = "✔"; p.font.color.rgb = RGBColor(0,176,80)
             elif val is False:
@@ -1619,7 +1620,7 @@ def step17_export_to_ppt_headings():
                 shp.fill.solid(); shp.fill.fore_color.rgb = color
                 shp.line.color.rgb = RGBColor(255,255,255)
 
-                # add badge text
+                # badge text
                 tf2 = shp.text_frame; tf2.clear()
                 p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.CENTER
                 r2 = p2.add_run(); r2.text = badge
@@ -1627,7 +1628,6 @@ def step17_export_to_ppt_headings():
                 r2.font.size = Pt(10)
                 r2.font.bold = True
                 r2.font.color.rgb = RGBColor(255,255,255)
-
 
     # ─── Save and offer download ────────────────────────────────────────────────────────────────────────────────────────────────
     buf = BytesIO()
