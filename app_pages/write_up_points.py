@@ -1602,26 +1602,39 @@ def step17_export_to_ppt_headings():
                 r2 = p2.add_run(); r2.text = badge
                 r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255,255,255)
 
-    # 8) Bullet textbox BELOW the table
-    bullet_gap = int(Inches(0.1))
-    bullet_left = left
-    bullet_top  = top + height + bullet_gap
-    bullet_w    = prs.slide_width - Inches(1)
-    bullet_h    = Inches(1.0)
+    # 11) Bullet textbox BELOW the table
+    bullet_gap   = int(Inches(0.1))
+    bullet_left  = left
+    bullet_top   = top + height + bullet_gap
+    bullet_w     = prs.slide_width - Inches(1)
+    bullet_h     = Inches(2.5)  # give more vertical space for longer text
 
     tb = slide1.shapes.add_textbox(bullet_left, bullet_top, bullet_w, bullet_h)
-    tf = tb.text_frame; tf.clear()
-    # rebuild bullets from Step 16
+    tf = tb.text_frame
+    tf.clear()
+    tf.word_wrap = True
+    tf.margin_left  = Inches(0)
+    tf.margin_top   = Inches(0)
+
+    # Rebuild your three bullets
     tmpl = st.session_state["bullet_point_templates"][0]
-    b1 = tmpl; 
-    for fld,val in item.items(): b1 = b1.replace(f"[{fld}]", str(val))
-    # bullet 2 & 3 logic same as above to get b2,b3
+    b1 = tmpl
+    for fld, val in item.items():
+        b1 = b1.replace(f"[{fld}]", str(val))
+    # … compute b2, b3 as before …
+
     lines = [b1, b2] + ([b3] if b3 else [])
     for line in lines:
         p = tf.add_paragraph()
-        p.text = line.strip("- ").strip()
-        p.font.name, p.font.size = ("Cambria", Pt(11))
-        p.alignment = PP_ALIGN.LEFT
+        p.text = f"• {line.lstrip('- ')}"
+        p.font.name = "Cambria"
+        p.font.size = Pt(11)
+        p.font.color.rgb = RGBColor(0x21, 0x2B, 0x58)  # same dark‐blue as title
+        p.level = 0
+        # Bold the “Action:” line
+        if line.strip().startswith("Action"):
+            p.font.bold = True
+
         
     # 11) Download button
     buf = BytesIO(); prs.save(buf); buf.seek(0)
