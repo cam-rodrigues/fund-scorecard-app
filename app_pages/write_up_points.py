@@ -1328,8 +1328,7 @@ import re
 def set_cell_border(cell, border_color=RGBColor(0, 0, 0)):
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
-    r, g, b = border_color[0], border_color[1], border_color[2]
-    hex_color = f"{r:02X}{g:02X}{b:02X}"
+    hex_color = f"{border_color[0]:02X}{border_color[1]:02X}{border_color[2]:02X}"
     for ln_tag in ("a:lnL", "a:lnR", "a:lnT", "a:lnB"):
         ln = OxmlElement(ln_tag)
         ln.set("w", "12700")
@@ -1350,10 +1349,23 @@ def format_quarter(raw):
     return raw
 
 def slide_1_table(df, selected_fund):
-    # Create a blank Presentation
+    # Determine which column holds the fund name
+    if "Fund Name" in df.columns:
+        name_col = "Fund Name"
+    elif "Fund Scorecard Name" in df.columns:
+        name_col = "Fund Scorecard Name"
+    else:
+        name_col = df.columns[0]
+
+    # Filter the DataFrame
+    matching = df[df[name_col] == selected_fund]
+    rows = len(matching)
+    if rows == 0:
+        raise ValueError(f"No rows found for '{selected_fund}' in column '{name_col}'")
+
+    # Create presentation and slide
     prs = Presentation()
-    blank = prs.slide_layouts[6]
-    slide = prs.slides.add_slide(blank)
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
 
     # Title
     tb = slide.shapes.add_textbox(Inches(0.5), Inches(0.5), Inches(6), Inches(0.5))
@@ -1365,7 +1377,7 @@ def slide_1_table(df, selected_fund):
     run.font.color.rgb = RGBColor(33,43,88)
     p.alignment = PP_ALIGN.LEFT
 
-    # Subheading with fund name
+    # Subheading
     sub = slide.shapes.add_textbox(Inches(0.5), Inches(1.1), Inches(9), Inches(0.3))
     tf = sub.text_frame; p = tf.paragraphs[0]; run = p.add_run()
     run.text = selected_fund
@@ -1373,18 +1385,12 @@ def slide_1_table(df, selected_fund):
     run.font.bold = True; run.font.underline = True
     run.font.color.rgb = RGBColor(0,0,0)
 
-    # Filter the DataFrame
-    matching = df[df["Fund Name"] == selected_fund]
-    rows = len(matching)
+    # Build table
     cols = 15
     col_widths = [1.2,1.2,1.2] + [0.4]*11 + [1]
-
-    # Add the table
     left, top = Inches(0.3), Inches(1.5)
-    width, height = Inches(9), Inches(0.25*(rows+1))
-    table = slide.shapes.add_table(rows+1, cols, left, top, width, height).table
-
-    # Set column widths
+    table = slide.shapes.add_table(rows+1, cols, left, top,
+                                   Inches(9), Inches(0.25*(rows+1))).table
     for idx, w in enumerate(col_widths):
         table.columns[idx].width = Inches(w)
 
@@ -1404,7 +1410,6 @@ def slide_1_table(df, selected_fund):
 
     # Populate rows
     for r_idx, (_, row) in enumerate(matching.iterrows(), start=1):
-        # Collect cell values
         values = [
             row.get("Category",""),
             format_quarter(row.get("Time Period","")),
@@ -1422,38 +1427,34 @@ def slide_1_table(df, selected_fund):
             p.font.name = "Cambria"; p.font.size = Pt(12)
             p.font.color.rgb = RGBColor(0,0,0); p.alignment = PP_ALIGN.CENTER
 
-            # Boolean icons
+            # Icons and badges
             if val == "Pass" and c_idx < 14:
                 p.text = "✔"; p.font.color.rgb = RGBColor(0,176,80)
             elif val == "Review" and c_idx < 14:
                 p.text = "✖"; p.font.color.rgb = RGBColor(192,0,0)
-
-            # IPS Status badge
             elif c_idx == 14:
-                text = str(val).lower()
-                if "formal" in text:
+                txt = str(val).lower()
+                if "formal" in txt:
                     badge, color = "FW", RGBColor(192,0,0)
-                elif "informal" in text:
+                elif "informal" in txt:
                     badge, color = "IW", RGBColor(255,165,0)
-                elif "passed" in text:
+                elif "passed" in txt:
                     badge, color = "✔", RGBColor(0,176,80)
                 else:
                     continue
 
-                # draw badge
-                left_offset = sum(Inches(w) for w in col_widths[:c_idx]) + left + Inches(0.3)
-                top_offset  = top + Inches(0.25*r_idx) + Inches(0.06)
-                shape = slide.shapes.add_shape(
-                    MSO_SHAPE.OVAL, left_offset, top_offset,
-                    Inches(0.5), Inches(0.25)
+                lx = sum(Inches(w) for w in col_widths[:c_idx]) + left + Inches(0.3)
+                ty = top + Inches(0.25*r_idx) + Inches(0.06)
+                shp = slide.shapes.add_shape(
+                    MSO_SHAPE.OVAL, lx, ty, Inches(0.5), Inches(0.25)
                 )
-                shape.fill.solid(); shape.fill.fore_color.rgb = color
-                shape.line.color.rgb = RGBColor(255,255,255)
-                tf2 = shape.text_frame; tf2.clear()
+                shp.fill.solid(); shp.fill.fore_color.rgb = color
+                shp.line.color.rgb = RGBColor(255,255,255)
+                tf2 = shp.text_frame; tf2.clear()
                 p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.CENTER
-                r2 = p2.add_run(); r2.text = badge; r2.font.bold = True
-                r2.font.size = Pt(12 if badge == "✔" else 11)
-                r2.font.color.rgb = RGBColor(255,255,255)
+                run2 = p2.add_run(); run2.text = badge; run2.font.bold=True
+                run2.font.size = Pt(12 if badge=="✔" else 11)
+                run2.font.color.rgb = RGBColor(255,255,255)
 
     return prs
 
