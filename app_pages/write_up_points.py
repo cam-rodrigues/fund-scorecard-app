@@ -1602,8 +1602,6 @@ def step17_export_to_ppt_headings():
                 r2 = p2.add_run(); r2.text = badge
                 r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255,255,255)
 
-    # … after table insertion …
-
     # 11) Bullet textbox BELOW the table
     bullet_gap   = int(Inches(0.1))
     bullet_left  = left
@@ -1636,84 +1634,105 @@ def step17_export_to_ppt_headings():
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-        # 12) Build & lay out Slide 2 tables
+    #Slide 2
     if len(prs.slides) > 1:
         slide2 = prs.slides[1]
-        
-        # — Prepare the DataFrames (reuse your Step 15 code) —
         import pandas as pd, re
-        
-        # Table 1: Net Expense Ratio
+        from pptx.enum.text import PP_ALIGN
+        from pptx.util import Inches, Pt
+    
+        # — Prepare DataFrames (reuse your existing logic) —
         perf_data = st.session_state["fund_performance_data"]
-        perf_item = next(p for p in perf_data if p["Fund Scorecard Name"]==selected)
+        perf_item = next(p for p in perf_data if p["Fund Scorecard Name"] == selected)
         inv_mgr   = f"{selected} ({perf_item['Ticker']})"
-        net_exp   = perf_item["Net Expense Ratio"]
+        # Table 1
+        net_exp = perf_item["Net Expense Ratio"]
         if net_exp and not str(net_exp).endswith("%"):
             net_exp = f"{net_exp}%"
-        df1 = pd.DataFrame([{"Investment Manager":inv_mgr, "Net Expense Ratio":net_exp}])
-        
-        # Table 2: QTD/1Yr/3Yr/5Yr/10Yr
+        df1 = pd.DataFrame([{"Investment Manager": inv_mgr, "Net Expense Ratio": net_exp}])
+        # Table 2
         date_label = st.session_state["report_date"]
         def _pct(v): return f"{v}%" if v and not str(v).endswith("%") else (v or "")
-        vals = perf_item
         df2 = pd.DataFrame([{
             "Investment Manager": inv_mgr,
-            date_label:           _pct(vals.get("QTD")),
-            "1 Year":             _pct(vals.get("1Yr")),
-            "3 Year":             _pct(vals.get("3Yr")),
-            "5 Year":             _pct(vals.get("5Yr")),
-            "10 Year":            _pct(vals.get("10Yr")),
+            date_label:           _pct(perf_item.get("QTD")),
+            "1 Year":             _pct(perf_item.get("1Yr")),
+            "3 Year":             _pct(perf_item.get("3Yr")),
+            "5 Year":             _pct(perf_item.get("5Yr")),
+            "10 Year":            _pct(perf_item.get("10Yr")),
         }])
-        
-        # Table 3: Calendar‑Year Returns (fund vs benchmark)
+        # Table 3
         fund_cy  = st.session_state["step8_returns"]
         bench_cy = st.session_state["benchmark_calendar_year_returns"]
-        fund_rec = next(r for r in fund_cy if r["Name"]==selected)
-        bench_rec= next(r for r in bench_cy if r["Name"]==selected or r["Ticker"]==fund_rec["Ticker"])
+        fund_rec = next(r for r in fund_cy  if r["Name"] == selected)
+        bench_rec= next(r for r in bench_cy if r["Name"] == selected or r["Ticker"] == fund_rec["Ticker"])
         years    = [c for c in fund_rec if re.match(r"20\d{2}", c)]
-        rows = []
-        rows.append({"Investment Manager":inv_mgr, **{y: fund_rec[y] for y in years}})
-        bench_name = bench_rec.get("Name", "Benchmark")
-        rows.append({"Investment Manager":f"{bench_name} ({bench_rec['Ticker']})", **{y: bench_rec[y] for y in years}})
+        rows = [
+            {"Investment Manager": inv_mgr, **{y: fund_rec[y] for y in years}},
+            {"Investment Manager": f"{bench_rec['Name']} ({bench_rec['Ticker']})",
+             **{y: bench_rec[y] for y in years}}
+        ]
         df3 = pd.DataFrame(rows, columns=["Investment Manager"] + years)
-        
-        # — Define a helper to draw any DataFrame as a pptx table —
-        def draw_table(slide, df, left, top, width, height):
+    
+        # — Helper to draw a DataFrame as a PPT table with per-column widths —
+        def draw_table(slide, df, left, top, width, height, col_widths):
             rows, cols = df.shape
-            table = slide.shapes.add_table(rows+1, cols, left, top, width, height).table
+            tbl = slide.shapes.add_table(rows+1, cols, left, top, width, height).table
+            # apply specified column widths (in inches)
+            for i, w in enumerate(col_widths):
+                tbl.columns[i].width = Inches(w)
             # header
             for c, col in enumerate(df.columns):
-                cell = table.cell(0, c)
-                cell.text = col
-                cell.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
-                run = cell.text_frame.paragraphs[0].runs[0]
+                cell = tbl.cell(0, c)
+                cell.text_frame.clear()
+                run = cell.text_frame.paragraphs[0].add_run(col)
                 run.font.name = "Cambria"; run.font.size = Pt(12); run.font.bold = True
+                cell.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
             # body
             for r in range(rows):
                 for c, col in enumerate(df.columns):
-                    cell = table.cell(r+1, c)
-                    cell.text = str(df.iat[r, c])
-                    cell.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
-                    run = cell.text_frame.paragraphs[0].runs[0]
+                    cell = tbl.cell(r+1, c)
+                    cell.text_frame.clear()
+                    text = str(df.iat[r, c])
+                    run = cell.text_frame.paragraphs[0].add_run(text)
                     run.font.name = "Cambria"; run.font.size = Pt(12)
-        
-        # — Compute positions for two small tables side by side on the top half —
+                    cell.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+    
+        # — Compute positions & widths —
         slide_w = prs.slide_width
-        gap      = Inches(0.2)
-        table_w  = (slide_w - Inches(1.0) - gap) / 2
-        table_h  = Inches(1.0)
-        top_pos  = Inches(1.0)
-        left1    = Inches(0.5)
-        left2    = left1 + table_w + gap
-        
-        draw_table(slide2, df1, left1, top_pos, table_w, table_h)
-        draw_table(slide2, df2, left2, top_pos, table_w, table_h)
-        
-        # — Third table across bottom half —
-        bot_top = top_pos + table_h + Inches(0.3)
-        bot_h   = Inches(2.5)
-        draw_table(slide2, df3, Inches(0.5), bot_top, slide_w - Inches(1.0), bot_h)
-        
+        gap     = 0.2  # inches
+        # Table 1 & 2 side by side, each in top half
+        table_w = (slide_w.inches - 1.0 - gap) / 2
+        table_h = 1.0  # inch height
+        top_pos = 1.0  # inch from top
+        left1   = 0.5  # inch left margin
+        left2   = left1 + table_w + gap
+    
+        # Column widths for df1: [2.0″, 1.0″]
+        draw_table(slide2, df1,
+                   Inches(left1), Inches(top_pos),
+                   Inches(table_w), Inches(table_h),
+                   col_widths=[2.0, 1.0])
+    
+        # Column widths for df2: [2.0″] + five columns at 0.8″ each
+        draw_table(slide2, df2,
+                   Inches(left2), Inches(top_pos),
+                   Inches(table_w), Inches(table_h),
+                   col_widths=[2.0] + [0.8]*5)
+    
+        # Bottom full-width table
+        bot_top = top_pos + table_h + 0.3  # inches
+        bot_h   = 2.5  # inches
+        n_cols  = len(df3.columns)
+        # widths: first column 2.5″, remaining evenly share the rest
+        rem      = (slide_w.inches - 1.0 - 2.5) / (n_cols-1)
+        widths3  = [2.5] + [rem]*(n_cols-1)
+    
+        draw_table(slide2, df3,
+                   Inches(0.5), Inches(bot_top),
+                   Inches(slide_w.inches - 1.0), Inches(bot_h),
+                   col_widths=widths3)
+
 
     
     # ── Download button ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
