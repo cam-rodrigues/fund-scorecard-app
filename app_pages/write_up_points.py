@@ -1636,85 +1636,84 @@ def step17_export_to_ppt_headings():
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-#Slide 2
-# 12) Build & lay out Slide 2 tables
-if len(prs.slides) > 1:
-    slide2 = prs.slides[1]
-
-    # — Prepare the DataFrames (reuse your Step 15 code) —
-    import pandas as pd, re
-
-    # Table 1: Net Expense Ratio
-    perf_data = st.session_state["fund_performance_data"]
-    perf_item = next(p for p in perf_data if p["Fund Scorecard Name"]==selected)
-    inv_mgr   = f"{selected} ({perf_item['Ticker']})"
-    net_exp   = perf_item["Net Expense Ratio"]
-    if net_exp and not str(net_exp).endswith("%"):
-        net_exp = f"{net_exp}%"
-    df1 = pd.DataFrame([{"Investment Manager":inv_mgr, "Net Expense Ratio":net_exp}])
-
-    # Table 2: QTD/1Yr/3Yr/5Yr/10Yr
-    date_label = st.session_state["report_date"]
-    def _pct(v): return f"{v}%" if v and not str(v).endswith("%") else (v or "")
-    vals = perf_item
-    df2 = pd.DataFrame([{
-        "Investment Manager": inv_mgr,
-        date_label:           _pct(vals.get("QTD")),
-        "1 Year":             _pct(vals.get("1Yr")),
-        "3 Year":             _pct(vals.get("3Yr")),
-        "5 Year":             _pct(vals.get("5Yr")),
-        "10 Year":            _pct(vals.get("10Yr")),
-    }])
-
-    # Table 3: Calendar‑Year Returns (fund vs benchmark)
-    fund_cy  = st.session_state["step8_returns"]
-    bench_cy = st.session_state["benchmark_calendar_year_returns"]
-    fund_rec = next(r for r in fund_cy if r["Name"]==selected)
-    bench_rec= next(r for r in bench_cy if r["Name"]==selected or r["Ticker"]==fund_rec["Ticker"])
-    years    = [c for c in fund_rec if re.match(r"20\d{2}", c)]
-    rows = []
-    rows.append({"Investment Manager":inv_mgr, **{y: fund_rec[y] for y in years}})
-    bench_name = bench_rec.get("Name", "Benchmark")
-    rows.append({"Investment Manager":f"{bench_name} ({bench_rec['Ticker']})", **{y: bench_rec[y] for y in years}})
-    df3 = pd.DataFrame(rows, columns=["Investment Manager"] + years)
-
-    # — Define a helper to draw any DataFrame as a pptx table —
-    def draw_table(slide, df, left, top, width, height):
-        rows, cols = df.shape
-        table = slide.shapes.add_table(rows+1, cols, left, top, width, height).table
-        # header
-        for c, col in enumerate(df.columns):
-            cell = table.cell(0, c)
-            cell.text = col
-            cell.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
-            run = cell.text_frame.paragraphs[0].runs[0]
-            run.font.name = "Cambria"; run.font.size = Pt(12); run.font.bold = True
-        # body
-        for r in range(rows):
+        # 12) Build & lay out Slide 2 tables
+        if len(prs.slides) > 1:
+        slide2 = prs.slides[1]
+        
+        # — Prepare the DataFrames (reuse your Step 15 code) —
+        import pandas as pd, re
+        
+        # Table 1: Net Expense Ratio
+        perf_data = st.session_state["fund_performance_data"]
+        perf_item = next(p for p in perf_data if p["Fund Scorecard Name"]==selected)
+        inv_mgr   = f"{selected} ({perf_item['Ticker']})"
+        net_exp   = perf_item["Net Expense Ratio"]
+        if net_exp and not str(net_exp).endswith("%"):
+            net_exp = f"{net_exp}%"
+        df1 = pd.DataFrame([{"Investment Manager":inv_mgr, "Net Expense Ratio":net_exp}])
+        
+        # Table 2: QTD/1Yr/3Yr/5Yr/10Yr
+        date_label = st.session_state["report_date"]
+        def _pct(v): return f"{v}%" if v and not str(v).endswith("%") else (v or "")
+        vals = perf_item
+        df2 = pd.DataFrame([{
+            "Investment Manager": inv_mgr,
+            date_label:           _pct(vals.get("QTD")),
+            "1 Year":             _pct(vals.get("1Yr")),
+            "3 Year":             _pct(vals.get("3Yr")),
+            "5 Year":             _pct(vals.get("5Yr")),
+            "10 Year":            _pct(vals.get("10Yr")),
+        }])
+        
+        # Table 3: Calendar‑Year Returns (fund vs benchmark)
+        fund_cy  = st.session_state["step8_returns"]
+        bench_cy = st.session_state["benchmark_calendar_year_returns"]
+        fund_rec = next(r for r in fund_cy if r["Name"]==selected)
+        bench_rec= next(r for r in bench_cy if r["Name"]==selected or r["Ticker"]==fund_rec["Ticker"])
+        years    = [c for c in fund_rec if re.match(r"20\d{2}", c)]
+        rows = []
+        rows.append({"Investment Manager":inv_mgr, **{y: fund_rec[y] for y in years}})
+        bench_name = bench_rec.get("Name", "Benchmark")
+        rows.append({"Investment Manager":f"{bench_name} ({bench_rec['Ticker']})", **{y: bench_rec[y] for y in years}})
+        df3 = pd.DataFrame(rows, columns=["Investment Manager"] + years)
+        
+        # — Define a helper to draw any DataFrame as a pptx table —
+        def draw_table(slide, df, left, top, width, height):
+            rows, cols = df.shape
+            table = slide.shapes.add_table(rows+1, cols, left, top, width, height).table
+            # header
             for c, col in enumerate(df.columns):
-                cell = table.cell(r+1, c)
-                cell.text = str(df.iat[r, c])
+                cell = table.cell(0, c)
+                cell.text = col
                 cell.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
                 run = cell.text_frame.paragraphs[0].runs[0]
-                run.font.name = "Cambria"; run.font.size = Pt(12)
-
-    # — Compute positions for two small tables side by side on the top half —
-    slide_w = prs.slide_width
-    gap      = Inches(0.2)
-    table_w  = (slide_w - Inches(1.0) - gap) / 2
-    table_h  = Inches(1.0)
-    top_pos  = Inches(1.0)
-    left1    = Inches(0.5)
-    left2    = left1 + table_w + gap
-
-    draw_table(slide2, df1, left1, top_pos, table_w, table_h)
-    draw_table(slide2, df2, left2, top_pos, table_w, table_h)
-
-    # — Third table across bottom half —
-    bot_top = top_pos + table_h + Inches(0.3)
-    bot_h   = Inches(2.5)
-    draw_table(slide2, df3, Inches(0.5), bot_top, slide_w - Inches(1.0), bot_h)
-
+                run.font.name = "Cambria"; run.font.size = Pt(12); run.font.bold = True
+            # body
+            for r in range(rows):
+                for c, col in enumerate(df.columns):
+                    cell = table.cell(r+1, c)
+                    cell.text = str(df.iat[r, c])
+                    cell.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+                    run = cell.text_frame.paragraphs[0].runs[0]
+                    run.font.name = "Cambria"; run.font.size = Pt(12)
+        
+        # — Compute positions for two small tables side by side on the top half —
+        slide_w = prs.slide_width
+        gap      = Inches(0.2)
+        table_w  = (slide_w - Inches(1.0) - gap) / 2
+        table_h  = Inches(1.0)
+        top_pos  = Inches(1.0)
+        left1    = Inches(0.5)
+        left2    = left1 + table_w + gap
+        
+        draw_table(slide2, df1, left1, top_pos, table_w, table_h)
+        draw_table(slide2, df2, left2, top_pos, table_w, table_h)
+        
+        # — Third table across bottom half —
+        bot_top = top_pos + table_h + Inches(0.3)
+        bot_h   = Inches(2.5)
+        draw_table(slide2, df3, Inches(0.5), bot_top, slide_w - Inches(1.0), bot_h)
+        
 
     
     # ── Download button ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
