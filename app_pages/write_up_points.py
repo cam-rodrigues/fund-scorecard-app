@@ -1637,7 +1637,7 @@ def step17_export_to_ppt_headings():
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
         # 12) Build & lay out Slide 2 tables
-        if len(prs.slides) > 1:
+    if len(prs.slides) > 1:
         slide2 = prs.slides[1]
         
         # — Prepare the DataFrames (reuse your Step 15 code) —
