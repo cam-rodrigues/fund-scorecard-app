@@ -1520,17 +1520,17 @@ def step17_export_to_ppt_headings():
     def _set_border(cell, color=RGBColor(0,0,0)):
         tc = cell._tc
         tcPr = tc.get_or_add_tcPr()
+        hex_val = f"{int(color):06X}"
         for ln_tag in ("a:lnL","a:lnR","a:lnT","a:lnB"):
             ln = OxmlElement(ln_tag)
             lnPr = OxmlElement("a:solidFill")
             srgb = OxmlElement("a:srgbClr")
-            # set hex color
-            srgb.set("val", f"{color.rgb[0]:02X}{color.rgb[1]:02X}{color.rgb[2]:02X}")
+            srgb.set("val", hex_val)
             lnPr.append(srgb)
             ln.append(lnPr)
             tcPr.append(ln)
 
-    # 1) Prepare the row dict
+    # 1) Prepare the data row
     row = {
         "Category":    category,
         "Time Period": st.session_state.get("report_date",""),
@@ -1540,13 +1540,13 @@ def step17_export_to_ppt_headings():
         row[str(idx)] = statuses[crit]
     row["IPS Status"] = overall
 
-    # 2) Insert table at top half (2 rows × 15 cols)
+    # 2) Insert table at the top half (2×15)
     cols = 15
     col_w = [1.2, 1.2, 1.2] + [0.4]*11 + [1.0]
-    left = int(Inches(0.5))
-    top  = int(Inches(1.5))
-    width  = int(Inches(9))
-    height = int(Inches(0.6))
+    left  = int(Inches(0.5))
+    top   = int(Inches(1.5))
+    width = int(Inches(9))
+    height= int(Inches(0.6))
     tbl = slide1.shapes.add_table(2, cols, left, top, width, height).table
 
     # 3) Apply column widths
@@ -1570,7 +1570,7 @@ def step17_export_to_ppt_headings():
         p.font.bold = True
         p.alignment = PP_ALIGN.CENTER
 
-    # 5) Data row
+    # 5) Data row with checks and badge
     vals = [
         row["Category"],
         row["Time Period"],
@@ -1591,7 +1591,7 @@ def step17_export_to_ppt_headings():
         p.alignment = PP_ALIGN.CENTER
 
         if c < 14:
-            # boolean -> check/X
+            # ✓/✖ for metrics
             if val is True:
                 p.text = "✔"; p.font.color.rgb = RGBColor(0,176,80)
             elif val is False:
@@ -1599,7 +1599,7 @@ def step17_export_to_ppt_headings():
             else:
                 p.text = str(val); p.font.color.rgb = RGBColor(0,0,0)
         else:
-            # IPS badge
+            # IPS Status badge
             txt = str(val).lower()
             badge = None
             if "formal" in txt:
@@ -1610,7 +1610,7 @@ def step17_export_to_ppt_headings():
                 badge, color = "✔", RGBColor(0,176,80)
 
             if badge:
-                # circle background
+                # draw colored circle
                 bx = left + sum(int(Inches(w)) for w in col_w[:c]) + int(Inches(0.1))
                 by = top  + int(Inches(0.2))
                 shp = slide1.shapes.add_shape(
@@ -1619,7 +1619,7 @@ def step17_export_to_ppt_headings():
                 shp.fill.solid(); shp.fill.fore_color.rgb = color
                 shp.line.color.rgb = RGBColor(255,255,255)
 
-                # badge text
+                # add badge text
                 tf2 = shp.text_frame; tf2.clear()
                 p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.CENTER
                 r2 = p2.add_run(); r2.text = badge
@@ -1627,7 +1627,6 @@ def step17_export_to_ppt_headings():
                 r2.font.size = Pt(10)
                 r2.font.bold = True
                 r2.font.color.rgb = RGBColor(255,255,255)
-
 
 
     # ─── Save and offer download ────────────────────────────────────────────────────────────────────────────────────────────────
