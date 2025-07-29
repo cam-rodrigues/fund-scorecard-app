@@ -1565,6 +1565,8 @@ def step17_export_to_ppt_headings():
         tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE; tf.margin_top = tf.margin_bottom = 0
         p = tf.paragraphs[0]; p.font.name = "Cambria"; p.font.size = Pt(12); p.font.bold = False
         p.alignment = PP_ALIGN.CENTER
+        row_height   = height // 2
+        data_row_top = top + row_height
 
         if c < 14:
             if val is True:
@@ -1587,20 +1589,21 @@ def step17_export_to_ppt_headings():
             if badge:
                 cell_left = left + sum(int(Inches(w)) for w in col_w[:c])
                 cell_w    = int(Inches(col_w[c]))
-                bx = cell_left + (cell_w - badge_size)//2
-            
-                # extra downward nudge
-                extra = int(Inches(0.07))
-                by = data_row_top + (row_height - badge_size)//2 + extra
-            
-                shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, bx, by, badge_size, badge_size)
+    
+                bx = cell_left + (cell_w - badge_width)//2
+                by = data_row_top + (row_height - badge_height)//2 + extra
+    
+                shp = slide1.shapes.add_shape(
+                    MSO_SHAPE.OVAL, bx, by, badge_width, badge_height
+                )
                 shp.fill.solid(); shp.fill.fore_color.rgb = color
                 shp.line.color.rgb = RGBColor(255,255,255)
-            
+    
                 tf2 = shp.text_frame; tf2.clear()
                 p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.CENTER
                 r2 = p2.add_run(); r2.text = badge
-                r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255,255,255)
+                r2.font.name = "Cambria"; r2.font.size = Pt(10)
+                r2.font.bold = True; r2.font.color.rgb = RGBColor(255,255,255)
 
     # … after table insertion …
 
