@@ -8,7 +8,7 @@ from pptx import Presentation
 from pptx.util import Inches
 from io import BytesIO
 
-
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Utility: Extract & Label Report Date ===
 def extract_report_date(text):
     # find the first quarter‐end or any mm/dd/yyyy
@@ -22,8 +22,7 @@ def extract_report_date(text):
         # fallback: human‐readable
         return f"As of {month_name[m]} {d}, {year}"
     return None
-
-#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 1 & 1.5: Page 1 Extraction ===
 def process_page1(text):
@@ -86,7 +85,7 @@ def process_toc(text):
     st.session_state['r3yr_page'] = r3yr_page
     st.session_state['r5yr_page'] = r5yr_page
 
-#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 3 ===
 def step3_process_scorecard(pdf, start_page, declared_total):
@@ -148,7 +147,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
 
-#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 4: IPS Screening ===
 def step4_ips_screen():
@@ -237,7 +236,7 @@ def step4_ips_screen():
             sym = "✅" if statuses.get(m,False) else "❌"
             st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
 
-#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 5: Fund Performance Section Extraction (with fallback) ===
 def step5_process_performance(pdf, start_page, fund_names):
@@ -322,7 +321,7 @@ def extract_field(text: str, label: str, stop_at: str = None) -> str:
     except ValueError:
         return ""
 
-#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 6: Fund Factsheets ===
 def step6_process_factsheets(pdf, fund_names):
@@ -412,7 +411,7 @@ def step6_process_factsheets(pdf, fund_names):
         else:
             st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
-#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr / Net Expense Ratio & Bench QTD ===
 def step7_extract_returns(pdf):
@@ -513,7 +512,7 @@ def step7_extract_returns(pdf):
         use_container_width=True
     )
 
-#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 8 Calendar Year Returns (funds + benchmarks) ===
 def step8_calendar_returns(pdf):
@@ -586,7 +585,7 @@ def step8_calendar_returns(pdf):
     else:
         st.warning("No benchmark returns extracted.")
 
-#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching) ===
 def step9_risk_analysis_3yr(pdf):
@@ -646,7 +645,7 @@ def step9_risk_analysis_3yr(pdf):
     st.dataframe(df, use_container_width=True)
 
 
-#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 10: Risk Analysis (5Yr) – Match & Extract MPT Statistics ===
 def step10_risk_analysis_5yr(pdf):
@@ -722,7 +721,7 @@ def step10_risk_analysis_5yr(pdf):
     st.dataframe(df, use_container_width=True)
 
 
-#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 11: Combined MPT Statistics Summary ===
 def step11_create_summary(pdf=None):
@@ -771,7 +770,7 @@ def step11_create_summary(pdf=None):
     st.session_state["step11_summary"] = df.to_dict("records")
     st.dataframe(df)
 
-#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 12: Extract “FUND FACTS” & Its Table Details in One Go ===
 def step12_process_fund_facts(pdf):
@@ -837,7 +836,7 @@ def step12_process_fund_facts(pdf):
     df = pd.DataFrame(records)
     st.dataframe(df, use_container_width=True)
 
-#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 13: Extract Risk‑Adjusted Returns Metrics ===
 def step13_process_risk_adjusted_returns(pdf):
@@ -907,7 +906,7 @@ def step13_process_risk_adjusted_returns(pdf):
     df = pd.DataFrame(records)
     st.dataframe(df, use_container_width=True)
 
-#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # == Step 14: Peer Risk-Adjusted Return Rank ==
 def step14_extract_peer_risk_adjusted_return_rank(pdf):
@@ -983,7 +982,7 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
     st.session_state["step14_peer_rank_table"] = records
     st.dataframe(df, use_container_width=True)
 
-#––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Step 15: Single Fund Details ===
 def step15_display_selected_fund():
     import pandas as pd
@@ -1315,139 +1314,180 @@ def step15_display_selected_fund():
     }])
     st.dataframe(df_slide5_2, use_container_width=True)
 
-# ────────────────────────────────────────────────────────────────────────────────
 
-# === Step 16: Bullet Points ===
+# ── Step 16: Bullet Points ───────────────────────────────────────────
 def step16_bullet_points():
     import streamlit as st
+    import re
 
-    selected_fund = st.session_state.get("selected_fund")
+    st.subheader("Step 16: Bullet Points")
+
+    selected_fund = st.session_state.get('selected_fund')
     if not selected_fund:
-        st.error("❌ No fund selected. Please select one in Step 15.")
+        st.error("❌ No fund selected. Please select a fund from Step 15.")
         return
 
+    # Retrieve performance data for the selected fund
     perf_data = st.session_state.get("fund_performance_data", [])
     item = next((x for x in perf_data if x["Fund Scorecard Name"] == selected_fund), None)
     if not item:
-        st.error("No performance data for selected fund.")
+        st.error(f"❌ Could not find performance data for {selected_fund}.")
         return
 
-    # --- Bullet 1: QTD performance vs benchmark ---
-    perf_dir   = item.get("Perf Direction", "")
-    quarter    = item.get("Quarter", "")
-    year       = item.get("Year", "")
-    bps_diff   = item.get("QTD_bps_diff", "")
-    pct_vs_str = item.get("QTD_vs", "")    # e.g. "3.11% vs. 2.05%"
-    # Format: “Fund X overperformed its benchmark in Q1, 2025 by 12.3 bps (3.11% vs. 2.05%).”
-    b1 = (
-        f"{selected_fund} {perf_dir} its benchmark in "
-        f"Q{quarter}, {year} by {bps_diff} bps ({pct_vs_str})."
-    )
-    st.markdown(f"- {b1}")
+    # — Bullet 1: Performance vs Benchmark
+    template = st.session_state["bullet_point_templates"][0]
+    filled = template
+    for field, val in item.items():
+        filled = filled.replace(f"[{field}]", str(val))
+    st.markdown(f"- {filled}")
 
-    # --- Bullet 2: IPS screening status or trailing returns ---
-    status = item.get("IPS Status", "")
-    if status == "Passed IPS Screen":
+    # — Bullet 2: IPS Screening Status
+    ips_status = item.get("IPS Status", "")
+    if ips_status == "Passed IPS Screen":
         st.markdown("- The Fund passed the IPS Screening.")
     else:
-        # three‑year and five‑year trailing
-        three   = float(item.get("3Yr")   or 0)
-        bench3  = float(item.get("Bench 3Yr") or 0)
-        five    = float(item.get("5Yr")   or 0)
-        bench5  = float(item.get("Bench 5Yr") or 0)
-        bps3 = round((three - bench3)*100, 1)
-        bps5 = round((five  - bench5)*100, 1)
-        b2 = (
-            f"The fund is now on {status}. "
-            f"Its three‑year return trails the benchmark by {bps3} bps "
-            f"({three:.2f}% vs. {bench3:.2f}%) and its five‑year return trails by "
-            f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%)."
+        status_label = "Informal Watch" if "IW" in ips_status else "Formal Watch"
+        # calculate 3‑ and 5‑yr differences
+        three, bench3 = float(item.get("3Yr", 0)), float(item.get("Bench 3Yr", 0))
+        five,  bench5 = float(item.get("5Yr", 0)), float(item.get("Bench 5Yr", 0))
+        bps3  = round((three - bench3)*100, 1)
+        bps5  = round((five  - bench5)*100, 1)
+        # peer ranks
+        peer = st.session_state.get("step14_peer_rank_table", [])
+        rank3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer if r.get("Fund Name")==selected_fund), "N/A")
+        rank5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer if r.get("Fund Name")==selected_fund), "N/A")
+        pos3  = "top" if rank3!="N/A" and int(rank3)<=50 else "bottom"
+        pos5  = "top" if rank5!="N/A" and int(rank5)<=50 else "bottom"
+        st.markdown(
+            f"- The fund is now on {status_label}. Its three‑year return trails the benchmark by "
+            f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its five‑year return trails by {bps5} bps "
+            f"({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half of peers "
+            f"and its 5‑Yr Sharpe ranks in the {pos5} half."
         )
-        st.markdown(f"- {b2}")
 
-        # --- Bullet 3: Formal Watch action if applicable ---
-        if "Formal Watch" in status:
-            st.markdown("- Action: Consider replacing this fund.")
+    # — Bullet 3: Formal Watch Action
+    if "Formal Watch" in ips_status:
+        st.markdown("- **Action:** Consider replacing this fund.")
 
-
-# ────────────────────────────────────────────────────────────────────────────────
-
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+# === Main App ===
 def run():
     import re
-    from io import BytesIO
-    import pandas as pd
-    import streamlit as st
-    import pdfplumber
-
     st.title("Writeup")
-
-    # ── Initialize session_state keys ───────────────────────────────────────────
-    if "slide_1_df" not in st.session_state:
-        st.session_state["slide_1_df"] = None
-    if "slide_1_ppt" not in st.session_state:
-        st.session_state["slide_1_ppt"] = None
-    if "bullet_point_templates" not in st.session_state:
-        st.session_state["bullet_point_templates"] = [
-            "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], "
-            "[Year] by [QTD_bps_diff] bps ([QTD_vs])."
-        ]
-    # ────────────────────────────────────────────────────────────────────────────
-
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
 
+    # ── Initialize templates exactly once ──────────────────────────────────────────────────────────────────────────────────────
+    if "bullet_point_templates" not in st.session_state:
+        st.session_state["bullet_point_templates"] = [
+            "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], [Year] by [QTD_bps_diff] bps ([QTD_pct_diff])."
+        ]
+   #──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    
     with pdfplumber.open(uploaded) as pdf:
-        # Steps 1–7 (unchanged)
-        with st.expander("Step 1: Details", expanded=False):
-            process_page1(pdf.pages[0].extract_text() or "")
-        with st.expander("Step 2: Table of Contents", expanded=False):
-            toc = "".join(pdf.pages[i].extract_text() or "" for i in range(min(3, len(pdf.pages))))
-            process_toc(toc)
-        with st.expander("Step 3: Scorecard Metrics", expanded=False):
-            sp = st.session_state.get("scorecard_page")
-            tot = st.session_state.get("total_options")
+        # Step 1
+        with st.expander("Step 1: Details", expanded=False):
+            first = pdf.pages[0].extract_text() or ""
+            process_page1(first)
+
+        # Step 2
+        with st.expander("Step 2: Table of Contents", expanded=False):
+            toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
+            process_toc(toc_text)
+
+        # Step 3
+        with st.expander("Step 3: Scorecard Metrics", expanded=False):
+            sp = st.session_state.get('scorecard_page')
+            tot = st.session_state.get('total_options')
             if sp and tot is not None:
                 step3_process_scorecard(pdf, sp, tot)
             else:
                 st.error("Missing scorecard page or total options")
-        with st.expander("Step 4: IPS Screening", expanded=False):
+
+        # Step 4
+        with st.expander("Step 4: IPS Screening", expanded=False):
             step4_ips_screen()
-        with st.expander("Step 5: Fund Performance", expanded=False):
-            pp = st.session_state.get("performance_page")
-            names = [b["Fund Name"] for b in st.session_state.get("fund_blocks", [])]
+
+        # Step 5
+        with st.expander("Step 5: Fund Performance", expanded=False):
+            pp = st.session_state.get('performance_page')
+            names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
             if pp and names:
                 step5_process_performance(pdf, pp, names)
             else:
                 st.error("Missing performance page or fund blocks")
-        with st.expander("Step 6: Fund Factsheets", expanded=True):
-            names = [b["Fund Name"] for b in st.session_state.get("fund_blocks", [])]
+
+        # Step 6
+        with st.expander("Step 6: Fund Factsheets", expanded=True):
+            names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
             step6_process_factsheets(pdf, names)
-        with st.expander("Step 7: Annualized Returns", expanded=False):
+
+        # Step 7
+        with st.expander("Step 7: Annualized Returns", expanded=False):
             step7_extract_returns(pdf)
 
-        # ────────────────────────────────────────────────────────────────────────────
+        # ── Data Prep for Bullet Points ───────────────────────────────────────────────
+        report_date = st.session_state.get("report_date", "")
+        m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
+        quarter = m.group(1) if m else ""
+        year    = m.group(2) if m else ""
 
-        # Steps 8–15 (unchanged)
+        for itm in st.session_state["fund_performance_data"]:
+            qtd       = float(itm.get("QTD") or 0)
+            bench_qtd = float(itm.get("Bench QTD") or 0)
+            itm["Perf Direction"] = "overperformed" if qtd >= bench_qtd else "underperformed"
+            itm["Quarter"], itm["Year"] = quarter, year
+            itm["QTD_bps_diff"] = str(round((qtd - bench_qtd)*100, 1))
+            fund_pct  = f"{qtd:.2f}%"
+            bench_pct = f"{bench_qtd:.2f}%"
+            itm["QTD_pct_diff"] = f"{(qtd - bench_qtd):.2f}%"
+            itm["QTD_vs"] = f"{fund_pct} vs. {bench_pct}"
+
+        # Initialize your template exactly once
+        if "bullet_point_templates" not in st.session_state:
+            st.session_state["bullet_point_templates"] = [
+                "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], "
+                "[Year] by [QTD_bps_diff] bps ([QTD_vs])."
+            ]
+
+        # ───────────────────────────────────────────────────────────────────────────────
+        
+        # Step 8: Calendar Year Section
         with st.expander("Step 8: Calendar Year Returns", expanded=False):
             step8_calendar_returns(pdf)
-        with st.expander("Step 9: Risk Analysis (3Yr)", expanded=False):
-            step9_risk_analysis_3yr(pdf)
-        with st.expander("Step 10: Risk Analysis (5Yr)", expanded=False):
-            step10_risk_analysis_5yr(pdf)
-        with st.expander("Step 11: MPT Statistics Summary", expanded=False):
-            step11_create_summary()
-        with st.expander("Step 12: Fund Facts", expanded=False):
-            step12_process_fund_facts(pdf)
-        with st.expander("Step 13: Risk‑Adjusted Returns", expanded=False):
-            step13_process_risk_adjusted_returns(pdf)
-        with st.expander("Step 14: Peer Risk‑Adjusted Return Rank", expanded=False):
-            step14_extract_peer_risk_adjusted_return_rank(pdf)
-        with st.expander("Step 15: Single Fund Details", expanded=False):
-            step15_display_selected_fund()
-        with st.expander("wait Bullet Points", expanded=False):
-            step16_bullet_points()
 
+        # Step 9: Match Tickers
+        with st.expander("Step 9: Risk Analysis (3Yr)", expanded=False):
+            step9_risk_analysis_3yr(pdf)
+
+        # Step 10: Match Tickers
+        with st.expander("Step 10: Risk Analysis (5Yr)", expanded=False):
+            step10_risk_analysis_5yr(pdf)
+
+        # Step 11: MPT Statistics Summary
+        with st.expander("Step 11: MPT Statistics Summary", expanded=False):
+            step11_create_summary()
+            
+        # Step 12: Find Factsheet Sub‑Headings
+        with st.expander("Step 12: Fund Facts ", expanded=False):
+            step12_process_fund_facts(pdf)
+
+        # Step 13: Risk Adjusted Returns
+        with st.expander("Step 13: Risk-Adjusted Returns", expanded=False):
+            step13_process_risk_adjusted_returns(pdf)
+
+        # Step 14: Peer Risk-Adjusted Return Rank
+        with st.expander("Step 14: Peer Risk-Adjusted Return Rank", expanded=False):
+            step14_extract_peer_risk_adjusted_return_rank(pdf)
+
+        # Step 15: View Single Fund Details
+        with st.expander("Step 15: Single Fund Details", expanded=False):
+            step15_display_selected_fund()
+                    
+        # Step 16: Bullet Points
+        with st.expander("Step 16: Bullet Points", expanded=False):
+            step16_bullet_points()
 
 
 if __name__ == "__main__":
