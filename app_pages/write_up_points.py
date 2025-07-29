@@ -1390,10 +1390,11 @@ def step16_bullet_points():
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-# === Step 17: Export to PowerPoint Headings ===
+# === Step 17: Export to PowerPoint Headings (with textbox creation) ===
 def step17_export_to_ppt_headings():
     import streamlit as st
     from pptx import Presentation
+    from pptx.util import Inches, Pt
     from io import BytesIO
 
     st.subheader("Step 17: Export to PowerPoint Headings")
@@ -1423,33 +1424,30 @@ def step17_export_to_ppt_headings():
         st.error(f"❌ Could not load template at '{template_path}': {e}")
         return
 
-    # 4) Update the four slide titles
-    # Slide 1: static
-    try:
-        prs.slides[0].shapes.title.text = "Investment Watchlist"
-    except Exception:
-        st.warning("⚠️ Slide 1 has no title placeholder; skipping.")
+    # Helper to set or add a title
+    def set_or_add_title(slide, text):
+        # Try placeholder title
+        if slide.shapes.title:
+            slide.shapes.title.text = text
+            return
+        # Otherwise add a textbox
+        left = Inches(0.5)
+        top  = Inches(0.3)
+        width = prs.slide_width - Inches(1.0)
+        height = Inches(0.7)
+        tx = slide.shapes.add_textbox(left, top, width, height)
+        tf = tx.text_frame
+        p = tf.paragraphs[0]
+        p.text = text
+        p.font.size = Pt(32)            # adjust size
+        p.font.bold = True
+        p.alignment = 1                  # centered
 
-    # Slide 2: Expense & Return
-    if len(prs.slides) > 1:
-        try:
-            prs.slides[1].shapes.title.text = f"{category} – Expense & Return"
-        except Exception:
-            st.warning("⚠️ Slide 2 has no title placeholder; skipping.")
-
-    # Slide 3: Risk Adjusted Statistics
-    if len(prs.slides) > 2:
-        try:
-            prs.slides[2].shapes.title.text = f"{category} – Risk Adjusted Statistics"
-        except Exception:
-            st.warning("⚠️ Slide 3 has no title placeholder; skipping.")
-
-    # Slide 4: Qualitative Factors
-    if len(prs.slides) > 3:
-        try:
-            prs.slides[3].shapes.title.text = f"{category} – Qualitative Factors"
-        except Exception:
-            st.warning("⚠️ Slide 4 has no title placeholder; skipping.")
+    # 4) Update slides 1–4
+    set_or_add_title(prs.slides[0], "Investment Watchlist")
+    set_or_add_title(prs.slides[1], f"{category} – Expense & Return")
+    set_or_add_title(prs.slides[2], f"{category} – Risk Adjusted Statistics")
+    set_or_add_title(prs.slides[3], f"{category} – Qualitative Factors")
 
     # 5) Save and offer download
     buf = BytesIO()
