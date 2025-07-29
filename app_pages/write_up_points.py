@@ -1510,13 +1510,27 @@ def step17_export_to_ppt_headings():
     sf.alignment = PP_ALIGN.LEFT
     
     #─────Insert the Slide 1 table below the subheader─────────────────────────────────────────────────────────────────────────────────
-    # ── Step 17: Insert Slide 1 Table with Integral EMU values ───────────────────
     from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     from pptx.enum.shapes import MSO_SHAPE
     from pptx.dml.color import RGBColor
     from pptx.util import Inches, Pt
-    
-    # 1) Prepare the single row of data
+    from pptx.oxml.xmlchemy import OxmlElement
+
+    # helper to draw a thin black border on all sides of a table cell
+    def _set_border(cell, color=RGBColor(0,0,0)):
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        for ln_tag in ("a:lnL","a:lnR","a:lnT","a:lnB"):
+            ln = OxmlElement(ln_tag)
+            lnPr = OxmlElement("a:solidFill")
+            srgb = OxmlElement("a:srgbClr")
+            # set hex color
+            srgb.set("val", f"{color.rgb[0]:02X}{color.rgb[1]:02X}{color.rgb[2]:02X}")
+            lnPr.append(srgb)
+            ln.append(lnPr)
+            tcPr.append(ln)
+
+    # 1) Prepare the row dict
     row = {
         "Category":    category,
         "Time Period": st.session_state.get("report_date",""),
@@ -1526,16 +1540,16 @@ def step17_export_to_ppt_headings():
         row[str(idx)] = statuses[crit]
     row["IPS Status"] = overall
 
-    # 2) Insert table at the top half with int(Inches())
+    # 2) Insert table at top half (2 rows × 15 cols)
     cols = 15
-    col_w = [1.2, 1.2, 1.2] + [0.4]*11 + [1]
+    col_w = [1.2, 1.2, 1.2] + [0.4]*11 + [1.0]
     left = int(Inches(0.5))
     top  = int(Inches(1.5))
     width  = int(Inches(9))
     height = int(Inches(0.6))
     tbl = slide1.shapes.add_table(2, cols, left, top, width, height).table
 
-    # 3) Apply column widths (cast to int)
+    # 3) Apply column widths
     for i, w in enumerate(col_w):
         tbl.columns[i].width = int(Inches(w))
 
@@ -1556,7 +1570,7 @@ def step17_export_to_ppt_headings():
         p.font.bold = True
         p.alignment = PP_ALIGN.CENTER
 
-    # 5) Data row with checkmarks and badge
+    # 5) Data row
     vals = [
         row["Category"],
         row["Time Period"],
@@ -1577,6 +1591,7 @@ def step17_export_to_ppt_headings():
         p.alignment = PP_ALIGN.CENTER
 
         if c < 14:
+            # boolean -> check/X
             if val is True:
                 p.text = "✔"; p.font.color.rgb = RGBColor(0,176,80)
             elif val is False:
@@ -1584,6 +1599,7 @@ def step17_export_to_ppt_headings():
             else:
                 p.text = str(val); p.font.color.rgb = RGBColor(0,0,0)
         else:
+            # IPS badge
             txt = str(val).lower()
             badge = None
             if "formal" in txt:
@@ -1592,8 +1608,9 @@ def step17_export_to_ppt_headings():
                 badge, color = "IW", RGBColor(255,165,0)
             elif "passed" in txt:
                 badge, color = "✔", RGBColor(0,176,80)
+
             if badge:
-                # position the badge circle
+                # circle background
                 bx = left + sum(int(Inches(w)) for w in col_w[:c]) + int(Inches(0.1))
                 by = top  + int(Inches(0.2))
                 shp = slide1.shapes.add_shape(
@@ -1601,6 +1618,8 @@ def step17_export_to_ppt_headings():
                 )
                 shp.fill.solid(); shp.fill.fore_color.rgb = color
                 shp.line.color.rgb = RGBColor(255,255,255)
+
+                # badge text
                 tf2 = shp.text_frame; tf2.clear()
                 p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.CENTER
                 r2 = p2.add_run(); r2.text = badge
@@ -1608,6 +1627,7 @@ def step17_export_to_ppt_headings():
                 r2.font.size = Pt(10)
                 r2.font.bold = True
                 r2.font.color.rgb = RGBColor(255,255,255)
+
 
 
     # ─── Save and offer download ────────────────────────────────────────────────────────────────────────────────────────────────
