@@ -1102,8 +1102,8 @@ def step15_display_selected_fund():
 
     st.dataframe(styled, use_container_width=True)
 
-    # === Slide 3 Table 1 ===
-    st.markdown("**Slide 3 Table 1**")
+    # === Slide 2 Table 1 ===
+    st.markdown("**Slide 2 Table 1**")
     # grab performance data for the selected fund
     perf_data = st.session_state.get("fund_performance_data", [])
     perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == selected_fund), {})
@@ -1114,14 +1114,14 @@ def step15_display_selected_fund():
     if net_exp and not str(net_exp).endswith("%"):
         net_exp = f"{net_exp}%"
     # assemble and display
-    df_slide3 = pd.DataFrame([{
+    df_slide2 = pd.DataFrame([{
         "Investment Manager": inv_mgr,
         "Net Expense Ratio":  net_exp
     }])
-    st.dataframe(df_slide3, use_container_width=True)
+    st.dataframe(df_slide2, use_container_width=True)
 
-    # === Slide 3 Table 2 ===
-    st.markdown("**Slide 3 Table 2**")
+    # === Slide 2 Table 2 ===
+    st.markdown("**Slide 2 Table 2**")
     # grab the annualized returns for the selected fund
     perf_data = st.session_state.get("fund_performance_data", [])
     perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name")==selected_fund), {})
@@ -1151,11 +1151,11 @@ def step15_display_selected_fund():
         "5 Year":             five,
         "10 Year":            ten
     }
-    df_slide3_2 = pd.DataFrame([row])
-    st.dataframe(df_slide3_2, use_container_width=True)
+    df_slide2_2 = pd.DataFrame([row])
+    st.dataframe(df_slide2_2, use_container_width=True)
 
-    # === Slide 3 Table 3 ===
-    st.markdown("**Slide 3 Table 3**")
+    # === Slide 2 Table 3 ===
+    st.markdown("**Slide 2 Table 3**")
     
     # 1) Grab the calendar year returns extracted in Step 8 (fund and benchmark data)
     fund_cy = st.session_state.get("step8_returns", [])
@@ -1205,14 +1205,14 @@ def step15_display_selected_fund():
     rows.append(row_benchmark)
     
     # 9) Create a DataFrame for the table
-    df_slide3_3 = pd.DataFrame(rows, columns=["Investment Manager"] + year_cols)
+    df_slide2_3 = pd.DataFrame(rows, columns=["Investment Manager"] + year_cols)
     
     # 10) Display the table
-    st.dataframe(df_slide3_3, use_container_width=True)
+    st.dataframe(df_slide2_3, use_container_width=True)
 
 
-    # === Slide 4 Table 1 ===
-    st.markdown("**Slide 4 Table 1**")
+    # === Slide 3 Table 1 ===
+    st.markdown("**Slide 3 Table 1**")
     # grab 3‑Yr MPT stats
     mpt3 = st.session_state.get("step9_mpt_stats", [])
     stats3 = next((r for r in mpt3 if r["Fund Name"] == selected_fund), {})
@@ -1234,11 +1234,11 @@ def step15_display_selected_fund():
         "5 Year Upside Capture":     stats5.get("5 Year Upside Capture", ""),
         "5 Year Downside Capture":   stats5.get("5 Year Downside Capture", "")
     }
-    df_slide4_1 = pd.DataFrame([row])
-    st.dataframe(df_slide4_1, use_container_width=True)
+    df_slide3_1 = pd.DataFrame([row])
+    st.dataframe(df_slide3_1, use_container_width=True)
 
-    # === Slide 4 Table 2 ===
-    st.markdown("**Slide 4 Table 2**")
+    # === Slide 3 Table 2 ===
+    st.markdown("**Slide 3 Table 2**")
     # grab risk‑adjusted returns and peer ranks for the selected fund
     risk_table = st.session_state.get("step13_risk_adjusted_table", [])
     peer_table = st.session_state.get("step14_peer_rank_table", [])
@@ -1266,12 +1266,12 @@ def step15_display_selected_fund():
         "5 Year Information Ratio / Peer Ranking %": frac("Information Ratio", "5Yr"),
     }
     
-    df_slide4_2 = pd.DataFrame([row])
-    st.dataframe(df_slide4_2, use_container_width=True)
+    df_slide3_2 = pd.DataFrame([row])
+    st.dataframe(df_slide3_2, use_container_width=True)
 
     
-    # === Slide 5 Table 1 ===
-    st.markdown("**Slide 5 Table 1**")
+    # === Slide 4 Table 1 ===
+    st.markdown("**Slide 4 Table 1**")
     # grab the scorecard metrics for the selected fund
     blocks      = st.session_state.get("fund_blocks", [])
     block       = next((b for b in blocks if b["Fund Name"] == selected_fund), {})
@@ -1287,14 +1287,14 @@ def step15_display_selected_fund():
     inv_mgr   = f"{selected_fund} ({perf_item.get('Ticker','')})"
 
     # assemble and display
-    df_slide5 = pd.DataFrame([{
+    df_slide4 = pd.DataFrame([{
         "Investment Manager": inv_mgr,
         "Manager Tenure":     tenure
     }])
-    st.dataframe(df_slide5, use_container_width=True)
+    st.dataframe(df_slide4, use_container_width=True)
 
-    # === Slide 5 Table 2 ===
-    st.markdown("**Slide 5 Table 2**")
+    # === Slide 4 Table 2 ===
+    st.markdown("**Slide 4 Table 2**")
     # grab factsheet details for the selected fund
     facts = st.session_state.get("fund_factsheets_data", [])
     fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected_fund), {})
@@ -1307,12 +1307,12 @@ def step15_display_selected_fund():
     assets     = fs_rec.get("Net Assets", "")
     avg_cap    = fs_rec.get("Avg. Market Cap", "")
     # assemble and display
-    df_slide5_2 = pd.DataFrame([{
+    df_slide4_2 = pd.DataFrame([{
         "Investment Manager":             inv_mgr,
         "Assets Under Management":        assets,
         "Average Market Capitalization":  avg_cap
     }])
-    st.dataframe(df_slide5_2, use_container_width=True)
+    st.dataframe(df_slide4_2, use_container_width=True)
 
 
 # ── Step 16: Bullet Points ───────────────────────────────────────────
