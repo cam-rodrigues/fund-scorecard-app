@@ -1641,18 +1641,16 @@ def step17_export_to_ppt_headings():
         from pptx.enum.text import PP_ALIGN
         from pptx.util import Inches, Pt
 
-        # 1) Prepare DataFrames (same as before)…
+        # 1) Prepare DataFrames (as before) …
         perf_data = st.session_state["fund_performance_data"]
         perf_item = next(p for p in perf_data if p["Fund Scorecard Name"] == selected)
         inv_mgr   = f"{selected} ({perf_item['Ticker']})"
 
-        # Table 1
         net_exp = perf_item["Net Expense Ratio"]
         if net_exp and not str(net_exp).endswith("%"):
             net_exp = f"{net_exp}%"
         df1 = pd.DataFrame([{"Investment Manager": inv_mgr, "Net Expense Ratio": net_exp}])
 
-        # Table 2
         date_label = st.session_state["report_date"]
         def _pct(v): return f"{v}%" if v and not str(v).endswith("%") else (v or "")
         df2 = pd.DataFrame([{
@@ -1664,7 +1662,6 @@ def step17_export_to_ppt_headings():
             "10 Year":            _pct(perf_item.get("10Yr")),
         }])
 
-        # Table 3
         fund_cy  = st.session_state["step8_returns"]
         bench_cy = st.session_state["benchmark_calendar_year_returns"]
         fund_rec = next(r for r in fund_cy  if r["Name"] == selected)
@@ -1677,73 +1674,65 @@ def step17_export_to_ppt_headings():
         ]
         df3 = pd.DataFrame(rows, columns=["Investment Manager"] + years)
 
-        # 2) Helper to draw a DataFrame as a PPT table
+        # 2) Table‑drawing helper
         def draw_table(slide, df, left, top, width, height, col_widths):
             rows, cols = df.shape
             tbl = slide.shapes.add_table(rows+1, cols, left, top, width, height).table
-            # apply column widths
             for i, w in enumerate(col_widths):
                 tbl.columns[i].width = Inches(w)
             # header
-            for c, col_name in enumerate(df.columns):
+            for c, name in enumerate(df.columns):
                 cell = tbl.cell(0, c)
-                cell.text = col_name
-                p = cell.text_frame.paragraphs[0]
-                p.alignment = PP_ALIGN.CENTER
-                run = p.runs[0]
-                run.font.name = "Cambria"
-                run.font.size = Pt(12)
-                run.font.bold = True
+                cell.text = name
+                p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+                run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.bold=True
             # body
             for r in range(rows):
-                for c, col_name in enumerate(df.columns):
+                for c, name in enumerate(df.columns):
                     cell = tbl.cell(r+1, c)
                     cell.text = str(df.iat[r, c])
-                    p = cell.text_frame.paragraphs[0]
-                    p.alignment = PP_ALIGN.CENTER
-                    run = p.runs[0]
-                    run.font.name = "Cambria"
-                    run.font.size = Pt(12)
+                    p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+                    run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12)
 
-        # 3) Compute geometry
-        slide_w = prs.slide_width
-        left_margin  = Inches(0.5)
-        right_margin = Inches(0.5)
-        gap          = Inches(0.2)
-        usable_w     = slide_w - left_margin - right_margin - gap
-        half_w       = usable_w / 2
-        top_y        = Inches(1.0)
-        small_h      = Inches(1.0)
+        # 3) Compute layout in inches
+        slide_w_emu     = prs.slide_width
+        left_margin_emu = Inches(0.5)
+        right_margin_emu= Inches(0.5)
+        gap_emu         = Inches(0.2)
+        usable_w_emu    = slide_w_emu - left_margin_emu - right_margin_emu - gap_emu
+        usable_w_in     = usable_w_emu / Inches(1)  # float inches
+        half_w_in       = usable_w_in / 2
+        top_in          = 1.0
+        small_h_in      = 1.0
 
-        # 4) Table 1 & 2 side by side
-        #   first col 2″, second col takes rest of half
+        # 4) Draw Table 1 & Table 2 side by side
         draw_table(
             slide2, df1,
-            left_margin, top_y,
-            half_w, small_h,
-            col_widths=[2.0, (half_w.inches - 2.0)]
+            Inches(0.5), Inches(top_in),
+            Inches(half_w_in), Inches(small_h_in),
+            col_widths=[2.0, half_w_in - 2.0]
         )
         draw_table(
             slide2, df2,
-            left_margin + half_w + gap, top_y,
-            half_w, small_h,
-            col_widths=[2.0] + [ (half_w.inches - 2.0) / 5 ] * 5
+            Inches(0.5 + half_w_in + 0.2), Inches(top_in),
+            Inches(half_w_in), Inches(small_h_in),
+            col_widths=[2.0] + [(half_w_in - 2.0)/5]*5
         )
 
-        # 5) Table 3 across bottom
-        bot_top = top_y + small_h + Inches(0.3)
-        bot_h   = Inches(2.5)
-        n_cols  = len(df3.columns)
-        first_w = 2.5
-        rem_w   = (slide_w.inches - left_margin.inches - right_margin.inches - first_w) / (n_cols - 1)
+        # 5) Draw Table 3 across bottom
+        bot_top_in = top_in + small_h_in + 0.3
+        bot_h_in   = 2.5
+        slide_w_in = slide_w_emu / Inches(1)
+        first_col  = 2.5
+        rem_w      = (slide_w_in - 0.5 - 0.5 - first_col) / (len(df3.columns)-1)
+
         draw_table(
             slide2, df3,
-            left_margin, bot_top,
-            slide_w - left_margin - right_margin, bot_h,
-            col_widths=[first_w] + [rem_w] * (n_cols - 1)
+            Inches(0.5), Inches(bot_top_in),
+            Inches(slide_w_in - 1.0), Inches(bot_h_in),
+            col_widths=[first_col] + [rem_w]*(len(df3.columns)-1)
         )
 
-    
     # ── Download button ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     buf = BytesIO(); prs.save(buf); buf.seek(0)
     st.download_button(
