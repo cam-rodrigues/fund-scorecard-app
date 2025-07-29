@@ -1509,7 +1509,7 @@ def step17_export_to_ppt_headings():
     run.font.underline = True
     sf.alignment = PP_ALIGN.LEFT
     
-    #─────Insert the Slide 1 table below the subheader─────────────────────────────────────────────────────────────────────────────────
+    # ── Insert the Slide 1 table below the subheader ───────────────────────────────
     from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     from pptx.enum.shapes import MSO_SHAPE
     from pptx.dml.color import RGBColor
@@ -1520,7 +1520,6 @@ def step17_export_to_ppt_headings():
     def _set_border(cell, color=RGBColor(0,0,0)):
         tc = cell._tc
         tcPr = tc.get_or_add_tcPr()
-        # build hex from the RGB tuple
         hex_val = "{:02X}{:02X}{:02X}".format(color[0], color[1], color[2])
         for ln_tag in ("a:lnL","a:lnR","a:lnT","a:lnB"):
             ln = OxmlElement(ln_tag)
@@ -1531,7 +1530,7 @@ def step17_export_to_ppt_headings():
             ln.append(lnPr)
             tcPr.append(ln)
 
-    # 1) Prepare the data row
+    # 1) Build the data row dictionary
     row = {
         "Category":    category,
         "Time Period": st.session_state.get("report_date",""),
@@ -1541,7 +1540,7 @@ def step17_export_to_ppt_headings():
         row[str(idx)] = statuses[crit]
     row["IPS Status"] = overall
 
-    # 2) Insert table at the top half (2×15)
+    # 2) Add the 2×15 table
     cols = 15
     col_w = [1.2, 1.2, 1.2] + [0.4]*11 + [1.0]
     left   = int(Inches(0.5))
@@ -1550,55 +1549,62 @@ def step17_export_to_ppt_headings():
     height = int(Inches(0.6))
     tbl = slide1.shapes.add_table(2, cols, left, top, width, height).table
 
-    # 3) Apply column widths
+    # 3) Set custom column widths
     for i, w in enumerate(col_w):
         tbl.columns[i].width = int(Inches(w))
 
-    # 4) Header row
+    # 4) Prepare headers & values
     headers = ["Category","Time Period","Plan Assets"] + [str(i) for i in range(1,12)] + ["IPS Status"]
-    for c, h in enumerate(headers):
-        cell = tbl.cell(0, c)
-        cell.text = h
-        _set_border(cell)
-        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
-        tf = cell.text_frame
-        tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
-        tf.margin_top = tf.margin_bottom = 0
-        p = tf.paragraphs[0]
-        p.text = h
-        p.font.name = "Cambria"
-        p.font.size = Pt(12)
-        p.font.bold = True
-        p.alignment = PP_ALIGN.CENTER
-
-    # 5) Data row with checks and badge
-    vals = [
+    vals    = [
         row["Category"],
         row["Time Period"],
         row["Plan Assets"],
     ] + [row[str(i)] for i in range(1,12)] + [row["IPS Status"]]
 
+    # 5) Populate header row (Cambria 12pt bold, centered)
+    for c, h in enumerate(headers):
+        cell = tbl.cell(0, c)
+        _set_border(cell)
+        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
+        tf = cell.text_frame
+        tf.clear()
+        tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
+        tf.margin_top = tf.margin_bottom = 0
+        p = tf.paragraphs[0]
+        run = p.add_run()
+        run.text = h
+        run.font.name = "Cambria"
+        run.font.size = Pt(12)
+        run.font.bold = True
+        run.font.color.rgb = RGBColor(0,0,0)
+        p.alignment = PP_ALIGN.CENTER
+
+    # 6) Populate data row (Cambria 12pt regular, centered; ✓/✖ and badge)
     for c, val in enumerate(vals):
         cell = tbl.cell(1, c)
         _set_border(cell)
         cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
         tf = cell.text_frame
+        tf.clear()
         tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
         tf.margin_top = tf.margin_bottom = 0
         p = tf.paragraphs[0]
-        p.clear()
         p.font.name = "Cambria"
         p.font.size = Pt(12)
+        p.font.bold = False
         p.alignment = PP_ALIGN.CENTER
 
         if c < 14:
-            # ✓/✖ for metric columns
+            # metric columns: ✓ or ✖
             if val is True:
-                p.text = "✔"; p.font.color.rgb = RGBColor(0,176,80)
+                p.text = "✔"
+                p.runs[0].font.color.rgb = RGBColor(0,176,80)
             elif val is False:
-                p.text = "✖"; p.font.color.rgb = RGBColor(192,0,0)
+                p.text = "✖"
+                p.runs[0].font.color.rgb = RGBColor(192,0,0)
             else:
-                p.text = str(val); p.font.color.rgb = RGBColor(0,0,0)
+                p.text = str(val)
+                p.runs[0].font.color.rgb = RGBColor(0,0,0)
         else:
             # IPS Status badge
             txt = str(val).lower()
@@ -1615,19 +1621,21 @@ def step17_export_to_ppt_headings():
                 bx = left + sum(int(Inches(w)) for w in col_w[:c]) + int(Inches(0.1))
                 by = top  + int(Inches(0.2))
                 shp = slide1.shapes.add_shape(
-                    MSO_SHAPE.OVAL, bx, by, int(Inches(0.4)), int(Inches(0.4))
+                    MSO_SHAPE.OVAL, bx, by,
+                    int(Inches(0.4)), int(Inches(0.4))
                 )
                 shp.fill.solid(); shp.fill.fore_color.rgb = color
                 shp.line.color.rgb = RGBColor(255,255,255)
-
-                # badge text
+                # add badge text
                 tf2 = shp.text_frame; tf2.clear()
                 p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.CENTER
-                r2 = p2.add_run(); r2.text = badge
+                r2 = p2.add_run()
+                r2.text = badge
                 r2.font.name = "Cambria"
                 r2.font.size = Pt(10)
                 r2.font.bold = True
                 r2.font.color.rgb = RGBColor(255,255,255)
+
 
     # ─── Save and offer download ────────────────────────────────────────────────────────────────────────────────────────────────
     buf = BytesIO()
