@@ -1389,12 +1389,12 @@ def step16_bullet_points():
         st.markdown("- **Action:** Consider replacing this fund.")
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-
-# === Step 17: Export to PowerPoint Headings (with textbox creation) ===
+# === Step 17: Export to PowerPoint Headings (styled) ===
 def step17_export_to_ppt_headings():
     import streamlit as st
     from pptx import Presentation
     from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
     from io import BytesIO
 
     st.subheader("Step 17: Export to PowerPoint Headings")
@@ -1416,7 +1416,7 @@ def step17_export_to_ppt_headings():
         st.error(f"❌ Category is empty for '{selected}'.")
         return
 
-    # 3) Load your template (corrected path)
+    # 3) Load your template
     template_path = "assets/template.pptx"
     try:
         prs = Presentation(template_path)
@@ -1424,24 +1424,29 @@ def step17_export_to_ppt_headings():
         st.error(f"❌ Could not load template at '{template_path}': {e}")
         return
 
-    # Helper to set or add a title
+    # Helper to set or add a styled title
     def set_or_add_title(slide, text):
         # Try placeholder title
-        if slide.shapes.title:
-            slide.shapes.title.text = text
-            return
-        # Otherwise add a textbox
-        left = Inches(0.5)
-        top  = Inches(0.3)
-        width = prs.slide_width - Inches(1.0)
-        height = Inches(0.7)
-        tx = slide.shapes.add_textbox(left, top, width, height)
-        tf = tx.text_frame
-        p = tf.paragraphs[0]
-        p.text = text
-        p.font.size = Pt(32)            # adjust size
-        p.font.bold = True
-        p.alignment = 1                  # centered
+        title_shape = slide.shapes.title
+        if title_shape:
+            tx = title_shape.text_frame.paragraphs[0]
+        else:
+            # Otherwise add a textbox
+            left = Inches(0.5)
+            top  = Inches(0.3)
+            width = prs.slide_width - Inches(1.0)
+            height = Inches(0.7)
+            tx_box = slide.shapes.add_textbox(left, top, width, height)
+            tx = tx_box.text_frame.paragraphs[0]
+
+        # Apply text + styling
+        tx.text = text
+        run = tx.runs[0]
+        run.font.name = "Helvetica"
+        run.font.size = Pt(20)
+        run.font.color.rgb = RGBColor(0x21, 0x2B, 0x58)
+        run.font.bold = True
+        tx.alignment = 1  # centered
 
     # 4) Update slides 1–4
     set_or_add_title(prs.slides[0], "Investment Watchlist")
@@ -1454,7 +1459,7 @@ def step17_export_to_ppt_headings():
     prs.save(buf)
     buf.seek(0)
     st.download_button(
-        label="Download PPTX with Updated Headings",
+        label="Download PPTX with Styled Headings",
         data=buf,
         file_name=f"{selected.replace(' ','_')}_headings.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
