@@ -1317,9 +1317,8 @@ def step15_display_selected_fund():
 
 # ────────────────────────────────────────────────────────────────────────────────
 
-# === Step 16: Bullet Points ===
+# === Step 16: Bullet Points ===
 def step16_bullet_points():
-    import re
     import streamlit as st
 
     selected_fund = st.session_state.get("selected_fund")
@@ -1333,37 +1332,43 @@ def step16_bullet_points():
         st.error("No performance data for selected fund.")
         return
 
-    # 1st bullet: QTD performance
-    tpl = st.session_state["bullet_point_templates"][0]
-    b1 = tpl
-    for fld, val in item.items():
-        b1 = b1.replace(f"[{fld}]", str(val))
+    # --- Bullet 1: QTD performance vs benchmark ---
+    perf_dir   = item.get("Perf Direction", "")
+    quarter    = item.get("Quarter", "")
+    year       = item.get("Year", "")
+    bps_diff   = item.get("QTD_bps_diff", "")
+    pct_vs_str = item.get("QTD_vs", "")    # e.g. "3.11% vs. 2.05%"
+    # Format: “Fund X overperformed its benchmark in Q1, 2025 by 12.3 bps (3.11% vs. 2.05%).”
+    b1 = (
+        f"{selected_fund} {perf_dir} its benchmark in "
+        f"Q{quarter}, {year} by {bps_diff} bps ({pct_vs_str})."
+    )
     st.markdown(f"- {b1}")
 
-    # 2nd bullet: IPS Screening result
+    # --- Bullet 2: IPS screening status or trailing returns ---
     status = item.get("IPS Status", "")
     if status == "Passed IPS Screen":
         st.markdown("- The Fund passed the IPS Screening.")
     else:
-        # Calculate 3Yr & 5Yr bps diffs
-        three = float(item.get("3Yr") or 0)
-        bench3= float(item.get("Bench 3Yr") or 0)
-        five  = float(item.get("5Yr") or 0)
-        bench5= float(item.get("Bench 5Yr") or 0)
-        bps3  = round((three - bench3)*100,1)
-        bps5  = round((five  - bench5)*100,1)
-        bullets = (
-            f"- The fund is now on {status}. Its three‑year return trails the benchmark by "
-            f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its five‑year return trails by "
+        # three‑year and five‑year trailing
+        three   = float(item.get("3Yr")   or 0)
+        bench3  = float(item.get("Bench 3Yr") or 0)
+        five    = float(item.get("5Yr")   or 0)
+        bench5  = float(item.get("Bench 5Yr") or 0)
+        bps3 = round((three - bench3)*100, 1)
+        bps5 = round((five  - bench5)*100, 1)
+        b2 = (
+            f"The fund is now on {status}. "
+            f"Its three‑year return trails the benchmark by {bps3} bps "
+            f"({three:.2f}% vs. {bench3:.2f}%) and its five‑year return trails by "
             f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%)."
         )
-        st.markdown(bullets)
+        st.markdown(f"- {b2}")
 
-    # 3rd bullet: Formal Watch action
-    if "Formal Watch" in status:
-        st.markdown("- Action: Consider replacing this fund.")
+        # --- Bullet 3: Formal Watch action if applicable ---
+        if "Formal Watch" in status:
+            st.markdown("- Action: Consider replacing this fund.")
 
-            
 
 # ────────────────────────────────────────────────────────────────────────────────
 
