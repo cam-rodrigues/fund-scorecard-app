@@ -1389,6 +1389,78 @@ def step16_bullet_points():
         st.markdown("- **Action:** Consider replacing this fund.")
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+# === Step 17: Export to PowerPoint (Headings Only) ===
+def step17_export_to_ppt_headings():
+    import streamlit as st
+    from pptx import Presentation
+    from io import BytesIO
+
+    st.subheader("Step 17: Export to PowerPoint Headings")
+
+    # 1) Ensure a fund is selected
+    selected = st.session_state.get("selected_fund")
+    if not selected:
+        st.error("❌ No fund selected. Please select a fund in Step 15.")
+        return
+
+    # 2) Lookup the category for this fund
+    facts = st.session_state.get("fund_factsheets_data", [])
+    rec = next((f for f in facts if f["Matched Fund Name"] == selected), None)
+    if not rec:
+        st.error(f"❌ Could not find category for '{selected}'.")
+        return
+    category = rec.get("Category", "").strip()
+    if not category:
+        st.error(f"❌ Category is empty for '{selected}'.")
+        return
+
+    # 3) Load your template
+    template_path = "assets/template/template.pptx"
+    try:
+        prs = Presentation(template_path)
+    except Exception as e:
+        st.error(f"❌ Could not load template: {e}")
+        return
+
+    # 4) Update the four slide titles
+    # Slide 1: static
+    try:
+        prs.slides[0].shapes.title.text = "Investment Watchlist"
+    except Exception:
+        st.warning("⚠️ Slide 1 has no title placeholder; skipping.")
+
+    # Slide 2: Expense & Return
+    if len(prs.slides) > 1:
+        try:
+            prs.slides[1].shapes.title.text = f"{category} – Expense & Return"
+        except Exception:
+            st.warning("⚠️ Slide 2 has no title placeholder; skipping.")
+    # Slide 3: Risk Adjusted Statistics
+    if len(prs.slides) > 2:
+        try:
+            prs.slides[2].shapes.title.text = f"{category} – Risk Adjusted Statistics"
+        except Exception:
+            st.warning("⚠️ Slide 3 has no title placeholder; skipping.")
+    # Slide 4: Qualitative Factors
+    if len(prs.slides) > 3:
+        try:
+            prs.slides[3].shapes.title.text = f"{category} – Qualitative Factors"
+        except Exception:
+            st.warning("⚠️ Slide 4 has no title placeholder; skipping.")
+
+    # 5) Save and offer download
+    buf = BytesIO()
+    prs.save(buf)
+    buf.seek(0)
+    st.download_button(
+        label="Download PPTX with Updated Headings",
+        data=buf,
+        file_name=f"{selected.replace(' ','_')}_headings.pptx",
+        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    )
+
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
 def run():
     import re
@@ -1511,6 +1583,9 @@ def run():
         # Step 16: Bullet Points
         with st.expander("Step 16: Bullet Points", expanded=False):
             step16_bullet_points()
+            
+        with st.expander("Step 17: Export to PowerPoint Headings", expanded=False):
+            step17_export_to_ppt_headings()
 
 
 if __name__ == "__main__":
