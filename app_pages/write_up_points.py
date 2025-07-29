@@ -1390,7 +1390,7 @@ def step16_bullet_points():
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-# === Step 17: Export to PowerPoint (Headings Only) ===
+# === Step 17: Export to PowerPoint Headings ===
 def step17_export_to_ppt_headings():
     import streamlit as st
     from pptx import Presentation
@@ -1415,12 +1415,12 @@ def step17_export_to_ppt_headings():
         st.error(f"❌ Category is empty for '{selected}'.")
         return
 
-    # 3) Load your template
-    template_path = "assets/template/template.pptx"
+    # 3) Load your template (corrected path)
+    template_path = "assets/template.pptx"
     try:
         prs = Presentation(template_path)
     except Exception as e:
-        st.error(f"❌ Could not load template: {e}")
+        st.error(f"❌ Could not load template at '{template_path}': {e}")
         return
 
     # 4) Update the four slide titles
@@ -1436,12 +1436,14 @@ def step17_export_to_ppt_headings():
             prs.slides[1].shapes.title.text = f"{category} – Expense & Return"
         except Exception:
             st.warning("⚠️ Slide 2 has no title placeholder; skipping.")
+
     # Slide 3: Risk Adjusted Statistics
     if len(prs.slides) > 2:
         try:
             prs.slides[2].shapes.title.text = f"{category} – Risk Adjusted Statistics"
         except Exception:
             st.warning("⚠️ Slide 3 has no title placeholder; skipping.")
+
     # Slide 4: Qualitative Factors
     if len(prs.slides) > 3:
         try:
@@ -1459,6 +1461,7 @@ def step17_export_to_ppt_headings():
         file_name=f"{selected.replace(' ','_')}_headings.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
     )
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
