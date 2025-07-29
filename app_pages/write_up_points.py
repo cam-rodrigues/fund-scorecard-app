@@ -1717,28 +1717,23 @@ def step17_export_to_ppt_headings():
         by     = ty + hgh + 0.3
         bh     = 2.0
 
-        # 4) Draw the two top tables
+        # 4) draw the two small tables
         draw_table(slide2, df1,
-                   lm, ty,
-                   half, hgh,
+                   left_m, top_y,
+                   half,  small_h,
                    col_widths=[2.0, half-2.0])
         draw_table(slide2, df2,
-                   lm+half+gap, ty,
-                   half, hgh,
-                   col_widths=[2.0] + [(half-2.0)/5]*5)
+                   left_m+half+gap, top_y,
+                   half,  small_h,
+                   col_widths=[2.0]+[(half-2.0)/5]*5)
 
-        # 5) Draw the bottom calendar‑year table full width
+        # 5) draw the bottom-wide table
         first_w = 2.5
-        extras  = len(df3.columns) - 1
-        if extras > 0:
-            rems = [(usable-first_w)/extras]*extras
-            cw3  = [first_w] + rems
-        else:
-            cw3  = [usable]
+        rem     = (usable - first_w) / (len(df3.columns)-1)
         draw_table(slide2, df3,
-                   lm, by,
-                   usable, bh,
-                   col_widths=cw3)
+                   left_m, bot_top,
+                   usable, bot_h,
+                   col_widths=[first_w]+[rem]*(len(df3.columns)-1))
 
 
     # ── Download button ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
