@@ -1510,6 +1510,11 @@ def slide_1_table(df, selected_fund):
 def run():
     import re
     st.title("Writeup")
+
+    # Initialize session state keys first
+    if "slide_1_table" not in st.session_state:
+        st.session_state["slide_1_table"] = None  # initial value
+
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
