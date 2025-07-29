@@ -1558,20 +1558,24 @@ def step17_export_to_ppt_headings():
             else:
                 badge = None
 
-            if badge:
-                cell_left = left + sum(int(Inches(w)) for w in col_w[:c])
-                cell_w    = int(Inches(col_w[c]))
-                bx = cell_left + (cell_w - badge_size)//2
-                by = data_row_top + (row_height - badge_size)//2
+        if badge:
+            cell_left = left + sum(int(Inches(w)) for w in col_w[:c])
+            cell_w    = int(Inches(col_w[c]))
+            bx = cell_left + (cell_w - badge_size)//2
+        
+            # extra downward nudge
+            extra = int(Inches(0.05))
+            by = data_row_top + (row_height - badge_size)//2 + extra
+        
+            shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, bx, by, badge_size, badge_size)
+            shp.fill.solid(); shp.fill.fore_color.rgb = color
+            shp.line.color.rgb = RGBColor(255,255,255)
+        
+            tf2 = shp.text_frame; tf2.clear()
+            p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.CENTER
+            r2 = p2.add_run(); r2.text = badge
+            r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255,255,255)
 
-                shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, bx, by, badge_size, badge_size)
-                shp.fill.solid(); shp.fill.fore_color.rgb = color
-                shp.line.color.rgb = RGBColor(255,255,255)
-
-                tf2 = shp.text_frame; tf2.clear()
-                p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.CENTER
-                r2 = p2.add_run(); r2.text = badge
-                r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255,255,255)
 
     # 11) Download button
     buf = BytesIO(); prs.save(buf); buf.seek(0)
