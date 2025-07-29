@@ -1316,7 +1316,6 @@ def step15_display_selected_fund():
 
 
 # ── Step 16: Bullet Points ───────────────────────────────────────────
-# === Step 16: Bullet Points ===
 def step16_bullet_points():
     import streamlit as st
 
@@ -1395,7 +1394,10 @@ def step17_export_to_ppt_headings():
     from pptx import Presentation
     from pptx.util import Inches, Pt
     from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN
     from io import BytesIO
+    import re
+    import pandas as pd
 
     st.subheader("Step 17: Export to PowerPoint Headings")
 
@@ -1415,7 +1417,44 @@ def step17_export_to_ppt_headings():
     if not category:
         st.error(f"❌ Category is empty for '{selected}'.")
         return
-
+        
+    #──────── 3) Rebuild the Slide 1 table (same logic as in step 15) ──────────────────────────────────────
+    blocks = st.session_state.get("fund_blocks", [])
+    block = next((b for b in blocks if b["Fund Name"] == selected), {})
+    # Build IPS criteria list
+    IPS = [
+      "Manager Tenure","Excess Performance (3Yr)","R‑Squared (3Yr)",
+      "Peer Return Rank (3Yr)","Sharpe Ratio Rank (3Yr)","Sortino Ratio Rank (3Yr)",
+      "Tracking Error Rank (3Yr)","Excess Performance (5Yr)","R‑Squared (5Yr)",
+      "Peer Return Rank (5Yr)","Sharpe Ratio Rank (5Yr)"
+    ]
+    # Compute statuses
+    statuses = {}
+    info = next((m["Info"] for m in block.get("Metrics", []) if m["Metric"]=="Manager Tenure"), "")
+    yrs = float(re.search(r"(\d+\.?\d*)", info).group(1)) if re.search(r"(\d+\.?\d*)", info) else 0
+    statuses["Manager Tenure"] = yrs >= 3
+    for crit in IPS[1:]:
+        raw = next((m["Info"] for m in block.get("Metrics", []) if m["Metric"].startswith(crit.split()[0])), "")
+        if "Excess Performance" in crit:
+            pct = float(re.search(r"([-+]?\d*\.\d+)%", raw).group(1)) if re.search(r"([-+]?\d*\.\d+)%", raw) else 0
+            statuses[crit] = pct > 0
+        elif "R‑Squared" in crit:
+            statuses[crit] = True
+        else:
+            rk = int(re.search(r"(\d+)", raw).group(1)) if re.search(r"(\d+)", raw) else 999
+            statuses[crit] = rk <= 50
+    fails = sum(not statuses[c] for c in IPS)
+    if   fails <= 4:  overall = "Passed IPS Screen"
+    elif fails == 5:  overall = "Informal Watch (IW)"
+    else:             overall = "Formal Watch (FW)"
+    report_date = st.session_state.get("report_date","")
+    row = {"Category": category, "Time Period": report_date, "Plan Assets": "$"}
+    for idx, crit in enumerate(IPS, start=1):
+        row[str(idx)] = statuses[crit]
+    row["IPS Status"] = overall
+    df_slide1 = pd.DataFrame([row])
+    #────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    
     # 3) Load your template
     template_path = "assets/template.pptx"
     try:
@@ -1470,6 +1509,32 @@ def step17_export_to_ppt_headings():
     run.font.bold = True
     run.font.underline = True
     sf.alignment = PP_ALIGN.LEFT
+    
+    #────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    # 7) Insert the Slide 1 table below the subheader
+    rows, cols = df_slide1.shape
+    table_top = Inches(1.8)
+    table_left = Inches(0.5)
+    table_width = prs.slide_width - Inches(1.0)
+    table_height = Inches(1.2)
+    table = slide1.shapes.add_table(rows+1, cols, table_left, table_top,
+                                     table_width, table_height).table
+
+    # write header row
+    for c, col_name in enumerate(df_slide1.columns):
+        cell = table.cell(0, c)
+        cell.text = str(col_name)
+        for paragraph in cell.text_frame.paragraphs:
+            for run in paragraph.runs:
+                run.font.bold = True
+                run.font.size = Pt(10)
+
+    # write data rows
+    for r in range(rows):
+        for c, col_name in enumerate(df_slide1.columns):
+            val = df_slide1.iloc[r, c]
+            cell = table.cell(r+1, c)
+            cell.text = str(val)
 
     # ─── Save and offer download ────────────────────────────────────────────────────────────────────────────────────────────────
     buf = BytesIO()
