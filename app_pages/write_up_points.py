@@ -1834,7 +1834,7 @@ def step17_export_to_ppt_headings():
                     cell = tbl.cell(r+1, c)
                     cell.text = str(df.iat[r, c])
                     cell.fill.solid()
-                    # first column dark blue, white text; others alternate stripe
+                    # first column dark blue, white text; tenure col small; other columns striped
                     if c == 0:
                         cell.fill.fore_color.rgb = RGBColor(33,43,88)
                         text_color = RGBColor(255,255,255)
@@ -1849,20 +1849,17 @@ def step17_export_to_ppt_headings():
 
         sw = prs.slide_width.inches
         total_w = sw - 1.0
-        w1 = [2.5, total_w - 2.5]
-        w2 = [2.5] + [((total_w/2) - 2.5)]*2
-
-        # arrange side by side
-        usable = total_w
+        # position tables side by side
         gap = 0.2
-        half = (usable - gap) / 2
+        half = (total_w - gap) / 2
         left1 = 0.5
         left2 = left1 + half + gap
         top = 1.0
         h = 0.8
-        # col widths adapt to half widths
-        cw1 = [2.5, half - 2.5]
-        cw2 = [2.5] + [(half - 2.5)/2]*2
+        # cw1: tenure col smaller (1.5"), manager col takes rest
+        cw1 = [half - 1.5, 1.5]
+        # cw2: manager col default 2.5", two asset cols share remainder equally and bigger
+        cw2 = [2.5] + [((half - 2.5) / 2) * 1 for _ in range(2)]
         draw_table(slide4, df4_1, left=left1, top=top, width=half, height=h, col_widths=cw1)
         draw_table(slide4, df4_2, left=left2, top=top, width=half, height=h, col_widths=cw2)
 
@@ -1877,7 +1874,6 @@ def step17_export_to_ppt_headings():
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         key=f"download_ppt_{selected}"
     )
-
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
