@@ -1785,7 +1785,7 @@ def step17_export_to_ppt_headings():
         draw_table(slide3, df3_2, left2, top2, total_w, h2, widths2)
 
 
-    # 10) Slide 4: Qualitative Factors Tables
+    # Slide 4: Qualitative Factors Tables
     if len(prs.slides) > 3:
         slide4 = prs.slides[3]
         # Table 1: Manager Tenure
@@ -1801,6 +1801,7 @@ def step17_export_to_ppt_headings():
         inv_mgr    = f"{selected} ({ticker})"
 
         df4_1 = pd.DataFrame([{"Investment Manager": inv_mgr, "Manager Tenure": tenure}])
+
         # Table 2: Assets & Market Cap
         facts      = st.session_state.get("fund_factsheets_data", [])
         fs_rec     = next((f for f in facts if f["Matched Fund Name"] == selected), {})
@@ -1812,7 +1813,7 @@ def step17_export_to_ppt_headings():
             "Average Market Capitalization": avg_cap
         }])
 
-        # reuse draw_table from Slide3 block:
+        # draw_table helper that colors first column dark blue
         def draw_table(slide, df, left, top, width, height, col_widths):
             tbl = slide.shapes.add_table(len(df)+1, len(df.columns),
                                          Inches(left), Inches(top),
@@ -1823,29 +1824,38 @@ def step17_export_to_ppt_headings():
             for c, name in enumerate(df.columns):
                 cell = tbl.cell(0, c)
                 cell.text = name
-                cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(33,43,88)
+                cell.fill.solid()
+                # dark blue first column, white for others
+                cell.fill.fore_color.rgb = RGBColor(33,43,88) if c == 0 else RGBColor(255,255,255)
                 p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
                 run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.bold=True
-                run.font.color.rgb = RGBColor(255,255,255)
+                run.font.color.rgb = RGBColor(255,255,255) if c == 0 else RGBColor(0,0,0)
             # body
             for r in range(len(df)):
                 for c in range(len(df.columns)):
                     cell = tbl.cell(r+1, c)
                     cell.text = str(df.iat[r, c])
-                    if r % 2 == 0:
-                        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(240,245,255)
+                    cell.fill.solid()
+                    # dark blue first column, light stripe for others
+                    if c == 0:
+                        cell.fill.fore_color.rgb = RGBColor(33,43,88)
+                    elif r % 2 == 0:
+                        cell.fill.fore_color.rgb = RGBColor(240,245,255)
+                    else:
+                        cell.fill.fore_color.rgb = RGBColor(255,255,255)
                     p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-                    run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.color.rgb = RGBColor(0,0,0)
+                    run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12)
+                    run.font.color.rgb = RGBColor(255,255,255) if c == 0 else RGBColor(0,0,0)
 
         sw = prs.slide_width.inches
         total_w = sw - 1.0
-        # widths: first col fixed 2.5", others split remaining
+        # widths: first col 2.5", others share
         w1 = [2.5, total_w - 2.5]
         w2 = [2.5] + [(total_w - 2.5)/2]*2
         draw_table(slide4, df4_1, left=0.5, top=1.0, width=total_w, height=0.8, col_widths=w1)
         draw_table(slide4, df4_2, left=0.5, top=2.3, width=total_w, height=0.8, col_widths=w2)
 
-    # 11) Download button
+    # Download button
     buf = BytesIO()
     prs.save(buf)
     buf.seek(0)
