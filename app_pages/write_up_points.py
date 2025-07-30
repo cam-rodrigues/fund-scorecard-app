@@ -1340,13 +1340,18 @@ def step16_bullet_points():
         b1 = b1.replace(f"[{fld}]", str(val))
     st.markdown(f"- {b1}")
 
+    # — Bullet 1: Performance vs. Benchmark —
+    template = st.session_state.get("bullet_point_templates", [""])[0]
+    b1 = template
+    for fld, val in item.items():
+        b1 = b1.replace(f"[{fld}]", str(val))
+    st.markdown(f"- {b1}")
+
     # — Bullet 2: IPS Screening Status & Returns Comparison —
     ips_status = item.get("IPS Status", "")
-    # check for Passed first
     if "Passed" in ips_status:
         st.markdown("- This fund is not on watch.")
     else:
-        # determine watch level
         if "Formal" in ips_status:
             status_label = "Formal Watch"
         elif "Informal" in ips_status:
@@ -1354,7 +1359,6 @@ def step16_bullet_points():
         else:
             status_label = ips_status or "on watch"
 
-        # parse returns safely
         three   = float(item.get("3Yr")      or 0)
         bench3  = float(item.get("Bench 3Yr") or 0)
         five    = float(item.get("5Yr")      or 0)
@@ -1362,7 +1366,6 @@ def step16_bullet_points():
         bps3 = round((three  - bench3)*100, 1)
         bps5 = round((five   - bench5)*100, 1)
 
-        # peer ranks
         peer = st.session_state.get("step14_peer_rank_table", [])
         raw3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer
                      if r.get("Fund Name") == selected_fund), None)
@@ -1383,7 +1386,6 @@ def step16_bullet_points():
             f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half of peers "
             f"and its 5‑Yr Sharpe ranks in the {pos5} half."
         )
-
     # — Bullet 3: only for Formal Watch —
     if "Formal Watch" in ips:
         st.markdown("- **Action:** Consider replacing this fund.")
