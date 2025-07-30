@@ -1393,7 +1393,7 @@ def step16_bullet_points():
 
 
 #── Build Powerpoint───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-# === Step 17: Export to PowerPoint + Bullet Points Textbox ===
+
 def step17_export_to_ppt_headings():
     import streamlit as st
     from pptx import Presentation
@@ -1404,22 +1404,23 @@ def step17_export_to_ppt_headings():
     from pptx.oxml.xmlchemy import OxmlElement
     from io import BytesIO
     import re
+    import pandas as pd
 
     st.subheader("Step 17: Export to PowerPoint")
 
-    # — 1) Selected fund & category —
+    # 1) Selected fund & category
     selected = st.session_state.get("selected_fund")
     if not selected:
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
     facts = st.session_state.get("fund_factsheets_data", [])
-    rec   = next((f for f in facts if f["Matched Fund Name"]==selected), None)
+    rec   = next((f for f in facts if f["Matched Fund Name"] == selected), None)
     if not rec or not rec.get("Category"):
         st.error(f"❌ Could not find category for '{selected}'.")
         return
     category = rec["Category"].strip()
 
-    # — 2) Load PPTX template —
+    # 2) Load PPTX template
     try:
         prs = Presentation("assets/template.pptx")
     except Exception as e:
@@ -1427,104 +1428,86 @@ def step17_export_to_ppt_headings():
         return
     slide1 = prs.slides[0]
 
-    # — 3) Titles on slides 1–4 (unchanged) —
+    # 3) Titles on slides 1–4
     def set_title(slide, text):
         if slide.shapes.title:
             tx = slide.shapes.title.text_frame.paragraphs[0]
         else:
             left, top = Inches(0.5), Inches(0.3)
-            box = slide.shapes.add_textbox(left, top, prs.slide_width-Inches(1), Inches(0.7))
+            box = slide.shapes.add_textbox(left, top, prs.slide_width - Inches(1), Inches(0.7))
             tx = box.text_frame.paragraphs[0]
         tx.text = text
         r = tx.runs[0]
         r.font.name  = "Helvetica"
         r.font.size  = Pt(20)
         r.font.bold  = True
-        r.font.color.rgb = RGBColor(0x21,0x2B,0x58)
+        r.font.color.rgb = RGBColor(0x21, 0x2B, 0x58)
         tx.alignment = PP_ALIGN.LEFT
 
     set_title(slide1, "Investment Watchlist")
-    if len(prs.slides)>1: set_title(prs.slides[1], f"{category} – Expense & Return")
-    if len(prs.slides)>2: set_title(prs.slides[2], f"{category} – Risk Adjusted Statistics")
-    if len(prs.slides)>3: set_title(prs.slides[3], f"{category} – Qualitative Factors")
+    if len(prs.slides) > 1:
+        set_title(prs.slides[1], f"{category} – Expense & Return")
+    if len(prs.slides) > 2:
+        set_title(prs.slides[2], f"{category} – Risk Adjusted Statistics")
+    if len(prs.slides) > 3:
+        set_title(prs.slides[3], f"{category} – Qualitative Factors")
 
-    # — 4) Subheader on Slide 1 —    
-    sub_left, sub_top = Inches(0.5), Inches(1.3)
-    sub = slide1.shapes.add_textbox(sub_left, sub_top, prs.slide_width-Inches(1), Inches(0.4))
-    sf = sub.text_frame.paragraphs[0]
+    # 4) Subheader on Slide 1
+    sub = slide1.shapes.add_textbox(Inches(0.5), Inches(1.3), prs.slide_width - Inches(1), Inches(0.4))
+    sf  = sub.text_frame.paragraphs[0]
     sf.text = selected
     run = sf.runs[0]
     run.font.name      = "Cambria"
     run.font.size      = Pt(12)
     run.font.bold      = True
     run.font.underline = True
-    run.font.color.rgb = RGBColor(0,0,0)
+    run.font.color.rgb = RGBColor(0, 0, 0)
     sf.alignment       = PP_ALIGN.LEFT
 
-    # — 5) Generate bullets from step16 logic —
+    # 5) Prepare bullets from Step 16 logic
     perf_data = st.session_state.get("fund_performance_data", [])
     item      = next((x for x in perf_data if x["Fund Scorecard Name"] == selected), {})
 
-    # Bullet 1 (same as before)
-    tmpl = st.session_state.get("bullet_point_templates", [""])[0]
-    b1 = tmpl
+    # Bullet 1: template fill
+    tmpl = st.session_state["bullet_point_templates"][0]
+    b1   = tmpl
     for fld, val in item.items():
         b1 = b1.replace(f"[{fld}]", str(val))
 
-    # — Bullet 2 & 3: now look up the saved IPS status map —
+    # Bullet 2 & 3: IPS status
     ips_status = st.session_state.get("ips_status_map", {}).get(selected, "")
-
     if "Passed" in ips_status:
         b2, b3 = "This fund is not on watch.", ""
     else:
-        # decide Formal vs Informal
         if "Formal" in ips_status:
             status_label = "Formal Watch"
         elif "Informal" in ips_status:
             status_label = "Informal Watch"
         else:
-            status_label = ips_status or "on watch"
-
-        three, bench3 = float(item.get("3Yr")      or 0), float(item.get("Bench 3Yr") or 0)
-        five,  bench5 = float(item.get("5Yr")      or 0), float(item.get("Bench 5Yr") or 0)
+            status_label = ips_status
+        three, bench3 = float(item.get("3Yr") or 0), float(item.get("Bench 3Yr") or 0)
+        five,  bench5 = float(item.get("5Yr") or 0), float(item.get("Bench 5Yr") or 0)
         bps3 = round((three  - bench3) * 100, 1)
         bps5 = round((five   - bench5)  * 100, 1)
 
-        # peer ranks
         peer = st.session_state.get("step14_peer_rank_table", [])
-        raw3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer if r.get("Fund Name")==selected), None)
-        raw5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer if r.get("Fund Name")==selected), None)
-        try:
-            pos3 = "top" if int(raw3) <= 50 else "bottom"
-        except:
-            pos3 = "bottom"
-        try:
-            pos5 = "top" if int(raw5) <= 50 else "bottom"
-        except:
-            pos5 = "bottom"
+        raw3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer if r.get("Fund Name") == selected), None)
+        raw5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer if r.get("Fund Name") == selected), None)
+        pos3 = "top" if raw3 and int(raw3) <= 50 else "bottom"
+        pos5 = "top" if raw5 and int(raw5) <= 50 else "bottom"
 
         b2 = (
-            f"- The fund is now on {status_label}. Its three‑year return trails the benchmark by "
-            f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its five‑year return trails by "
-            f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half of peers "
-            f"and its 5‑Yr Sharpe ranks in the {pos5} half."
+            f"The fund is now on {status_label}. Its 3‑Yr return trails the benchmark by "
+            f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its 5‑Yr return trails by "
+            f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half and "
+            f"its 5‑Yr Sharpe ranks in the {pos5} half."
         )
-        b3 = "- **Action:** Consider replacing this fund." if status_label == "Formal Watch" else ""
+        b3 = "Action: Consider replacing this fund." if status_label == "Formal Watch" else ""
 
-    # — Now actually write them into the slide’s text box —
-    lines = [b1, b2] + ([b3] if b3 else [])
-    for line in lines:
-        p = tf.add_paragraph()
-        p.text = f"• {line.lstrip('- ')}"
-        p.font.name      = "Cambria"
-        p.font.size      = Pt(11)
-        p.font.bold      = line.strip().startswith("Action")
-        p.font.color.rgb = RGBColor(0,0,0)
-        p.alignment      = PP_ALIGN.LEFT
-        p.line_spacing   = 2.0
-
-
-    # 6) Build data for Slide 1 Table
+    # 6) Build Slide 1 Table (15 cols: Category, Time Period, Plan Assets, 11 criteria, IPS Status)
+    #    Compute table data
+    recs = []
+    # 6a) reconstruct the IPS statuses map for this fund
     IPS = [
         "Manager Tenure","Excess Performance (3Yr)","R‑Squared (3Yr)",
         "Peer Return Rank (3Yr)","Sharpe Ratio Rank (3Yr)","Sortino Ratio Rank (3Yr)",
@@ -1534,110 +1517,138 @@ def step17_export_to_ppt_headings():
     blocks = st.session_state.get("fund_blocks", [])
     block = next((b for b in blocks if b["Fund Name"] == selected), {})
     statuses = {}
-    info = next((m["Info"] for m in block.get("Metrics",[]) if m["Metric"]=="Manager Tenure"), "")
-    yrs = float(re.search(r"(\d+\.?\d*)",info).group(1)) if re.search(r"(\d+\.?\d*)",info) else 0
+    # tenure
+    ten_info = next((m["Info"] for m in block.get("Metrics",[]) if m["Metric"]=="Manager Tenure"),"")
+    yrs = float(re.search(r"(\d+(\.\d+)?)", ten_info).group(1)) if re.search(r"(\d+(\.\d+)?)", ten_info) else 0
     statuses["Manager Tenure"] = yrs >= 3
+    # other IPS criteria
     for crit in IPS[1:]:
         raw = next((m["Info"] for m in block.get("Metrics",[]) if m["Metric"].startswith(crit.split()[0])),"")
         if "Excess Performance" in crit:
-            pct = float(re.search(r"([-+]?\d*\.\d+)%",raw).group(1)) if re.search(r"([-+]?\d*\.\d+)%",raw) else 0
+            pct = float(re.search(r"([-+]?\d*\.\d+)%", raw).group(1)) if re.search(r"([-+]?\d*\.\d+)%", raw) else 0
             statuses[crit] = pct > 0
         elif "R‑Squared" in crit:
             statuses[crit] = True
         else:
-            rk = int(re.search(r"(\d+)",raw).group(1)) if re.search(r"(\d+)",raw) else 999
+            rk = int(re.search(r"(\d+)", raw).group(1)) if re.search(r"(\d+)", raw) else 999
             statuses[crit] = rk <= 50
     fails = sum(not statuses[c] for c in IPS)
     overall = "Passed IPS Screen" if fails <= 4 else ("Informal Watch (IW)" if fails == 5 else "Formal Watch (FW)")
-    report_date = st.session_state.get("report_date","")
-    row = {"Category":category, "Time Period":report_date, "Plan Assets":"$"}
-    for i,crit in enumerate(IPS,1):
+
+    # 6b) assemble row
+    row = {
+        "Category":    category,
+        "Time Period": st.session_state.get("report_date",""),
+        "Plan Assets": "$"
+    }
+    for i,crit in enumerate(IPS, start=1):
         row[str(i)] = statuses[crit]
     row["IPS Status"] = overall
 
-    # 7) Border helper
-    def _set_border(cell, color=RGBColor(0,0,0)):
-        tc = cell._tc; tcPr = tc.get_or_add_tcPr()
-        hex_val = "{:02X}{:02X}{:02X}".format(color[0],color[1],color[2])
-        for ln_tag in ("a:lnL","a:lnR","a:lnT","a:lnB"):
-            ln = OxmlElement(ln_tag); lnPr = OxmlElement("a:solidFill")
-            srgb = OxmlElement("a:srgbClr"); srgb.set("val",hex_val)
-            lnPr.append(srgb); ln.append(lnPr); tcPr.append(ln)
-
-    # 8) Insert table centered horizontally, lowered vertically
+    # 6c) draw table on slide1
+    #    table dims and position
     slide_w = prs.slide_width
-    table_w = int(Inches(9))
-    left    = int((slide_w - table_w) // 2)
-    top     = int(Inches(2.0))
-    height  = int(Inches(0.6))
+    table_w = Inches(9)
+    left    = (slide_w - table_w) // 2
+    top     = Inches(2.0)
+    height  = Inches(0.6)
     cols    = 15
-    col_w   = [1.2, 1.2, 1.2] + [0.4] * 11 + [1]
-    tbl     = slide1.shapes.add_table(2, cols, left, top, table_w, height).table
+    col_w   = [1.2,1.2,1.2] + [0.4]*11 + [1.0]
+    tbl = slide1.shapes.add_table(2, cols, left, top, table_w, height).table
     for idx, w in enumerate(col_w):
-        tbl.columns[idx].width = int(Inches(w))
+        tbl.columns[idx].width = Inches(w)
 
     headers = ["Category","Time Period","Plan Assets"] + [str(i) for i in range(1,12)] + ["IPS Status"]
     vals    = [row["Category"],row["Time Period"],row["Plan Assets"]] + [row[str(i)] for i in range(1,12)] + [row["IPS Status"]]
 
-    # 9) Populate header row
+    # helper to set border
+    def _set_border(cell, color=RGBColor(0,0,0)):
+        tc   = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        hex_val = "{:02X}{:02X}{:02X}".format(color[0],color[1],color[2])
+        for ln_tag in ("a:lnL","a:lnR","a:lnT","a:lnB"):
+            ln   = OxmlElement(ln_tag)
+            lnPr = OxmlElement("a:solidFill")
+            srgb = OxmlElement("a:srgbClr")
+            srgb.set("val", hex_val)
+            lnPr.append(srgb)
+            ln.append(lnPr)
+            tcPr.append(ln)
+
+    # header row
     for c, h in enumerate(headers):
-        cell = tbl.cell(0, c); _set_border(cell)
-        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
-        tf = cell.text_frame; tf.clear()
-        tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE; tf.margin_top = tf.margin_bottom = 0
-        p = tf.paragraphs[0]; run = p.add_run(); run.text = h
-        run.font.name = "Cambria"; run.font.size = Pt(12); run.font.bold = True; run.font.color.rgb = RGBColor(0,0,0)
+        cell = tbl.cell(0, c)
+        _set_border(cell)
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = RGBColor(255,255,255)
+        tfc = cell.text_frame
+        tfc.clear()
+        tfc.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
+        tfc.margin_top = tfc.margin_bottom = 0
+        p = tfc.paragraphs[0]
+        r = p.add_run()
+        r.text = h
+        r.font.name  = "Cambria"
+        r.font.size  = Pt(12)
+        r.font.bold  = True
+        r.font.color.rgb = RGBColor(0,0,0)
         p.alignment = PP_ALIGN.CENTER
 
-    # 10) Populate data row and center the badge perfectly
-    badge_size = int(Inches(0.4))
-    row_height = height // 2
-    data_row_top = top + row_height
+    # data row
     for c, val in enumerate(vals):
-        cell = tbl.cell(1, c); _set_border(cell)
-        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
-        tf = cell.text_frame; tf.clear()
-        tf.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE; tf.margin_top = tf.margin_bottom = 0
-        p = tf.paragraphs[0]; p.font.name = "Cambria"; p.font.size = Pt(12); p.font.bold = False
-        p.alignment = PP_ALIGN.CENTER
+        cell = tbl.cell(1, c)
+        _set_border(cell)
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = RGBColor(255,255,255)
+        tfc = cell.text_frame
+        tfc.clear()
+        tfc.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
+        tfc.margin_top = tfc.margin_bottom = 0
+        p = tfc.paragraphs[0]
+        p.font.name  = "Cambria"
+        p.font.size  = Pt(12)
+        p.alignment  = PP_ALIGN.CENTER
 
         if c < 14:
             if val is True:
-                p.text = "✔"; p.runs[0].font.color.rgb = RGBColor(0,176,80)
+                p.text = "✔"
+                p.runs[0].font.color.rgb = RGBColor(0,176,80)
             elif val is False:
-                p.text = "✖"; p.runs[0].font.color.rgb = RGBColor(192,0,0)
+                p.text = "✖"
+                p.runs[0].font.color.rgb = RGBColor(192,0,0)
             else:
-                p.text = str(val); p.runs[0].font.color.rgb = RGBColor(0,0,0)
+                p.text = str(val)
         else:
             txt = str(val).lower()
             if "formal" in txt:
                 badge, color = "FW", RGBColor(192,0,0)
             elif "informal" in txt:
                 badge, color = "IW", RGBColor(255,165,0)
-            elif "passed" in txt:
-                badge, color = "✔", RGBColor(0,176,80)
             else:
-                badge = None
+                badge, color = "✔", RGBColor(0,176,80)
+            # place a circle badge
+            badge_size = Inches(0.4)
+            cell_left  = left + sum(Inches(w) for w in col_w[:c])
+            cell_w     = Inches(col_w[c])
+            bx = cell_left + (cell_w - badge_size)/2
+            row_h = height / 2
+            by = top + row_h + Inches(0.07)
+            shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, bx, by, badge_size, badge_size)
+            shp.fill.solid()
+            shp.fill.fore_color.rgb = color
+            shp.line.color.rgb     = RGBColor(255,255,255)
+            tf2 = shp.text_frame
+            tf2.clear()
+            p2 = tf2.paragraphs[0]
+            p2.alignment = PP_ALIGN.CENTER
+            r2 = p2.add_run()
+            r2.text = badge
+            r2.font.name  = "Cambria"
+            r2.font.size  = Pt(10)
+            r2.font.bold  = True
+            r2.font.color.rgb = RGBColor(255,255,255)
 
-            if badge:
-                cell_left = left + sum(int(Inches(w)) for w in col_w[:c])
-                cell_w    = int(Inches(col_w[c]))
-                bx = cell_left + (cell_w - badge_size)//2
-            
-                # extra downward nudge
-                extra = int(Inches(0.07))
-                by = data_row_top + (row_height - badge_size)//2 + extra
-            
-                shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, bx, by, badge_size, badge_size)
-                shp.fill.solid(); shp.fill.fore_color.rgb = color
-                shp.line.color.rgb = RGBColor(255,255,255)
-            
-                tf2 = shp.text_frame; tf2.clear()
-                p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.CENTER
-                r2 = p2.add_run(); r2.text = badge
-                r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255,255,255)
-                
-    # 11) Bullet textbox BELOW the table
+    # 7) Bullet textbox BELOW the table
     bullet_gap  = Inches(0.1)
     bullet_left = left
     bullet_top  = top + height + bullet_gap
@@ -1649,63 +1660,119 @@ def step17_export_to_ppt_headings():
     tf.clear()
     tf.word_wrap = True
 
-    # — Now write your bullets into tf …
-    lines = [b1, b2] + ([b3] if b3 else [])
-    for line in lines:
-        p = tf.add_paragraph()
-        p.text = f"• {line.lstrip('- ')}"
-
-    # — Bullet 1: fill your template
-    tmpl = st.session_state["bullet_point_templates"][0]
-    b1 = tmpl
-    for fld, val in item.items():
-        b1 = b1.replace(f"[{fld}]", str(val))
-
-    # — Bullet 2 & 3: derive from the ‘overall’ you computed back in step 10
-    ips_status = overall  # <— reuse the variable you set when building Slide 1 table
-
-    if "Passed" in ips_status:
-        b2, b3 = "This fund is not on watch.", ""
-    else:
-        if "Formal" in ips_status:
-            status_label = "Formal Watch"
-        elif "Informal" in ips_status:
-            status_label = "Informal Watch"
-        else:
-            status_label = ips_status
-
-        three, bench3 = float(item.get("3Yr") or 0), float(item.get("Bench 3Yr") or 0)
-        five,  bench5 = float(item.get("5Yr") or 0), float(item.get("Bench 5Yr") or 0)
-        bps3 = round((three  - bench3)*100, 1)
-        bps5 = round((five   - bench5)*100, 1)
-
-        peer = st.session_state.get("step14_peer_rank_table", [])
-        raw3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer if r.get("Fund Name")==selected), None)
-        raw5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer if r.get("Fund Name")==selected), None)
-        try:    pos3 = "top" if int(raw3) <= 50 else "bottom"
-        except: pos3 = "bottom"
-        try:    pos5 = "top" if int(raw5) <= 50 else "bottom"
-        except: pos5 = "bottom"
-
-        b2 = (
-            f"- The fund is now on {status_label}. Its three‑year return trails the benchmark by "
-            f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its five‑year return trails by "
-            f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half and "
-            f"its 5‑Yr Sharpe ranks in the {pos5} half."
-        )
-        b3 = "- **Action:** Consider replacing this fund." if status_label == "Formal Watch" else ""
-
-    # — write out all non‐empty bullets
     for text in [b1, b2] + ([b3] if b3 else []):
         p = tf.add_paragraph()
-        p.text = text.lstrip("- ")
-        p.font.name      = "Cambria"
-        p.font.size      = Pt(11)
-        p.font.bold      = text.strip().startswith("**Action**")
-        p.font.color.rgb = RGBColor(0, 0, 0)
-        p.alignment      = PP_ALIGN.LEFT
-        p.line_spacing   = 2.0
+        p.text = f"• {text}"
+        p.font.name    = "Cambria"
+        p.font.size    = Pt(11)
+        p.font.bold    = text.startswith("Action")
+        p.alignment    = PP_ALIGN.LEFT
+        p.line_spacing = 2.0
 
+    # 8) Slide 2: Expense & Return
+    if len(prs.slides) > 1:
+        slide2 = prs.slides[1]
+
+        # Table 1: Net Expense Ratio
+        perf_item = next(p for p in perf_data if p["Fund Scorecard Name"] == selected)
+        inv_mgr   = f"{selected} ({perf_item['Ticker']})"
+        net_exp   = perf_item.get("Net Expense Ratio", "")
+        if net_exp and not str(net_exp).endswith("%"):
+            net_exp = f"{net_exp}%"
+        df1 = pd.DataFrame([{"Investment Manager": inv_mgr, "Net Expense Ratio": net_exp}])
+
+        # Table 2: QTD / 1Yr / 3Yr / 5Yr / 10Yr
+        date_label = st.session_state.get("report_date", "QTD")
+        def _pct(v): return f"{v}%" if v and not str(v).endswith("%") else (v or "")
+        df2 = pd.DataFrame([{
+            "Investment Manager": inv_mgr,
+            date_label:           _pct(perf_item.get("QTD")),
+            "1 Year":             _pct(perf_item.get("1Yr")),
+            "3 Year":             _pct(perf_item.get("3Yr")),
+            "5 Year":             _pct(perf_item.get("5Yr")),
+            "10 Year":            _pct(perf_item.get("10Yr")),
+        }])
+
+        # Table 3: Last 10 Calendar‑Year Returns
+        fund_cy  = st.session_state.get("step8_returns", [])
+        bench_cy = st.session_state.get("benchmark_calendar_year_returns", [])
+        fund_rec = next((r for r in fund_cy if r.get("Name") == selected), {})
+        bench_rec= next((r for r in bench_cy if (r.get("Name") == selected or r.get("Ticker") == fund_rec.get("Ticker"))), {})
+        years    = sorted([c for c in fund_rec.keys() if re.match(r"20\d{2}", c)], reverse=True)[:10]
+        rows3 = [
+            {"Investment Manager": inv_mgr, **{y: fund_rec.get(y, "") for y in years}},
+            {"Investment Manager": f"{bench_rec.get('Name','Benchmark')} ({bench_rec.get('Ticker','')})",
+             **{y: bench_rec.get(y, "") for y in years}}
+        ]
+        df3 = pd.DataFrame(rows3, columns=["Investment Manager"] + years)
+
+        # draw helper
+        def draw_table(slide, df, left, top, width, height, col_widths):
+            tbl = slide.shapes.add_table(len(df) + 1, len(df.columns),
+                                         Inches(left), Inches(top),
+                                         Inches(width), Inches(height)).table
+            for i, w in enumerate(col_widths):
+                tbl.columns[i].width = Inches(w)
+            # header
+            for c, name in enumerate(df.columns):
+                cell = tbl.cell(0, c)
+                cell.text = name
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = RGBColor(33,43,88)
+                p = cell.text_frame.paragraphs[0]
+                p.alignment = PP_ALIGN.CENTER
+                run = p.runs[0]
+                run.font.name  = "Cambria"
+                run.font.size  = Pt(12)
+                run.font.bold  = True
+                run.font.color.rgb = RGBColor(255,255,255)
+            # body
+            for r in range(len(df)):
+                for c in range(len(df.columns)):
+                    cell = tbl.cell(r+1, c)
+                    cell.text = str(df.iat[r, c])
+                    if r % 2 == 0:
+                        cell.fill.solid()
+                        cell.fill.fore_color.rgb = RGBColor(240,245,255)
+                    p = cell.text_frame.paragraphs[0]
+                    p.alignment = PP_ALIGN.CENTER
+                    run = p.runs[0]
+                    run.font.name  = "Cambria"
+                    run.font.size  = Pt(12)
+                    run.font.color.rgb = RGBColor(0,0,0)
+
+        # layout
+        sw      = prs.slide_width / Inches(1)
+        lm, rm, gap = 0.5, 0.5, 0.2
+        usable = sw - lm - rm - gap
+        half   = usable / 2
+        ty     = 1.0
+        hgh    = 1.2
+        by     = ty + hgh + 0.3
+        bh     = 2.0
+
+        # draw tables
+        draw_table(slide2, df1, lm, ty, half, hgh, [2.0, half-2.0])
+        draw_table(slide2, df2, lm+half+gap, ty, half, hgh, [2.0] + [(half-2.0)/5]*5)
+        first_w = 2.5
+        extras  = len(df3.columns) - 1
+        if extras > 0:
+            rems = [(usable-first_w)/extras]*extras
+            cw3  = [first_w] + rems
+        else:
+            cw3  = [usable]
+        draw_table(slide2, df3, lm, by, usable, bh, cw3)
+
+    # 9) Download button
+    buf = BytesIO()
+    prs.save(buf)
+    buf.seek(0)
+    st.download_button(
+        label="Download PPTX",
+        data=buf,
+        file_name=f"{selected.replace(' ','_')}.pptx",
+        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    )
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     # — Slide 2: Expense & Return —  
