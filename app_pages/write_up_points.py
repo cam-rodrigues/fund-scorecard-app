@@ -1076,6 +1076,13 @@ def step15_display_selected_fund():
     elif fails == 5:  overall = "Informal Watch (IW)"
     else:             overall = "Formal Watch (FW)"
 
+    # … after you compute `overall = "Passed IPS Screen" …` etc.
+    # Save it so our bullets can look it up:
+    if "ips_status_map" not in st.session_state:
+        st.session_state["ips_status_map"] = {}
+    st.session_state["ips_status_map"][selected_fund] = overall
+
+
     # 5) Build the DataFrame row
     report_date = st.session_state.get("report_date","")
     row = {
@@ -1339,7 +1346,8 @@ def step16_bullet_points():
     st.markdown(f"- {b1}")
 
     # — Bullet 2: IPS Screening Status & Returns Comparison —
-    ips_status = item.get("IPS Status", "")
+    ips_status = st.session_state.get("ips_status_map", {}).get(selected_fund, "")
+
     if "Passed" in ips_status:
         st.markdown("- This fund is not on watch.")
     else:
