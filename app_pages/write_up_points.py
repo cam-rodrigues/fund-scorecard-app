@@ -1763,17 +1763,13 @@ def step17_export_to_ppt_headings():
             cw3  = [usable]
         draw_table(slide2, df3, lm, by, usable, bh, cw3)
 
-    # 9) Download button
-    buf = BytesIO()
-    prs.save(buf)
-    buf.seek(0)
     st.download_button(
         label="Download PPTX",
         data=buf,
         file_name=f"{selected.replace(' ','_')}.pptx",
-        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        key=f"download_ppt_{selected}"
     )
-
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     # — Slide 2: Expense & Return —  
     if len(prs.slides) > 1:
