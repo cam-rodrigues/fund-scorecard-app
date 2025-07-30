@@ -1698,17 +1698,104 @@ def step17_export_to_ppt_headings():
         cw3     = [first_w] + ([(usable-first_w)/extras]*extras if extras>0 else [])
         draw_table(slide2, df3, lm, by, usable, bh, cw3)
 
-    # 9) Download button with unique key
+
+    # 9) Slide 3: Risk-Adjusted Statistics
+    if len(prs.slides) > 2:
+        slide3 = prs.slides[2]
+        inv_mgr_label = selected  # will append ticker below
+
+        # === Table 1: 3-Yr & 5-Yr MPT Stats ===
+        mpt3 = st.session_state.get("step9_mpt_stats", [])
+        stats3 = next((r for r in mpt3 if r["Fund Name"] == selected), {})
+        mpt5 = st.session_state.get("step10_mpt_stats", [])
+        stats5 = next((r for r in mpt5 if r["Fund Name"] == selected), {})
+
+        ticker = stats3.get("Ticker", stats5.get("Ticker", ""))
+        inv_mgr = f"{selected} ({ticker})"
+
+        row1 = {
+            "Investment Manager":        inv_mgr,
+            "3 Year Alpha":              stats3.get("3 Year Alpha", ""),
+            "5 Year Alpha":              stats5.get("5 Year Alpha", ""),
+            "3 Year Beta":               stats3.get("3 Year Beta", ""),
+            "5 Year Beta":               stats5.get("5 Year Beta", ""),
+            "3 Year Upside Capture":     stats3.get("3 Year Upside Capture", ""),
+            "3 Year Downside Capture":   stats3.get("3 Year Downside Capture", ""),
+            "5 Year Upside Capture":     stats5.get("5 Year Upside Capture", ""),
+            "5 Year Downside Capture":   stats5.get("5 Year Downside Capture", "")
+        }
+        df3_1 = pd.DataFrame([row1])
+        cols1 = list(df3_1.columns)
+        widths1 = [2.5] + [(prs.slide_width.inches - 2.5) / (len(cols1)-1)] * (len(cols1)-1)
+
+        # === Table 2: Ratios & Peer Ranks ===
+        risk_table = st.session_state.get("step13_risk_adjusted_table", [])
+        peer_table = st.session_state.get("step14_peer_rank_table", [])
+        risk_rec = next((r for r in risk_table if r["Fund Name"] == selected), {})
+        peer_rec = next((r for r in peer_table if r["Fund Name"] == selected), {})
+
+        def frac(metric, period):
+            return f"{risk_rec.get(f'{metric} {period}', '')} / {peer_rec.get(f'{metric} {period}', '')}"
+
+        row2 = {
+            "Investment Manager": inv_mgr,
+            "3Yr Sharpe / Peer %":      frac("Sharpe Ratio", "3Yr"),
+            "5Yr Sharpe / Peer %":      frac("Sharpe Ratio", "5Yr"),
+            "3Yr Sortino / Peer %":     frac("Sortino Ratio", "3Yr"),
+            "5Yr Sortino / Peer %":     frac("Sortino Ratio", "5Yr"),
+            "3Yr Info Ratio / Peer %":  frac("Information Ratio", "3Yr"),
+            "5Yr Info Ratio / Peer %":  frac("Information Ratio", "5Yr"),
+        }
+        df3_2 = pd.DataFrame([row2])
+        cols2 = list(df3_2.columns)
+        widths2 = [2.5] + [(prs.slide_width.inches - 2.5) / (len(cols2)-1)] * (len(cols2)-1)
+
+        # helper for drawing
+        def draw_table(slide, df, left, top, width, height, col_widths):
+            tbl = slide.shapes.add_table(len(df)+1, len(df.columns),
+                                         Inches(left), Inches(top),
+                                         Inches(width), Inches(height)).table
+            for i, w in enumerate(col_widths):
+                tbl.columns[i].width = Inches(w)
+            # header
+            for c, name in enumerate(df.columns):
+                cell = tbl.cell(0, c)
+                cell.text = name
+                cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(33,43,88)
+                p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+                run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.bold=True
+                run.font.color.rgb = RGBColor(255,255,255)
+            # body
+            for r in range(len(df)):
+                for c in range(len(df.columns)):
+                    cell = tbl.cell(r+1, c)
+                    cell.text = str(df.iat[r, c])
+                    if r % 2 == 0:
+                        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(240,245,255)
+                    p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+                    run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.color.rgb = RGBColor(0,0,0)
+
+        # calculate positions
+        sw = prs.slide_width.inches
+        left1, top1, h1 = 0.5, 1.0, 1.0
+        left2, top2, h2 = 0.5, 2.3, 1.0
+        total_w = sw - 1.0
+
+        draw_table(slide3, df3_1, left1, top1, total_w, h1, widths1)
+        draw_table(slide3, df3_2, left2, top2, total_w, h2, widths2)
+
+    # 10) Download button
     buf = BytesIO()
     prs.save(buf)
     buf.seek(0)
     st.download_button(
         label="Download PPTX",
         data=buf,
-        file_name=f"{selected.replace(' ','_')}.pptx",
+        file_name=f"{selected.replace(' ', '_')}.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         key=f"download_ppt_{selected}"
     )
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
