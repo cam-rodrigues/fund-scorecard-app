@@ -169,9 +169,14 @@ def step4_ips_screen():
         "Expense Ratio Rank"
     ]
 
+    # grab the name→ticker mapping from Step 5
+    tickers = st.session_state.get("tickers", {})
+
     records = []
     for b in st.session_state["fund_blocks"]:
         name = b["Fund Name"]
+        ticker = tickers.get(name, "")
+
         is_passive = "bitcoin" in name.lower()
 
         # compute pass/fail flags
@@ -186,13 +191,16 @@ def step4_ips_screen():
             m = next((x for x in b["Metrics"] if x["Metric"].startswith(metric.split()[0])), None)
             info = m["Info"] if m else ""
             if "Excess Performance" in metric:
-                val = float(re.search(r"([-+]?\d*\.\d+)%", info).group(1)) if re.search(r"([-+]?\d*\.\d+)%", info) else 0
+                val_match = re.search(r"([-+]?\d*\.\d+)%", info)
+                val = float(val_match.group(1)) if val_match else 0
                 statuses[metric] = val > 0
             elif "R-Squared" in metric:
-                pct = float(re.search(r"(\d+\.\d+)%", info).group(1)) if re.search(r"(\d+\.\d+)%", info) else 0
+                pct_match = re.search(r"(\d+\.\d+)%", info)
+                pct = float(pct_match.group(1)) if pct_match else 0
                 statuses[metric] = (pct >= 95) if is_passive else True
             else:
-                rank = int(re.search(r"(\d+)", info).group(1)) if re.search(r"(\d+)", info) else 999
+                rank_match = re.search(r"(\d+)", info)
+                rank = int(rank_match.group(1)) if rank_match else 999
                 if "Tracking Error" in metric and is_passive:
                     statuses[metric] = rank < 90
                 elif "Sortino" in metric and not is_passive:
@@ -208,9 +216,10 @@ def step4_ips_screen():
             "Formal Watch (FW)"
         )
 
-        # build row with symbols only
+        # build row with just symbols
         row = {
             "Fund Name": name,
+            "Ticker": ticker,
             "Type": "Passive" if is_passive else "Active",
             "Overall": overall
         }
@@ -221,7 +230,8 @@ def step4_ips_screen():
 
     df = pd.DataFrame(records)
     st.subheader("IPS Screening Results")
-    st.table(df)
+    st.dataframe(df, use_container_width=True)
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
