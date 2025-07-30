@@ -1862,6 +1862,19 @@ def step17_export_to_ppt_headings():
         avg_w   = half - 2.0 - asset_w
         cw2 = [2.0, asset_w, avg_w]  # assets unchanged; avg cap expanded
 
+    # …after all slides are built…
+    buf = BytesIO()
+    prs.save(buf)
+    buf.seek(0)
+    st.download_button(
+        label="Download PPTX",
+        data=buf,
+        file_name=f"{selected.replace(' ','_')}.pptx",
+        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        key=f"download_ppt_{selected}"
+    )
+
+
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
 def run():
