@@ -1813,43 +1813,42 @@ def step17_export_to_ppt_headings():
             "Average Market Capitalization": avg_cap
         }])
 
-        # draw_table helper that colors first column dark blue
+        # draw_table helper: header row dark blue, first column dark blue
         def draw_table(slide, df, left, top, width, height, col_widths):
             tbl = slide.shapes.add_table(len(df)+1, len(df.columns),
                                          Inches(left), Inches(top),
                                          Inches(width), Inches(height)).table
             for i, w in enumerate(col_widths):
                 tbl.columns[i].width = Inches(w)
-            # header
+            # header row: all dark blue with white text
             for c, name in enumerate(df.columns):
                 cell = tbl.cell(0, c)
                 cell.text = name
-                cell.fill.solid()
-                # dark blue first column, white for others
-                cell.fill.fore_color.rgb = RGBColor(33,43,88) if c == 0 else RGBColor(255,255,255)
+                cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(33,43,88)
                 p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
                 run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.bold=True
-                run.font.color.rgb = RGBColor(255,255,255) if c == 0 else RGBColor(0,0,0)
-            # body
+                run.font.color.rgb = RGBColor(255,255,255)
+            # body rows
             for r in range(len(df)):
                 for c in range(len(df.columns)):
                     cell = tbl.cell(r+1, c)
                     cell.text = str(df.iat[r, c])
                     cell.fill.solid()
-                    # dark blue first column, light stripe for others
+                    # first column dark blue, white text; others alternate stripe
                     if c == 0:
                         cell.fill.fore_color.rgb = RGBColor(33,43,88)
-                    elif r % 2 == 0:
-                        cell.fill.fore_color.rgb = RGBColor(240,245,255)
+                        text_color = RGBColor(255,255,255)
                     else:
-                        cell.fill.fore_color.rgb = RGBColor(255,255,255)
+                        if r % 2 == 0:
+                            cell.fill.fore_color.rgb = RGBColor(240,245,255)
+                        else:
+                            cell.fill.fore_color.rgb = RGBColor(255,255,255)
+                        text_color = RGBColor(0,0,0)
                     p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-                    run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12)
-                    run.font.color.rgb = RGBColor(255,255,255) if c == 0 else RGBColor(0,0,0)
+                    run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.color.rgb = text_color
 
         sw = prs.slide_width.inches
         total_w = sw - 1.0
-        # widths: first col 2.5", others share
         w1 = [2.5, total_w - 2.5]
         w2 = [2.5] + [(total_w - 2.5)/2]*2
         draw_table(slide4, df4_1, left=0.5, top=1.0, width=total_w, height=0.8, col_widths=w1)
@@ -1866,6 +1865,7 @@ def step17_export_to_ppt_headings():
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         key=f"download_ppt_{selected}"
     )
+
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
