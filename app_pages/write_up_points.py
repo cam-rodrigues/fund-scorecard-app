@@ -1850,9 +1850,21 @@ def step17_export_to_ppt_headings():
         sw = prs.slide_width.inches
         total_w = sw - 1.0
         w1 = [2.5, total_w - 2.5]
-        w2 = [2.5] + [(total_w - 2.5)/2]*2
-        draw_table(slide4, df4_1, left=0.5, top=1.0, width=total_w, height=0.8, col_widths=w1)
-        draw_table(slide4, df4_2, left=0.5, top=2.3, width=total_w, height=0.8, col_widths=w2)
+        w2 = [2.5] + [((total_w/2) - 2.5)]*2
+
+        # arrange side by side
+        usable = total_w
+        gap = 0.2
+        half = (usable - gap) / 2
+        left1 = 0.5
+        left2 = left1 + half + gap
+        top = 1.0
+        h = 0.8
+        # col widths adapt to half widths
+        cw1 = [2.5, half - 2.5]
+        cw2 = [2.5] + [(half - 2.5)/2]*2
+        draw_table(slide4, df4_1, left=left1, top=top, width=half, height=h, col_widths=cw1)
+        draw_table(slide4, df4_2, left=left2, top=top, width=half, height=h, col_widths=cw2)
 
     # Download button
     buf = BytesIO()
