@@ -1315,10 +1315,8 @@ def step15_display_selected_fund():
     st.dataframe(df_slide4_2, use_container_width=True)
 
 
-# ── Step 16: Bullet Points ───────────────────────────────────────────
 def step16_bullet_points():
     import streamlit as st
-    import re
 
     st.subheader("Step 16: Bullet Points")
 
@@ -1332,13 +1330,6 @@ def step16_bullet_points():
     if not item:
         st.error(f"❌ Performance data for '{selected_fund}' not found.")
         return
-
-    # — Bullet 1: Performance vs. Benchmark —
-    template = st.session_state.get("bullet_point_templates", [""])[0]
-    b1 = template
-    for fld, val in item.items():
-        b1 = b1.replace(f"[{fld}]", str(val))
-    st.markdown(f"- {b1}")
 
     # — Bullet 1: Performance vs. Benchmark —
     template = st.session_state.get("bullet_point_templates", [""])[0]
@@ -1386,9 +1377,11 @@ def step16_bullet_points():
             f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half of peers "
             f"and its 5‑Yr Sharpe ranks in the {pos5} half."
         )
-    # — Bullet 3: only for Formal Watch —
-    if "Formal Watch" in ips:
+
+    # — Bullet 3: Action for Formal Watch only —
+    if "Formal" in ips_status:
         st.markdown("- **Action:** Consider replacing this fund.")
+
 
 
 #── Build Powerpoint───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
