@@ -172,27 +172,25 @@ def step4_ips_screen():
     records = []
     for b in st.session_state["fund_blocks"]:
         name = b["Fund Name"]
-        is_passive = "bitcoin" in name.lower()  # your existing passive test
-        statuses, reasons = {}, {}
+        is_passive = "bitcoin" in name.lower()
 
-        # Manager Tenure ≥3
+        # compute pass/fail flags
+        statuses = {}
+        # Manager Tenure
         info = next((m["Info"] for m in b["Metrics"] if m["Metric"]=="Manager Tenure"), "")
         yrs = float(re.search(r"(\d+\.?\d*)", info).group(1)) if re.search(r"(\d+\.?\d*)", info) else 0
         statuses["Manager Tenure"] = yrs >= 3
-        reasons["Manager Tenure"] = f"{yrs} yrs"
 
-        # Remaining metrics
+        # the rest
         for metric in IPS[1:]:
             m = next((x for x in b["Metrics"] if x["Metric"].startswith(metric.split()[0])), None)
             info = m["Info"] if m else ""
             if "Excess Performance" in metric:
                 val = float(re.search(r"([-+]?\d*\.\d+)%", info).group(1)) if re.search(r"([-+]?\d*\.\d+)%", info) else 0
                 statuses[metric] = val > 0
-                reasons[metric] = f"{val}%"
             elif "R-Squared" in metric:
                 pct = float(re.search(r"(\d+\.\d+)%", info).group(1)) if re.search(r"(\d+\.\d+)%", info) else 0
                 statuses[metric] = (pct >= 95) if is_passive else True
-                reasons[metric] = f"{pct}%"
             else:
                 rank = int(re.search(r"(\d+)", info).group(1)) if re.search(r"(\d+)", info) else 999
                 if "Tracking Error" in metric and is_passive:
@@ -201,29 +199,26 @@ def step4_ips_screen():
                     statuses[metric] = rank <= 50
                 else:
                     statuses[metric] = rank <= 50
-                reasons[metric] = f"Rank {rank}"
 
-        # Determine overall
-        fails = sum(1 for v in statuses.values() if not v)
+        # overall decision
+        fails = sum(not v for v in statuses.values())
         overall = (
-            "Passed IPS Screen" if fails <= 4
-            else "Informal Watch (IW)" if fails == 5
-            else "Formal Watch (FW)"
+            "Passed IPS Screen" if fails <= 4 else
+            "Informal Watch (IW)" if fails == 5 else
+            "Formal Watch (FW)"
         )
 
-        # Build one record / row
+        # build row with symbols only
         row = {
             "Fund Name": name,
             "Type": "Passive" if is_passive else "Active",
-            "Overall": overall,
-            "Fails": fails
+            "Overall": overall
         }
         for m in IPS:
-            symbol = "✅" if statuses[m] else "❌"
-            row[m] = f"{symbol} {reasons[m]}"
+            row[m] = "✅" if statuses[m] else "❌"
+
         records.append(row)
 
-    # Create DataFrame & display
     df = pd.DataFrame(records)
     st.subheader("IPS Screening Results")
     st.table(df)
