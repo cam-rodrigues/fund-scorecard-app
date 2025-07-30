@@ -8,8 +8,9 @@ from pptx import Presentation
 from pptx.util import Inches
 from io import BytesIO
 
-#────────────────────────────────────────────────────────────────────────────────────────────────
-# === Utility: Extract & Label Report Date ===
+#────────────────────────────────────────────────────────────────────────
+# Utility: Extract & Label Report Date
+#────────────────────────────────────────────────────────────────────────
 def extract_report_date(text):
     dates = re.findall(r"(\d{1,2})/(\d{1,2})/(20\d{2})", text or "")
     for month, day, year in dates:
@@ -20,8 +21,9 @@ def extract_report_date(text):
         return f"As of {month_name[m]} {d}, {year}"
     return None
 
-#────────────────────────────────────────────────────────────────────────────────────────────────
-# === Step 1 & 1.5: Page 1 Extraction ===
+#────────────────────────────────────────────────────────────────────────
+# Step 1 & 1.5: Page 1 Extraction
+#────────────────────────────────────────────────────────────────────────
 def process_page1(text):
     report_date = extract_report_date(text)
     if report_date:
@@ -47,13 +49,13 @@ def process_page1(text):
     st.write(f"- Prepared For: {st.session_state['prepared_for']}")
     st.write(f"- Prepared By: {pb}")
 
-#────────────────────────────────────────────────────────────────────────────────────────────────
-# === Step 2: Table of Contents Extraction ===
+#────────────────────────────────────────────────────────────────────────
+# Step 2: Table of Contents Extraction
+#────────────────────────────────────────────────────────────────────────
 def process_toc(text):
     perf = re.search(r"Fund Performance[^\d]*(\d{1,3})", text or "")
     sc   = re.search(r"Fund Scorecard\s+(\d{1,3})", text or "")
     fs   = re.search(r"Fund Factsheets\s+(\d{1,3})", text or "")
-
     st.session_state['performance_page'] = int(perf.group(1)) if perf else None
     st.session_state['scorecard_page']   = int(sc.group(1))   if sc   else None
     st.session_state['factsheets_page']  = int(fs.group(1))   if fs   else None
@@ -63,8 +65,9 @@ def process_toc(text):
     st.write(f"- Fund Scorecard: {st.session_state['scorecard_page']}")
     st.write(f"- Fund Factsheets: {st.session_state['factsheets_page']}")
 
-#────────────────────────────────────────────────────────────────────────────────────────────────
-# === Step 3: Scorecard Extraction (Pass/Fail only) ===
+#────────────────────────────────────────────────────────────────────────
+# Step 3: Scorecard Extraction (Pass/Fail only)
+#────────────────────────────────────────────────────────────────────────
 def step3_process_scorecard(pdf, start_page, declared_total):
     pages = []
     for p in pdf.pages[start_page-1:]:
@@ -84,10 +87,10 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     metrics = []
 
     for i, line in enumerate(lines):
-        m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
-        if not m:
+        match = re.match(r"^(.*?)\s+(Pass|Review)\s+", line.strip())
+        if not match:
             continue
-        metric, status, _info = m.groups()
+        metric, status = match.groups()
 
         if metric == "Manager Tenure":
             if name and metrics:
@@ -101,18 +104,17 @@ def step3_process_scorecard(pdf, start_page, declared_total):
             metrics = []
 
         if name:
-            metrics.append({"Metric": metric, "Status": "Pass" if status=="Pass" else "Fail"})
+            metrics.append({"Metric": metric, "Status": status})
 
     if name and metrics:
         fund_blocks.append({"Fund Name": name, "Metrics": metrics})
 
     st.session_state["fund_blocks"] = fund_blocks
-
     st.subheader("Step 3.5: Scorecard Pass/Fail Details")
     for b in fund_blocks:
         st.markdown(f"### {b['Fund Name']}")
         for m in b['Metrics']:
-            sym = "✅" if m['Status']=='Pass' else "❌"
+            sym = "✅" if m.get('Status')=='Pass' else "❌"
             st.write(f"- {sym} {m['Metric']}")
 
     st.subheader("Step 3.6: Investment Option Count")
@@ -124,8 +126,9 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
 
-#────────────────────────────────────────────────────────────────────────────────────────────────
-# === Step 4: IPS Screening with Status Storage ===
+#────────────────────────────────────────────────────────────────────────
+# Step 4: IPS Screening storing statuses
+#────────────────────────────────────────────────────────────────────────
 def step4_ips_screen():
     IPS = [
         "Manager Tenure",
@@ -143,62 +146,51 @@ def step4_ips_screen():
         "Tracking Error Rank (5Yr)",
         "Expense Ratio Rank"
     ]
-    st.subheader("Step 4: IPS Investment Criteria Screening")
     st.session_state.setdefault("ips_statuses", {})
+    st.subheader("Step 4: IPS Investment Criteria Screening")
 
     for b in st.session_state.get("fund_blocks", []):
         name = b["Fund Name"]
         statuses = {}
-        # simple example: Propagate Pass/Fail from scorecard for Manager Tenure
-        tenure = next((m['Status'] for m in b['Metrics'] if m['Metric']=="Manager Tenure"), 'Fail')
-        statuses["Manager Tenure"] = (tenure=='Pass')
-        # other metrics: default Pass (can implement your logic)
+        # Example: use scorecard Status for Manager Tenure
+        statuses["Manager Tenure"] = (next((m.get('Status') for m in b['Metrics'] if m['Metric']=="Manager Tenure"), 'Fail')=='Pass')
+        # Default Pass for others (adjust logic as needed)
         for metric in IPS[1:]:
             statuses[metric] = True
         st.session_state["ips_statuses"][name] = statuses
-        # display
-        overall = "Passed IPS Screen"
         st.markdown(f"### {name}")
         for m, ok in statuses.items():
             sym = "✅" if ok else "❌"
             st.write(f"- {sym} {m}")
 
-#────────────────────────────────────────────────────────────────────────────────────────────────
-# === Step 5: Fund Performance Section Extraction ===
+#────────────────────────────────────────────────────────────────────────
+# Step 5: Fund Performance Extraction
+#────────────────────────────────────────────────────────────────────────
 def step5_process_performance(pdf, start_page, fund_names):
     end_page = st.session_state.get("factsheets_page") or (len(pdf.pages)+1)
-    all_lines = []
-    perf_text = ""
+    all_lines, perf_text = [], ""
     for p in pdf.pages[start_page-1:end_page-1]:
         txt = p.extract_text() or ""
-        perf_text += txt+"\n"
+        perf_text += txt + "\n"
         all_lines.extend(txt.splitlines())
-
     mapping = {}
     for ln in all_lines:
         m = re.match(r"(.+?)\s+([A-Z]{1,5})$", ln.strip())
         if m:
-            norm = re.sub(r'[^A-Za-z0-9 ]+', '', m.group(1)).strip().lower()
-            mapping[norm] = m.group(2)
-
-    tickers = {}
-    for name in fund_names:
-        norm = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
-        tickers[name] = next((t for raw,t in mapping.items() if raw.startswith(norm)), None)
-
+            mapping[re.sub(r'[^A-Za-z0-9 ]+', '', m.group(1)).strip().lower()] = m.group(2)
+    tickers = {name: next((t for raw,t in mapping.items() if raw.startswith(re.sub(r'[^A-Za-z0-9 ]','',name).lower())), None)
+               for name in fund_names}
     st.session_state["tickers"] = tickers
     st.subheader("Step 5: Extracted Tickers")
-    for n,t in tickers.items():
-        st.write(f"- {n}: {t or '❌ not found'}")
+    for n, t in tickers.items(): st.write(f"- {n}: {t or '❌ not found'}")
 
-#────────────────────────────────────────────────────────────────────────────────────────────────
-# === Step 6: Fund Factsheets Section ===
+#────────────────────────────────────────────────────────────────────────
+# Step 6: Fund Factsheets Section
+#────────────────────────────────────────────────────────────────────────
 def step6_process_factsheets(pdf, fund_names):
     st.subheader("Step 6: Fund Factsheets Section")
     start = st.session_state.get("factsheets_page")
-    if not start:
-        st.error("Missing factsheets page.")
-        return
+    if not start: st.error("Missing factsheets page."); return
     matched = []
     for i in range(start-1, len(pdf.pages)):
         first = " ".join(w['text'] for w in pdf.pages[i].extract_words(use_text_flow=True) if w['top']<100)
@@ -208,49 +200,41 @@ def step6_process_factsheets(pdf, fund_names):
         best, match_name = 0, ""
         for item in st.session_state.get("fund_blocks", []):
             score = fuzz.token_sort_ratio(f"{first}".lower(), item['Fund Name'].lower())
-            if score>best:
-                best, match_name = score, item['Fund Name']
+            if score>best: best, match_name = score, item['Fund Name']
         matched.append({"Fund Name": match_name, "Ticker": ticker, "Matched": best>20})
     st.session_state['fund_factsheets_data'] = matched
     st.dataframe(pd.DataFrame(matched))
 
-#────────────────────────────────────────────────────────────────────────────────────────────────
-# === Build Objects for Step 7 ===
-# 1) df_scorecard from fund_blocks
+#────────────────────────────────────────────────────────────────────────
+# Build objects for Step 7 (with safe .get)
+#────────────────────────────────────────────────────────────────────────
 rows = []
 for b in st.session_state.get("fund_blocks", []):
     name = b['Fund Name']
     row = {"Investment Option": name, "Ticker": st.session_state.get("tickers", {}).get(name, "")}
     for m in b['Metrics']:
-        row[m['Metric']] = m['Status']
+        row[m['Metric']] = m.get('Status', 'Fail')
     rows.append(row)
-df_scorecard = pd.DataFrame(rows)
 
-# 2) ips_results from first fund's ips_statuses
+df_scorecard = pd.DataFrame(rows)
 ips_statuses = st.session_state.get("ips_statuses", {})
 first = next(iter(ips_statuses), None)
-if first:
-    ips_results = {metric: ('Pass' if ok else 'Fail') for metric, ok in ips_statuses[first].items()}
-else:
-    ips_results = {}
-
+ips_results = {metric: ('Pass' if ok else 'Fail') for metric, ok in ips_statuses.get(first, {}).items()} if first else {}
 st.session_state["scorecard_metrics"] = df_scorecard
 st.session_state["ips_screening_results"] = ips_results
 
-#────────────────────────────────────────────────────────────────────────────────────────────────
-# === Step 7: Display Pass/Fail Tables ===
+#────────────────────────────────────────────────────────────────────────
+# Step 7: Display Pass/Fail Tables
+#────────────────────────────────────────────────────────────────────────
 def step7_create_tables():
     st.subheader("Step 7: Pass/Fail Tables")
-    # Table 1
     sc = st.session_state.get("scorecard_metrics")
     if sc is None or sc.empty:
         st.warning("No scorecard metrics found.")
     else:
-        cols = [c for c in sc.columns]
         st.markdown("**Fund Scorecard: Pass/Fail**")
-        st.table(sc[cols])
+        st.table(sc)
 
-    # Table 2
     ips = st.session_state.get("ips_screening_results", {})
     if not ips:
         st.warning("No IPS screening results found.")
@@ -259,18 +243,17 @@ def step7_create_tables():
         st.markdown("**IPS Screening Metrics**")
         st.table(df2)
 
-#────────────────────────────────────────────────────────────────────────────────────────────────
-# === Main App ===
+#────────────────────────────────────────────────────────────────────────
+# Main driver
 def run():
     st.title("IPS Screening & Scorecard")
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
-    if not uploaded:
-        return
+    if not uploaded: return
     with pdfplumber.open(uploaded) as pdf:
         with st.expander("Step 1: Details", expanded=False):
             process_page1(pdf.pages[0].extract_text() or "")
         with st.expander("Step 2: TOC", expanded=False):
-            toc_text = "".join(pdf.pages[i].extract_text() or "" for i in range(3))
+            toc_text = "".join(pdf.pages[i].extract_text() or "" for i in range(min(3,len(pdf.pages))))
             process_toc(toc_text)
         with st.expander("Step 3: Scorecard", expanded=False):
             sp = st.session_state.get('scorecard_page')
@@ -279,20 +262,13 @@ def run():
                 step3_process_scorecard(pdf, sp, tot)
             else:
                 st.error("Missing scorecard page or total options.")
-        with st.expander("Step 4: IPS Screening", expanded=False):
-            step4_ips_screen()
+        with st.expander("Step 4: IPS Screening", expanded=False): step4_ips_screen()
         with st.expander("Step 5: Performance", expanded=False):
             pp = st.session_state.get('performance_page')
             names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
-            if pp and names:
-                step5_process_performance(pdf, pp, names)
-            else:
-                st.error("Missing performance page or fund names.")
-        with st.expander("Step 6: Factsheets", expanded=False):
-            names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
-            step6_process_factsheets(pdf, names)
-        with st.expander("Step 7: Tables", expanded=False):
-            step7_create_tables()
+            if pp and names: step5_process_performance(pdf, pp, names)
+            else: st.error("Missing data.")
+        with st.expander("Step 6: Factsheets", expanded=False): step6_process_factsheets(pdf, [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])])
+        with st.expander("Step 7: Tables", expanded=False): step7_create_tables()
 
-if __name__ == "__main__":
-    run()
+if __name__ == "__main__": run()
