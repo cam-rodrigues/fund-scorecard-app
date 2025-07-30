@@ -1785,85 +1785,84 @@ def step17_export_to_ppt_headings():
         draw_table(slide3, df3_2, left2, top2, total_w, h2, widths2)
 
 
-    # Slide 4: Qualitative Factors Tables
+    # 4) Slide 4: Qualitative Factors Tables side by side
     if len(prs.slides) > 3:
         slide4 = prs.slides[3]
-        # Table 1: Manager Tenure
-        blocks     = st.session_state.get("fund_blocks", [])
-        block      = next((b for b in blocks if b["Fund Name"] == selected), {})
+        # Prepare data for Table 1
+        blocks = st.session_state.get("fund_blocks", [])
+        block = next((b for b in blocks if b["Fund Name"] == selected), {})
         raw_tenure = next((m["Info"] for m in block.get("Metrics", []) if m["Metric"] == "Manager Tenure"), "")
         m = re.search(r"(\d+(\.\d+)?)", raw_tenure)
         tenure = f"{m.group(1)} years" if m else raw_tenure
-
-        perf_data  = st.session_state.get("fund_performance_data", [])
-        perf_item  = next((p for p in perf_data if p.get("Fund Scorecard Name") == selected), {})
-        ticker     = perf_item.get("Ticker", "")
-        inv_mgr    = f"{selected} ({ticker})"
-
+        perf_data = st.session_state.get("fund_performance_data", [])
+        perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == selected), {})
+        ticker = perf_item.get("Ticker", "")
+        inv_mgr = f"{selected} ({ticker})"
         df4_1 = pd.DataFrame([{"Investment Manager": inv_mgr, "Manager Tenure": tenure}])
-
-        # Table 2: Assets & Market Cap
-        facts      = st.session_state.get("fund_factsheets_data", [])
-        fs_rec     = next((f for f in facts if f["Matched Fund Name"] == selected), {})
-        assets     = fs_rec.get("Net Assets", "")
-        avg_cap    = fs_rec.get("Avg. Market Cap", "")
-        df4_2 = pd.DataFrame([{ 
+        # Prepare data for Table 2
+        facts = st.session_state.get("fund_factsheets_data", [])
+        fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected), {})
+        assets = fs_rec.get("Net Assets", "")
+        avg_cap = fs_rec.get("Avg. Market Cap", "")
+        df4_2 = pd.DataFrame([{
             "Investment Manager": inv_mgr,
-            "Assets Under Management":      assets,
+            "Assets Under Management": assets,
             "Average Market Capitalization": avg_cap
         }])
 
-        # draw_table helper: header row dark blue, first column dark blue
+        # Helper to draw a table with header & first column dark blue and alternating stripes
         def draw_table(slide, df, left, top, width, height, col_widths):
             tbl = slide.shapes.add_table(len(df)+1, len(df.columns),
                                          Inches(left), Inches(top),
                                          Inches(width), Inches(height)).table
+            # Set column widths
             for i, w in enumerate(col_widths):
                 tbl.columns[i].width = Inches(w)
-            # header row: all dark blue with white text
+            # Header row: all dark blue, white text
             for c, name in enumerate(df.columns):
                 cell = tbl.cell(0, c)
                 cell.text = name
                 cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(33,43,88)
                 p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-                run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.bold=True
-                run.font.color.rgb = RGBColor(255,255,255)
-            # body rows
+                r = p.runs[0]; r.font.name="Cambria"; r.font.size=Pt(12); r.font.bold=True; r.font.color.rgb=RGBColor(255,255,255)
+            # Body rows
             for r in range(len(df)):
                 for c in range(len(df.columns)):
                     cell = tbl.cell(r+1, c)
                     cell.text = str(df.iat[r, c])
                     cell.fill.solid()
-                    # first column dark blue, white text; tenure col small; other columns striped
+                    # First column always dark blue
                     if c == 0:
                         cell.fill.fore_color.rgb = RGBColor(33,43,88)
                         text_color = RGBColor(255,255,255)
                     else:
+                        # alternating stripe on other cols
                         if r % 2 == 0:
                             cell.fill.fore_color.rgb = RGBColor(240,245,255)
                         else:
                             cell.fill.fore_color.rgb = RGBColor(255,255,255)
                         text_color = RGBColor(0,0,0)
                     p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-                    run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.color.rgb = text_color
+                    rfont = p.runs[0]; rfont.font.name="Cambria"; rfont.font.size=Pt(12); rfont.font.color.rgb=text_color
 
+        # Calculate positions & widths
         sw = prs.slide_width.inches
-        total_w = sw - 1.0
-        # position tables side by side
+        margin = 0.5
         gap = 0.2
-        half = (total_w - gap) / 2
-        left1 = 0.5
-        left2 = left1 + half + gap
+        usable = sw - 2*margin - gap
+        half = usable / 2
+        left1 = margin
+        left2 = margin + half + gap
         top = 1.0
-        h = 0.8
-        # cw1: tenure col smaller (1.5"), manager col takes rest
+        height = 0.8
+        # Column widths: Table1 (manager wide, tenure small), Table2 (manager fixed, others larger)
         cw1 = [half - 1.5, 1.5]
-        # cw2: manager col default 2.5", two asset cols share remainder equally and bigger
-        cw2 = [2.5] + [((half - 2.5) / 2) * 1 for _ in range(2)]
-        draw_table(slide4, df4_1, left=left1, top=top, width=half, height=h, col_widths=cw1)
-        draw_table(slide4, df4_2, left=left2, top=top, width=half, height=h, col_widths=cw2)
+        cw2 = [2.5, (half - 2.5)*0.6, (half - 2.5)*0.4]
 
-    # Download button
+        draw_table(slide4, df4_1, left1, top, half, height, cw1)
+        draw_table(slide4, df4_2, left2, top, half, height, cw2)
+
+    # 5) Download
     buf = BytesIO()
     prs.save(buf)
     buf.seek(0)
