@@ -403,15 +403,40 @@ def step6_process_factsheets(pdf, fund_names):
             st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
 
-# ── End of Step 6: store into session_state ──────────────────────────────
-# suppose you ended up with:
-#   df_scorecard: pandas.DataFrame with columns ["Investment Option","Ticker", <14 metric cols>]
-#   ips_results:  dict { metric_name: "Pass"/"Fail", … } for your 11 IPS screenings
+# ── Build the two objects for Step 7 ────────────────────────────────────
+import pandas as pd
 
-import streamlit as st
+# 1) Build df_scorecard from fund_blocks + tickers + each metric’s Info
+scorecard_rows = []
+for b in st.session_state.get("fund_blocks", []):
+    name = b["Fund Name"]
+    row = {
+        "Investment Option": name,
+        "Ticker": st.session_state.get("tickers", {}).get(name, "")
+    }
+    # each metric becomes its own column
+    for m in b["Metrics"]:
+        row[m["Metric"]] = m["Info"]
+    scorecard_rows.append(row)
+df_scorecard = pd.DataFrame(scorecard_rows)
 
-st.session_state["scorecard_metrics"] = df_scorecard  # or df_scorecard.to_dict("records")
-st.session_state["ips_screening_results"] = ips_results
+# 2) Flatten your ips_statuses for the (first) fund, or merge them if you like:
+#    Here we'll just take the first fund’s statuses as an example.
+all_statuses = st.session_state.get("ips_statuses", {})
+# pick the first fund in the dict:
+first_fund = next(iter(all_statuses), None)
+if first_fund:
+    ips_results = {
+        metric: ("Pass" if ok else "Fail")
+        for metric, ok in all_statuses[first_fund].items()
+    }
+else:
+    ips_results = {}
+
+# 3) Store both in session_state so step7 can see them
+st.session_state["scorecard_metrics"]      = df_scorecard
+st.session_state["ips_screening_results"]  = ips_results
+
 
 
 def step7_create_tables():
