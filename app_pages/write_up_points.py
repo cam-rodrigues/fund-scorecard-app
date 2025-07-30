@@ -1452,7 +1452,7 @@ def step17_export_to_ppt_headings():
     if len(prs.slides) > 3:
         set_title(prs.slides[3], f"{category} – Qualitative Factors")
 
-    # 4) Subheader on Slide 1
+    # 4) Subheader on Slide 1
     sub = slide1.shapes.add_textbox(Inches(0.5), Inches(1.3), prs.slide_width - Inches(1), Inches(0.4))
     sf  = sub.text_frame.paragraphs[0]
     sf.text = selected
@@ -1464,17 +1464,17 @@ def step17_export_to_ppt_headings():
     run.font.color.rgb = RGBColor(0, 0, 0)
     sf.alignment       = PP_ALIGN.LEFT
 
-    # 5) Prepare bullets from Step 16 logic
+    # 5) Prepare bullets from Step 16 logic
     perf_data = st.session_state.get("fund_performance_data", [])
     item      = next((x for x in perf_data if x["Fund Scorecard Name"] == selected), {})
 
-    # Bullet 1: template fill
+    # Bullet 1: template fill
     tmpl = st.session_state["bullet_point_templates"][0]
     b1   = tmpl
     for fld, val in item.items():
         b1 = b1.replace(f"[{fld}]", str(val))
 
-    # Bullet 2 & 3: IPS status
+    # Bullet 2 & 3: IPS status
     ips_status = st.session_state.get("ips_status_map", {}).get(selected, "")
     if "Passed" in ips_status:
         b2, b3 = "This fund is not on watch.", ""
@@ -1504,10 +1504,7 @@ def step17_export_to_ppt_headings():
         )
         b3 = "Action: Consider replacing this fund." if status_label == "Formal Watch" else ""
 
-    # 6) Build Slide 1 Table (15 cols: Category, Time Period, Plan Assets, 11 criteria, IPS Status)
-    #    Compute table data
-    recs = []
-    # 6a) reconstruct the IPS statuses map for this fund
+    # 6) Build Slide 1 Table
     IPS = [
         "Manager Tenure","Excess Performance (3Yr)","R‑Squared (3Yr)",
         "Peer Return Rank (3Yr)","Sharpe Ratio Rank (3Yr)","Sortino Ratio Rank (3Yr)",
@@ -1517,13 +1514,15 @@ def step17_export_to_ppt_headings():
     blocks = st.session_state.get("fund_blocks", [])
     block = next((b for b in blocks if b["Fund Name"] == selected), {})
     statuses = {}
-    # tenure
-    ten_info = next((m["Info"] for m in block.get("Metrics",[]) if m["Metric"]=="Manager Tenure"),"")
+
+    # Manager Tenure
+    ten_info = next((m["Info"] for m in block.get("Metrics",[]) if m["Metric"]=="Manager Tenure"), "")
     yrs = float(re.search(r"(\d+(\.\d+)?)", ten_info).group(1)) if re.search(r"(\d+(\.\d+)?)", ten_info) else 0
     statuses["Manager Tenure"] = yrs >= 3
-    # other IPS criteria
+
+    # Other IPS criteria
     for crit in IPS[1:]:
-        raw = next((m["Info"] for m in block.get("Metrics",[]) if m["Metric"].startswith(crit.split()[0])),"")
+        raw = next((m["Info"] for m in block.get("Metrics",[]) if m["Metric"].startswith(crit.split()[0])), "")
         if "Excess Performance" in crit:
             pct = float(re.search(r"([-+]?\d*\.\d+)%", raw).group(1)) if re.search(r"([-+]?\d*\.\d+)%", raw) else 0
             statuses[crit] = pct > 0
@@ -1532,36 +1531,29 @@ def step17_export_to_ppt_headings():
         else:
             rk = int(re.search(r"(\d+)", raw).group(1)) if re.search(r"(\d+)", raw) else 999
             statuses[crit] = rk <= 50
-    fails = sum(not statuses[c] for c in IPS)
+
+    fails   = sum(not statuses[c] for c in IPS)
     overall = "Passed IPS Screen" if fails <= 4 else ("Informal Watch (IW)" if fails == 5 else "Formal Watch (FW)")
 
-    # 6b) assemble row
-    row = {
-        "Category":    category,
-        "Time Period": st.session_state.get("report_date",""),
-        "Plan Assets": "$"
-    }
-    for i,crit in enumerate(IPS, start=1):
+    row = {"Category": category, "Time Period": st.session_state.get("report_date",""), "Plan Assets": "$"}
+    for i, crit in enumerate(IPS, start=1):
         row[str(i)] = statuses[crit]
     row["IPS Status"] = overall
 
-    # 6c) draw table on slide1
-    #    table dims and position
     slide_w = prs.slide_width
     table_w = Inches(9)
     left    = (slide_w - table_w) // 2
     top     = Inches(2.0)
     height  = Inches(0.6)
     cols    = 15
-    col_w   = [1.2,1.2,1.2] + [0.4]*11 + [1.0]
-    tbl = slide1.shapes.add_table(2, cols, left, top, table_w, height).table
+    col_w   = [1.2, 1.2, 1.2] + [0.4]*11 + [1.0]
+    tbl     = slide1.shapes.add_table(2, cols, left, top, table_w, height).table
     for idx, w in enumerate(col_w):
         tbl.columns[idx].width = Inches(w)
 
     headers = ["Category","Time Period","Plan Assets"] + [str(i) for i in range(1,12)] + ["IPS Status"]
     vals    = [row["Category"],row["Time Period"],row["Plan Assets"]] + [row[str(i)] for i in range(1,12)] + [row["IPS Status"]]
 
-    # helper to set border
     def _set_border(cell, color=RGBColor(0,0,0)):
         tc   = cell._tc
         tcPr = tc.get_or_add_tcPr()
@@ -1569,53 +1561,34 @@ def step17_export_to_ppt_headings():
         for ln_tag in ("a:lnL","a:lnR","a:lnT","a:lnB"):
             ln   = OxmlElement(ln_tag)
             lnPr = OxmlElement("a:solidFill")
-            srgb = OxmlElement("a:srgbClr")
-            srgb.set("val", hex_val)
-            lnPr.append(srgb)
-            ln.append(lnPr)
-            tcPr.append(ln)
+            srgb = OxmlElement("a:srgbClr"); srgb.set("val", hex_val)
+            lnPr.append(srgb); ln.append(lnPr); tcPr.append(ln)
 
-    # header row
+    # Header row
     for c, h in enumerate(headers):
         cell = tbl.cell(0, c)
         _set_border(cell)
-        cell.fill.solid()
-        cell.fill.fore_color.rgb = RGBColor(255,255,255)
-        tfc = cell.text_frame
-        tfc.clear()
-        tfc.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
-        tfc.margin_top = tfc.margin_bottom = 0
-        p = tfc.paragraphs[0]
-        r = p.add_run()
-        r.text = h
-        r.font.name  = "Cambria"
-        r.font.size  = Pt(12)
-        r.font.bold  = True
-        r.font.color.rgb = RGBColor(0,0,0)
+        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
+        tfc = cell.text_frame; tfc.clear()
+        tfc.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE; tfc.margin_top = tfc.margin_bottom = 0
+        p = tfc.paragraphs[0]; r = p.add_run(); r.text = h
+        r.font.name = "Cambria"; r.font.size = Pt(12); r.font.bold = True; r.font.color.rgb = RGBColor(0,0,0)
         p.alignment = PP_ALIGN.CENTER
 
-    # data row
+    # Data row
     for c, val in enumerate(vals):
         cell = tbl.cell(1, c)
         _set_border(cell)
-        cell.fill.solid()
-        cell.fill.fore_color.rgb = RGBColor(255,255,255)
-        tfc = cell.text_frame
-        tfc.clear()
-        tfc.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
-        tfc.margin_top = tfc.margin_bottom = 0
-        p = tfc.paragraphs[0]
-        p.font.name  = "Cambria"
-        p.font.size  = Pt(12)
-        p.alignment  = PP_ALIGN.CENTER
+        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
+        tfc = cell.text_frame; tfc.clear()
+        tfc.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE; tfc.margin_top = tfc.margin_bottom = 0
+        p = tfc.paragraphs[0]; p.font.name = "Cambria"; p.font.size = Pt(12); p.alignment = PP_ALIGN.CENTER
 
         if c < 14:
             if val is True:
-                p.text = "✔"
-                p.runs[0].font.color.rgb = RGBColor(0,176,80)
+                p.text = "✔"; p.runs[0].font.color.rgb = RGBColor(0,176,80)
             elif val is False:
-                p.text = "✖"
-                p.runs[0].font.color.rgb = RGBColor(192,0,0)
+                p.text = "✖"; p.runs[0].font.color.rgb = RGBColor(192,0,0)
             else:
                 p.text = str(val)
         else:
@@ -1626,27 +1599,18 @@ def step17_export_to_ppt_headings():
                 badge, color = "IW", RGBColor(255,165,0)
             else:
                 badge, color = "✔", RGBColor(0,176,80)
-            # place a circle badge
             badge_size = Inches(0.4)
             cell_left  = left + sum(Inches(w) for w in col_w[:c])
             cell_w     = Inches(col_w[c])
             bx = cell_left + (cell_w - badge_size)/2
-            row_h = height / 2
-            by = top + row_h + Inches(0.07)
+            by = top + (height/2) + Inches(0.07)
             shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, bx, by, badge_size, badge_size)
-            shp.fill.solid()
-            shp.fill.fore_color.rgb = color
-            shp.line.color.rgb     = RGBColor(255,255,255)
-            tf2 = shp.text_frame
-            tf2.clear()
-            p2 = tf2.paragraphs[0]
-            p2.alignment = PP_ALIGN.CENTER
-            r2 = p2.add_run()
-            r2.text = badge
-            r2.font.name  = "Cambria"
-            r2.font.size  = Pt(10)
-            r2.font.bold  = True
-            r2.font.color.rgb = RGBColor(255,255,255)
+            shp.fill.solid(); shp.fill.fore_color.rgb = color
+            shp.line.color.rgb = RGBColor(255,255,255)
+            tf2 = shp.text_frame; tf2.clear()
+            p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.CENTER
+            r2 = p2.add_run(); r2.text = badge
+            r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255,255,255)
 
     # 7) Bullet textbox BELOW the table
     bullet_gap  = Inches(0.1)
@@ -1656,24 +1620,16 @@ def step17_export_to_ppt_headings():
     bullet_h    = Inches(2.5)
 
     tb = slide1.shapes.add_textbox(bullet_left, bullet_top, bullet_w, bullet_h)
-    tf = tb.text_frame
-    tf.clear()
-    tf.word_wrap = True
-
+    tf = tb.text_frame; tf.clear(); tf.word_wrap = True
     for text in [b1, b2] + ([b3] if b3 else []):
-        p = tf.add_paragraph()
-        p.text = f"• {text}"
-        p.font.name    = "Cambria"
-        p.font.size    = Pt(11)
-        p.font.bold    = text.startswith("Action")
-        p.alignment    = PP_ALIGN.LEFT
-        p.line_spacing = 2.0
+        p = tf.add_paragraph(); p.text = f"• {text}"
+        p.font.name    = "Cambria"; p.font.size = Pt(11); p.font.bold = text.startswith("Action")
+        p.alignment    = PP_ALIGN.LEFT; p.line_spacing = 2.0
 
-    # 8) Slide 2: Expense & Return
+    # 8) Slide 2: Expense & Return
     if len(prs.slides) > 1:
         slide2 = prs.slides[1]
-
-        # Table 1: Net Expense Ratio
+        # Table 1: Net Expense Ratio
         perf_item = next(p for p in perf_data if p["Fund Scorecard Name"] == selected)
         inv_mgr   = f"{selected} ({perf_item['Ticker']})"
         net_exp   = perf_item.get("Net Expense Ratio", "")
@@ -1681,7 +1637,7 @@ def step17_export_to_ppt_headings():
             net_exp = f"{net_exp}%"
         df1 = pd.DataFrame([{"Investment Manager": inv_mgr, "Net Expense Ratio": net_exp}])
 
-        # Table 2: QTD / 1Yr / 3Yr / 5Yr / 10Yr
+        # Table 2: QTD / 1Yr / 3Yr / 5Yr / 10Yr
         date_label = st.session_state.get("report_date", "QTD")
         def _pct(v): return f"{v}%" if v and not str(v).endswith("%") else (v or "")
         df2 = pd.DataFrame([{
@@ -1693,11 +1649,11 @@ def step17_export_to_ppt_headings():
             "10 Year":            _pct(perf_item.get("10Yr")),
         }])
 
-        # Table 3: Last 10 Calendar‑Year Returns
+        # Table 3: Last 10 Calendar‑Year Returns
         fund_cy  = st.session_state.get("step8_returns", [])
         bench_cy = st.session_state.get("benchmark_calendar_year_returns", [])
         fund_rec = next((r for r in fund_cy if r.get("Name") == selected), {})
-        bench_rec= next((r for r in bench_cy if (r.get("Name") == selected or r.get("Ticker") == fund_rec.get("Ticker"))), {})
+        bench_rec= next((r for r in bench_cy if r.get("Name") == selected or r.get("Ticker") == fund_rec.get("Ticker")), {})
         years    = sorted([c for c in fund_rec.keys() if re.match(r"20\d{2}", c)], reverse=True)[:10]
         rows3 = [
             {"Investment Manager": inv_mgr, **{y: fund_rec.get(y, "") for y in years}},
@@ -1706,63 +1662,46 @@ def step17_export_to_ppt_headings():
         ]
         df3 = pd.DataFrame(rows3, columns=["Investment Manager"] + years)
 
-        # draw helper
         def draw_table(slide, df, left, top, width, height, col_widths):
-            tbl = slide.shapes.add_table(len(df) + 1, len(df.columns),
+            tbl = slide.shapes.add_table(len(df)+1, len(df.columns),
                                          Inches(left), Inches(top),
                                          Inches(width), Inches(height)).table
             for i, w in enumerate(col_widths):
                 tbl.columns[i].width = Inches(w)
             # header
             for c, name in enumerate(df.columns):
-                cell = tbl.cell(0, c)
-                cell.text = name
-                cell.fill.solid()
-                cell.fill.fore_color.rgb = RGBColor(33,43,88)
-                p = cell.text_frame.paragraphs[0]
-                p.alignment = PP_ALIGN.CENTER
-                run = p.runs[0]
-                run.font.name  = "Cambria"
-                run.font.size  = Pt(12)
-                run.font.bold  = True
+                cell = tbl.cell(0, c); cell.text = name
+                cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(33,43,88)
+                p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+                run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.bold=True
                 run.font.color.rgb = RGBColor(255,255,255)
             # body
             for r in range(len(df)):
                 for c in range(len(df.columns)):
-                    cell = tbl.cell(r+1, c)
-                    cell.text = str(df.iat[r, c])
+                    cell = tbl.cell(r+1, c); cell.text = str(df.iat[r, c])
                     if r % 2 == 0:
-                        cell.fill.solid()
-                        cell.fill.fore_color.rgb = RGBColor(240,245,255)
-                    p = cell.text_frame.paragraphs[0]
-                    p.alignment = PP_ALIGN.CENTER
-                    run = p.runs[0]
-                    run.font.name  = "Cambria"
-                    run.font.size  = Pt(12)
-                    run.font.color.rgb = RGBColor(0,0,0)
+                        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(240,245,255)
+                    p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+                    run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.color.rgb = RGBColor(0,0,0)
 
-        # layout
         sw      = prs.slide_width / Inches(1)
         lm, rm, gap = 0.5, 0.5, 0.2
         usable = sw - lm - rm - gap
         half   = usable / 2
-        ty     = 1.0
-        hgh    = 1.2
-        by     = ty + hgh + 0.3
-        bh     = 2.0
+        ty, hgh = 1.0, 1.2
+        by, bh  = ty + hgh + 0.3, 2.0
 
-        # draw tables
         draw_table(slide2, df1, lm, ty, half, hgh, [2.0, half-2.0])
         draw_table(slide2, df2, lm+half+gap, ty, half, hgh, [2.0] + [(half-2.0)/5]*5)
         first_w = 2.5
         extras  = len(df3.columns) - 1
-        if extras > 0:
-            rems = [(usable-first_w)/extras]*extras
-            cw3  = [first_w] + rems
-        else:
-            cw3  = [usable]
+        cw3     = [first_w] + ([(usable-first_w)/extras]*extras if extras>0 else [])
         draw_table(slide2, df3, lm, by, usable, bh, cw3)
 
+    # 9) Download button with unique key
+    buf = BytesIO()
+    prs.save(buf)
+    buf.seek(0)
     st.download_button(
         label="Download PPTX",
         data=buf,
@@ -1770,6 +1709,7 @@ def step17_export_to_ppt_headings():
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         key=f"download_ppt_{selected}"
     )
+
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     # — Slide 2: Expense & Return —  
     if len(prs.slides) > 1:
