@@ -161,9 +161,14 @@ def run():
 
         # --- Step 8: Display & Download ---
         st.success("IPS Evaluation Complete")
-        st.dataframe(pd.DataFrame([r[:5] + r[5:-1] + [r[-1]] for r in ws.iter_rows(min_row=2, values_only=True)],
-                                  columns=headers))
-
+        
+        # build a list of lists instead of tuple+list
+        df_rows = [
+            list(r[:5]) + list(r[5:-1]) + [r[-1]]
+            for r in ws.iter_rows(min_row=2, values_only=True)
+        ]
+        st.dataframe(pd.DataFrame(df_rows, columns=headers))
+        
         buffer = BytesIO()
         wb.save(buffer)
         st.download_button("Download Excel", buffer.getvalue(), file_name="IPS_Evaluation.xlsx")
