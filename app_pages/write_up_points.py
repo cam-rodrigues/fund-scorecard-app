@@ -1315,65 +1315,55 @@ def step15_display_selected_fund():
     st.dataframe(df_slide4_2, use_container_width=True)
 
 
-# ── Step 16: Bullet Points ───────────────────────────────────────────
+# ── Step 16: Bullet Points ───────────────────────────────────────────
 def step16_bullet_points():
     import streamlit as st
+    import re
 
     st.subheader("Step 16: Bullet Points")
 
-    # 1) Ensure a fund is selected
-    selected_fund = st.session_state.get('selected_fund')
+    selected_fund = st.session_state.get("selected_fund")
     if not selected_fund:
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
 
-    # 2) Retrieve the performance item
     perf_data = st.session_state.get("fund_performance_data", [])
     item = next((x for x in perf_data if x["Fund Scorecard Name"] == selected_fund), None)
     if not item:
         st.error(f"❌ Performance data for '{selected_fund}' not found.")
         return
 
-    # — Bullet 1: Performance vs. Benchmark —
+    # — Bullet 1: Performance vs. Benchmark —
     template = st.session_state.get("bullet_point_templates", [""])[0]
-    filled = template
-    for field, val in item.items():
-        filled = filled.replace(f"[{field}]", str(val))
-    st.markdown(f"- {filled}")
+    b1 = template
+    for fld, val in item.items():
+        b1 = b1.replace(f"[{fld}]", str(val))
+    st.markdown(f"- {b1}")
 
-    # — Bullet 2: IPS Screening Status & Returns Comparison —
-    ips_status = item.get("IPS Status", "")
-    if ips_status == "Passed IPS Screen":
+    # — Bullet 2: IPS Screening Status & Returns Comparison —
+    ips = item.get("IPS Status", "")
+    if ips == "Passed IPS Screen":
         st.markdown("- The Fund passed the IPS Screening.")
     else:
-        # Determine Informal vs Formal Watch
-        status_label = "Informal Watch" if "IW" in ips_status else "Formal Watch"
+        status_label = "Informal Watch" if "IW" in ips else "Formal Watch"
+        three  = float(item.get("3Yr")      or 0)
+        bench3 = float(item.get("Bench 3Yr") or 0)
+        five   = float(item.get("5Yr")      or 0)
+        bench5 = float(item.get("Bench 5Yr") or 0)
+        bps3 = round((three - bench3)*100, 1)
+        bps5 = round((five  - bench5)*100, 1)
 
-        # Safely parse returns
-        three   = float(item.get("3Yr")     or 0)
-        bench3  = float(item.get("Bench 3Yr") or 0)
-        five    = float(item.get("5Yr")     or 0)
-        bench5  = float(item.get("Bench 5Yr") or 0)
-
-        # Compute bps differences
-        bps3 = round((three  - bench3)*100, 1)
-        bps5 = round((five   - bench5)*100, 1)
-
-        # Peer ranks table
+        # find peer ranks
         peer = st.session_state.get("step14_peer_rank_table", [])
         raw3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer if r.get("Fund Name")==selected_fund), None)
         raw5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer if r.get("Fund Name")==selected_fund), None)
-        rank3 = raw3 or "N/A"
-        rank5 = raw5 or "N/A"
-
-        # Determine top/bottom half safely
         try:
-            pos3 = "top" if int(rank3) <= 50 else "bottom"
-        except Exception:
+            pos3 = "top" if int(raw3) <= 50 else "bottom"
+        except:
             pos3 = "bottom"
         try:
-            pos5 = "top" if int(rank5) <= 50 else "bottom"
-        except Exception:
+            pos5 = "top" if int(raw5) <= 50 else "bottom"
+        except:
             pos5 = "bottom"
 
         st.markdown(
@@ -1383,9 +1373,10 @@ def step16_bullet_points():
             f"and its 5‑Yr Sharpe ranks in the {pos5} half."
         )
 
-    # — Bullet 3: Action for Formal Watch —
-    if "Formal Watch" in ips_status:
+    # — Bullet 3: only for Formal Watch —
+    if "Formal Watch" in ips:
         st.markdown("- **Action:** Consider replacing this fund.")
+
 
 #── Build Powerpoint───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Step 17: Export to PowerPoint + Bullet Points Textbox ===
