@@ -4,7 +4,6 @@ import pdfplumber
 import pandas as pd
 
 from calendar import month_name
-from rapidfuzz import fuzz
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Utility: Extract & Label Report Date ===
@@ -42,7 +41,7 @@ def process_toc(text: str):
     st.write(f"- Fund Scorecard page: {st.session_state['scorecard_page']}")
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-# === Step 3: Parse Scorecard Blocks ===
+# === Step 3: Parse Scorecard Blocks (capture Pass/Review) ===
 def step3_process_scorecard(pdf, start_page: int, declared_total: int):
     pages = []
     for p in pdf.pages[start_page-1:]:
@@ -63,7 +62,7 @@ def step3_process_scorecard(pdf, start_page: int, declared_total: int):
         m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
         if not m:
             continue
-        metric, _, info = m.groups()
+        metric, status, info = m.groups()
         if metric == "Manager Tenure":
             if name and metrics:
                 fund_blocks.append({"Fund Name": name, "Metrics": metrics})
@@ -71,7 +70,7 @@ def step3_process_scorecard(pdf, start_page: int, declared_total: int):
             name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", prev).strip()
             metrics = []
         if name:
-            metrics.append({"Metric": metric, "Info": info.strip()})
+            metrics.append({"Metric": metric, "Status": status, "Info": info.strip()})
     if name and metrics:
         fund_blocks.append({"Fund Name": name, "Metrics": metrics})
 
@@ -85,18 +84,21 @@ def step3_process_scorecard(pdf, start_page: int, declared_total: int):
         st.error("❌ Count mismatch.")
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-# === Step 3a: Scorecard Metrics → DataFrame ===
+# === Step 3a: Scorecard Metrics → DataFrame (include Pass/Review) ===
 def step3_scorecard_table():
     blocks = st.session_state.get("fund_blocks", [])
     if not blocks:
         st.info("No scorecard data. Run Step 3 first.")
         return
+
     rows = []
     for b in blocks:
         row = {"Investment Options": b["Fund Name"]}
         for m in b["Metrics"]:
-            row[m["Metric"]] = m["Info"]
+            # combine Info and Status
+            row[m["Metric"]] = f"{m['Info']} ({m['Status']})"
         rows.append(row)
+
     df = pd.DataFrame(rows)
     st.subheader("Scorecard Metrics Table")
     st.dataframe(df, use_container_width=True)
@@ -132,12 +134,12 @@ def step4_ips_table():
             "Investment Options": name,
             "Ticker": tickers.get(name, "")
         }
-        # 1 Manager Tenure ≥3
-        info = fund.get("Manager Tenure","")
-        yrs = float(re.search(r"(\d+\.?\d*)", info).group(1)) if re.search(r"(\d+\.?\d*)", info) else 0
+        # 1) Manager Tenure ≥3
+        tenure_text = fund.get("Manager Tenure", "")
+        yrs = float(re.search(r"(\d+\.?\d*)", tenure_text).group(1)) if re.search(r"(\d+\.?\d*)", tenure_text) else 0
         row["1"] = (yrs >= 3)
 
-        # 2–11 other criteria
+        # 2–11) other criteria
         for i, crit in enumerate(IPS[1:], start=2):
             raw = fund.get(crit, "")
             if "Excess Performance" in crit:
@@ -151,7 +153,7 @@ def step4_ips_table():
         rows.append(row)
 
     df_ips = pd.DataFrame(rows)
-    st.subheader("IPS Screening Table")
+    st.subheader("IPS Screening Results Table")
     st.dataframe(df_ips[["Investment Options","Ticker"] + [str(i) for i in range(1,12)]],
                  use_container_width=True)
 
@@ -182,11 +184,11 @@ def run():
             else:
                 st.error("Missing scorecard page or total options.")
 
-        # Step 3a: Table of raw metrics
+        # Step 3a: show Scorecard Metrics with Pass/Review
         with st.expander("Step 3a: Scorecard Metrics Table", expanded=True):
             step3_scorecard_table()
 
-        # Step 4a: Table of IPS pass/fail
+        # Step 4a: show IPS Screening pass/fail
         with st.expander("Step 4a: IPS Screening Table", expanded=True):
             step4_ips_table()
 
