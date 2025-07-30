@@ -1636,18 +1636,19 @@ def step17_export_to_ppt_headings():
                 p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.CENTER
                 r2 = p2.add_run(); r2.text = badge
                 r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255,255,255)
-        # 11) Bullet textbox BELOW the table
-        bullet_gap  = Inches(0.1)
-        bullet_left = left
-        bullet_top  = top + height + bullet_gap
-        bullet_w    = prs.slide_width - Inches(1)
-        bullet_h    = Inches(2.5)
-    
-        tb = slide1.shapes.add_textbox(bullet_left, bullet_top, bullet_w, bullet_h)
-        tf = tb.text_frame
-        tf.clear()
-        tf.word_wrap = True
-    
+                
+    # 11) Bullet textbox BELOW the table
+    bullet_gap  = Inches(0.1)
+    bullet_left = left
+    bullet_top  = top + height + bullet_gap
+    bullet_w    = prs.slide_width - Inches(1)
+    bullet_h    = Inches(2.5)
+
+    tb = slide1.shapes.add_textbox(bullet_left, bullet_top, bullet_w, bullet_h)
+    tf = tb.text_frame
+    tf.clear()
+    tf.word_wrap = True
+
         # — Bullet 1: fill your template
         tmpl = st.session_state["bullet_point_templates"][0]
         b1 = tmpl
