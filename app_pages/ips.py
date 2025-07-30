@@ -325,7 +325,7 @@ def extract_field(text: str, label: str, stop_at: str = None) -> str:
 # === Main App ===
 def run():
     import re
-    st.title("Writeup")
+    st.title("IPS Screening")
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
