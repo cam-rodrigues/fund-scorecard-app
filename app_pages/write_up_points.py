@@ -1784,14 +1784,75 @@ def step17_export_to_ppt_headings():
         draw_table(slide3, df3_1, left1, top1, total_w, h1, widths1)
         draw_table(slide3, df3_2, left2, top2, total_w, h2, widths2)
 
-    # 10) Download button
+
+    # 10) Slide 4: Qualitative Factors Tables
+    if len(prs.slides) > 3:
+        slide4 = prs.slides[3]
+        # Table 1: Manager Tenure
+        blocks     = st.session_state.get("fund_blocks", [])
+        block      = next((b for b in blocks if b["Fund Name"] == selected), {})
+        raw_tenure = next((m["Info"] for m in block.get("Metrics", []) if m["Metric"] == "Manager Tenure"), "")
+        m = re.search(r"(\d+(\.\d+)?)", raw_tenure)
+        tenure = f"{m.group(1)} years" if m else raw_tenure
+
+        perf_data  = st.session_state.get("fund_performance_data", [])
+        perf_item  = next((p for p in perf_data if p.get("Fund Scorecard Name") == selected), {})
+        ticker     = perf_item.get("Ticker", "")
+        inv_mgr    = f"{selected} ({ticker})"
+
+        df4_1 = pd.DataFrame([{"Investment Manager": inv_mgr, "Manager Tenure": tenure}])
+        # Table 2: Assets & Market Cap
+        facts      = st.session_state.get("fund_factsheets_data", [])
+        fs_rec     = next((f for f in facts if f["Matched Fund Name"] == selected), {})
+        assets     = fs_rec.get("Net Assets", "")
+        avg_cap    = fs_rec.get("Avg. Market Cap", "")
+        df4_2 = pd.DataFrame([{ 
+            "Investment Manager": inv_mgr,
+            "Assets Under Management":      assets,
+            "Average Market Capitalization": avg_cap
+        }])
+
+        # reuse draw_table from Slide3 block:
+        def draw_table(slide, df, left, top, width, height, col_widths):
+            tbl = slide.shapes.add_table(len(df)+1, len(df.columns),
+                                         Inches(left), Inches(top),
+                                         Inches(width), Inches(height)).table
+            for i, w in enumerate(col_widths):
+                tbl.columns[i].width = Inches(w)
+            # header
+            for c, name in enumerate(df.columns):
+                cell = tbl.cell(0, c)
+                cell.text = name
+                cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(33,43,88)
+                p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+                run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.bold=True
+                run.font.color.rgb = RGBColor(255,255,255)
+            # body
+            for r in range(len(df)):
+                for c in range(len(df.columns)):
+                    cell = tbl.cell(r+1, c)
+                    cell.text = str(df.iat[r, c])
+                    if r % 2 == 0:
+                        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(240,245,255)
+                    p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+                    run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.color.rgb = RGBColor(0,0,0)
+
+        sw = prs.slide_width.inches
+        total_w = sw - 1.0
+        # widths: first col fixed 2.5", others split remaining
+        w1 = [2.5, total_w - 2.5]
+        w2 = [2.5] + [(total_w - 2.5)/2]*2
+        draw_table(slide4, df4_1, left=0.5, top=1.0, width=total_w, height=0.8, col_widths=w1)
+        draw_table(slide4, df4_2, left=0.5, top=2.3, width=total_w, height=0.8, col_widths=w2)
+
+    # 11) Download button
     buf = BytesIO()
     prs.save(buf)
     buf.seek(0)
     st.download_button(
         label="Download PPTX",
         data=buf,
-        file_name=f"{selected.replace(' ', '_')}.pptx",
+        file_name=f"{selected.replace(' ','_')}.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         key=f"download_ppt_{selected}"
     )
