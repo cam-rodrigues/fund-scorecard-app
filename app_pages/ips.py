@@ -350,12 +350,3 @@ def run():
         # Step 4
         with st.expander("Step 4: IPS Screening", expanded=False):
             step4_ips_screen()
-
-        # Step 5
-        with st.expander("Step 5: Fund Performance", expanded=False):
-            pp = st.session_state.get('performance_page')
-            names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
-            if pp and names:
-                step5_process_performance(pdf, pp, names)
-            else:
-                st.error("Missing performance page or fund blocks")
