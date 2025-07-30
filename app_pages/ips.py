@@ -402,6 +402,48 @@ def step6_process_factsheets(pdf, fund_names):
         else:
             st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
+def step7_create_tables():
+    import streamlit as st
+    import pandas as pd
+
+    st.subheader("Step 7: Display Tables")
+
+    # ── Table 1: Fund Scorecard Metrics ────────────────────────────────────
+    # Expect st.session_state["scorecard_metrics"] to be e.g. a list of dicts or a DataFrame
+    scorecard = st.session_state.get("scorecard_metrics", None)
+    if scorecard is None:
+        st.warning("No scorecard metrics found in session state.")
+    else:
+        # Convert to DataFrame if needed
+        if not isinstance(scorecard, pd.DataFrame):
+            df_scorecard = pd.DataFrame(scorecard)
+        else:
+            df_scorecard = scorecard.copy()
+
+        # Ensure columns: Investment Option (Fund Name), Ticker, then the 14 metrics
+        cols = ["Investment Option", "Ticker"] + [
+            c for c in df_scorecard.columns
+            if c not in ("Investment Option", "Ticker")
+        ]
+        df_scorecard = df_scorecard[cols]
+
+        st.markdown("**Fund Scorecard Metrics**")
+        st.table(df_scorecard)
+
+    # ── Table 2: IPS Screening Metrics ─────────────────────────────────────
+    # Expect st.session_state["ips_screening_results"] to be a dict {metric_name: "Pass"/"Fail", ...}
+    ips_results = st.session_state.get("ips_screening_results", None)
+    if ips_results is None:
+        st.warning("No IPS screening results found in session state.")
+    else:
+        # Build DataFrame of the 11 metrics
+        df_ips = pd.DataFrame(
+            ips_results.items(),
+            columns=["Screening Metric", "Result"]
+        )
+        st.markdown("**IPS Screening Metrics**")
+        st.table(df_ips)
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
@@ -449,7 +491,10 @@ def run():
         with st.expander("Step 6: Fund Factsheets", expanded=True):
             names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
             step6_process_factsheets(pdf, names)
-
+            
+        # Step 4
+        with st.expander("Tables", expanded=False):
+            step7_create_tables()
 
 if __name__ == "__main__":
     run()
