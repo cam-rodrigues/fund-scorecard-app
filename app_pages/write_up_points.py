@@ -1648,15 +1648,14 @@ def step17_export_to_ppt_headings():
     tf.clear()
     tf.word_wrap = True
 
-    # Build bullet texts
-    # — Bullet 1: your template
+    # — Bullet 1: fill your template
     tmpl = st.session_state["bullet_point_templates"][0]
     b1 = tmpl
     for fld, val in item.items():
         b1 = b1.replace(f"[{fld}]", str(val))
 
-    # — Bullet 2 & 3: pull IPS status from your map
-    ips_status = overall  # reuse the local variable you set above
+    # — Bullet 2 & 3: derive from the ‘overall’ you computed back in step 10
+    ips_status = overall  # <— reuse the variable you set when building Slide 1 table
 
     if "Passed" in ips_status:
         b2, b3 = "This fund is not on watch.", ""
@@ -1668,16 +1667,14 @@ def step17_export_to_ppt_headings():
         else:
             status_label = ips_status
 
-        three, bench3 = float(item.get("3Yr")      or 0), float(item.get("Bench 3Yr") or 0)
-        five,  bench5 = float(item.get("5Yr")      or 0), float(item.get("Bench 5Yr") or 0)
+        three, bench3 = float(item.get("3Yr") or 0), float(item.get("Bench 3Yr") or 0)
+        five,  bench5 = float(item.get("5Yr") or 0), float(item.get("Bench 5Yr") or 0)
         bps3 = round((three  - bench3)*100, 1)
         bps5 = round((five   - bench5)*100, 1)
 
         peer = st.session_state.get("step14_peer_rank_table", [])
-        raw3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer
-                     if r.get("Fund Name")==selected), None)
-        raw5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer
-                     if r.get("Fund Name")==selected), None)
+        raw3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer if r.get("Fund Name")==selected), None)
+        raw5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer if r.get("Fund Name")==selected), None)
         try:    pos3 = "top" if int(raw3) <= 50 else "bottom"
         except: pos3 = "bottom"
         try:    pos5 = "top" if int(raw5) <= 50 else "bottom"
@@ -1691,7 +1688,7 @@ def step17_export_to_ppt_headings():
         )
         b3 = "- **Action:** Consider replacing this fund." if status_label == "Formal Watch" else ""
 
-    # Now write all non‑empty bullets
+    # — write out all non‐empty bullets
     for text in [b1, b2] + ([b3] if b3 else []):
         p = tf.add_paragraph()
         p.text = text.lstrip("- ")
@@ -1701,6 +1698,7 @@ def step17_export_to_ppt_headings():
         p.font.color.rgb = RGBColor(0, 0, 0)
         p.alignment      = PP_ALIGN.LEFT
         p.line_spacing   = 2.0
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     # — Slide 2: Expense & Return —  
