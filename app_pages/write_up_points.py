@@ -1639,7 +1639,7 @@ def step17_export_to_ppt_headings():
     # 11) Bullet textbox BELOW the table
     bullet_gap  = Inches(0.1)
     bullet_left = left
-    bullet_top  = top + height + int(bullet_gap)
+    bullet_top  = top + height + bullet_gap
     bullet_w    = prs.slide_width - Inches(1)
     bullet_h    = Inches(2.5)
 
@@ -1648,15 +1648,16 @@ def step17_export_to_ppt_headings():
     tf.clear()
     tf.word_wrap = True
 
-    # Build bullets exactly as in step16
-    # — Bullet 1
+    # Build bullet texts
+    # — Bullet 1: your template
     tmpl = st.session_state["bullet_point_templates"][0]
     b1 = tmpl
     for fld, val in item.items():
         b1 = b1.replace(f"[{fld}]", str(val))
 
     # — Bullet 2 & 3: pull IPS status from your map
-    ips_status = st.session_state.get("ips_status_map", {}).get(selected, "")
+    ips_status = overall  # reuse the local variable you set above
+
     if "Passed" in ips_status:
         b2, b3 = "This fund is not on watch.", ""
     else:
@@ -1665,24 +1666,22 @@ def step17_export_to_ppt_headings():
         elif "Informal" in ips_status:
             status_label = "Informal Watch"
         else:
-            status_label = ips_status or "on watch"
+            status_label = ips_status
 
-        three, bench3 = float(item.get("3Yr") or 0), float(item.get("Bench 3Yr") or 0)
-        five,  bench5 = float(item.get("5Yr") or 0), float(item.get("Bench 5Yr") or 0)
-        bps3 = round((three - bench3) * 100, 1)
-        bps5 = round((five  - bench5) * 100, 1)
+        three, bench3 = float(item.get("3Yr")      or 0), float(item.get("Bench 3Yr") or 0)
+        five,  bench5 = float(item.get("5Yr")      or 0), float(item.get("Bench 5Yr") or 0)
+        bps3 = round((three  - bench3)*100, 1)
+        bps5 = round((five   - bench5)*100, 1)
 
         peer = st.session_state.get("step14_peer_rank_table", [])
-        raw3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer if r["Fund Name"] == selected), None)
-        raw5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer if r["Fund Name"] == selected), None)
-        try:
-            pos3 = "top" if int(raw3) <= 50 else "bottom"
-        except:
-            pos3 = "bottom"
-        try:
-            pos5 = "top" if int(raw5) <= 50 else "bottom"
-        except:
-            pos5 = "bottom"
+        raw3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer
+                     if r.get("Fund Name")==selected), None)
+        raw5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer
+                     if r.get("Fund Name")==selected), None)
+        try:    pos3 = "top" if int(raw3) <= 50 else "bottom"
+        except: pos3 = "bottom"
+        try:    pos5 = "top" if int(raw5) <= 50 else "bottom"
+        except: pos5 = "bottom"
 
         b2 = (
             f"- The fund is now on {status_label}. Its three‑year return trails the benchmark by "
@@ -1692,7 +1691,7 @@ def step17_export_to_ppt_headings():
         )
         b3 = "- **Action:** Consider replacing this fund." if status_label == "Formal Watch" else ""
 
-    # Now write them into the text frame
+    # Now write all non‑empty bullets
     for text in [b1, b2] + ([b3] if b3 else []):
         p = tf.add_paragraph()
         p.text = text.lstrip("- ")
@@ -1702,8 +1701,6 @@ def step17_export_to_ppt_headings():
         p.font.color.rgb = RGBColor(0, 0, 0)
         p.alignment      = PP_ALIGN.LEFT
         p.line_spacing   = 2.0
-
-
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     # — Slide 2: Expense & Return —  
