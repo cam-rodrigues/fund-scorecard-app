@@ -1342,37 +1342,35 @@ def step16_bullet_points():
 
     # — Bullet 2: IPS Screening Status & Returns Comparison —
     ips = item.get("IPS Status", "")
-    if ips == "Passed IPS Screen":
+    if "Passed" in ips:
         st.markdown("- This fund is not on watch.")
     else:
-        # explicit status mapping
         if "Formal Watch" in ips:
             status_label = "Formal Watch"
         elif "Informal Watch" in ips:
             status_label = "Informal Watch"
         else:
-            status_label = ips  # fallback
-
+            status_label = ips or "on watch"
+    
+        # parse returns
         three   = float(item.get("3Yr")      or 0)
         bench3  = float(item.get("Bench 3Yr") or 0)
         five    = float(item.get("5Yr")      or 0)
         bench5  = float(item.get("Bench 5Yr") or 0)
         bps3 = round((three - bench3)*100, 1)
         bps5 = round((five  - bench5)*100, 1)
-
-        # find peer ranks
+    
+        # peer ranks
         peer = st.session_state.get("step14_peer_rank_table", [])
         raw3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer
                      if r.get("Fund Name")==selected_fund), None)
         raw5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer
                      if r.get("Fund Name")==selected_fund), None)
-
-        # determine top/bottom safely
         try:    pos3 = "top"    if int(raw3) <= 50 else "bottom"
         except: pos3 = "bottom"
         try:    pos5 = "top"    if int(raw5) <= 50 else "bottom"
         except: pos5 = "bottom"
-
+    
         st.markdown(
             f"- The fund is now on {status_label}. Its three‑year return trails the benchmark by "
             f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its five‑year return trails by "
