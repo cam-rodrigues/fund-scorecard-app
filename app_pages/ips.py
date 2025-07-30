@@ -149,7 +149,8 @@ def step3_process_scorecard(pdf, start_page, declared_total):
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-# === Step 4: IPS Screening ===
+import pandas as pd
+
 def step4_ips_screen():
     IPS = [
         "Manager Tenure",
@@ -167,74 +168,65 @@ def step4_ips_screen():
         "Tracking Error Rank (5Yr)",
         "Expense Ratio Rank"
     ]
-    st.subheader("Step 4: IPS Investment Criteria Screening")
 
+    records = []
     for b in st.session_state["fund_blocks"]:
         name = b["Fund Name"]
-        is_passive = "bitcoin" in name.lower()
+        is_passive = "bitcoin" in name.lower()  # your existing passive test
         statuses, reasons = {}, {}
 
         # Manager Tenure ≥3
         info = next((m["Info"] for m in b["Metrics"] if m["Metric"]=="Manager Tenure"), "")
         yrs = float(re.search(r"(\d+\.?\d*)", info).group(1)) if re.search(r"(\d+\.?\d*)", info) else 0
-        ok = yrs>=3
-        statuses["Manager Tenure"] = ok
-        reasons["Manager Tenure"] = f"{yrs} yrs {'≥3' if ok else '<3'}"
+        statuses["Manager Tenure"] = yrs >= 3
+        reasons["Manager Tenure"] = f"{yrs} yrs"
 
-        # map each IPS metric
-        for metric in IPS[1:]:  # skip tenure
+        # Remaining metrics
+        for metric in IPS[1:]:
             m = next((x for x in b["Metrics"] if x["Metric"].startswith(metric.split()[0])), None)
             info = m["Info"] if m else ""
             if "Excess Performance" in metric:
-                val_m = re.search(r"([-+]?\d*\.\d+)%", info)
-                val = float(val_m.group(1)) if val_m else 0
-                ok = (val>0) if "3Yr" in metric else (val>0)
-                statuses[metric] = ok
+                val = float(re.search(r"([-+]?\d*\.\d+)%", info).group(1)) if re.search(r"([-+]?\d*\.\d+)%", info) else 0
+                statuses[metric] = val > 0
                 reasons[metric] = f"{val}%"
             elif "R-Squared" in metric:
-                pct_m = re.search(r"(\d+\.\d+)%", info)
-                pct = float(pct_m.group(1)) if pct_m else 0
-                ok = (pct>=95) if is_passive else True
-                statuses[metric] = ok
+                pct = float(re.search(r"(\d+\.\d+)%", info).group(1)) if re.search(r"(\d+\.\d+)%", info) else 0
+                statuses[metric] = (pct >= 95) if is_passive else True
                 reasons[metric] = f"{pct}%"
-            elif "Peer Return" in metric or "Sharpe Ratio" in metric:
-                rank_m = re.search(r"(\d+)", info)
-                rank = int(rank_m.group(1)) if rank_m else 999
-                ok = rank<=50
-                statuses[metric] = ok
-                reasons[metric] = f"Rank {rank}"
-            elif "Sortino Ratio" in metric or "Tracking Error" in metric:
-                rank_m = re.search(r"(\d+)", info)
-                rank = int(rank_m.group(1)) if rank_m else 999
-                if "Sortino" in metric and not is_passive:
-                    ok = rank<=50
-                elif "Tracking Error" in metric and is_passive:
-                    ok = rank<90
+            else:
+                rank = int(re.search(r"(\d+)", info).group(1)) if re.search(r"(\d+)", info) else 999
+                if "Tracking Error" in metric and is_passive:
+                    statuses[metric] = rank < 90
+                elif "Sortino" in metric and not is_passive:
+                    statuses[metric] = rank <= 50
                 else:
-                    ok = True
-                statuses[metric] = ok
-                reasons[metric] = f"Rank {rank}"
-            elif "Expense Ratio" in metric:
-                rank_m = re.search(r"(\d+)", info)
-                rank = int(rank_m.group(1)) if rank_m else 999
-                ok = rank<=50
-                statuses[metric] = ok
+                    statuses[metric] = rank <= 50
                 reasons[metric] = f"Rank {rank}"
 
-        # count fails
-        fails = sum(not v for v in statuses.values())
-        if fails<=4:
-            overall="Passed IPS Screen"
-        elif fails==5:
-            overall="Informal Watch (IW)"
-        else:
-            overall="Formal Watch (FW)"
+        # Determine overall
+        fails = sum(1 for v in statuses.values() if not v)
+        overall = (
+            "Passed IPS Screen" if fails <= 4
+            else "Informal Watch (IW)" if fails == 5
+            else "Formal Watch (FW)"
+        )
 
-        st.markdown(f"### {name} ({'Passive' if is_passive else 'Active'})")
-        st.write(f"**Overall:** {overall} ({fails} fails)")
+        # Build one record / row
+        row = {
+            "Fund Name": name,
+            "Type": "Passive" if is_passive else "Active",
+            "Overall": overall,
+            "Fails": fails
+        }
         for m in IPS:
-            sym = "✅" if statuses.get(m,False) else "❌"
-            st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
+            symbol = "✅" if statuses[m] else "❌"
+            row[m] = f"{symbol} {reasons[m]}"
+        records.append(row)
+
+    # Create DataFrame & display
+    df = pd.DataFrame(records)
+    st.subheader("IPS Screening Results")
+    st.table(df)
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -321,7 +313,7 @@ def extract_field(text: str, label: str, stop_at: str = None) -> str:
     except ValueError:
         return ""
 
-
+#──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
 def run():
     import re
@@ -329,7 +321,6 @@ def run():
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
-   #──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     
     with pdfplumber.open(uploaded) as pdf:
         # Step 1
