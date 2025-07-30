@@ -1345,11 +1345,18 @@ def step16_bullet_points():
     if ips == "Passed IPS Screen":
         st.markdown("- The Fund passed the IPS Screening.")
     else:
-        status_label = "Informal Watch" if "IW" in ips else "Formal Watch"
-        three  = float(item.get("3Yr")      or 0)
-        bench3 = float(item.get("Bench 3Yr") or 0)
-        five   = float(item.get("5Yr")      or 0)
-        bench5 = float(item.get("Bench 5Yr") or 0)
+        # explicit status mapping
+        if "Formal Watch" in ips:
+            status_label = "Formal Watch"
+        elif "Informal Watch" in ips:
+            status_label = "Informal Watch"
+        else:
+            status_label = ips  # fallback
+
+        three   = float(item.get("3Yr")      or 0)
+        bench3  = float(item.get("Bench 3Yr") or 0)
+        five    = float(item.get("5Yr")      or 0)
+        bench5  = float(item.get("Bench 5Yr") or 0)
         bps3 = round((three - bench3)*100, 1)
         bps5 = round((five  - bench5)*100, 1)
 
@@ -1357,14 +1364,12 @@ def step16_bullet_points():
         peer = st.session_state.get("step14_peer_rank_table", [])
         raw3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer if r.get("Fund Name")==selected_fund), None)
         raw5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer if r.get("Fund Name")==selected_fund), None)
-        try:
-            pos3 = "top" if int(raw3) <= 50 else "bottom"
-        except:
-            pos3 = "bottom"
-        try:
-            pos5 = "top" if int(raw5) <= 50 else "bottom"
-        except:
-            pos5 = "bottom"
+
+        # determine top/bottom safely
+        try:    pos3 = "top"    if int(raw3) <= 50 else "bottom"
+        except: pos3 = "bottom"
+        try:    pos5 = "top"    if int(raw5) <= 50 else "bottom"
+        except: pos5 = "bottom"
 
         st.markdown(
             f"- The fund is now on {status_label}. Its three‑year return trails the benchmark by "
@@ -1372,6 +1377,7 @@ def step16_bullet_points():
             f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half of peers "
             f"and its 5‑Yr Sharpe ranks in the {pos5} half."
         )
+
 
     # — Bullet 3: only for Formal Watch —
     if "Formal Watch" in ips:
