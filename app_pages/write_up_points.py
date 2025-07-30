@@ -1463,35 +1463,65 @@ def step17_export_to_ppt_headings():
 
     # — 5) Generate bullets from step16 logic —
     perf_data = st.session_state.get("fund_performance_data", [])
-    item = next((x for x in perf_data if x["Fund Scorecard Name"]==selected), {})
-    # bullet 1
+    item      = next((x for x in perf_data if x["Fund Scorecard Name"] == selected), {})
+
+    # Bullet 1 (same as before)
     tmpl = st.session_state.get("bullet_point_templates", [""])[0]
     b1 = tmpl
-    for fld,val in item.items():
+    for fld, val in item.items():
         b1 = b1.replace(f"[{fld}]", str(val))
-    # bullet 2 & 3
-    ips = item.get("IPS Status","")
-    if ips=="Passed IPS Screen":
-        b2, b3 = "The Fund passed the IPS Screening.", ""
+
+    # — Bullet 2 & 3: now look up the saved IPS status map —
+    ips_status = st.session_state.get("ips_status_map", {}).get(selected, "")
+
+    if "Passed" in ips_status:
+        b2, b3 = "This fund is not on watch.", ""
     else:
-        status = "Informal Watch" if "IW" in ips else "Formal Watch"
-        three, bench3 = float(item.get("3Yr") or 0), float(item.get("Bench 3Yr") or 0)
-        five,  bench5 = float(item.get("5Yr") or 0), float(item.get("Bench 5Yr") or 0)
-        bps3 = round((three-bench3)*100,1); bps5 = round((five-bench5)*100,1)
+        # decide Formal vs Informal
+        if "Formal" in ips_status:
+            status_label = "Formal Watch"
+        elif "Informal" in ips_status:
+            status_label = "Informal Watch"
+        else:
+            status_label = ips_status or "on watch"
+
+        three, bench3 = float(item.get("3Yr")      or 0), float(item.get("Bench 3Yr") or 0)
+        five,  bench5 = float(item.get("5Yr")      or 0), float(item.get("Bench 5Yr") or 0)
+        bps3 = round((three  - bench3) * 100, 1)
+        bps5 = round((five   - bench5)  * 100, 1)
+
         # peer ranks
         peer = st.session_state.get("step14_peer_rank_table", [])
-        raw3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer if r.get("Fund Name")==selected),None)
-        raw5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer if r.get("Fund Name")==selected),None)
-        rank3 = raw3 or "N/A"; rank5 = raw5 or "N/A"
-        pos3 = "top" if rank3!="N/A" and int(rank3)<=50 else "bottom"
-        pos5 = "top" if rank5!="N/A" and int(rank5)<=50 else "bottom"
+        raw3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer if r.get("Fund Name")==selected), None)
+        raw5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer if r.get("Fund Name")==selected), None)
+        try:
+            pos3 = "top" if int(raw3) <= 50 else "bottom"
+        except:
+            pos3 = "bottom"
+        try:
+            pos5 = "top" if int(raw5) <= 50 else "bottom"
+        except:
+            pos5 = "bottom"
+
         b2 = (
-            f"- The fund is now on {status}. Its three‑year return trails the benchmark by "
+            f"- The fund is now on {status_label}. Its three‑year return trails the benchmark by "
             f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its five‑year return trails by "
-            f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half and "
-            f"its 5‑Yr Sharpe ranks in the {pos5} half."
+            f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half of peers "
+            f"and its 5‑Yr Sharpe ranks in the {pos5} half."
         )
-        b3 = "- **Action:** Consider replacing this fund." if status=="Formal Watch" else ""
+        b3 = "- **Action:** Consider replacing this fund." if status_label == "Formal Watch" else ""
+
+    # — Now actually write them into the slide’s text box —
+    lines = [b1, b2] + ([b3] if b3 else [])
+    for line in lines:
+        p = tf.add_paragraph()
+        p.text = f"• {line.lstrip('- ')}"
+        p.font.name      = "Cambria"
+        p.font.size      = Pt(11)
+        p.font.bold      = line.strip().startswith("Action")
+        p.font.color.rgb = RGBColor(0,0,0)
+        p.alignment      = PP_ALIGN.LEFT
+        p.line_spacing   = 2.0
 
 
     # 6) Build data for Slide 1 Table
