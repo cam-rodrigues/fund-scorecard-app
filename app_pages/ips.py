@@ -402,6 +402,18 @@ def step6_process_factsheets(pdf, fund_names):
         else:
             st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
+
+# ── End of Step 6: store into session_state ──────────────────────────────
+# suppose you ended up with:
+#   df_scorecard: pandas.DataFrame with columns ["Investment Option","Ticker", <14 metric cols>]
+#   ips_results:  dict { metric_name: "Pass"/"Fail", … } for your 11 IPS screenings
+
+import streamlit as st
+
+st.session_state["scorecard_metrics"] = df_scorecard  # or df_scorecard.to_dict("records")
+st.session_state["ips_screening_results"] = ips_results
+
+
 def step7_create_tables():
     import streamlit as st
     import pandas as pd
