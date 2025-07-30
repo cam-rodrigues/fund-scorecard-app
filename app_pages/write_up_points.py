@@ -1784,6 +1784,7 @@ def step17_export_to_ppt_headings():
         draw_table(slide3, df3_1, left1, top1, total_w, h1, widths1)
         draw_table(slide3, df3_2, left2, top2, total_w, h2, widths2)
 
+
     # 4) Slide 4: Qualitative Factors Tables side by side
     if len(prs.slides) > 3:
         slide4 = prs.slides[3]
@@ -1854,24 +1855,12 @@ def step17_export_to_ppt_headings():
         left2 = margin + half + gap
         top = 1.3  # lowered position (move tables down)
         height = 0.8
-        # Column widths: Table1 (manager wide, tenure small), Table2 (manager fixed, others larger)
+                # Column widths: Table1 (manager wide, tenure small), Table2 (manager fixed, assets unchanged, avg cap larger)
         cw1 = [half - 1.5, 1.5]
-        cw2 = [2.0, (half - 2.0)*0.3, (half - 2.0)*0.7]  # allocate more width to Average Market Capitalization
-
-        draw_table(slide4, df4_1, left1, top, half, height, cw1)
-        draw_table(slide4, df4_2, left2, top, half, height, cw2)
-
-    # 5) Download
-    buf = BytesIO()
-    prs.save(buf)
-    buf.seek(0)
-    st.download_button(
-        label="Download PPTX",
-        data=buf,
-        file_name=f"{selected.replace(' ','_')}.pptx",
-        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        key=f"download_ppt_{selected}"
-    )
+        # For Table2, keep Assets width same as before, allocate the remaining to Avg Cap
+        asset_w = (half - 2.0) * 0.5
+        avg_w   = half - 2.0 - asset_w
+        cw2 = [2.0, asset_w, avg_w]  # assets unchanged; avg cap expanded
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
