@@ -1785,6 +1785,65 @@ def step17_export_to_ppt_headings():
         draw_table(slide3, df3_2, left2, top2, total_w, h2, widths2)
 
 
+def step17_export_to_ppt_headings():
+    import streamlit as st
+    from pptx import Presentation
+    from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
+    from pptx.enum.shapes import MSO_SHAPE
+    from pptx.dml.color import RGBColor
+    from pptx.util import Inches, Pt
+    from pptx.oxml.xmlchemy import OxmlElement
+    from io import BytesIO
+    import re
+    import pandas as pd
+
+    st.subheader("Step 17: Export to PowerPoint")
+
+    # 1) Selected fund & category
+    selected = st.session_state.get("selected_fund")
+    if not selected:
+        st.error("❌ No fund selected. Please select a fund in Step 15.")
+        return
+    facts = st.session_state.get("fund_factsheets_data", [])
+    rec   = next((f for f in facts if f["Matched Fund Name"] == selected), None)
+    if not rec or not rec.get("Category"):
+        st.error(f"❌ Could not find category for '{selected}'.")
+        return
+    category = rec["Category"].strip()
+
+    # 2) Load PPTX template
+    try:
+        prs = Presentation("assets/template.pptx")
+    except Exception as e:
+        st.error(f"❌ Could not load template: {e}")
+        return
+
+    # 3) Titles (slides 1-4)
+    def set_title(slide, text):
+        if slide.shapes.title:
+            tx = slide.shapes.title.text_frame.paragraphs[0]
+        else:
+            left, top = Inches(0.5), Inches(0.3)
+            box = slide.shapes.add_textbox(left, top, prs.slide_width - Inches(1), Inches(0.7))
+            tx = box.text_frame.paragraphs[0]
+        tx.text = text
+        r = tx.runs[0]
+        r.font.name  = "Helvetica"
+        r.font.size  = Pt(20)
+        r.font.bold  = True
+        r.font.color.rgb = RGBColor(0x21, 0x2B, 0x58)
+        tx.alignment = PP_ALIGN.LEFT
+
+    set_title(prs.slides[0], "Investment Watchlist")
+    if len(prs.slides) > 1:
+        set_title(prs.slides[1], f"{category} – Expense & Return")
+    if len(prs.slides) > 2:
+        set_title(prs.slides[2], f"{category} – Risk Adjusted Statistics")
+    if len(prs.slides) > 3:
+        set_title(prs.slides[3], f"{category} – Qualitative Factors")
+
+    # (Slides 1–3 code omitted for brevity)
+
     # 4) Slide 4: Qualitative Factors Tables side by side
     if len(prs.slides) > 3:
         slide4 = prs.slides[3]
@@ -1853,11 +1912,11 @@ def step17_export_to_ppt_headings():
         half = usable / 2
         left1 = margin
         left2 = margin + half + gap
-        top = 1.0
+        top = 1.3  # lowered position (move tables down)
         height = 0.8
         # Column widths: Table1 (manager wide, tenure small), Table2 (manager fixed, others larger)
         cw1 = [half - 1.5, 1.5]
-        cw2 = [2.5, (half - 2.5)*0.6, (half - 2.5)*0.4]
+        cw2 = [2.0, (half - 2.0)*0.5, (half - 2.0)*0.5]  # wider Assets and Avg Cap columns
 
         draw_table(slide4, df4_1, left1, top, half, height, cw1)
         draw_table(slide4, df4_2, left2, top, half, height, cw2)
@@ -1873,7 +1932,6 @@ def step17_export_to_ppt_headings():
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         key=f"download_ppt_{selected}"
     )
-
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
