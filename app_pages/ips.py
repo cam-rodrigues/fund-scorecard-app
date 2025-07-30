@@ -152,9 +152,7 @@ def step4_ips_screen():
     for b in st.session_state.get("fund_blocks", []):
         name = b["Fund Name"]
         statuses = {}
-        # Example: use scorecard Status for Manager Tenure
         statuses["Manager Tenure"] = (next((m.get('Status') for m in b['Metrics'] if m['Metric']=="Manager Tenure"), 'Fail')=='Pass')
-        # Default Pass for others (adjust logic as needed)
         for metric in IPS[1:]:
             statuses[metric] = True
         st.session_state["ips_statuses"][name] = statuses
@@ -178,8 +176,7 @@ def step5_process_performance(pdf, start_page, fund_names):
         m = re.match(r"(.+?)\s+([A-Z]{1,5})$", ln.strip())
         if m:
             mapping[re.sub(r'[^A-Za-z0-9 ]+', '', m.group(1)).strip().lower()] = m.group(2)
-    tickers = {name: next((t for raw,t in mapping.items() if raw.startswith(re.sub(r'[^A-Za-z0-9 ]','',name).lower())), None)
-               for name in fund_names}
+    tickers = {name: next((t for raw,t in mapping.items() if raw.startswith(re.sub(r'[^A-Za-z0-9 ]','',name).lower())), None) for name in fund_names}
     st.session_state["tickers"] = tickers
     st.subheader("Step 5: Extracted Tickers")
     for n, t in tickers.items(): st.write(f"- {n}: {t or '❌ not found'}")
@@ -206,20 +203,24 @@ def step6_process_factsheets(pdf, fund_names):
     st.dataframe(pd.DataFrame(matched))
 
 #────────────────────────────────────────────────────────────────────────
-# Build objects for Step 7 (with safe .get)
+# Build objects for Step 7 (with numbering)
 #────────────────────────────────────────────────────────────────────────
+# Build scorecard df with numeric columns 1-14
 rows = []
 for b in st.session_state.get("fund_blocks", []):
     name = b['Fund Name']
     row = {"Investment Option": name, "Ticker": st.session_state.get("tickers", {}).get(name, "")}
-    for m in b['Metrics']:
-        row[m['Metric']] = m.get('Status', 'Fail')
+    for idx, m in enumerate(b['Metrics'], start=1):
+        row[str(idx)] = m.get('Status', 'Fail')
     rows.append(row)
 
 df_scorecard = pd.DataFrame(rows)
+
+# Build ips_results as before
 ips_statuses = st.session_state.get("ips_statuses", {})
 first = next(iter(ips_statuses), None)
 ips_results = {metric: ('Pass' if ok else 'Fail') for metric, ok in ips_statuses.get(first, {}).items()} if first else {}
+
 st.session_state["scorecard_metrics"] = df_scorecard
 st.session_state["ips_screening_results"] = ips_results
 
