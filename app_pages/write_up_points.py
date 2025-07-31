@@ -1614,7 +1614,7 @@ def step17_export_to_ppt_headings():
             # For IPS Status, add the badge (IW or FW)
             txt = str(val).lower()
             # Adjusted badge size (wider width with same height)
-            badge_width = Inches(0.8)  # Wider badge width
+            badge_width = Inches(0.6)  # Wider badge width
             badge_height = Inches(0.4)  # Keep the height the same
     
             cell_left  = left + sum(Inches(w) for w in col_w[:c])
