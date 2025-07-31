@@ -87,11 +87,6 @@ def process_toc(text):
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-import pandas as pd
-import re
-import streamlit as st
-
-# === Step 3 === 
 def step3_process_scorecard(pdf, start_page, declared_total):
     """
     Processes the scorecard section of the PDF starting from the specified page and extracts
@@ -158,7 +153,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         for i in range(1, 15):  # Metrics 1-14
             # Find the status for each metric
             metric_name = f"Metric {i}"
-            metric = next((m for m in block["Metrics"] if m["Metric"] == IPS[i-1]), None)
+            metric = next((m for m in block["Metrics"] if m["Metric"] == metric_name), None)
             status = metric["Status"] if metric else "Fail"
             row.append(status)
         table_data.append(row)
@@ -179,6 +174,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         st.success("✅ Counts match.")
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
+
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
