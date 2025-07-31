@@ -86,10 +86,6 @@ def process_toc(text):
     st.session_state['r5yr_page'] = r5yr_page
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-import re
-import streamlit as st
-import pandas as pd
-
 # === Step 3 ===
 def step3_process_scorecard(pdf, start_page, declared_total):
     """
