@@ -2,176 +2,241 @@ import streamlit as st
 import pdfplumber
 import pandas as pd
 import re
+from difflib import get_close_matches
 from io import BytesIO
+import xlsxwriter
+from xlsxwriter.utility import xl_col_to_name
 from datetime import datetime
-from openpyxl import Workbook
-from openpyxl.styles import PatternFill, Font
 
-# --- IPS Metric Names ---
-IPS_METRICS = [
-    "Manager Tenure",
-    "3Y: Benchmark/R²",
-    "3Y: Peer Rank",
-    "3Y: Sharpe",
-    "3Y: Sortino/TE",
-    "5Y: Benchmark/R²",
-    "5Y: Peer Rank",
-    "5Y: Sharpe",
-    "5Y: Sortino/TE",
-    "Expense Ratio",
-    "Investment Style"
-]
+# --- Ticker Lookup (stacked + inline formats) ---
+def build_ticker_lookup(pdf):
+    lookup = {}
 
-# --- Color Styles ---
-GREEN = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
-RED = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
-ORANGE = PatternFill(start_color="F4B084", end_color="F4B084", fill_type="solid")
-WHITE_TEXT = Font(color="FFFFFF")
+    for page in pdf.pages:
+        lines = page.extract_text().split("\n") if page.extract_text() else []
 
-# --- Utility: Extract text safely ---
-def safe_extract(page):
-    try:
-        return page.extract_text()
-    except:
-        return ""
+        for i in range(len(lines) - 1):
+            name_line = lines[i].strip()
+            ticker_line = lines[i + 1].strip()
 
-# --- IPS Pass/Fail logic ---
-def evaluate_ips_status(metrics, fund_type):
-    passes = []
-    for idx, metric in enumerate(metrics[:10]):
-        if metric == "Pass":
-            passes.append(True)
-        else:
-            passes.append(False)
-    passes.append(True)  # Investment Style is always Pass
+            if (
+                re.match(r"^[A-Z]{4,6}X?$", ticker_line)
+                and len(name_line.split()) >= 3
+                and not re.match(r"^[A-Z]{4,6}X?$", name_line)
+            ):
+                clean_name = " ".join(name_line.split())
+                lookup[clean_name] = ticker_line.strip()
 
-    fails = 11 - sum(passes)
-    if fails <= 4:
-        return "Passed IPS Screen", GREEN
-    elif fails == 5:
-        return "Informal Watch", ORANGE
-    else:
-        return "Formal Watch", RED
+        for line in lines:
+            line = line.strip()
+            parts = line.rsplit(" ", 1)
+            if (
+                len(parts) == 2
+                and re.match(r"^[A-Z]{4,6}X?$", parts[1])
+                and len(parts[0].split()) >= 3
+            ):
+                lookup[parts[0].strip()] = parts[1].strip()
+
+    return lookup
+
+# --- Extract fund name from block ---
+def get_fund_name(block, lookup):
+    block_lower = block.lower()
+    for name in lookup:
+        if name.lower() in block_lower:
+            return name
+
+    lines = block.split("\n")
+    top_lines = lines[:6]
+    candidates = [line.strip() for line in top_lines if sum(c.isupper() for c in line) > 5]
+
+    for line in candidates:
+        matches = get_close_matches(line, lookup.keys(), n=1, cutoff=0.5)
+        if matches:
+            return matches[0]
+
+    metric_start = None
+    for i, line in enumerate(lines):
+        if any(metric in line for metric in [
+            "Manager Tenure", "Excess Performance", "Peer Return Rank",
+            "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
+            "Sortino Ratio Rank", "Tracking Error Rank"
+        ]):
+            metric_start = i
+            break
+
+    if metric_start and metric_start > 0:
+        fallback_name = lines[metric_start - 1].strip()
+        fallback_name = re.sub(r"(This|The)?\s?fund\s(has|meets).*", "", fallback_name, flags=re.IGNORECASE).strip()
+        if fallback_name:
+            return fallback_name
+
+    return "UNKNOWN FUND"
 
 # --- Main App ---
 def run():
-    st.set_page_config(page_title="IPS Investment Criteria", layout="wide")
-    st.title("IPS Investment Criteria Screening")
+    st.set_page_config(page_title="Fund Scorecard Metrics", layout="wide")
+    st.title("Fund Scorecard Metrics")
 
-    uploaded_file = st.file_uploader("Upload an MPI-style PDF", type=["pdf"])
-    if not uploaded_file:
-        st.stop()
+    st.markdown("""
+    Upload an MPI-style PDF fund scorecard below. The app will extract each fund, determine if it meets the watchlist criteria, and display a detailed breakdown of metric statuses.
+    """)
 
-    # Extract PDF content
-    with pdfplumber.open(uploaded_file) as pdf:
-        raw_text = [safe_extract(p) for p in pdf.pages]
-        page1 = raw_text[0] if raw_text else ""
-        toc_page = raw_text[1] if len(raw_text) > 1 else ""
+    pdf_file = st.file_uploader("Upload MPI PDF", type=["pdf"])
 
-        # --- Step 2: Extract Time Period ---
-        time_period = None
-        for line in page1.split("\n"):
-            if re.search(r"\b(3/31|6/20|9/30|12/31)/20\d{2}\b", line):
-                time_period = line.strip()
-                break
+    if pdf_file:
+        rows = []
+        with pdfplumber.open(pdf_file) as pdf:
+            total_pages = len(pdf.pages)
+            status_text = st.empty()
+            progress = st.progress(0)
 
-        # --- Step 3: Page 1 Info ---
-        total_options = None
-        prepared_for = None
-        for line in page1.split("\n"):
-            if "Total Options" in line:
-                total_options = re.search(r"Total Options: ?(\d+)", line)
-                total_options = int(total_options.group(1)) if total_options else None
-            if "Prepared For" in line:
-                idx = page1.split("\n").index(line)
-                prepared_for = page1.split("\n")[idx + 1].strip()
+            ticker_lookup = build_ticker_lookup(pdf)
 
-        # --- Step 4: Locate section pages from ToC ---
-        def find_section_page(section_name):
-            for line in toc_page.split("\n"):
-                if section_name in line:
-                    match = re.search(r"\s(\d+)$", line.strip())
-                    return int(match.group(1)) - 1 if match else None
-            return None
+            if not any("Enhanced Commodity" in name for name in ticker_lookup):
+                ticker_lookup["WisdomTree Enhanced Commodity Stgy Fd"] = "WTES"
 
-        perf_pg = find_section_page("Fund Performance: Current vs. Proposed Comparison")
-        scorecard_pg = find_section_page("Fund Scorecard")
+            for i, page in enumerate(pdf.pages):
+                txt = page.extract_text()
+                if not txt:
+                    progress.progress((i + 1) / total_pages)
+                    status_text.text(f"Skipping page {i + 1} (no text)...")
+                    continue
 
-        if perf_pg is None or scorecard_pg is None:
-            st.error("Failed to locate section pages.")
-            st.stop()
+                blocks = re.split(
+                    r"\n(?=[^\n]*?(Fund )?(Meets Watchlist Criteria|has been placed on watchlist))",
+                    txt)
 
-        # --- Step 5: Extract Fund Scorecard Section ---
-        fund_data = []
-        fund_name = None
-        current_metrics = []
-        fund_lines = "\n".join(raw_text[scorecard_pg:])
+                for block in blocks:
+                    if not block.strip():
+                        continue
 
-        for line in fund_lines.split("\n"):
-            if re.match(r"^[A-Z].+\b(Fund|ETF)\b", line):
-                if fund_name and current_metrics:
-                    fund_data.append((fund_name, current_metrics))
-                fund_name = line.strip()
-                current_metrics = []
-            elif any(metric in line for metric in IPS_METRICS):
-                if "Pass" in line:
-                    current_metrics.append("Pass")
-                elif "Review" in line:
-                    current_metrics.append("Fail")
+                    fund_name = get_fund_name(block, ticker_lookup)
+                    ticker = ticker_lookup.get(fund_name, "N/A")
+                    meets = "Yes" if "placed on watchlist" not in block else "No"
 
-        if fund_name and current_metrics:
-            fund_data.append((fund_name, current_metrics))
+                    metrics = {}
+                    for line in block.split("\n"):
+                        if line.startswith((
+                            "Manager Tenure", "Excess Performance", "Peer Return Rank",
+                            "Expense Ratio Rank", "Sharpe Ratio Rank", "R-Squared",
+                            "Sortino Ratio Rank", "Tracking Error Rank", 
+                            "Tracking Error (3Yr)", "Tracking Error (5Yr)")):
+                            m = re.match(r"^(.*?)\s+(Pass|Review)", line.strip())
+                            if m:
+                                metrics[m.group(1).strip()] = m.group(2).strip()
 
-        # --- Step 6: Match to Performance Table ---
-        ticker_lookup = {}
-        category_lookup = {}
-        perf_lines = "\n".join(raw_text[perf_pg:]).split("\n")
-        for i, line in enumerate(perf_lines):
-            if re.match(r"^[A-Z]{5}$", line.strip()):
-                fund = perf_lines[i - 1].strip()
-                category = perf_lines[i - 2].strip()
-                ticker = line.strip()
-                ticker_lookup[fund] = ticker
-                category_lookup[fund] = category
+                    if metrics:
+                        rows.append({
+                            "Fund Name": fund_name,
+                            "Ticker": ticker,
+                            "Meets Criteria": meets,
+                            **metrics
+                        })
 
-        # --- Step 7: Build Output Table ---
-        wb = Workbook()
-        ws = wb.active
-        headers = [
-            "Investment Option", "Category", "Ticker", "Time Period", "Plan Assets"
-        ] + [f"{i+1}" for i in range(11)] + ["IPS Status"]
-        ws.append(headers)
+                progress.progress((i + 1) / total_pages)
+                status_text.text(f"Processed page {i + 1} of {total_pages}")
 
-        for fund, metrics in fund_data:
-            ticker = ticker_lookup.get(fund, "N/A")
-            category = category_lookup.get(fund, "N/A")
-            fund_type = "Passive" if "Bitcoin" in fund else "Active"
-            status, status_fill = evaluate_ips_status(metrics, fund_type)
+            progress.empty()
+            status_text.empty()
 
-            row = [fund, category, ticker, time_period, "$"] + metrics + [status]
-            ws.append(row)
-            for i, val in enumerate(metrics):
-                cell = ws.cell(row=ws.max_row, column=6 + i)
-                cell.fill = GREEN if val == "Pass" else RED
+        df = pd.DataFrame(rows)
 
-            # Format IPS Status Cell
-            status_cell = ws.cell(row=ws.max_row, column=len(headers))
-            status_cell.fill = status_fill
-            status_cell.font = WHITE_TEXT
+        for i, row in df.iterrows():
+            if row["Ticker"] == "N/A" and row["Fund Name"] != "UNKNOWN FUND":
+                fund_name = row["Fund Name"]
+                match = get_close_matches(fund_name, ticker_lookup.keys(), n=1, cutoff=0.5)
+                if match:
+                    df.at[i, "Ticker"] = ticker_lookup[match[0]]
+                else:
+                    for known_name in ticker_lookup:
+                        if fund_name.lower() in known_name.lower() or known_name.lower() in fund_name.lower():
+                            df.at[i, "Ticker"] = ticker_lookup[known_name]
+                            break
 
-        # --- Step 8: Display & Download ---
-        st.success("IPS Evaluation Complete")
-        
-        # build a list of lists instead of tuple+list
-        df_rows = [
-            list(r[:5]) + list(r[5:-1]) + [r[-1]]
-            for r in ws.iter_rows(min_row=2, values_only=True)
-        ]
-        st.dataframe(pd.DataFrame(df_rows, columns=headers))
-        
-        buffer = BytesIO()
-        wb.save(buffer)
-        st.download_button("Download Excel", buffer.getvalue(), file_name="IPS_Evaluation.xlsx")
+        if not df.empty:
+            st.success(f"Found {len(df)} fund entries.")
+            st.dataframe(df, use_container_width=True)
 
-if __name__ == "__main__":
-    run()
+            with st.expander("Download Results"):
+                csv = df.to_csv(index=False).encode("utf-8")
+                st.download_button("Download as CSV",
+                                   data=csv,
+                                   file_name="fund_criteria_results.csv",
+                                   mime="text/csv")
+
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    df_cleaned = df.copy()
+                
+                    # Convert everything to string first, then replace all error values
+                    df_cleaned = df_cleaned.astype(str).replace(["nan", "None", "NUM", "NaN", "NAN"], "")
+                
+                    df_cleaned.to_excel(writer, index=False, sheet_name="Fund Criteria", startrow=2)
+                
+                    workbook = writer.book
+                    worksheet = writer.sheets["Fund Criteria"]
+                
+                    header_format = workbook.add_format({
+                        'bold': True, 'bg_color': '#D9E1F2', 'font_color': '#1F4E78',
+                        'align': 'center', 'valign': 'vcenter', 'border': 1, 'bottom': 2
+                    })
+                    status_format_pass = workbook.add_format({
+                        'bg_color': '#C6EFCE', 'font_color': '#006100', 'border': 1
+                    })
+                    status_format_review = workbook.add_format({
+                        'bg_color': '#FFC7CE', 'font_color': '#9C0006', 'border': 1
+                    })
+                    normal_format = workbook.add_format({'border': 1})
+                    center_format = workbook.add_format({'border': 1, 'align': 'center'})
+                    updated_format = workbook.add_format({'italic': True, 'font_color': '#444444'})
+                
+                    worksheet.write('A1', datetime.now().strftime("Last Updated: %B %d, %Y"), updated_format)
+                
+                    for col_num, col_name in enumerate(df_cleaned.columns):
+                        max_len = max(df_cleaned[col_name].astype(str).map(len).max(), len(col_name)) + 2
+                        worksheet.set_column(col_num, col_num, max_len)
+                        worksheet.write(2, col_num, col_name, header_format)
+                
+                    worksheet.autofilter(f"A3:{xl_col_to_name(len(df_cleaned.columns) - 1)}3")
+                    worksheet.freeze_panes(3, 0)
+                
+                    for row in range(len(df_cleaned)):
+                        for col in range(len(df_cleaned.columns)):
+                            value = df_cleaned.iloc[row, col]
+                            col_name = df_cleaned.columns[col]
+                            fmt = center_format if col_name == "Ticker" else normal_format
+                
+                            if col_name == "Meets Criteria":
+                                fmt = workbook.add_format({'border': 2, 'align': 'center'})
+                
+                            worksheet.write(row + 3, col, value, fmt)
+                
+                    for col_num, col_name in enumerate(df_cleaned.columns):
+                        col_letter = xl_col_to_name(col_num)
+                        data_range = f"{col_letter}4:{col_letter}{len(df_cleaned)+3}"
+                
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text', 'criteria': 'containing', 'value': 'Pass', 'format': status_format_pass
+                        })
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text', 'criteria': 'containing', 'value': 'Yes', 'format': status_format_pass
+                        })
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text', 'criteria': 'containing', 'value': 'Review', 'format': status_format_review
+                        })
+                        worksheet.conditional_format(data_range, {
+                            'type': 'text', 'criteria': 'containing', 'value': 'No', 'format': status_format_review
+                        })
+
+
+
+                excel_data = output.getvalue()
+                st.download_button("Download as Excel",
+                                   data=excel_data,
+                                   file_name="fund_criteria_results.xlsx",
+                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        else:
+            st.warning("No fund entries found in the uploaded PDF.")
+    else:
+        st.info("Please upload an MPI fund scorecard PDF to begin.")
