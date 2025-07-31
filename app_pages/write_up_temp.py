@@ -115,11 +115,12 @@ def step3_process_scorecard(pdf, start_page, declared_total):
 
     # Loop through lines to extract metric info (Metric, Pass/Review, Info)
     for i, line in enumerate(lines):
-        match = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
+        # Adjusted regex to match the format "Metric Name", "Pass/Review", and "Info"
+        match = re.match(r"^(.*?)(\s+)(Pass|Review)(\s+)(.*)$", line.strip())
         if not match:
             continue
 
-        metric, status, info = match.groups()
+        metric, _, status, _, info = match.groups()
 
         # When encountering the "Manager Tenure" metric, save the previous fund block
         if metric == "Manager Tenure":
@@ -184,6 +185,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         st.success("✅ Counts match.")
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
+
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
