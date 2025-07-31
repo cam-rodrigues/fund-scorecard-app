@@ -1398,52 +1398,48 @@ def step16_bullet_points():
 from pptx import Presentation
 import streamlit as st
 
-def populate_pptx():
+def update_heading():
     # 1) Load the PowerPoint template
     try:
-        prs = Presentation("writeup_slides.pptx")  # Path to your template file
+        prs = Presentation("writeup_slides.pptx")  # Path to your PowerPoint template
     except Exception as e:
         st.error(f"❌ Could not load template: {e}")
         return
 
-    # 2) Get the selected fund from the session state
+    # 2) Get the selected fund from session state (Step 15)
     selected = st.session_state.get("selected_fund")
     if not selected:
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
     
-    # 3) Fetch the fund factsheet data
-    facts = st.session_state.get("fund_factsheets_data", [])
-    rec = next((f for f in facts if f["Matched Fund Name"] == selected), None)
-    if not rec or not rec.get("Category"):
-        st.error(f"❌ Could not find category for '{selected}'.")
-        return
-    category = rec["Category"].strip()
-
-    # 4) Slide 1: Fund Info (Category)
-    slide_data = {
-        "Fund Name": selected,
-        "Category": category,
-        "Net Assets": rec.get("Net Assets", "N/A"),
-        "Avg. Market Cap": rec.get("Avg. Market Cap", "N/A"),
-    }
+    # 3) Get the first slide (or the slide you need to modify)
     slide1 = prs.slides[0]
-    slide1.shapes[0].text = slide_data["Fund Name"]  # Assuming the first shape is where the fund name goes
-    slide1.shapes[1].text = slide_data["Category"]   # Assuming the second shape is where the category goes
-    slide1.shapes[2].text = slide_data["Net Assets"]  # Similarly for the other fields
-    slide1.shapes[3].text = slide_data["Avg. Market Cap"]
 
-    # 5) Slide 2: Performance Data
-    slide2 = prs.slides[1]
-    # Add similar code here to populate performance-related data (QTD, 1Yr, 3Yr, etc.)
-    
-    # 6) Save the modified PowerPoint
+    # 4) Search for the shape with text in the first slide
+    heading_found = False
+    for shape in slide1.shapes:
+        if not shape.has_text_frame:
+            continue
+        # If the shape has a text frame, update its text
+        if shape.text_frame:
+            shape.text_frame.clear()  # Clear any existing text
+            shape.text_frame.text = f"Fund Overview: {selected}"
+            heading_found = True
+            break  # Exit loop after updating the heading
+
+    if not heading_found:
+        st.error("❌ No editable text found on the first slide.")
+        return
+
+    # 5) Save the modified PowerPoint with the new heading
     output_path = "modified_writeup.pptx"
     prs.save(output_path)
+    
+    # 6) Provide a download link to the user
     st.success(f"✅ PowerPoint updated successfully. Download the file: [Download here]({output_path})")
 
-# Example of calling the function to populate the PowerPoint
-populate_pptx()
+# Call the function to update the heading
+update_heading()
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
