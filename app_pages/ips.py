@@ -1,6 +1,3 @@
-```python
-# page_module.py
-
 import streamlit as st
 import pdfplumber
 import re
@@ -16,13 +13,13 @@ def run():
         return
     st.success(f"Uploaded: {uploaded_mpi.name}")
 
-    # Open PDF to extract header and TOC
+    # Open PDF once to grab page 1 and 2
     with pdfplumber.open(uploaded_mpi) as pdf:
         # === Step 1: Header Info (Page 1) ===
         first_text = pdf.pages[0].extract_text() or ""
         # Quarter/Year
         date_match = re.search(r"(3/31/20\d{2}|6/30/20\d{2}|9/30/20\d{2}|12/31/20\d{2})", first_text)
-        quarter_map = {"3/31":"Q1","6/30":"Q2","9/30":"Q3","12/31":"Q4"}
+        quarter_map = {"3/31": "Q1", "6/30": "Q2", "9/30": "Q3", "12/31": "Q4"}
         if date_match:
             d = date_match.group(1)
             q = quarter_map.get("/".join(d.split("/")[:2]), "Unknown")
@@ -45,29 +42,25 @@ def run():
 
         # === Step 2: Table of Contents (Page 2) ===
         toc_text = pdf.pages[1].extract_text() or ""
-    toc_lines = toc_text.splitlines()
 
-    # Debug: show TOC lines
-    with st.expander("TOC Lines (for debugging)", expanded=False):
-        for line in toc_lines:
+    # Show TOC lines for debugging (optional)
+    with st.expander("TOC Lines (debug)", expanded=False):
+        for line in toc_text.splitlines():
             st.write(line)
 
-    # Look up the page numbers for key sections by scanning lines containing keywords
+    # Locate section start pages
     sections = {"Fund Performance": None, "Fund Scorecard": None}
-    for line in toc_lines:
+    for line in toc_text.splitlines():
         low = line.lower()
-        # Fund Performance section
-        if "current vs. proposed comparison" in low:
-            m = re.search(r"(\d+)$", line)
+        if "current vs." in low and "comparison" in low:
+            m = re.search(r"(\d+)$", line.strip())
             if m:
                 sections["Fund Performance"] = int(m.group(1))
-        # Fund Scorecard section
         if "fund scorecard" in low:
-            m = re.search(r"(\d+)$", line)
+            m = re.search(r"(\d+)$", line.strip())
             if m:
                 sections["Fund Scorecard"] = int(m.group(1))
 
-    # Display TOC lookup results
     if sections["Fund Performance"]:
         st.write(f"**Fund Performance** → page {sections['Fund Performance']}")
     else:
@@ -87,41 +80,37 @@ def run():
     with pdfplumber.open(uploaded_mpi) as pdf:
         for i in range(start_page, len(pdf.pages)):
             text = pdf.pages[i].extract_text() or ""
-            # end of section when new major heading appears (optional)
-            if i > start_page and not text.lower().startswith("fund scorecard") and "pass" not in text.lower():
+            # stop when section ends (no “Pass”/“Review” and not scorecard header)
+            if i > start_page and "fund scorecard" not in text.lower() and not re.search(r"\b(Pass|Review)\b", text):
                 break
             for line in text.splitlines():
-                # skip headings and threshold
                 if any(key in line for key in skip_keys):
                     continue
-                # metric lines
-                if re.search(r"\b(Pass|Review)\b", line):
-                    m = re.match(r"\s*(.+?)\s+(Pass|Review)\s*(?:[-–—:]\s*(.*))?$", line)
-                    if m:
-                        metric = m.group(1).strip()
-                        status = m.group(2)
-                        reason = (m.group(3) or "").strip()
-                        records.append({
-                            "Fund Name": current_fund,
-                            "Metric": metric,
-                            "Status": status,
-                            "Reason": reason
-                        })
+                # Metric line
+                m = re.match(r"\s*(.+?)\s+(Pass|Review)\s*(?:[-–—:]\s*(.*))?$", line)
+                if m:
+                    metric = m.group(1).strip()
+                    status = m.group(2)
+                    reason = (m.group(3) or "").strip()
+                    records.append({
+                        "Fund Name": current_fund,
+                        "Metric": metric,
+                        "Status": status,
+                        "Reason": reason
+                    })
                 else:
-                    # new fund heading when line is non-empty and not indented metric
+                    # New fund heading
                     if line.strip() and not line.startswith(" "):
                         current_fund = line.strip()
 
-    # === Step 4: Display each fund's metrics separately ===
+    # === Step 4: Display each fund’s metrics separately ===
     if records:
         df_all = pd.DataFrame(records)
         for fund in df_all['Fund Name'].unique():
-            fund_df = df_all[df_all['Fund Name'] == fund][['Metric', 'Status', 'Reason']]
+            fund_df = df_all[df_all['Fund Name'] == fund][['Metric', 'Status', 'Reason']].copy()
+            # Map status to icons
+            fund_df['Status'] = fund_df['Status'].map({'Pass': '✅', 'Review': '❌'})
             with st.expander(f"{fund} Scorecard Metrics", expanded=False):
-                # Map status to icons
-                fund_df = fund_df.copy()
-                fund_df['Status'] = fund_df['Status'].map({'Pass': '✅', 'Review': '❌'})
                 st.table(fund_df)
     else:
         st.error("No scorecard metrics found.")
-```
