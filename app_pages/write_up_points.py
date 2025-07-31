@@ -1590,14 +1590,10 @@ def step17_export_to_ppt_headings():
         r.font.name = "Cambria"; r.font.size = Pt(12); r.font.bold = True; r.font.color.rgb = RGBColor(0, 0, 0)
         p.alignment = PP_ALIGN.CENTER
     
-    # For a wider badge, set the width to 0.5 inches while keeping the height the same
-    badge_width = Inches(0.5)  # Set the badge width to 0.5
+    # For a wider badge, set the width to 0.6 inches while keeping the height the same
+    # For a wider badge, set the width to 0.6 inches while keeping the height the same
+    badge_width = Inches(0.6)  # Set the badge width to 0.6
     badge_height = Inches(0.4)  # Keep the height the same
-    
-    # Calculate the row height by dividing the total table height by the number of rows
-    row_count = 2  # The table has 2 rows (header + data row)
-    table_height = Inches(0.6)  # Set this to your table height (adjust if necessary)
-    row_height = table_height / row_count  # Approximate row height
     
     # Data row formatting
     for c, val in enumerate(vals):
@@ -1619,22 +1615,18 @@ def step17_export_to_ppt_headings():
             # For IPS Status, add the badge (IW or FW)
             txt = str(val).lower()
             # Adjusted badge size (wider width with same height)
-            badge_width = Inches(0.5)  # Set the badge width to 0.5
+            badge_width = Inches(0.6)  # Set the badge width to 0.6
             badge_height = Inches(0.4)  # Keep the height the same
     
-            # Manually calculate the position of the badge inside the cell
-            # Use a fixed left position based on table width and adjust top based on row height
-            left = tbl.cell(1, c).left  # Get the left position of the current cell
-            top = tbl.cell(1, c).top  # Get the top position of the current cell
-            width = tbl.cell(1, c).width  # Get the width of the current cell
-            height = row_height  # Use calculated row height as the vertical position for badge
+            # Calculate position to center the badge inside the cell
+            cell_left  = left + sum(Inches(w) for w in col_w[:c])
+            cell_w     = Inches(col_w[c])
+            bx = cell_left + (cell_w - badge_width) / 2  # Adjusted for new width
+            # Move the badge much lower by increasing the offset
+            by = top + (height - badge_height) / 2 + Inches(0.08)  # Moved lower
     
-            # Calculate the position to place the badge at the center of the cell
-            badge_left = left + (width - badge_width) / 2  # Center horizontally
-            badge_top = top + (height - badge_height) / 2  # Center vertically
-    
-            # Create the badge shape in the cell
-            shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, badge_left, badge_top, badge_width, badge_height)
+            # Create the badge shape
+            shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, bx, by, badge_width, badge_height)
             shp.fill.solid(); shp.fill.fore_color.rgb = color  # Set color based on the status (IW or FW)
             shp.line.color.rgb = RGBColor(255, 255, 255)
     
@@ -1646,7 +1638,8 @@ def step17_export_to_ppt_headings():
             r2 = p2.add_run(); r2.text = badge
             r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255, 255, 255)
 
-    
+
+
 
     # 7) Bullet textbox BELOW the table
     bullet_gap  = Inches(0.1)
