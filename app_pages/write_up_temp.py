@@ -1038,28 +1038,6 @@ def step15_display_selected_fund():
     # Now use this selected fund for further details
     st.write(f"Details for: {selected_fund}")
 
-    # Display the fund details as before
-    # --- (Existing code for displaying the details of the selected fund) ---
-
-    # === Step 1: Page 1 Metadata ===
-    st.markdown("**Step 1: Page 1 Metadata**")
-    st.write(f"- Report Date:   {st.session_state.get('report_date','N/A')}")
-    st.write(f"- Total Options: {st.session_state.get('total_options','N/A')}")
-    st.write(f"- Prepared For:  {st.session_state.get('prepared_for','N/A')}")
-    st.write(f"- Prepared By:   {st.session_state.get('prepared_by','N/A')}")
-
-    # === Step 2: Table of Contents Pages ===
-    st.markdown("**Step 2: Table of Contents**")
-    for key,label in [
-        ("performance_page","Fund Performance Current vs Proposed"),
-        ("calendar_year_page","Fund Performance Calendar Year"),
-        ("r3yr_page","MPT 3Yr Risk Analysis"),
-        ("r5yr_page","MPT 5Yr Risk Analysis"),
-        ("scorecard_page","Fund Scorecard"),
-        ("factsheets_page","Fund Factsheets")
-    ]:
-        st.write(f"- {label}: {st.session_state.get(key,'N/A')}")
-
     # === Step 3: Scorecard Metrics ===
     st.markdown("**Step 3: Scorecard Metrics**")
     blocks = st.session_state.get("fund_blocks", [])
