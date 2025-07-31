@@ -201,72 +201,78 @@ def step4_ips_screen():
     ]
     st.subheader("Step 4: IPS Investment Criteria Screening")
 
+    # Conversion function to map fund scorecard metrics to IPS criteria
+    def convert_scorecard_to_ips(scorecard_metrics, fund_type="active"):
+        # Initialize an empty dictionary to store IPS criteria results
+        ips_criteria = {f"IPS Investment Criteria {i}": "Fail" for i in range(1, 12)}
+
+        if fund_type == "active":
+            # Active Fund Conversion Logic
+            if scorecard_metrics[1] == "Pass": ips_criteria[1] = "Pass"
+            if scorecard_metrics[2] == "Pass": ips_criteria[2] = "Pass"
+            if scorecard_metrics[4] == "Pass": ips_criteria[3] = "Pass"
+            if scorecard_metrics[7] == "Pass": ips_criteria[4] = "Pass"
+            if scorecard_metrics[11] == "Pass": ips_criteria[5] = "Pass"
+            if scorecard_metrics[3] == "Pass": ips_criteria[6] = "Pass"
+            if scorecard_metrics[5] == "Pass": ips_criteria[7] = "Pass"
+            if scorecard_metrics[8] == "Pass": ips_criteria[8] = "Pass"
+            if scorecard_metrics[12] == "Pass": ips_criteria[9] = "Pass"
+            if scorecard_metrics[6] == "Pass": ips_criteria[10] = "Pass"
+            ips_criteria[11] = "Pass"  # Always Pass for IPS Investment Criteria 11
+
+        elif fund_type == "passive":
+            # Passive Fund Conversion Logic
+            if scorecard_metrics[1] == "Pass": ips_criteria[1] = "Pass"
+            if scorecard_metrics[9] == "Pass": ips_criteria[2] = "Pass"
+            if scorecard_metrics[4] == "Pass": ips_criteria[3] = "Pass"
+            if scorecard_metrics[7] == "Pass": ips_criteria[4] = "Pass"
+            if scorecard_metrics[13] == "Pass": ips_criteria[5] = "Pass"
+            if scorecard_metrics[10] == "Pass": ips_criteria[6] = "Pass"
+            if scorecard_metrics[5] == "Pass": ips_criteria[7] = "Pass"
+            if scorecard_metrics[8] == "Pass": ips_criteria[8] = "Pass"
+            if scorecard_metrics[14] == "Pass": ips_criteria[9] = "Pass"
+            if scorecard_metrics[6] == "Pass": ips_criteria[10] = "Pass"
+            ips_criteria[11] = "Pass"  # Always Pass for IPS Investment Criteria 11
+
+        return ips_criteria
+
     for b in st.session_state["fund_blocks"]:
         name = b["Fund Name"]
-        is_passive = "bitcoin" in name.lower()
+        is_passive = "bitcoin" in name.lower()  # Assuming funds with 'bitcoin' are passive; adjust as needed
         statuses, reasons = {}, {}
 
-        # Manager Tenure ≥3
-        info = next((m["Info"] for m in b["Metrics"] if m["Metric"]=="Manager Tenure"), "")
-        yrs = float(re.search(r"(\d+\.?\d*)", info).group(1)) if re.search(r"(\d+\.?\d*)", info) else 0
-        ok = yrs>=3
-        statuses["Manager Tenure"] = ok
-        reasons["Manager Tenure"] = f"{yrs} yrs {'≥3' if ok else '<3'}"
+        # Extract the scorecard metrics and convert them to IPS criteria
+        scorecard_metrics = {
+            1: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Manager Tenure"), "Fail"),
+            2: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Excess Performance"), "Fail"),
+            3: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Excess Performance (5Yr)"), "Fail"),
+            4: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Peer Return Rank (3Yr)"), "Fail"),
+            5: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Peer Return Rank (5Yr)"), "Fail"),
+            6: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Expense Ratio Rank"), "Fail"),
+            7: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Sharpe Ratio Rank (3Yr)"), "Fail"),
+            8: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Sharpe Ratio Rank (5Yr)"), "Fail"),
+            9: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "R-Squared (3Yr)"), "Fail"),
+            10: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "R-Squared (5Yr)"), "Fail"),
+            11: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Sortino Ratio Rank (3Yr)"), "Fail"),
+            12: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Sortino Ratio Rank (5Yr)"), "Fail"),
+            13: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Tracking Error Rank (3Yr)"), "Fail"),
+            14: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Tracking Error Rank (5Yr)"), "Fail"),
+        }
 
-        # map each IPS metric
-        for metric in IPS[1:]:  # skip tenure
-            m = next((x for x in b["Metrics"] if x["Metric"].startswith(metric.split()[0])), None)
-            info = m["Info"] if m else ""
-            if "Excess Performance" in metric:
-                val_m = re.search(r"([-+]?\d*\.\d+)%", info)
-                val = float(val_m.group(1)) if val_m else 0
-                ok = (val>0) if "3Yr" in metric else (val>0)
-                statuses[metric] = ok
-                reasons[metric] = f"{val}%"
-            elif "R-Squared" in metric:
-                pct_m = re.search(r"(\d+\.\d+)%", info)
-                pct = float(pct_m.group(1)) if pct_m else 0
-                ok = (pct>=95) if is_passive else True
-                statuses[metric] = ok
-                reasons[metric] = f"{pct}%"
-            elif "Peer Return" in metric or "Sharpe Ratio" in metric:
-                rank_m = re.search(r"(\d+)", info)
-                rank = int(rank_m.group(1)) if rank_m else 999
-                ok = rank<=50
-                statuses[metric] = ok
-                reasons[metric] = f"Rank {rank}"
-            elif "Sortino Ratio" in metric or "Tracking Error" in metric:
-                rank_m = re.search(r"(\d+)", info)
-                rank = int(rank_m.group(1)) if rank_m else 999
-                if "Sortino" in metric and not is_passive:
-                    ok = rank<=50
-                elif "Tracking Error" in metric and is_passive:
-                    ok = rank<90
-                else:
-                    ok = True
-                statuses[metric] = ok
-                reasons[metric] = f"Rank {rank}"
-            elif "Expense Ratio" in metric:
-                rank_m = re.search(r"(\d+)", info)
-                rank = int(rank_m.group(1)) if rank_m else 999
-                ok = rank<=50
-                statuses[metric] = ok
-                reasons[metric] = f"Rank {rank}"
+        ips_criteria = convert_scorecard_to_ips(scorecard_metrics, fund_type="passive" if is_passive else "active")
 
-        # count fails
-        fails = sum(not v for v in statuses.values())
-        if fails<=4:
-            overall="Passed IPS Screen"
-        elif fails==5:
-            overall="Informal Watch (IW)"
-        else:
-            overall="Formal Watch (FW)"
+        # Map the converted IPS criteria to statuses
+        for idx, criterion in enumerate(ips_criteria):
+            statuses[IPS[idx]] = "✅" if ips_criteria[criterion] == "Pass" else "❌"
+            reasons[IPS[idx]] = f"{ips_criteria[criterion]}"
 
+        # Display the fund's IPS status
         st.markdown(f"### {name} ({'Passive' if is_passive else 'Active'})")
-        st.write(f"**Overall:** {overall} ({fails} fails)")
-        for m in IPS:
-            sym = "✅" if statuses.get(m,False) else "❌"
-            st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
+        st.write(f"**Overall IPS Status:** {statuses['Manager Tenure']} ({sum(1 for v in statuses.values() if v == '✅')} passes)")
+
+        for criterion, status in statuses.items():
+            st.write(f"- {status} **{criterion}**: {reasons.get(criterion, '—')}")
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
