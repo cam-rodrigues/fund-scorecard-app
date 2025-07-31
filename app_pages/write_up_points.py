@@ -1590,9 +1590,11 @@ def step17_export_to_ppt_headings():
         r.font.name = "Cambria"; r.font.size = Pt(12); r.font.bold = True; r.font.color.rgb = RGBColor(0, 0, 0)
         p.alignment = PP_ALIGN.CENTER
     
-    # For a wider badge, increase the size from 0.4 to a larger value
-    badge_size = Inches(0.6)  # Increase to make the badge wider
+    # For a wider badge, increase the width while keeping the height the same
+    badge_width = Inches(0.8)  # Increase the width to make the badge wider
+    badge_height = Inches(0.4)  # Keep the height the same
     
+        
     # Data row formatting
     for c, val in enumerate(vals):
         cell = tbl.cell(1, c)
