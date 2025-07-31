@@ -1591,8 +1591,8 @@ def step17_export_to_ppt_headings():
         p.alignment = PP_ALIGN.CENTER
     
     # For a wider badge, increase the width while keeping the height the same
-# For a wider badge, increase the width while keeping the height the same
-    badge_width = Inches(0.6)  # Increased width to make the badge wider
+    # For a wider badge, increase the width while keeping the height the same
+    badge_width = Inches(0.8)  # Increased width to make the badge wider
     badge_height = Inches(0.4)  # Keep the height the same
     
     # Data row formatting
@@ -1615,14 +1615,14 @@ def step17_export_to_ppt_headings():
             # For IPS Status, add the badge (IW or FW)
             txt = str(val).lower()
             # Adjusted badge size (wider width with same height)
-            badge_width = Inches(0.6)  # Wider badge width
+            badge_width = Inches(0.8)  # Wider badge width
             badge_height = Inches(0.4)  # Keep the height the same
     
             # Calculate position to center the badge inside the cell
             cell_left  = left + sum(Inches(w) for w in col_w[:c])
             cell_w     = Inches(col_w[c])
             bx = cell_left + (cell_w - badge_width) / 2  # Adjusted for new width
-            by = top + (height - badge_height) / 2 + Inches(0.04)  # Moved the badge up slightly
+            by = top + (height - badge_height) / 2 + Inches(0.05)  # Slightly moved up
     
             # Create the badge shape
             shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, bx, by, badge_width, badge_height)
@@ -1636,6 +1636,7 @@ def step17_export_to_ppt_headings():
             p2.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE  # Center the text vertically
             r2 = p2.add_run(); r2.text = badge
             r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255, 255, 255)
+
 
 
 
