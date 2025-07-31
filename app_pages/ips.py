@@ -1,14 +1,19 @@
-# Step 1: Extract Header Information from First Page
 import re
 import streamlit as st
 import pdfplumber
 
-# Assume `uploaded_mpi` is the file-like object from Step 0
+# Step 0: Upload MPI PDF
+uploaded_mpi = st.file_uploader("Upload your MPI PDF", type=["pdf"])
+if not uploaded_mpi:
+    st.warning("Please upload an MPI PDF to continue.")
+    st.stop()
+st.success(f"Uploaded: {uploaded_mpi.name}")
+
+# Step 1: Extract Header Information from First Page
 with pdfplumber.open(uploaded_mpi) as pdf:
     first_page_text = pdf.pages[0].extract_text() or ""
 
 # 1) Determine the quarter based on the date at top-left
-#    Dates are in the form M/D/20YY
 date_match = re.search(r"(3/31/20\d{2}|6/30/20\d{2}|9/30/20\d{2}|12/31/20\d{2})", first_page_text)
 quarter_map = {
     "3/31":  "Q1",
@@ -18,7 +23,7 @@ quarter_map = {
 }
 if date_match:
     full_date = date_match.group(1)             # e.g. "3/31/2025"
-    month_day = full_date.rsplit("/", 1)[0]      # e.g. "3/31"
+    month_day = "/".join(full_date.split("/")[:2])  # e.g. "3/31"
     quarter = quarter_map.get(month_day, "Unknown Quarter")
     report_year = full_date.split("/")[-1]       # e.g. "2025"
     st.write(f"**Report Quarter:** {quarter} {report_year}")
