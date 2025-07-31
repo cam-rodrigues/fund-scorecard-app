@@ -144,12 +144,34 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     # Save extracted data to session state
     st.session_state["fund_blocks"] = fund_blocks
 
-    # Display the results for the extracted fund blocks
-    st.subheader("Step 3.5: Key Details per Metric")
-    for b in fund_blocks:
-        st.markdown(f"### {b['Fund Name']}")
-        for m in b["Metrics"]:
-            st.write(f"- **{m['Metric']}**: {m['Info'].strip()} (Status: {m['Status']})")
+    # Prepare data for the table (Fund Name and Metrics 1-14)
+    table_data = []
+    for block in fund_blocks:
+        row = [block["Fund Name"]]  # First column is the fund name
+        for i in range(1, 15):  # Metrics 1-14
+            # Find the status for each metric
+            metric_name = f"Metric {i}"
+
+            # Log each metric being checked to see where the issue might be
+            st.write(f"Checking {metric_name} for {block['Fund Name']}")
+
+            metric = next((m for m in block["Metrics"] if m["Metric"] == metric_name), None)
+
+            if metric:
+                status = metric["Status"]
+            else:
+                status = "Fail"
+
+            st.write(f"  {metric_name} Status: {status}")
+            row.append(status)
+        table_data.append(row)
+
+    # Create DataFrame for display
+    df = pd.DataFrame(table_data, columns=["Fund Name"] + [f"Metric {i}" for i in range(1, 15)])
+
+    # Display the DataFrame
+    st.subheader("Step 3.5: Fund Metrics Overview")
+    st.dataframe(df, use_container_width=True)
 
     # Display the investment option count comparison
     st.subheader("Step 3.6: Investment Option Count")
@@ -160,6 +182,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         st.success("✅ Counts match.")
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
+
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
