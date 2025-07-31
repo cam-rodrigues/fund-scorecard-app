@@ -86,103 +86,83 @@ def process_toc(text):
     st.session_state['r5yr_page'] = r5yr_page
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-def step3_process_scorecard(pdf, start_page, declared_total):
-    """
-    Processes the scorecard section of the PDF starting from the specified page and extracts
-    fund name, metrics, and their status (Pass or Review).
-    """
-    pages = []
-    # Loop through all pages starting from the start_page
-    for p in pdf.pages[start_page - 1:]:
-        txt = p.extract_text() or ""
-        pages.append(txt)
+import re
+import streamlit as st
+import pdfplumber
 
+# === Step 3 ===
+def step3_process_scorecard(pdf, start_page, declared_total):
+    pages = []
+    
+    # Collect all text from the pages starting from the specified start_page
+    for p in pdf.pages[start_page-1:]:
+        txt = p.extract_text() or ""
+        if "Fund Scorecard" in txt:
+            pages.append(txt)
+        else:
+            break
+
+    # Split collected text into lines
     lines = "\n".join(pages).splitlines()
 
-    # Define the metric names for the 14 fund scorecards
-    metric_labels = [
-        "Manager Tenure",
-        "Excess Performance",
-        "Excess Performance (5Yr)",
-        "Peer Return Rank (3Yr)",
-        "Peer Return Rank (5Yr)",
-        "Expense Ratio Rank",
-        "Sharpe Ratio Rank (3Yr)",
-        "Sharpe Ratio Rank (5Yr)",
-        "R-Squared (3Yr)",
-        "R-Squared (5Yr)",
-        "Sortino Ratio Rank (3Yr)",
-        "Sortino Ratio Rank (5Yr)",
-        "Tracking Error Rank (3Yr)",
-        "Tracking Error Rank (5Yr)"
-    ]
+    # Ignore lines before the criteria threshold
+    idx = next((i for i, l in enumerate(lines) if "Criteria Threshold" in l), None)
+    if idx is not None:
+        lines = lines[idx+1:]  # Only look after this section
 
     fund_blocks = []
-    name = None
+    fund_name = None
     metrics = []
+    metric_mapping = {
+        "Manager Tenure": "Fundscorecard 1",
+        "Excess Performance (3Yr)": "Fundscorecard 2",
+        "Excess Performance (5Yr)": "Fundscorecard 3",
+        "Peer Return Rank (3Yr)": "Fundscorecard 4",
+        "Peer Return Rank (5Yr)": "Fundscorecard 5",
+        "Expense Ratio Rank": "Fundscorecard 6",
+        "Sharpe Ratio Rank (3Yr)": "Fundscorecard 7",
+        "Sharpe Ratio Rank (5Yr)": "Fundscorecard 8",
+        "R-Squared (3Yr)": "Fundscorecard 9",
+        "R-Squared (5Yr)": "Fundscorecard 10",
+        "Sortino Ratio Rank (3Yr)": "Fundscorecard 11",
+        "Sortino Ratio Rank (5Yr)": "Fundscorecard 12",
+        "Tracking Error Rank (3Yr)": "Fundscorecard 13",
+        "Tracking Error Rank (5Yr)": "Fundscorecard 14"
+    }
 
-    # Loop through lines to extract fund names, metric names, and statuses (Pass/Review)
     for i, line in enumerate(lines):
-        # Ignore lines that mention "Criteria Threshold"
-        if "Criteria Threshold" in line:
-            continue
+        # Extract fund name before the first metric
+        if line.strip() and not any(metric in line for metric in metric_mapping.keys()):
+            if fund_name and metrics:
+                fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
+            fund_name = line.strip()
+            metrics = []
+        
+        # Match the metrics and their status
+        for metric, code in metric_mapping.items():
+            if metric in line:
+                match = re.search(rf"({metric})\s+(Pass|Review|Fail)\s*(.*?)", line)
+                if match:
+                    metric_name, status, info = match.groups()
+                    metrics.append({"Metric": metric_name, "Status": status, "Info": info.strip()})
+    
+    # Add the last fund block if applicable
+    if fund_name and metrics:
+        fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
 
-        # Check if the line matches any of the defined metrics (metrics start here)
-        if any(metric in line for metric in metric_labels):
-            # If we find a metric, capture the fund name just above the metric
-            if name is None:
-                # Look for the previous non-empty line as the fund name
-                for j in range(i - 1, -1, -1):
-                    if lines[j].strip():  # Find the first non-empty line above the metric
-                        name = lines[j].strip()
-                        break
-
-            # Regex to match: Metric Name, Status (Pass/Review), and Info
-            m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.*)$", line.strip())
-            if m:
-                metric, status, info = m.groups()
-
-                # Append the metric, its status, and the information to the metrics list
-                if metric in metric_labels:
-                    metrics.append({"Metric": metric, "Status": status, "Info": info})
-
-    # Ensure the last fund block is added
-    if name and metrics:
-        fund_blocks.append({"Fund Name": name, "Metrics": metrics})
-
-    # Save extracted data to session state
+    # Save the processed fund blocks into session state
     st.session_state["fund_blocks"] = fund_blocks
 
-    # Prepare data for the table (Fund Name and Metrics 1-14)
-    table_data = []
-    for block in fund_blocks:
-        row = [block["Fund Name"]]  # First column is the fund name
-        
-        # Loop through the metrics (1 to 14) based on the predefined labels
-        for i in range(14):  # Metrics 1-14 (fixed number of metrics)
-            metric_label = metric_labels[i]
+    # Display the fund scorecard metrics
+    st.subheader("Step 3.5: Fund Scorecard Metrics")
+    for b in fund_blocks:
+        st.markdown(f"### {b['Fund Name']}")
+        table_data = [
+            [m["Metric"], m["Status"], m["Info"]] for m in b["Metrics"]
+        ]
+        st.table(table_data)
 
-            # Find the corresponding metric in the current fund block
-            metric = next((m for m in block["Metrics"] if m["Metric"] == metric_label), None)
-
-            # If the metric is found, use its status ("Pass" or "Review"); otherwise, mark as "Fail"
-            if metric:
-                status = metric["Status"]
-            else:
-                status = "Fail"  # Default to "Fail" if the metric is not found
-
-            row.append(status)  # Add status to the row for the respective metric
-
-        table_data.append(row)  # Add the completed row (fund + metrics) to the table data
-
-    # Create DataFrame for display
-    df = pd.DataFrame(table_data, columns=["Fund Name"] + [f"Fundscorecard {i+1}" for i in range(14)])
-
-    # Display the DataFrame
-    st.subheader("Step 3.5: Fund Metrics Overview")
-    st.dataframe(df, use_container_width=True)
-
-    # Display the investment option count comparison
+    # Display the counts
     st.subheader("Step 3.6: Investment Option Count")
     count = len(fund_blocks)
     st.write(f"- Declared: **{declared_total}**")
@@ -191,6 +171,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         st.success("✅ Counts match.")
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
+
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
