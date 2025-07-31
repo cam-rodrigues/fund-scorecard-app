@@ -1533,14 +1533,24 @@ def step17_export_to_ppt_headings():
             rk = int(re.search(r"(\d+)", raw).group(1)) if re.search(r"(\d+)", raw) else 999
             statuses[crit] = rk <= 50
 
-    fails   = sum(not statuses[c] for c in IPS)
+    # Ensure the "overall" status is correctly determined
+    fails = sum(not statuses[c] for c in IPS)
     overall = "Passed IPS Screen" if fails <= 4 else ("Informal Watch (IW)" if fails == 5 else "Formal Watch (FW)")
-
-    row = {"Category": category, "Time Period": st.session_state.get("report_date",""), "Plan Assets": "$"}
+    
+    # Set the badge and color logic based on the 'overall' status
+    badge, color = "", RGBColor(0,176,80)  # Default: green (✔) for Passed
+    if "Informal Watch" in overall:
+        badge, color = "IW", RGBColor(255,165,0)  # Orange for Informal Watch
+    elif "Formal Watch" in overall:
+        badge, color = "FW", RGBColor(192,0,0)  # Red for Formal Watch
+    
+    # Set the badge in the row data
+    row = {"Category": category, "Time Period": st.session_state.get("report_date", ""), "Plan Assets": "$"}
     for i, crit in enumerate(IPS, start=1):
         row[str(i)] = statuses[crit]
-    row["IPS Status"] = overall
-
+    row["IPS Status"] = overall  # Update the status field with the overall result
+    
+    # Define table width and column widths
     slide_w = prs.slide_width
     table_w = Inches(9)
     left    = (slide_w - table_w) // 2
@@ -1549,69 +1559,69 @@ def step17_export_to_ppt_headings():
     cols    = 15
     col_w   = [1.2, 1.2, 1.2] + [0.4]*11 + [1.0]
     tbl     = slide1.shapes.add_table(2, cols, left, top, table_w, height).table
+    
+    # Set column widths
     for idx, w in enumerate(col_w):
         tbl.columns[idx].width = Inches(w)
-
-    headers = ["Category","Time Period","Plan Assets"] + [str(i) for i in range(1,12)] + ["IPS Status"]
-    vals    = [row["Category"],row["Time Period"],row["Plan Assets"]] + [row[str(i)] for i in range(1,12)] + [row["IPS Status"]]
-
+    
+    # Table headers and data values
+    headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
+    vals = [row["Category"], row["Time Period"], row["Plan Assets"]] + [row[str(i)] for i in range(1, 12)] + [row["IPS Status"]]
+    
+    # Helper function for setting borders
     def _set_border(cell, color=RGBColor(0,0,0)):
         tc   = cell._tc
         tcPr = tc.get_or_add_tcPr()
-        hex_val = "{:02X}{:02X}{:02X}".format(color[0],color[1],color[2])
-        for ln_tag in ("a:lnL","a:lnR","a:lnT","a:lnB"):
+        hex_val = "{:02X}{:02X}{:02X}".format(color[0], color[1], color[2])
+        for ln_tag in ("a:lnL", "a:lnR", "a:lnT", "a:lnB"):
             ln   = OxmlElement(ln_tag)
             lnPr = OxmlElement("a:solidFill")
             srgb = OxmlElement("a:srgbClr"); srgb.set("val", hex_val)
             lnPr.append(srgb); ln.append(lnPr); tcPr.append(ln)
-
-    # Header row
+    
+    # Header row formatting
     for c, h in enumerate(headers):
         cell = tbl.cell(0, c)
         _set_border(cell)
-        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
+        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255, 255, 255)
         tfc = cell.text_frame; tfc.clear()
         tfc.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE; tfc.margin_top = tfc.margin_bottom = 0
         p = tfc.paragraphs[0]; r = p.add_run(); r.text = h
-        r.font.name = "Cambria"; r.font.size = Pt(12); r.font.bold = True; r.font.color.rgb = RGBColor(0,0,0)
+        r.font.name = "Cambria"; r.font.size = Pt(12); r.font.bold = True; r.font.color.rgb = RGBColor(0, 0, 0)
         p.alignment = PP_ALIGN.CENTER
-
-    # Data row
+    
+    # Data row formatting
     for c, val in enumerate(vals):
         cell = tbl.cell(1, c)
         _set_border(cell)
-        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255,255,255)
+        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(255, 255, 255)
         tfc = cell.text_frame; tfc.clear()
         tfc.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE; tfc.margin_top = tfc.margin_bottom = 0
         p = tfc.paragraphs[0]; p.font.name = "Cambria"; p.font.size = Pt(12); p.alignment = PP_ALIGN.CENTER
-
+    
         if c < 14:
             if val is True:
-                p.text = "✔"; p.runs[0].font.color.rgb = RGBColor(0,176,80)
+                p.text = "✔"; p.runs[0].font.color.rgb = RGBColor(0,176,80)  # Green for passed
             elif val is False:
-                p.text = "✖"; p.runs[0].font.color.rgb = RGBColor(192,0,0)
+                p.text = "✖"; p.runs[0].font.color.rgb = RGBColor(192,0,0)  # Red for failed
             else:
                 p.text = str(val)
         else:
+            # For IPS Status, add the badge (IW or FW)
             txt = str(val).lower()
-            if "formal" in txt:
-                badge, color = "FW", RGBColor(192,0,0)
-            elif "informal" in txt:
-                badge, color = "IW", RGBColor(255,165,0)
-            else:
-                badge, color = "✔", RGBColor(0,176,80)
             badge_size = Inches(0.4)
             cell_left  = left + sum(Inches(w) for w in col_w[:c])
             cell_w     = Inches(col_w[c])
             bx = cell_left + (cell_w - badge_size)/2
             by = top + (height/2) + Inches(0.07)
             shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, bx, by, badge_size, badge_size)
-            shp.fill.solid(); shp.fill.fore_color.rgb = color
-            shp.line.color.rgb = RGBColor(255,255,255)
+            shp.fill.solid(); shp.fill.fore_color.rgb = color  # Set color based on the status (IW or FW)
+            shp.line.color.rgb = RGBColor(255, 255, 255)
             tf2 = shp.text_frame; tf2.clear()
             p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.CENTER
             r2 = p2.add_run(); r2.text = badge
-            r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255,255,255)
+            r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255, 255, 255)
+
 
     # 7) Bullet textbox BELOW the table
     bullet_gap  = Inches(0.1)
