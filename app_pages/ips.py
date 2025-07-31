@@ -1,365 +1,380 @@
 import re
-import pdfplumber
-import pandas as pd
-import numpy as np
 import streamlit as st
+import pdfplumber
 from calendar import month_name
+import pandas as pd
 from rapidfuzz import fuzz
+from pptx import Presentation
+from pptx.util import Inches
+from io import BytesIO
 
-# === Utility ===
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+# === Utility: Extract & Label Report Date ===
 def extract_report_date(text):
+    # find the first quarter‐end or any mm/dd/yyyy
     dates = re.findall(r'(\d{1,2})/(\d{1,2})/(20\d{2})', text or "")
     for month, day, year in dates:
         m, d = int(month), int(day)
+        # quarter‐end mapping
         if (m, d) in [(3,31), (6,30), (9,30), (12,31)]:
             q = { (3,31): "1st", (6,30): "2nd", (9,30): "3rd", (12,31): "4th" }[(m,d)]
             return f"{q} QTR, {year}"
+        # fallback: human‐readable
         return f"As of {month_name[m]} {d}, {year}"
-    return "Unknown"
+    return None
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-def extract_number(s):
-    m = re.search(r"([-+]?\d*\.?\d+)", s or "")
-    return float(m.group(1)) if m else np.nan
-
-def extract_percent(s):
-    m = re.search(r"([-+]?\d*\.?\d+)%", s or "")
-    return float(m.group(1)) if m else np.nan
-
-def extract_rank(s):
-    m = re.search(r"(\d+)", s or "")
-    return int(m.group(1)) if m else np.nan
-
-def is_passive(name):
-    return "index" in name.lower()
-
-def pass_fail(val, metric_name, passive):
-    if pd.isna(val):
-        return False
-    if metric_name == "Manager Tenure":
-        return val >= 3
-    if metric_name.startswith("Excess Performance"):
-        return val > 0
-    if "Peer Return Rank" in metric_name or "Sharpe Ratio Rank" in metric_name or "Sortino Ratio Rank" in metric_name:
-        return val <= 50
-    if metric_name == "Expense Ratio Rank":
-        return val <= 50
-    if "R-Squared" in metric_name:
-        return val >= 95 if passive else True
-    if "Tracking Error Rank" in metric_name:
-        return val < 90 if passive else True
-    return False
-
-# === Step 1: Header / declared fund count ===
-def process_page1(page_text):
-    # Quarter/Year
-    date_match = re.search(r"(3/31/20\d{2}|6/30/20\d{2}|9/30/20\d{2}|12/31/20\d{2})", page_text)
-    quarter = extract_report_date(date_match.group(0)) if date_match else "Unknown"
-
-    # Prepared for / by
-    prepared_for = ""
-    prepared_by = ""
-    pf = re.search(r"Prepared For[:\s]*(.+)", page_text)
-    pb = re.search(r"Prepared By[:\s]*(.+)", page_text)
-    if pf:
-        prepared_for = pf.group(1).strip()
-    if pb:
-        prepared_by = pb.group(1).strip()
-
-    # Declared number of funds: look for patterns like "Total Funds: 5" or "5 Funds"
-    declared_funds = None
-    m = re.search(r"Total\s+Funds[:\s]*([0-9]+)", page_text, flags=re.IGNORECASE)
-    if not m:
-        m = re.search(r"([0-9]+)\s+Funds", page_text, flags=re.IGNORECASE)
-    if m:
-        declared_funds = int(m.group(1))
+# === Step 1 & 1.5: Page 1 Extraction ===
+def process_page1(text):
+    report_date = extract_report_date(text)
+    if report_date:
+        st.session_state['report_date'] = report_date
+        st.success(f"Report Date: {report_date}")
     else:
-        # fallback: try "Total Options" or similar
-        m2 = re.search(r"Total\s+Options[:\s]*([0-9]+)", page_text, flags=re.IGNORECASE)
-        if m2:
-            declared_funds = int(m2.group(1))
+        st.error("Could not detect report date on page 1.")
 
-    st.session_state["report_metadata"] = {
-        "Quarter": quarter,
-        "Prepared For": prepared_for or "N/A",
-        "Prepared By": prepared_by or "N/A",
-        "Declared Fund Count": declared_funds,
-    }
+    m = re.search(r"Total Options:\s*(\d+)", text or "")
+    st.session_state['total_options'] = int(m.group(1)) if m else None
 
-# === Step 2: TOC locator ===
-def process_toc(full_text):
-    def find_page(pattern):
-        m = re.search(rf"{pattern}.*?(\d{{1,3}})", full_text, flags=re.IGNORECASE)
-        return int(m.group(1)) - 1 if m else None
-    toc = {}
-    toc["Fund Scorecard"] = find_page("Fund Scorecard")
-    toc["Fund Performance"] = find_page("Fund Performance")
-    toc["Calendar Year Performance"] = find_page("Calendar Year Performance")
-    toc["MPT 3Yr Risk Analysis"] = find_page("MPT Statistics.*?3Yr")
-    toc["MPT 5Yr Risk Analysis"] = find_page("MPT Statistics.*?5Yr")
-    toc["Fund Factsheets"] = find_page("Fund Factsheet") or find_page("Factsheet")
-    st.session_state["toc_pages"] = toc
+    m = re.search(r"Prepared For:\s*\n(.*)", text or "")
+    st.session_state['prepared_for'] = m.group(1).strip() if m else None
 
-def step3_process_scorecard(pdf):
-    toc = st.session_state.get("toc_pages", {})
-    start_page = toc.get("Fund Scorecard")
-    # Determine end of section: use next known section after scorecard (e.g., Fund Performance)
-    end_page = toc.get("Fund Performance")
-    if start_page is None:
-        st.error("Scorecard start page not found.")
-        return []
+    m = re.search(r"Prepared By:\s*(.*)", text or "")
+    pb = m.group(1).strip() if m else ""
+    if not pb or "mpi stylus" in pb.lower():
+        pb = "Procyon Partners, LLC"
+    st.session_state['prepared_by'] = pb
 
-    # Collect text across the whole scorecard section
-    pages_to_scan = []
-    if end_page is not None and end_page > start_page:
-        pages_to_scan = list(range(start_page, end_page))
-    else:
-        # fallback: scan start page plus next 2 if no clear boundary
-        pages_to_scan = [p for p in range(start_page, min(start_page + 3, len(pdf.pages)))]
+    st.subheader("Page 1 Metadata")
+    st.write(f"- Total Options: {st.session_state['total_options']}")
+    st.write(f"- Prepared For: {st.session_state['prepared_for']}")
+    st.write(f"- Prepared By: {pb}")
 
-    raw_combined = ""
-    for p in pages_to_scan:
-        raw_combined += "\n" + (pdf.pages[p].extract_text() or "")
 
-    lines = [l.strip() for l in raw_combined.split("\n") if l.strip()]
+# === Step 2: Table of Contents Extraction ===
+def process_toc(text):
+    perf = re.search(r"Fund Performance[^\d]*(\d{1,3})", text or "")
+    sc   = re.search(r"Fund Scorecard\s+(\d{1,3})", text or "")
+    fs   = re.search(r"Fund Factsheets\s+(\d{1,3})", text or "")
+    cy   = re.search(r"Fund Performance: Calendar Year\s+(\d{1,3})", text or "")
+    r3yr = re.search(r"Risk Analysis: MPT Statistics \(3Yr\)\s+(\d{1,3})", text or "")
+    r5yr = re.search(r"Risk Analysis: MPT Statistics \(5Yr\)\s+(\d{1,3})", text or "")
+
+    perf_page = int(perf.group(1)) if perf else None
+    sc_page   = int(sc.group(1))   if sc   else None
+    fs_page   = int(fs.group(1))   if fs   else None
+    cy_page   = int(cy.group(1))   if cy   else None
+    r3yr_page = int(r3yr.group(1)) if r3yr else None
+    r5yr_page = int(r5yr.group(1)) if r5yr else None
+
+    st.subheader("Table of Contents Pages")
+    st.write(f"- Fund Performance Current vs Proposed Comparison : {perf_page}")
+    st.write(f"- Fund Performance Calendar Year : {cy_page}")
+    st.write(f"- MPT 3Yr Risk Analysis : {r3yr_page}")
+    st.write(f"- MPT 5Yr Risk Analysis : {r5yr_page}")
+    st.write(f"- Fund Scorecard:   {sc_page}")
+    st.write(f"- Fund Factsheets :  {fs_page}")
+    
+
+
+    # Store in session state for future reference
+    st.session_state['performance_page'] = perf_page
+    st.session_state['scorecard_page']   = sc_page
+    st.session_state['factsheets_page']  = fs_page
+    st.session_state['calendar_year_page'] = cy_page
+    st.session_state['r3yr_page'] = r3yr_page
+    st.session_state['r5yr_page'] = r5yr_page
+
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+# === Step 3 ===
+def step3_process_scorecard(pdf, start_page, declared_total):
+    pages = []
+    for p in pdf.pages[start_page-1:]:
+        txt = p.extract_text() or ""
+        if "Fund Scorecard" in txt:
+            pages.append(txt)
+        else:
+            break
+    lines = "\n".join(pages).splitlines()
+
+    idx = next((i for i,l in enumerate(lines) if "Criteria Threshold" in l), None)
+    if idx is not None:
+        lines = lines[idx+1:]
 
     fund_blocks = []
-    current = None
+    name = None
+    metrics = []
 
-    # Skip past the explanatory "Criteria Threshold" section by ignoring header until first real fund line
-    # Heuristic for fund header: contains "Fund" and ends with "Criteria." or "Meets Watchlist Criteria." or similar
-    fund_header_pattern = re.compile(r".*Fund.*(Meets Watchlist Criteria\.|Watchlist Criteria\.|Fund$)", flags=re.IGNORECASE)
-
-    metric_line_pattern = re.compile(
-        r"^(Manager Tenure|Excess Performance \(3Yr\)|Excess Performance \(5Yr\)|"
-        r"Peer Return Rank \(3Yr\)|Peer Return Rank \(5Yr\)|Expense Ratio Rank|"
-        r"Sharpe Ratio Rank \(3Yr\)|Sharpe Ratio Rank \(5Yr\)|R-Squared \(3Yr\)|"
-        r"R-Squared \(5Yr\)|Sortino Ratio Rank \(3Yr\)|Sortino Ratio Rank \(5Yr\)|"
-        r"Tracking Error Rank \(3Yr\)|Tracking Error Rank \(5Yr\))\s+(Pass|Review)\s*(.*)$",
-        flags=re.IGNORECASE
-    )
-
-    for i, line in enumerate(lines):
-        # Detect the start of a new fund
-        if fund_header_pattern.match(line):
-            if current:
-                fund_blocks.append(current)
-            # Clean name: strip off trailing descriptor like "Meets Watchlist Criteria."
-            fund_name = re.sub(r"(Meets Watchlist Criteria\.?|Watchlist Criteria\.?)", "", line, flags=re.IGNORECASE).strip()
-            current = {"Fund Name": fund_name, "Metrics": []}
+    for i,line in enumerate(lines):
+        m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
+        if not m:
             continue
+        metric, _, info = m.groups()
 
-        # Within a fund block, capture metrics lines with status
-        if current:
-            m = metric_line_pattern.match(line)
-            if m:
-                metric_name = m.group(1).strip()
-                status = m.group(2).strip().capitalize()  # Pass / Review
-                rest = m.group(3).strip()
-                info = f"{status}" + (f": {rest}" if rest else "")
-                current["Metrics"].append({"Metric": metric_name, "Info": info})
-            else:
-                # Sometimes explanation spills on next line; attach to last metric if exists and doesn't look like a new metric
-                if current["Metrics"]:
-                    last = current["Metrics"][-1]
-                    # Avoid appending if this line looks like a new metric again
-                    if not metric_line_pattern.match(line):
-                        last["Info"] += " " + line
+        if metric == "Manager Tenure":
+            if name and metrics:
+                fund_blocks.append({"Fund Name": name, "Metrics": metrics})
+            # find the fund name from the previous non-blank line
+            prev = ""
+            for j in range(i-1, -1, -1):
+                if lines[j].strip():
+                    prev = lines[j].strip()
+                    break
+            name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", prev).strip()
+            metrics = []
 
-    if current:
-        fund_blocks.append(current)
+        if name:
+            metrics.append({"Metric": metric, "Info": info})
 
-    declared = st.session_state.get("report_metadata", {}).get("Declared Fund Count")
-    if declared is not None and len(fund_blocks) != declared:
-        st.warning(
-            f"Declared fund count is {declared} but extracted {len(fund_blocks)} fund blocks. "
-            "Showing snippet for debugging."
-        )
-        sample = "\n".join(lines[:100])
-        st.code(sample, language="text")
-
-    if not fund_blocks:
-        st.error("No fund blocks parsed. Dumping entire section for inspection.")
-        st.subheader("Raw Scorecard Section Snippet")
-        st.code("\n".join(lines[:300]), language="text")
+    if name and metrics:
+        fund_blocks.append({"Fund Name": name, "Metrics": metrics})
 
     st.session_state["fund_blocks"] = fund_blocks
 
+    st.subheader("Step 3.5: Key Details per Metric")
+    for b in fund_blocks:
+        st.markdown(f"### {b['Fund Name']}")
+        for m in b["Metrics"]:
+            st.write(f"- **{m['Metric']}**: {m['Info'].strip()}")
 
+    st.subheader("Step 3.6: Investment Option Count")
+    count = len(fund_blocks)
+    st.write(f"- Declared: **{declared_total}**")
+    st.write(f"- Extracted: **{count}**")
+    if count == declared_total:
+        st.success("✅ Counts match.")
+    else:
+        st.error(f"❌ Expected {declared_total}, found {count}.")
 
-# === Step 5: Ticker extraction from performance page with fuzzy fallback ===
-def step5_process_performance(pdf):
-    start_page = st.session_state.get("toc_pages", {}).get("Fund Performance")
-    if start_page is None or start_page >= len(pdf.pages):
-        st.error("Fund Performance page not found.")
-        return {}
-    text = pdf.pages[start_page].extract_text() or ""
-    fund_blocks = st.session_state.get("fund_blocks", [])
-    name_to_ticker = {}
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-    # Build a list of candidate tickers by finding parentheses content that looks like tickers
-    candidate_pairs = re.findall(r"([A-Za-z0-9 &\.\-]{3,60})\s*\((\w{1,5})\)", text)
-    # Normalize fund names from performance section
-    for block in fund_blocks:
-        name = block["Fund Name"]
-        found = False
-        for perf_name, ticker in candidate_pairs:
-            # fuzzy match the performance section name to the scorecard name
-            score = fuzz.partial_ratio(name.lower(), perf_name.lower())
-            if score >= 70:
-                name_to_ticker[name] = ticker.upper()
-                found = True
-                break
-        if not found:
-            # direct pattern search for exact sequence
-            pattern = rf"{re.escape(name)}.*?\((\w{{1,5}})\)"
-            m = re.search(pattern, text, flags=re.IGNORECASE)
-            if m:
-                name_to_ticker[name] = m.group(1).upper()
-            else:
-                name_to_ticker[name] = "UNKNOWN"
+# === Step 4: IPS Screening ===
+def step4_ips_screen():
+    IPS = [
+        "Manager Tenure",
+        "Excess Performance (3Yr)",
+        "R-Squared (3Yr)",
+        "Peer Return Rank (3Yr)",
+        "Sharpe Ratio Rank (3Yr)",
+        "Sortino Ratio Rank (3Yr)",
+        "Tracking Error Rank (3Yr)",
+        "Excess Performance (5Yr)",
+        "R-Squared (5Yr)",
+        "Peer Return Rank (5Yr)",
+        "Sharpe Ratio Rank (5Yr)",
+        "Sortino Ratio Rank (5Yr)",
+        "Tracking Error Rank (5Yr)",
+        "Expense Ratio Rank"
+    ]
+    st.subheader("Step 4: IPS Investment Criteria Screening")
 
-    st.session_state["fund_tickers"] = name_to_ticker
+    for b in st.session_state["fund_blocks"]:
+        name = b["Fund Name"]
+        is_passive = "bitcoin" in name.lower()
+        statuses, reasons = {}, {}
 
-# === Step 6: Factsheet placeholder (can be extended) ===
-def step6_process_factsheets(pdf):
-    factsheet_page = st.session_state.get("toc_pages", {}).get("Fund Factsheets")
-    if factsheet_page is None or factsheet_page >= len(pdf.pages):
-        st.error("Factsheet page not found.")
-        return []
-    raw = pdf.pages[factsheet_page].extract_text() or ""
-    fund_blocks = st.session_state.get("fund_blocks", [])
-    facts = []
-    for block in fund_blocks:
-        facts.append({
-            "Fund Name": block["Fund Name"],
-            "Benchmark": "N/A",
-            "Category": "N/A",
-            "Net Assets": "N/A",
-            "Manager": "N/A",
-            "Avg Market Cap": "N/A",
-            "Expense Ratio": "N/A"
-        })
-    st.session_state["fund_factsheets"] = facts
+        # Manager Tenure ≥3
+        info = next((m["Info"] for m in b["Metrics"] if m["Metric"]=="Manager Tenure"), "")
+        yrs = float(re.search(r"(\d+\.?\d*)", info).group(1)) if re.search(r"(\d+\.?\d*)", info) else 0
+        ok = yrs>=3
+        statuses["Manager Tenure"] = ok
+        reasons["Manager Tenure"] = f"{yrs} yrs {'≥3' if ok else '<3'}"
 
-# === Scorecard / IPS table builder ===
-def build_scorecard_tables(fund_blocks, tickers_map):
-    scorecard_rows = []
-    ips_summary = []
+        # map each IPS metric
+        for metric in IPS[1:]:  # skip tenure
+            m = next((x for x in b["Metrics"] if x["Metric"].startswith(metric.split()[0])), None)
+            info = m["Info"] if m else ""
+            if "Excess Performance" in metric:
+                val_m = re.search(r"([-+]?\d*\.\d+)%", info)
+                val = float(val_m.group(1)) if val_m else 0
+                ok = (val>0) if "3Yr" in metric else (val>0)
+                statuses[metric] = ok
+                reasons[metric] = f"{val}%"
+            elif "R-Squared" in metric:
+                pct_m = re.search(r"(\d+\.\d+)%", info)
+                pct = float(pct_m.group(1)) if pct_m else 0
+                ok = (pct>=95) if is_passive else True
+                statuses[metric] = ok
+                reasons[metric] = f"{pct}%"
+            elif "Peer Return" in metric or "Sharpe Ratio" in metric:
+                rank_m = re.search(r"(\d+)", info)
+                rank = int(rank_m.group(1)) if rank_m else 999
+                ok = rank<=50
+                statuses[metric] = ok
+                reasons[metric] = f"Rank {rank}"
+            elif "Sortino Ratio" in metric or "Tracking Error" in metric:
+                rank_m = re.search(r"(\d+)", info)
+                rank = int(rank_m.group(1)) if rank_m else 999
+                if "Sortino" in metric and not is_passive:
+                    ok = rank<=50
+                elif "Tracking Error" in metric and is_passive:
+                    ok = rank<90
+                else:
+                    ok = True
+                statuses[metric] = ok
+                reasons[metric] = f"Rank {rank}"
+            elif "Expense Ratio" in metric:
+                rank_m = re.search(r"(\d+)", info)
+                rank = int(rank_m.group(1)) if rank_m else 999
+                ok = rank<=50
+                statuses[metric] = ok
+                reasons[metric] = f"Rank {rank}"
 
-    for block in fund_blocks:
-        name = block["Fund Name"]
-        ticker = tickers_map.get(name, "UNKNOWN")
-        metrics = {m["Metric"]: m["Info"] for m in block["Metrics"]}
-        passive = is_passive(name)
-
-        row_vals = {
-            "Investment Option": name,
-            "Ticker": ticker,
-            "Manager Tenure": extract_number(metrics.get("Manager Tenure", "")),
-            "Excess Performance (3Yr)": extract_percent(metrics.get("Excess Performance (3Yr)", "")),
-            "Excess Performance (5Yr)": extract_percent(metrics.get("Excess Performance (5Yr)", "")),
-            "Peer Return Rank (3Yr)": extract_rank(metrics.get("Peer Return Rank (3Yr)", "")),
-            "Peer Return Rank (5Yr)": extract_rank(metrics.get("Peer Return Rank (5Yr)", "")),
-            "Expense Ratio Rank": extract_rank(metrics.get("Expense Ratio Rank", "")),
-            "Sharpe Ratio Rank (3Yr)": extract_rank(metrics.get("Sharpe Ratio Rank (3Yr)", "")),
-            "Sharpe Ratio Rank (5Yr)": extract_rank(metrics.get("Sharpe Ratio Rank (5Yr)", "")),
-            "R-Squared (3Yr)": extract_percent(metrics.get("R-Squared (3Yr)", "")),
-            "R-Squared (5Yr)": extract_percent(metrics.get("R-Squared (5Yr)", "")),
-            "Sortino Ratio Rank (3Yr)": extract_rank(metrics.get("Sortino Ratio Rank (3Yr)", "")),
-            "Sortino Ratio Rank (5Yr)": extract_rank(metrics.get("Sortino Ratio Rank (5Yr)", "")),
-            "Tracking Error Rank (3Yr)": extract_rank(metrics.get("Tracking Error Rank (3Yr)", "")),
-            "Tracking Error Rank (5Yr)": extract_rank(metrics.get("Tracking Error Rank (5Yr)", "")),
-        }
-
-        display_row = {
-            "Investment Option": name,
-            "Ticker": ticker,
-        }
-        metric_columns = [
-            "Manager Tenure",
-            "Excess Performance (3Yr)",
-            "Excess Performance (5Yr)",
-            "Peer Return Rank (3Yr)",
-            "Peer Return Rank (5Yr)",
-            "Expense Ratio Rank",
-            "Sharpe Ratio Rank (3Yr)",
-            "Sharpe Ratio Rank (5Yr)",
-            "R-Squared (3Yr)",
-            "R-Squared (5Yr)",
-            "Sortino Ratio Rank (3Yr)",
-            "Sortino Ratio Rank (5Yr)",
-            "Tracking Error Rank (3Yr)",
-            "Tracking Error Rank (5Yr)",
-        ]
-        fail_count = 0
-        for col in metric_columns:
-            val = row_vals[col]
-            passed = pass_fail(val, col, passive)
-            display_row[col] = "✅" if passed else "❌"
-            if not passed:
-                fail_count += 1
-
-        if fail_count <= 4:
-            overall = "Passed IPS Screen"
-        elif fail_count == 5:
-            overall = "Informal Watch (IW)"
+        # count fails
+        fails = sum(not v for v in statuses.values())
+        if fails<=4:
+            overall="Passed IPS Screen"
+        elif fails==5:
+            overall="Informal Watch (IW)"
         else:
-            overall = "Formal Watch (FW)"
+            overall="Formal Watch (FW)"
 
-        scorecard_rows.append(display_row)
-        ips_summary.append({
-            "Investment Option": name,
-            "Ticker": ticker,
-            "Fail Count": fail_count,
-            "Overall IPS Status": overall,
-        })
+        st.markdown(f"### {name} ({'Passive' if is_passive else 'Active'})")
+        st.write(f"**Overall:** {overall} ({fails} fails)")
+        for m in IPS:
+            sym = "✅" if statuses.get(m,False) else "❌"
+            st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
 
-    df_scorecard = pd.DataFrame(scorecard_rows)
-    df_ips = pd.DataFrame(ips_summary)
-    return df_scorecard, df_ips
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-# === Entry point ===
+# === Step 5: Fund Performance Section Extraction (with fallback) ===
+def step5_process_performance(pdf, start_page, fund_names):
+    # figure out where the section ends
+    end_page = st.session_state.get("factsheets_page") or (len(pdf.pages) + 1)
+
+    # gather all lines and the raw text
+    all_lines = []
+    perf_text = ""
+    for p in pdf.pages[start_page-1 : end_page-1]:
+        txt = p.extract_text() or ""
+        perf_text += txt + "\n"
+        all_lines.extend(txt.splitlines())
+
+    # first pass: normalized line → ticker (1–5 uppercase letters)
+    mapping = {}
+    for ln in all_lines:
+        m = re.match(r"(.+?)\s+([A-Z]{1,5})$", ln.strip())
+        if not m:
+            continue
+        raw_name, ticker = m.groups()
+        norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
+        mapping[norm] = ticker
+
+    # try matching each fund by normalized prefix
+    tickers = {}
+    for name in fund_names:
+        norm_expected = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
+        found = next(
+            (t for raw, t in mapping.items() if raw.startswith(norm_expected)),
+            None
+        )
+        tickers[name] = found
+
+    # if too few, fallback to ordered scrape of every 1–5 letter code
+    total = len(fund_names)
+    found_count = sum(1 for t in tickers.values() if t)
+    if found_count < total:
+        all_tks = re.findall(r'\b([A-Z]{1,5})\b', perf_text)
+        seen = []
+        for tk in all_tks:
+            if tk not in seen:
+                seen.append(tk)
+        tickers = {
+            name: (seen[i] if i < len(seen) else None)
+            for i, name in enumerate(fund_names)
+        }
+
+    # store & display
+    st.session_state["tickers"] = tickers
+    st.subheader("Step 5: Extracted Tickers")
+    for n, t in tickers.items():
+        st.write(f"- {n}: {t or '❌ not found'}")
+
+    # validation
+    st.subheader("Step 5.5: Ticker Count Validation")
+    found_count = sum(1 for t in tickers.values() if t)
+    st.write(f"- Expected tickers: **{total}**")
+    st.write(f"- Found tickers:    **{found_count}**")
+    if found_count == total:
+        st.success("✅ All tickers found.")
+    else:
+        st.error(f"❌ Missing {total - found_count} ticker(s).")
+
+    st.session_state["fund_performance_data"] = [
+        {"Fund Scorecard Name": name, "Ticker": ticker}
+        for name, ticker in tickers.items()
+    ]
+
+
+def extract_field(text: str, label: str, stop_at: str = None) -> str:
+    """
+    Extracts the substring immediately following `label` up to `stop_at` (if provided),
+    else returns the first whitespace-delimited token.
+    """
+    try:
+        start = text.index(label) + len(label)
+        rest  = text[start:]
+        if stop_at and stop_at in rest:
+            return rest[:rest.index(stop_at)].strip()
+        return rest.split()[0].strip()
+    except ValueError:
+        return ""
+
+
+
+
+
+
+
+
+
+
+
+
+# === Main App ===
 def run():
-    st.title("MPI Scorecard & IPS Metrics")
-    uploaded = st.file_uploader("Upload MPI PDF", type=["pdf"])
+    import re
+    st.title("Writeup")
+    uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
-        st.warning("Upload an MPI PDF to proceed.")
         return
-
+   #──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    
     with pdfplumber.open(uploaded) as pdf:
         # Step 1
-        first_text = pdf.pages[0].extract_text() or ""
-        process_page1(first_text)
+        with st.expander("Step 1: Details", expanded=False):
+            first = pdf.pages[0].extract_text() or ""
+            process_page1(first)
 
         # Step 2
-        toc_text = ""
-        if len(pdf.pages) > 1:
-            toc_text += (pdf.pages[1].extract_text() or "")
-        process_toc(toc_text)
+        with st.expander("Step 2: Table of Contents", expanded=False):
+            toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
+            process_toc(toc_text)
 
         # Step 3
-        step3_process_scorecard(pdf)
+        with st.expander("Step 3: Scorecard Metrics", expanded=False):
+            sp = st.session_state.get('scorecard_page')
+            tot = st.session_state.get('total_options')
+            if sp and tot is not None:
+                step3_process_scorecard(pdf, sp, tot)
+            else:
+                st.error("Missing scorecard page or total options")
+
+        # Step 4
+        with st.expander("Step 4: IPS Screening", expanded=False):
+            step4_ips_screen()
 
         # Step 5
-        step5_process_performance(pdf)
+        with st.expander("Step 5: Fund Performance", expanded=False):
+            pp = st.session_state.get('performance_page')
+            names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
+            if pp and names:
+                step5_process_performance(pdf, pp, names)
+            else:
+                st.error("Missing performance page or fund blocks")
 
         # Step 6
-        step6_process_factsheets(pdf)
-
-    # Display metadata
-    st.subheader("Report Metadata")
-    st.write(st.session_state.get("report_metadata", {}))
-
-    fund_blocks = st.session_state.get("fund_blocks", [])
-    fund_tickers = st.session_state.get("fund_tickers", {})
-
-    if not fund_blocks:
-        st.error("No fund scorecard blocks extracted.")
-        return
-
-    st.subheader("Scorecard Metrics")  # Table 1
-    df_scorecard, df_ips = build_scorecard_tables(fund_blocks, fund_tickers)
-    st.dataframe(df_scorecard, use_container_width=True)
-
-    st.subheader("IPS Summary")  # Table 2
-    st.dataframe(df_ips, use_container_width=True)
+        with st.expander("Step 6: Fund Factsheets", expanded=True):
+            names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
+            step6_process_factsheets(pdf, names)
