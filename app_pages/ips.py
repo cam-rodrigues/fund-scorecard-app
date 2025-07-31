@@ -248,52 +248,65 @@ def step4_ips_screen():
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-# === Step 5: Fund Performance Section Extraction (with fallback) ===
 def step5_process_performance(pdf, start_page, fund_names):
     end_page = st.session_state.get("factsheets_page") or (len(pdf.pages) + 1)
-    all_lines = []
     perf_text = ""
     for p in pdf.pages[start_page-1 : end_page-1]:
-        txt = p.extract_text() or ""
-        perf_text += txt + "\n"
-        all_lines.extend(txt.splitlines())
+        perf_text += (p.extract_text() or "") + "\n"
 
-    # First pass: normalized line → ticker
-    mapping = {}
-    for ln in all_lines:
-        m = re.match(r"(.+?)\s+([A-Z]{1,5})$", ln.strip())
-        if not m:
-            continue
-        raw_name, ticker = m.groups()
-        norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
-        mapping[norm] = ticker
+    # Normalize whitespace for searching
+    perf_text_clean = re.sub(r"\s+", " ", perf_text)
 
-    tickers = {}
+    name_to_ticker = {}
+
     for name in fund_names:
-        norm_expected = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
-        found = next((t for raw, t in mapping.items() if raw.startswith(norm_expected)), None)
-        tickers[name] = found
+        # Try exact lookups first: look for "Fund Name ... (TICK)" or "Fund Name TICK"
+        pattern_exact = rf"{re.escape(name)}[^\S\r\n]*.*?\(\s*([A-Z]{{1,5}})\s*\)"  # e.g., Name (...) with ticker
+        m = re.search(pattern_exact, perf_text_clean)
+        if m:
+            name_to_ticker[name] = m.group(1)
+            continue
 
-    total = len(fund_names)
-    found_count = sum(1 for t in tickers.values() if t)
-    if found_count < total:
-        all_tks = re.findall(r'\b([A-Z]{1,5})\b', perf_text)
-        seen = []
-        for tk in all_tks:
-            if tk not in seen:
-                seen.append(tk)
-        tickers = {
-            name: (seen[i] if i < len(seen) else None)
-            for i, name in enumerate(fund_names)
-        }
+        # fallback: look for name followed shortly by uppercase token (1–5 letters)
+        pattern_no_paren = rf"{re.escape(name)}[^\S\r\n]{{0,10}}([A-Z]{{1,5}})\b"
+        m2 = re.search(pattern_no_paren, perf_text_clean)
+        if m2:
+            name_to_ticker[name] = m2.group(1)
+            continue
 
-    st.session_state["tickers"] = tickers
+        # fuzzy search: find best substring in performance text (sliding window) and then extract nearby ticker
+        best_match = None
+        best_score = 0
+        # split perf_text into candidate chunks (e.g., sentences)
+        candidates = re.split(r"[\.|\n]", perf_text)
+        for cand in candidates:
+            score = fuzz.partial_ratio(name.lower(), cand.lower())
+            if score > best_score:
+                best_score = score
+                best_match = cand.strip()
+        ticker_found = None
+        if best_match:
+            # attempt to find uppercase ticker in parentheses in that candidate
+            m3 = re.search(r"\(\s*([A-Z]{1,5})\s*\)", best_match)
+            if m3:
+                ticker_found = m3.group(1)
+            else:
+                # or any standalone uppercase 1-5 letter word nearby
+                m4 = re.search(r"\b([A-Z]{1,5})\b", best_match)
+                if m4:
+                    ticker_found = m4.group(1)
+        name_to_ticker[name] = ticker_found or "UNKNOWN"
+
+    # store & display
+    st.session_state["tickers"] = name_to_ticker
     st.subheader("Step 5: Extracted Tickers")
-    for n, t in tickers.items():
+    for n, t in name_to_ticker.items():
         st.write(f"- {n}: {t or '❌ not found'}")
 
+    # validation
     st.subheader("Step 5.5: Ticker Count Validation")
-    found_count = sum(1 for t in tickers.values() if t)
+    total = len(fund_names)
+    found_count = sum(1 for t in name_to_ticker.values() if t and t != "UNKNOWN")
     st.write(f"- Expected tickers: **{total}**")
     st.write(f"- Found tickers:    **{found_count}**")
     if found_count == total:
@@ -302,9 +315,10 @@ def step5_process_performance(pdf, start_page, fund_names):
         st.error(f"❌ Missing {total - found_count} ticker(s).")
 
     st.session_state["fund_performance_data"] = [
-        {"Fund Scorecard Name": name, "Ticker": ticker}
-        for name, ticker in tickers.items()
+        {"Fund Scorecard Name": name, "Ticker": name_to_ticker.get(name)}
+        for name in fund_names
     ]
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
