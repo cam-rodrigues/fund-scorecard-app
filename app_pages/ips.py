@@ -5,7 +5,7 @@ import pdfplumber
 import re
 
 def run():
-    st.title("MPI Header Extraction")
+    st.title("MPI Extraction")
 
     # Step 0: Upload MPI PDF
     uploaded_mpi = st.file_uploader("Upload your MPI PDF", type=["pdf"], key="mpi_upload")
@@ -15,91 +15,81 @@ def run():
 
     st.success(f"Uploaded: {uploaded_mpi.name}")
 
-    # Step 1: Extract Header Information from First Page
+    # Open PDF once and reuse pages
     with pdfplumber.open(uploaded_mpi) as pdf:
+        # === Step 1: Extract Header Information from First Page ===
         first_page_text = pdf.pages[0].extract_text() or ""
 
-    # 1) Determine the quarter based on the date at top-left
-    date_match = re.search(r"(3/31/20\d{2}|6/30/20\d{2}|9/30/20\d{2}|12/31/20\d{2})", first_page_text)
-    quarter_map = {
-        "3/31":  "Q1",
-        "6/30":  "Q2",
-        "9/30":  "Q3",
-        "12/31": "Q4",
-    }
-    if date_match:
-        full_date = date_match.group(1)                # e.g. "3/31/2025"
-        month_day = "/".join(full_date.split("/")[:2]) # e.g. "3/31"
-        quarter = quarter_map.get(month_day, "Unknown")
-        report_year = full_date.split("/")[-1]         # e.g. "2025"
-        st.write(f"**Report Quarter:** {quarter} {report_year}")
-    else:
-        st.error("Could not determine report quarter from the first page.")
+        # 1) Determine the quarter based on the date at top-left
+        date_match = re.search(r"(3/31/20\d{2}|6/30/20\d{2}|9/30/20\d{2}|12/31/20\d{2})", first_page_text)
+        quarter_map = {
+            "3/31":  "Q1",
+            "6/30":  "Q2",
+            "9/30":  "Q3",
+            "12/31": "Q4",
+        }
+        if date_match:
+            full_date = date_match.group(1)                  # e.g. "3/31/2025"
+            month_day = "/".join(full_date.split("/")[:2])   # e.g. "3/31"
+            quarter = quarter_map.get(month_day, "Unknown")
+            report_year = full_date.split("/")[-1]           # e.g. "2025"
+            st.write(f"**Report Quarter:** {quarter} {report_year}")
+        else:
+            st.error("Could not determine report quarter from the first page.")
 
-    # 2) Extract Total Options
-    total_opts_match = re.search(r"Total Options\s*:\s*(\d+)", first_page_text)
-    if total_opts_match:
-        total_options = int(total_opts_match.group(1))
-        st.write(f"**Total Investment Options:** {total_options}")
-    else:
-        st.error("Could not find 'Total Options' on the first page.")
+        # 2) Extract Total Options
+        total_opts_match = re.search(r"Total Options\s*:\s*(\d+)", first_page_text)
+        if total_opts_match:
+            total_options = int(total_opts_match.group(1))
+            st.write(f"**Total Investment Options:** {total_options}")
+        else:
+            st.error("Could not find 'Total Options' on the first page.")
 
-    # 3) Extract Prepared For client name
-    prepared_for_match = re.search(r"Prepared For\s*:\s*\n(.+)", first_page_text)
-    if prepared_for_match:
-        prepared_for = prepared_for_match.group(1).strip()
-        st.write(f"**Prepared For:** {prepared_for}")
-    else:
-        st.error("Could not find 'Prepared For' on the first page.")
+        # 3) Extract Prepared For client name
+        prepared_for_match = re.search(r"Prepared For\s*:\s*\n(.+)", first_page_text)
+        if prepared_for_match:
+            prepared_for = prepared_for_match.group(1).strip()
+            st.write(f"**Prepared For:** {prepared_for}")
+        else:
+            st.error("Could not find 'Prepared For' on the first page.")
 
-    # 4) Extract Prepared By name
-    prepared_by_match = re.search(r"Prepared By\s*:\s*\n(.+)", first_page_text)
-    if prepared_by_match:
-        prepared_by = prepared_by_match.group(1).strip()
-        st.write(f"**Prepared By:** {prepared_by}")
-    else:
-        st.error("Could not find 'Prepared By' on the first page.")
+        # 4) Extract Prepared By name
+        prepared_by_match = re.search(r"Prepared By\s*:\s*\n(.+)", first_page_text)
+        if prepared_by_match:
+            prepared_by = prepared_by_match.group(1).strip()
+            st.write(f"**Prepared By:** {prepared_by}")
+        else:
+            st.error("Could not find 'Prepared By' on the first page.")
 
-
-# Step 2: Locate Key Sections in Table of Contents
-import re
-import streamlit as st
-import pdfplumber
-
-# Assume `uploaded_mpi` is already available from Step 0
-
-with pdfplumber.open(uploaded_mpi) as pdf:
-    # Read the text of page 2 (0-indexed)
-    toc_text = pdf.pages[1].extract_text() or ""
+        # === Step 2: Locate Key Sections in Table of Contents (Page 2) ===
+        toc_text = pdf.pages[1].extract_text() or ""
     
-# Split into lines for easier parsing
-toc_lines = toc_text.splitlines()
+    # Split into lines for easier parsing
+    toc_lines = toc_text.splitlines()
 
-# Define the section titles we care about
-sections = {
-    "Fund Performance: Current vs. Proposed Comparison": None,
-    "Fund Scorecard": None,
-}
+    # Define the section titles we care about
+    sections = {
+        "Fund Performance: Current vs. Proposed Comparison": None,
+        "Fund Scorecard": None,
+    }
 
-# Search each line for our section titles and capture the page number
-for line in toc_lines:
-    for title in sections:
-        # Regex: title, then some whitespace, then a page number
-        pattern = rf"{re.escape(title)}\s+(\d+)"
-        m = re.search(pattern, line)
-        if m:
-            sections[title] = int(m.group(1))
+    # Search each line for our section titles and capture the page number
+    for line in toc_lines:
+        for title in sections:
+            pattern = rf"{re.escape(title)}\s+(\d+)"
+            m = re.search(pattern, line)
+            if m:
+                sections[title] = int(m.group(1))
 
-# Display results
-if sections["Fund Performance: Current vs. Proposed Comparison"]:
-    st.write(
-        f"**Fund Performance** → page {sections['Fund Performance: Current vs. Proposed Comparison']}"
-    )
-else:
-    st.error("Could not find 'Fund Performance: Current vs. Proposed Comparison' in TOC.")
+    # Display results
+    if sections["Fund Performance: Current vs. Proposed Comparison"]:
+        st.write(
+            f"**Fund Performance** → page {sections['Fund Performance: Current vs. Proposed Comparison']}"
+        )
+    else:
+        st.error("Could not find 'Fund Performance: Current vs. Proposed Comparison' in TOC.")
 
-if sections["Fund Scorecard"]:
-    st.write(f"**Fund Scorecard** → page {sections['Fund Scorecard']}")
-else:
-    st.error("Could not find 'Fund Scorecard' in TOC.")
-
+    if sections["Fund Scorecard"]:
+        st.write(f"**Fund Scorecard** → page {sections['Fund Scorecard']}")
+    else:
+        st.error("Could not find 'Fund Scorecard' in TOC.")
