@@ -1,5 +1,3 @@
-# page_module.py
-
 import streamlit as st
 import pdfplumber
 import re
@@ -44,17 +42,16 @@ def run():
 
     sections = {"Fund Performance": None, "Fund Scorecard": None}
     for line in toc_lines:
-        m1 = re.search(r"Fund Performance: Current vs\.? Proposed Comparison\s+(\d+)", line)
+        m1 = re.search(r"Fund Performance: Current vs\\.? Proposed Comparison\\s+(\\d+)", line)
         if m1:
             sections["Fund Performance"] = int(m1.group(1))
-        m2 = re.search(r"Fund Scorecard\s+(\d+)", line)
+        m2 = re.search(r"Fund Scorecard\\s+(\\d+)", line)
         if m2:
             sections["Fund Scorecard"] = int(m2.group(1))
 
     if not sections["Fund Scorecard"]:
         st.error("'Fund Scorecard' not found in TOC.")
         return
-    st.write(f"**Fund Scorecard** starts on page {sections['Fund Scorecard']}")
 
     # === Step 3: Extract Scorecard Metrics ===
     start_page = sections["Fund Scorecard"] - 1
@@ -65,9 +62,8 @@ def run():
     with pdfplumber.open(uploaded_mpi) as pdf:
         for i in range(start_page, len(pdf.pages)):
             text = pdf.pages[i].extract_text() or ""
-            # stop if we hit next major section (optional)
-            # if i > start_page and "Fund Factsheets" in text:
-            #     break
+            if i > start_page and "Fund Scorecard" not in text:
+                break
             for line in text.splitlines():
                 if any(key in line for key in skip_keys):
                     continue
@@ -87,13 +83,20 @@ def run():
                         "Reason": reason
                     })
                 else:
-                    # treat non-empty, non-skipped lines as fund headings
                     if line.strip():
                         current_fund = line.strip()
 
+    # === Step 4: Display each fund's metrics separately ===
     if records:
         df = pd.DataFrame(records)
-        st.subheader("Fund Scorecard Metrics")
-        st.dataframe(df)
+        for fund in df['Fund Name'].unique():
+            fund_df = df[df['Fund Name'] == fund][['Metric', 'Status', 'Reason']]
+            with st.expander(f"{fund} Scorecard Metrics", expanded=False):
+                # replace Status with icons
+                fund_df = fund_df.copy()
+                fund_df['Status'] = fund_df['Status'].apply(
+                    lambda x: "✅" if x == 'Pass' else "❌"
+                )
+                st.table(fund_df)
     else:
         st.error("No scorecard metrics found.")
