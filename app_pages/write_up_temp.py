@@ -87,96 +87,57 @@ def process_toc(text):
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+# === Step 3 ===
 def step3_process_scorecard(pdf, start_page, declared_total):
-    """
-    Processes the scorecard section of the PDF starting from the specified page and extracts
-    fund name, metrics, and their status (Pass or Review).
-    """
-    # Gather all pages from the start page and extract text
     pages = []
-    for p in pdf.pages[start_page - 1:]:
+    for p in pdf.pages[start_page-1:]:
         txt = p.extract_text() or ""
         if "Fund Scorecard" in txt:
             pages.append(txt)
         else:
             break
-
-    # Split the collected text into lines
     lines = "\n".join(pages).splitlines()
 
-    # Find the start of the metrics section after "Criteria Threshold"
-    idx = next((i for i, l in enumerate(lines) if "Criteria Threshold" in l), None)
+    idx = next((i for i,l in enumerate(lines) if "Criteria Threshold" in l), None)
     if idx is not None:
-        lines = lines[idx + 1:]
+        lines = lines[idx+1:]
 
     fund_blocks = []
     name = None
     metrics = []
 
-    # Loop through lines to extract metric info (Metric, Pass/Review, Info)
-    for i, line in enumerate(lines):
-        # Adjusted regex to match the format "Metric Name", "Pass/Review", and "Info"
-        match = re.match(r"^(.*?)(\s+)(Pass|Review)(\s+)(.*)$", line.strip())
-        if not match:
+    for i,line in enumerate(lines):
+        m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
+        if not m:
             continue
+        metric, _, info = m.groups()
 
-        metric, _, status, _, info = match.groups()
-
-        # When encountering the "Manager Tenure" metric, save the previous fund block
         if metric == "Manager Tenure":
             if name and metrics:
                 fund_blocks.append({"Fund Name": name, "Metrics": metrics})
-
-            # Find the fund name from the previous non-blank line
+            # find the fund name from the previous non-blank line
             prev = ""
-            for j in range(i - 1, -1, -1):
+            for j in range(i-1, -1, -1):
                 if lines[j].strip():
                     prev = lines[j].strip()
                     break
             name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", prev).strip()
             metrics = []
 
-        # Append the metric and its status to the fund's metrics list
         if name:
-            metrics.append({"Metric": metric, "Status": status, "Info": info})
+            metrics.append({"Metric": metric, "Info": info})
 
-    # Ensure the last fund block is added
     if name and metrics:
         fund_blocks.append({"Fund Name": name, "Metrics": metrics})
 
-    # Save extracted data to session state
     st.session_state["fund_blocks"] = fund_blocks
 
-    # Prepare data for the table (Fund Name and Metrics 1-14)
-    table_data = []
-    for block in fund_blocks:
-        row = [block["Fund Name"]]  # First column is the fund name
-        for i in range(1, 15):  # Metrics 1-14
-            # Find the status for each metric
-            metric_name = f"Metric {i}"
+    st.subheader("Step 3.5: Key Details per Metric")
+    for b in fund_blocks:
+        st.markdown(f"### {b['Fund Name']}")
+        for m in b["Metrics"]:
+            st.write(f"- **{m['Metric']}**: {m['Info'].strip()}")
 
-            # Log each metric being checked to see where the issue might be
-            st.write(f"Checking {metric_name} for {block['Fund Name']}")
-
-            metric = next((m for m in block["Metrics"] if m["Metric"] == metric_name), None)
-
-            if metric:
-                status = metric["Status"]
-            else:
-                status = "Fail"
-
-            st.write(f"  {metric_name} Status: {status}")
-            row.append(status)
-        table_data.append(row)
-
-    # Create DataFrame for display
-    df = pd.DataFrame(table_data, columns=["Fund Name"] + [f"Metric {i}" for i in range(1, 15)])
-
-    # Display the DataFrame
-    st.subheader("Step 3.5: Fund Metrics Overview")
-    st.dataframe(df, use_container_width=True)
-
-    # Display the investment option count comparison
     st.subheader("Step 3.6: Investment Option Count")
     count = len(fund_blocks)
     st.write(f"- Declared: **{declared_total}**")
@@ -185,8 +146,6 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         st.success("✅ Counts match.")
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
-
-
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
