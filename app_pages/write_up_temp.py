@@ -1512,17 +1512,17 @@ def run():
     
     with pdfplumber.open(uploaded) as pdf:
         # Step 1
-        with st.expander("Step 1: Details", expanded=False):
+        with st.expander("Details", expanded=False):
             first = pdf.pages[0].extract_text() or ""
             process_page1(first)
 
         # Step 2
-        with st.expander("Step 2: Table of Contents", expanded=False):
+        with st.expander("Table of Contents", expanded=False):
             toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
             process_toc(toc_text)
 
         # Step 3
-        with st.expander("Step 3: Scorecard Metrics", expanded=False):
+        with st.expander("Scorecard Metrics", expanded=False):
             sp = st.session_state.get('scorecard_page')
             tot = st.session_state.get('total_options')
             if sp and tot is not None:
@@ -1531,11 +1531,11 @@ def run():
                 st.error("Missing scorecard page or total options")
 
         # Step 4
-        with st.expander("Step 4: IPS Screening", expanded=False):
+        with st.expander("IPS Screening", expanded=False):
             step4_ips_screen()
 
         # Step 5
-        with st.expander("Step 5: Fund Performance", expanded=False):
+        with st.expander("Fund Performance", expanded=False):
             pp = st.session_state.get('performance_page')
             names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
             if pp and names:
@@ -1544,12 +1544,12 @@ def run():
                 st.error("Missing performance page or fund blocks")
 
         # Step 6
-        with st.expander("Step 6: Fund Factsheets", expanded=True):
+        with st.expander("Fund Factsheets", expanded=True):
             names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
             step6_process_factsheets(pdf, names)
 
         # Step 7
-        with st.expander("Step 7: Annualized Returns", expanded=False):
+        with st.expander("Annualized Returns", expanded=False):
             step7_extract_returns(pdf)
 
         # ── Data Prep for Bullet Points ───────────────────────────────────────────────
@@ -1589,39 +1589,39 @@ def run():
         # ───────────────────────────────────────────────────────────────────────────────
         
         # Step 8: Calendar Year Section
-        with st.expander("Step 8: Calendar Year Returns", expanded=False):
+        with st.expander("Calendar Year Returns", expanded=False):
             step8_calendar_returns(pdf)
 
         # Step 9: Match Tickers
-        with st.expander("Step 9: Risk Analysis (3Yr)", expanded=False):
+        with st.expander("Risk Analysis (3Yr)", expanded=False):
             step9_risk_analysis_3yr(pdf)
 
         # Step 10: Match Tickers
-        with st.expander("Step 10: Risk Analysis (5Yr)", expanded=False):
+        with st.expander("Risk Analysis (5Yr)", expanded=False):
             step10_risk_analysis_5yr(pdf)
 
         # Step 11: MPT Statistics Summary
-        with st.expander("Step 11: MPT Statistics Summary", expanded=False):
+        with st.expander("MPT Statistics Summary", expanded=False):
             step11_create_summary()
             
         # Step 12: Find Factsheet Sub‑Headings
-        with st.expander("Step 12: Fund Facts ", expanded=False):
+        with st.expander("Fund Facts ", expanded=False):
             step12_process_fund_facts(pdf)
 
         # Step 13: Risk Adjusted Returns
-        with st.expander("Step 13: Risk-Adjusted Returns", expanded=False):
+        with st.expander("Risk-Adjusted Returns", expanded=False):
             step13_process_risk_adjusted_returns(pdf)
 
         # Step 14: Peer Risk-Adjusted Return Rank
-        with st.expander("Step 14: Peer Risk-Adjusted Return Rank", expanded=False):
+        with st.expander("Peer Risk-Adjusted Return Rank", expanded=False):
             step14_extract_peer_risk_adjusted_return_rank(pdf)
         
         # Step 15: View Single Fund Details
-        with st.expander("Step 15: Single Fund Details", expanded=False):
+        with st.expander("Single Fund Details", expanded=False):
             step15_display_selected_fund()
                     
         # Step 16: Bullet Points
-        with st.expander("Step 16: Bullet Points", expanded=False):
+        with st.expander("Bullet Points", expanded=False):
             step16_bullet_points()
             
 
