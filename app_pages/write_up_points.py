@@ -1617,13 +1617,12 @@ def step17_export_to_ppt_headings():
             badge_width = Inches(0.5)  # Set the badge width to 0.5
             badge_height = Inches(0.4)  # Keep the height the same
     
-            # Get the bottom row cell's boundaries to place the badge correctly
-            cell = tbl.cell(1, c)  # The cell where the badge will go
-            left = cell.left  # The left boundary of the cell
-            top = cell.top  # The top boundary of the cell
-            width = cell.width  # The width of the cell
-            height = cell.height  # The height of the cell
-            
+            # Manually calculate the position of the cell in the table for placing the badge
+            left = tbl.cell(1, c).left  # Get the left position of the current cell
+            top = tbl.cell(1, c).top  # Get the top position of the current cell
+            width = tbl.cell(1, c).width  # Get the width of the current cell
+            height = tbl.cell(1, c).height  # Get the height of the current cell
+    
             # Calculate the position to place the badge at the center of the cell
             badge_left = left + (width - badge_width) / 2  # Center horizontally
             badge_top = top + (height - badge_height) / 2  # Center vertically
@@ -1640,7 +1639,6 @@ def step17_export_to_ppt_headings():
             p2.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE  # Center the text vertically
             r2 = p2.add_run(); r2.text = badge
             r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255, 255, 255)
-
 
     # 7) Bullet textbox BELOW the table
     bullet_gap  = Inches(0.1)
