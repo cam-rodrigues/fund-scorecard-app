@@ -230,15 +230,27 @@ def step3_process_scorecard(pdf, start_page, declared_total):
             ips_status["IPS Investment Criteria 10"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Expense Ratio Rank"), "Fail")
             ips_status["IPS Investment Criteria 11"] = "Pass"  # Always Pass
 
+        # Count the number of "Review" or "Fail" statuses for Informal/Formal Watch
+        review_fail_count = sum(1 for status in ips_status.values() if status in ["Review", "Fail"])
+
+        # Assign IPS Watch Status based on the count
+        if review_fail_count >= 6:
+            ips_status["IPS Watch Status"] = "Formal Watch"
+        elif review_fail_count >= 5:
+            ips_status["IPS Watch Status"] = "Informal Watch"
+        else:
+            ips_status["IPS Watch Status"] = "No Watch"
+
         # Append the IPS statuses for the fund
-        row.extend([ips_status[label] for label in ips_labels])
+        row.extend([ips_status[label] for label in ips_labels] + [ips_status["IPS Watch Status"]])
         ips_data.append(row)
 
     # Create a DataFrame with the IPS statuses
-    ips_df = pd.DataFrame(ips_data, columns=["Fund Name"] + ips_labels)
+    ips_df = pd.DataFrame(ips_data, columns=["Fund Name"] + ips_labels + ["IPS Watch Status"])
 
     # Display the IPS metrics table
     st.table(ips_df)
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
