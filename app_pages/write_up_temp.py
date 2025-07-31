@@ -8,47 +8,67 @@ from pptx import Presentation
 from pptx.util import Inches
 from io import BytesIO
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Utility: Extract & Label Report Date ===
 def extract_report_date(text):
-    # find the first quarter‐end or any mm/dd/yyyy
+    """
+    Extracts and labels the report date from the provided text.
+    Returns a formatted string for quarter-end dates or a human-readable date.
+    """
+    # Regex to match dates in MM/DD/YYYY format
     dates = re.findall(r'(\d{1,2})/(\d{1,2})/(20\d{2})', text or "")
+    
     for month, day, year in dates:
-        m, d = int(month), int(day)
-        # quarter‐end mapping
-        if (m, d) in [(3,31), (6,30), (9,30), (12,31)]:
-            q = { (3,31): "1st", (6,30): "2nd", (9,30): "3rd", (12,31): "4th" }[(m,d)]
-            return f"{q} QTR, {year}"
-        # fallback: human‐readable
-        return f"As of {month_name[m]} {d}, {year}"
-    return None
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        month, day = int(month), int(day)
+        
+        # Check if the date is a quarter-end date
+        if (month, day) in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+            quarter_map = {(3, 31): "1st", (6, 30): "2nd", (9, 30): "3rd", (12, 31): "4th"}
+            return f"{quarter_map[(month, day)]} QTR, {year}"
+        
+        # Fallback: return a human-readable date
+        return f"As of {month_name[month]} {day}, {year}"
 
+    # If no date is found, return None
+    return None
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Step 1 & 1.5: Page 1 Extraction ===
 def process_page1(text):
+    """
+    Processes the text from Page 1 of the PDF to extract and store metadata 
+    such as report date, total options, prepared for/by information.
+    """
+    # Extract and store report date
     report_date = extract_report_date(text)
     if report_date:
         st.session_state['report_date'] = report_date
         st.success(f"Report Date: {report_date}")
     else:
         st.error("Could not detect report date on page 1.")
+    
+    # Extract and store the total options
+    total_options_match = re.search(r"Total Options:\s*(\d+)", text or "")
+    st.session_state['total_options'] = int(total_options_match.group(1)) if total_options_match else None
 
-    m = re.search(r"Total Options:\s*(\d+)", text or "")
-    st.session_state['total_options'] = int(m.group(1)) if m else None
+    # Extract and store "Prepared For" value
+    prepared_for_match = re.search(r"Prepared For:\s*\n(.*)", text or "")
+    st.session_state['prepared_for'] = prepared_for_match.group(1).strip() if prepared_for_match else None
 
-    m = re.search(r"Prepared For:\s*\n(.*)", text or "")
-    st.session_state['prepared_for'] = m.group(1).strip() if m else None
+    # Extract and store "Prepared By" value, defaulting to "Procyon Partners, LLC"
+    prepared_by_match = re.search(r"Prepared By:\s*(.*)", text or "")
+    prepared_by = prepared_by_match.group(1).strip() if prepared_by_match else ""
+    if not prepared_by or "mpi stylus" in prepared_by.lower():
+        prepared_by = "Procyon Partners, LLC"
+    st.session_state['prepared_by'] = prepared_by
 
-    m = re.search(r"Prepared By:\s*(.*)", text or "")
-    pb = m.group(1).strip() if m else ""
-    if not pb or "mpi stylus" in pb.lower():
-        pb = "Procyon Partners, LLC"
-    st.session_state['prepared_by'] = pb
-
+    # Display extracted metadata
     st.subheader("Page 1 Metadata")
     st.write(f"- Total Options: {st.session_state['total_options']}")
     st.write(f"- Prepared For: {st.session_state['prepared_for']}")
-    st.write(f"- Prepared By: {pb}")
+    st.write(f"- Prepared By: {prepared_by}")
+# ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
 
 
 # === Step 2: Table of Contents Extraction ===
