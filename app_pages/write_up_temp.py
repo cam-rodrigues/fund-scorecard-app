@@ -156,7 +156,8 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     step_3_6_placeholder = st.empty()  # Placeholder for Step 3.6 (hidden)
 
     # Step 3.5: Fund Scorecard Metrics with Information - Hidden
-    step_3_5_placeholder.subheader("Step 3.5: Fund Scorecard Metrics with Information")
+    # Here we are not displaying the tables anymore.
+    step_3_5_placeholder.subheader("Step 3.5: Fund Scorecard Metrics with Information (Hidden)")
     for b in fund_blocks:
         step_3_5_placeholder.markdown(f"### {b['Fund Name']}")
         table_data = [
@@ -165,7 +166,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         step_3_5_placeholder.table(table_data)
 
     # Step 3.6: Investment Option Count - Hidden
-    step_3_6_placeholder.subheader("Step 3.6: Investment Option Count")
+    step_3_6_placeholder.subheader("Step 3.6: Investment Option Count (Hidden)")
     count = len(fund_blocks)
     step_3_6_placeholder.write(f"- Declared: **{declared_total}**")
     step_3_6_placeholder.write(f"- Extracted: **{count}**")
@@ -250,6 +251,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
 
     # Display the IPS metrics table
     st.table(ips_df)
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
