@@ -68,96 +68,107 @@ def process_page1(text):
     st.write(f"- Prepared For: {st.session_state['prepared_for']}")
     st.write(f"- Prepared By: {prepared_by}")
 # ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-
-
-
-# === Step 2: Table of Contents Extraction ===
+#=== Step 2: Table of Contents Extraction ===
 def process_toc(text):
-    perf = re.search(r"Fund Performance[^\d]*(\d{1,3})", text or "")
-    sc   = re.search(r"Fund Scorecard\s+(\d{1,3})", text or "")
-    fs   = re.search(r"Fund Factsheets\s+(\d{1,3})", text or "")
-    cy   = re.search(r"Fund Performance: Calendar Year\s+(\d{1,3})", text or "")
-    r3yr = re.search(r"Risk Analysis: MPT Statistics \(3Yr\)\s+(\d{1,3})", text or "")
-    r5yr = re.search(r"Risk Analysis: MPT Statistics \(5Yr\)\s+(\d{1,3})", text or "")
+    """
+    Extracts the page numbers for the different sections of the Table of Contents (TOC) from the provided text.
+    Stores the extracted page numbers in session state for future reference.
+    """
+    # Define the regex patterns to extract page numbers for each section
+    sections = {
+        "Fund Performance Current vs Proposed Comparison": r"Fund Performance[^\d]*(\d{1,3})",
+        "Fund Scorecard": r"Fund Scorecard\s+(\d{1,3})",
+        "Fund Factsheets": r"Fund Factsheets\s+(\d{1,3})",
+        "Fund Performance: Calendar Year": r"Fund Performance: Calendar Year\s+(\d{1,3})",
+        "Risk Analysis: MPT Statistics (3Yr)": r"Risk Analysis: MPT Statistics \(3Yr\)\s+(\d{1,3})",
+        "Risk Analysis: MPT Statistics (5Yr)": r"Risk Analysis: MPT Statistics \(5Yr\)\s+(\d{1,3})"
+    }
 
-    perf_page = int(perf.group(1)) if perf else None
-    sc_page   = int(sc.group(1))   if sc   else None
-    fs_page   = int(fs.group(1))   if fs   else None
-    cy_page   = int(cy.group(1))   if cy   else None
-    r3yr_page = int(r3yr.group(1)) if r3yr else None
-    r5yr_page = int(r5yr.group(1)) if r5yr else None
+    # Extract page numbers using regex
+    page_numbers = {
+        section: (int(re.search(pattern, text or "").group(1)) if re.search(pattern, text) else None)
+        for section, pattern in sections.items()
+    }
 
+    # Display the extracted pages in the UI
     st.subheader("Table of Contents Pages")
-    st.write(f"- Fund Performance Current vs Proposed Comparison : {perf_page}")
-    st.write(f"- Fund Performance Calendar Year : {cy_page}")
-    st.write(f"- MPT 3Yr Risk Analysis : {r3yr_page}")
-    st.write(f"- MPT 5Yr Risk Analysis : {r5yr_page}")
-    st.write(f"- Fund Scorecard:   {sc_page}")
-    st.write(f"- Fund Factsheets :  {fs_page}")
-    
+    for section, page in page_numbers.items():
+        st.write(f"- {section}: {page}")
 
-
-    # Store in session state for future reference
-    st.session_state['performance_page'] = perf_page
-    st.session_state['scorecard_page']   = sc_page
-    st.session_state['factsheets_page']  = fs_page
-    st.session_state['calendar_year_page'] = cy_page
-    st.session_state['r3yr_page'] = r3yr_page
-    st.session_state['r5yr_page'] = r5yr_page
+    # Store extracted page numbers in session state for future reference
+    for section, page in page_numbers.items():
+        st.session_state[f"{section.lower().replace(' ', '_')}_page"] = page
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 3 ===
 def step3_process_scorecard(pdf, start_page, declared_total):
+    """
+    Processes the scorecard section of the PDF starting from the specified page and extracts
+    fund name, metrics, and their status (Pass or Review).
+    """
+    # Gather all pages from the start page and extract text
     pages = []
-    for p in pdf.pages[start_page-1:]:
+    for p in pdf.pages[start_page - 1:]:
         txt = p.extract_text() or ""
         if "Fund Scorecard" in txt:
             pages.append(txt)
         else:
             break
+
+    # Split the collected text into lines
     lines = "\n".join(pages).splitlines()
 
-    idx = next((i for i,l in enumerate(lines) if "Criteria Threshold" in l), None)
+    # Find the start of the metrics section after "Criteria Threshold"
+    idx = next((i for i, l in enumerate(lines) if "Criteria Threshold" in l), None)
     if idx is not None:
-        lines = lines[idx+1:]
+        lines = lines[idx + 1:]
 
     fund_blocks = []
     name = None
     metrics = []
 
-    for i,line in enumerate(lines):
-        m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
-        if not m:
+    # Loop through lines to extract metric info (Metric, Pass/Review, Info)
+    for i, line in enumerate(lines):
+        match = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
+        if not match:
             continue
-        metric, _, info = m.groups()
 
+        metric, status, info = match.groups()
+
+        # When encountering the "Manager Tenure" metric, save the previous fund block
         if metric == "Manager Tenure":
             if name and metrics:
                 fund_blocks.append({"Fund Name": name, "Metrics": metrics})
-            # find the fund name from the previous non-blank line
+
+            # Find the fund name from the previous non-blank line
             prev = ""
-            for j in range(i-1, -1, -1):
+            for j in range(i - 1, -1, -1):
                 if lines[j].strip():
                     prev = lines[j].strip()
                     break
             name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", prev).strip()
             metrics = []
 
+        # Append the metric and its status to the fund's metrics list
         if name:
-            metrics.append({"Metric": metric, "Info": info})
+            metrics.append({"Metric": metric, "Status": status, "Info": info})
 
+    # Ensure the last fund block is added
     if name and metrics:
         fund_blocks.append({"Fund Name": name, "Metrics": metrics})
 
+    # Save extracted data to session state
     st.session_state["fund_blocks"] = fund_blocks
 
+    # Display the fund blocks and metrics
     st.subheader("Step 3.5: Key Details per Metric")
-    for b in fund_blocks:
-        st.markdown(f"### {b['Fund Name']}")
-        for m in b["Metrics"]:
-            st.write(f"- **{m['Metric']}**: {m['Info'].strip()}")
+    for block in fund_blocks:
+        st.markdown(f"### {block['Fund Name']}")
+        for metric in block["Metrics"]:
+            st.write(f"- **{metric['Metric']}** ({metric['Status']}): {metric['Info'].strip()}")
 
+    # Display the investment option count comparison
     st.subheader("Step 3.6: Investment Option Count")
     count = len(fund_blocks)
     st.write(f"- Declared: **{declared_total}**")
@@ -166,6 +177,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         st.success("✅ Counts match.")
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
