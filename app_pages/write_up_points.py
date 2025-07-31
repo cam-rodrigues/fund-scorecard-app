@@ -1670,14 +1670,57 @@ def step17_export_to_ppt_headings():
                     run = p.runs[0]
                     run.font.color.rgb = RGBColor(255,255,255)  # White text for the first column
     
+# === Helper Function to Draw Tables ===
+def draw_table(slide, df, left, top, width, height, col_widths):
+    tbl = slide.shapes.add_table(len(df)+1, len(df.columns),
+                                 Inches(left), Inches(top),
+                                 Inches(width), Inches(height)).table
+    for i, w in enumerate(col_widths):
+        tbl.columns[i].width = Inches(w)
+    # header
+    for c, name in enumerate(df.columns):
+        cell = tbl.cell(0, c)
+        cell.text = name
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = RGBColor(33,43,88)  # Dark blue header
+        p = cell.text_frame.paragraphs[0]
+        p.alignment = PP_ALIGN.CENTER
+        run = p.runs[0]
+        run.font.name = "Cambria"
+        run.font.size = Pt(12)
+        run.font.bold = True
+        run.font.color.rgb = RGBColor(255,255,255)  # White text for the header
+    # body
+    for r in range(len(df)):
+        for c in range(len(df.columns)):
+            cell = tbl.cell(r+1, c)
+            cell.text = str(df.iat[r, c])
+            if r % 2 == 0:
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = RGBColor(240,245,255)
+            p = cell.text_frame.paragraphs[0]
+            p.alignment = PP_ALIGN.CENTER
+            run = p.runs[0]
+            run.font.name = "Cambria"
+            run.font.size = Pt(12)
+            run.font.color.rgb = RGBColor(0,0,0)
+            # Dark blue for the first column
+            if c == 0:
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = RGBColor(33,43,88)
+                p = cell.text_frame.paragraphs[0]
+                p.alignment = PP_ALIGN.CENTER
+                run = p.runs[0]
+                run.font.color.rgb = RGBColor(255,255,255)  # White text for the first column
+
     # === Slide 2: Expense & Return ===
     if len(prs.slides) > 1:
         slide2 = prs.slides[1]
-        
+    
         # Table 1: Net Expense Ratio
         perf_item = next(p for p in perf_data if p["Fund Scorecard Name"] == selected)
-        inv_mgr   = f"{selected} ({perf_item['Ticker']})"
-        net_exp   = perf_item.get("Net Expense Ratio", "")
+        inv_mgr = f"{selected} ({perf_item['Ticker']})"
+        net_exp = perf_item.get("Net Expense Ratio", "")
         if net_exp and not str(net_exp).endswith("%"):
             net_exp = f"{net_exp}%"
         df1 = pd.DataFrame([{"Investment Manager": inv_mgr, "Net Expense Ratio": net_exp}])
@@ -1695,20 +1738,26 @@ def step17_export_to_ppt_headings():
         }])
     
         # Adjusted vertical positioning for Slide 2 Tables 1 and 2
-        sw      = prs.slide_width / Inches(1)  # Slide width in inches
+        sw = prs.slide_width / Inches(1)  # Slide width in inches
         lm, rm, gap = 0.5, 0.5, 0.2  # Left margin, right margin, and gap between tables
         usable = sw - lm - rm - gap  # Usable space in width
-        half   = usable / 2  # Half of the usable width for splitting the table
-        
+        half = usable / 2  # Half of the usable width for splitting the table
+    
         # Move both tables further down by increasing ty value
         ty, hgh = 1.0, 1.2  # Starting top position (ty) and height (hgh) for the first table
         ty_adjusted = ty + 2.5  # Increased the ty value to move both tables down
-        
+    
         # Table 1: Net Expense Ratio (now positioned further down with adjusted ty)
         draw_table(slide2, df1, lm, ty_adjusted, half, hgh, [2.0, half-2.0])
     
         # Table 2: QTD / 1Yr / 3Yr / 5Yr / 10Yr (now positioned further down with adjusted ty)
         draw_table(slide2, df2, lm + half + gap, ty_adjusted, half, hgh, [2.0] + [(half - 2.0) / 5] * 5)
+    
+    # Keep **Table 3** as it was before
+    # Ensure this is still below the Slide 2 code block without changes to its placement
+    # Code for Table 3, which remains as before:
+    # --- keep this logic as it was previously ---
+
     
         # Table 3: Last 10 Calendar‑Year Returns - Positioned further down
         fund_cy  = st.session_state.get("step8_returns", [])
