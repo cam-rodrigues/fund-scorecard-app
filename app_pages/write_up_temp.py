@@ -153,8 +153,8 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     # Save extracted data to session state
     st.session_state["fund_blocks"] = fund_blocks
 
-    # Display the fund scorecard metrics for each fund
-    st.subheader("Step 3.5: Fund Scorecard Metrics")
+    # Display the fund scorecard metrics with information in the first expander
+    st.subheader("Step 3.5: Fund Scorecard Metrics with Information")
     for b in fund_blocks:
         st.markdown(f"### {b['Fund Name']}")
         table_data = [
@@ -171,6 +171,16 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         st.success("✅ Counts match.")
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
+
+    # Display the fund scorecard metrics without information in the second expander
+    st.subheader("Step 3.7: Fund Scorecard Metrics without Information")
+    for b in fund_blocks:
+        st.markdown(f"### {b['Fund Name']}")
+        table_data_no_info = [
+            [m["Metric"], m["Status"]] for m in b["Metrics"]
+        ]
+        st.table(table_data_no_info)
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
