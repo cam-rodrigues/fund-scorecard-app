@@ -984,15 +984,12 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-import pandas as pd
-import streamlit as st
-
 def active_passive(*args):
     # Extract data from session state
     fund_data = st.session_state.get("fund_factsheets_data", [])
     performance_data = st.session_state.get("fund_performance_data", [])
 
-    # Create a list to store the rows
+    # Create a list to store the rows for the table
     table_data = []
 
     # Loop through each fund and gather the necessary data
@@ -1000,12 +997,20 @@ def active_passive(*args):
         fund_name = fund.get("Matched Fund Name", "N/A")
         benchmark = fund.get("Benchmark", "N/A")
         
-        # Extract performance metrics
-        perf_item = next((p for p in performance_data if p.get("Fund Scorecard Name") == fund_name), {})
-        expense_ratio = perf_item.get("Net Expense Ratio", "N/A")
-        turnover_ratio = perf_item.get("Turnover Ratio", "N/A")
-        tracking_error = perf_item.get("Tracking Error", "N/A")
-        r_squared = perf_item.get("R-Squared", "N/A")
+        # Extract performance metrics by matching fund name
+        perf_item = next((p for p in performance_data if p.get("Fund Scorecard Name") == fund_name), None)
+
+        # If no matching performance data is found, use "N/A"
+        if perf_item is not None:
+            expense_ratio = perf_item.get("Net Expense Ratio", "N/A")
+            turnover_ratio = perf_item.get("Turnover Ratio", "N/A")
+            tracking_error = perf_item.get("Tracking Error", "N/A")
+            r_squared = perf_item.get("R-Squared", "N/A")
+        else:
+            expense_ratio = "N/A"
+            turnover_ratio = "N/A"
+            tracking_error = "N/A"
+            r_squared = "N/A"
         
         # Append the data to the list
         table_data.append([fund_name, benchmark, expense_ratio, turnover_ratio, tracking_error, r_squared])
