@@ -153,8 +153,18 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         for i in range(1, 15):  # Metrics 1-14
             # Find the status for each metric
             metric_name = f"Metric {i}"
+
+            # Log each metric being checked to see where the issue might be
+            st.write(f"Checking {metric_name} for {block['Fund Name']}")
+
             metric = next((m for m in block["Metrics"] if m["Metric"] == metric_name), None)
-            status = metric["Status"] if metric else "Fail"
+
+            if metric:
+                status = metric["Status"]
+            else:
+                status = "Fail"
+
+            st.write(f"  {metric_name} Status: {status}")
             row.append(status)
         table_data.append(row)
 
@@ -174,7 +184,6 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         st.success("✅ Counts match.")
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
-
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
