@@ -1,118 +1,159 @@
 import re
+import pdfplumber
+from calendar import month_name
+import pandas as pd
+from rapidfuzz import fuzz
+import streamlit as st
 
-def compute_ips_screen(fund_blocks, is_passive_fn):
-    """
-    fund_blocks: list of dicts, each with "Fund Name" and "Metrics" (same shape as in existing session_state)
-    is_passive_fn: callable taking fund name -> bool, to decide passive vs active behavior
+# === Utility: Extract & Label Report Date ===
+def extract_report_date(text):
+    dates = re.findall(r'(\d{1,2})/(\d{1,2})/(20\d{2})', text or "")
+    for month, day, year in dates:
+        m, d = int(month), int(day)
+        if (m, d) in [(3,31), (6,30), (9,30), (12,31)]:
+            q = { (3,31): "1st", (6,30): "2nd", (9,30): "3rd", (12,31): "4th" }[(m,d)]
+            return f"{q} QTR, {year}"
+        return f"As of {month_name[m]} {d}, {year}"
+    return "Unknown"
 
-    Returns: list of dicts per fund with:
-      - individual criterion booleans
-      - overall status ("Passed IPS Screen", "Informal Watch (IW)", "Formal Watch (FW)")
-      - fail count
-    """
-    IPS_CRITERIA = [
-        "Manager Tenure",
-        "Excess Performance (3Yr)",
-        "R-Squared (3Yr)",
-        "Peer Return Rank (3Yr)",
-        "Sharpe Ratio Rank (3Yr)",
-        "Sortino Ratio Rank (3Yr)",
-        "Tracking Error Rank (3Yr)",
-        "Excess Performance (5Yr)",
-        "R-Squared (5Yr)",
-        "Peer Return Rank (5Yr)",
-        "Sharpe Ratio Rank (5Yr)",
-        "Sortino Ratio Rank (5Yr)",
-        "Tracking Error Rank (5Yr)",
-        "Expense Ratio Rank"
-    ]
+# === Step 1: Header / Report Metadata ===
+def process_page1(page_text):
+    # Quarter/Year
+    date_match = re.search(r"(3/31/20\d{2}|6/30/20\d{2}|9/30/20\d{2}|12/31/20\d{2})", page_text)
+    quarter = "Unknown"
+    if date_match:
+        quarter = extract_report_date(date_match.group(0))
+    # Prepared for / by (fallback if missing)
+    prepared_for = ""
+    prepared_by = ""
+    pf = re.search(r"Prepared For[:\s]*(.+)", page_text)
+    pb = re.search(r"Prepared By[:\s]*(.+)", page_text)
+    if pf:
+        prepared_for = pf.group(1).strip()
+    if pb:
+        prepared_by = pb.group(1).strip()
+    st.session_state["report_metadata"] = {
+        "Quarter": quarter,
+        "Prepared For": prepared_for or "N/A",
+        "Prepared By": prepared_by or "N/A"
+    }
+    st.markdown("**Step 1: Report Header / Metadata**")
+    st.write(st.session_state["report_metadata"])
+    return st.session_state["report_metadata"]
 
-    results = []
+# === Step 2: Table of Contents / Section Locator ===
+def process_toc(full_text):
+    # naive regex-based finders; adjust pattern complexity if needed
+    def find_page(pattern):
+        m = re.search(rf"{pattern}.*?(\d{{1,3}})", full_text, flags=re.IGNORECASE)
+        return int(m.group(1)) - 1 if m else None  # convert to 0-index
 
-    for b in fund_blocks:
-        name = b["Fund Name"]
-        passive = is_passive_fn(name)
-        metrics = {m["Metric"]: m["Info"] for m in b["Metrics"]}
-        statuses = {}
-        reasons = {}
+    toc = {}
+    toc["Fund Scorecard"] = find_page("Fund Scorecard")
+    toc["Fund Performance"] = find_page("Fund Performance")
+    toc["Calendar Year Performance"] = find_page("Calendar Year Performance")
+    toc["MPT 3Yr Risk Analysis"] = find_page("MPT Statistics.*?3Yr")
+    toc["MPT 5Yr Risk Analysis"] = find_page("MPT Statistics.*?5Yr")
+    toc["Fund Factsheets"] = find_page("Fund Factsheet") or find_page("Factsheet")
 
-        # Manager Tenure ≥ 3
-        info = metrics.get("Manager Tenure", "")
-        yrs = float(re.search(r"(\d+\.?\d*)", info).group(1)) if re.search(r"(\d+\.?\d*)", info) else 0.0
-        ok = yrs >= 3
-        statuses["Manager Tenure"] = ok
-        reasons["Manager Tenure"] = f"{yrs} yrs {'≥3' if ok else '<3'}"
+    st.session_state["toc_pages"] = toc
+    st.markdown("**Step 2: Table of Contents / Section Pages**")
+    st.write(toc)
+    return toc
 
-        # Helper to extract numeric pieces
-        def extract_percent(s):
-            m = re.search(r"([-+]?\d*\.?\d+)%", s)
-            return float(m.group(1)) if m else None
+# === Step 3: Scorecard Metrics Extraction ===
+def step3_process_scorecard(pdf):
+    start_page = st.session_state.get("toc_pages", {}).get("Fund Scorecard")
+    if start_page is None:
+        st.error("Scorecard start page not found in TOC.")
+        return []
 
-        def extract_rank(s):
-            m = re.search(r"(\d+)", s)
-            return int(m.group(1)) if m else None
+    raw = pdf.pages[start_page].extract_text() or ""
+    # Simplified block splitting; adapt to your formatting heuristics
+    lines = [l.strip() for l in raw.split("\n") if l.strip()]
+    fund_blocks = []
+    current = None
 
-        # Map other criteria
-        for crit in IPS_CRITERIA[1:]:
-            if "Excess Performance" in crit:
-                key = crit  # uses exact naming convention assumption
-                info = next((v for k, v in metrics.items() if crit.split()[0] in k), "")
-                val = extract_percent(info) or 0.0
-                ok = val > 0
-                statuses[crit] = ok
-                reasons[crit] = f"{val}%"
-            elif "R-Squared" in crit:
-                info = next((v for k, v in metrics.items() if "R-Squared" in k or "R-Squared" in k), "")
-                pct = extract_percent(info) or 0.0
-                ok = (pct >= 95) if passive else True
-                statuses[crit] = ok
-                reasons[crit] = f"{pct}%"
-            elif "Peer Return" in crit or "Sharpe Ratio" in crit or "Sortino Ratio" in crit:
-                info = next((v for k, v in metrics.items() if crit.split()[0] in k), "")
-                rank = extract_rank(info) or 999
-                if "Sortino" in crit and not passive:
-                    ok = rank <= 50
-                elif "Tracking Error" in crit and passive:
-                    ok = rank < 90
-                else:
-                    ok = rank <= 50
-                statuses[crit] = ok
-                reasons[crit] = f"Rank {rank}"
-            elif "Tracking Error" in crit:
-                info = next((v for k, v in metrics.items() if "Tracking Error" in k), "")
-                rank = extract_rank(info) or 999
-                if passive:
-                    ok = rank < 90
-                else:
-                    ok = True
-                statuses[crit] = ok
-                reasons[crit] = f"Rank {rank}"
-            elif "Expense Ratio" in crit:
-                info = next((v for k, v in metrics.items() if "Expense Ratio" in k), "")
-                rank = extract_rank(info) or 999
-                ok = rank <= 50
-                statuses[crit] = ok
-                reasons[crit] = f"Rank {rank}"
+    for line in lines:
+        # Detect new fund name (heuristic: all-caps or contains "Fund")
+        if "Fund" in line or line.isupper():
+            if current:
+                fund_blocks.append(current)
+            current = {"Fund Name": line, "Metrics": []}
+        elif current:
+            # Assume metric line format: "<Metric Name>: <Info>"
+            if ":" in line:
+                metric, info = line.split(":", 1)
+                current["Metrics"].append({"Metric": metric.strip(), "Info": info.strip()})
             else:
-                # fallback: mark as fail
-                statuses[crit] = False
-                reasons[crit] = "Unknown"
+                # fallback: append as ambiguous info
+                current["Metrics"].append({"Metric": "Unknown", "Info": line})
+    if current:
+        fund_blocks.append(current)
 
-        fails = sum(1 for v in statuses.values() if not v)
-        if fails <= 4:
-            overall = "Passed IPS Screen"
-        elif fails == 5:
-            overall = "Informal Watch (IW)"
+    st.session_state["fund_blocks"] = fund_blocks
+    st.markdown("**Step 3: Fund Scorecard Metrics**")
+    st.write(f"Found {len(fund_blocks)} fund blocks.")
+    st.json(fund_blocks)
+    return fund_blocks
+
+# === Step 5: Fund Performance / Ticker Matching ===
+def step5_process_performance(pdf):
+    start_page = st.session_state.get("toc_pages", {}).get("Fund Performance")
+    if start_page is None:
+        st.error("Fund Performance page not found in TOC.")
+        return {}
+
+    text = pdf.pages[start_page].extract_text() or ""
+    # Simplistic extraction: look for ticker in parentheses after name
+    # Build mapping from fund name to ticker using fuzzy logic as fallback
+    fund_blocks = st.session_state.get("fund_blocks", [])
+    name_to_ticker = {}
+
+    for block in fund_blocks:
+        name = block["Fund Name"]
+        # naive search in performance text
+        pattern = rf"{re.escape(name)}.*?\((\w{{1,5}})\)"
+        m = re.search(pattern, text, flags=re.IGNORECASE)
+        if m:
+            name_to_ticker[name] = m.group(1).upper()
         else:
-            overall = "Formal Watch (FW)"
+            # fallback: try fuzzy matching against any ticker-like tokens
+            # mock: no additional logic here; leave blank or implement your full heuristic
+            name_to_ticker[name] = "UNKNOWN"
 
-        results.append({
-            "Fund Name": name,
-            "Is Passive": passive,
-            "Statuses": statuses,
-            "Reasons": reasons,
-            "Fail Count": fails,
-            "Overall": overall
+    st.session_state["fund_tickers"] = name_to_ticker
+    st.markdown("**Step 5: Fund Performance / Ticker Extraction**")
+    st.write(name_to_ticker)
+    return name_to_ticker
+
+# === Step 6: Factsheet Matching / Extraction ===
+def step6_process_factsheets(pdf):
+    factsheet_page = st.session_state.get("toc_pages", {}).get("Fund Factsheets")
+    if factsheet_page is None:
+        st.error("Fund Factsheets page not located.")
+        return []
+
+    # For simplicity assume first factsheet page contains summary tables
+    raw = pdf.pages[factsheet_page].extract_text() or ""
+    lines = [l.strip() for l in raw.split("\n") if l.strip()]
+    # You'd replace this with your full fuzzy matching logic to associate
+    # benchmark, category, assets, etc., with each fund.
+    # Here we build a placeholder structure.
+    fund_blocks = st.session_state.get("fund_blocks", [])
+    facts = []
+    for block in fund_blocks:
+        facts.append({
+            "Fund Name": block["Fund Name"],
+            "Benchmark": "Placeholder Benchmark",
+            "Category": "Placeholder Category",
+            "Net Assets": "N/A",
+            "Manager": "N/A",
+            "Avg Market Cap": "N/A",
+            "Expense Ratio": "N/A"
         })
 
-    return results
+    st.session_state["fund_factsheets"] = facts
+    st.markdown("**Step 6: Factsheet Extraction / Matching**")
+    st.write(facts)
+    return facts
