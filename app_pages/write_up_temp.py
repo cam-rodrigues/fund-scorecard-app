@@ -127,7 +127,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         if "Criteria Threshold" in line:
             continue
 
-        # Check if the line matches any of the defined metrics
+        # Check if the line matches any of the defined metrics (metrics start here)
         if any(metric in line for metric in metric_labels):
             # If we find a metric, capture the fund name just above the metric
             if name is None:
