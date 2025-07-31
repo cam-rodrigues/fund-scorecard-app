@@ -1699,7 +1699,7 @@ def step17_export_to_ppt_headings():
         ty, hgh = 1.0, 1.2  # Starting top position (ty) and height (hgh) for the first table
         
         # Adjust the vertical position for Slide 2 Table 3 (increased by 3.0 to push it lower)
-        by, bh  = ty + hgh + 5.0, 2.0  # Increased the vertical distance from the previous table (was 0.3)
+        by, bh  = ty + hgh + 4.0, 2.0  # Increased the vertical distance from the previous table (was 0.3)
         
         # Draw Table 1 (Net Expense Ratio) - Positioned at the top of the slide
         draw_table(slide2, df1, lm, ty, half, hgh, [2.0, half-2.0])
