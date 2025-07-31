@@ -157,3 +157,137 @@ def step6_process_factsheets(pdf):
     st.markdown("**Step 6: Factsheet Extraction / Matching**")
     st.write(facts)
     return facts
+
+
+import re
+import pandas as pd
+import numpy as np
+import streamlit as st
+
+# --- helpers ---------------------------------------------------------
+def extract_number(s):
+    m = re.search(r"([-+]?\d*\.?\d+)", s or "")
+    return float(m.group(1)) if m else np.nan
+
+def extract_percent(s):
+    m = re.search(r"([-+]?\d*\.?\d+)%", s or "")
+    return float(m.group(1)) if m else np.nan
+
+def extract_rank(s):
+    m = re.search(r"(\d+)", s or "")
+    return int(m.group(1)) if m else np.nan
+
+def is_passive(name):
+    return "index" in name.lower()
+
+def pass_fail(val, metric_name, passive):
+    if pd.isna(val):
+        return False
+    if metric_name == "Manager Tenure":
+        return val >= 3
+    if metric_name.startswith("Excess Performance"):
+        return val > 0
+    if "Peer Return Rank" in metric_name or "Sharpe Ratio Rank" in metric_name or "Sortino Ratio Rank" in metric_name:
+        return val <= 50
+    if metric_name == "Expense Ratio Rank":
+        return val <= 50
+    if "R-Squared" in metric_name:
+        return val >= 95 if passive else True
+    if "Tracking Error Rank" in metric_name:
+        return val < 90 if passive else True
+    return False
+
+# --- build scorecard table with icons --------------------------------
+def build_scorecard_tables(fund_blocks, tickers_map):
+    scorecard_rows = []
+    ips_summary = []
+
+    for block in fund_blocks:
+        name = block["Fund Name"]
+        ticker = tickers_map.get(name, "UNKNOWN")
+        metrics = {m["Metric"]: m["Info"] for m in block["Metrics"]}
+        passive = is_passive(name)
+
+        # raw values
+        row_vals = {
+            "Investment Option": name,
+            "Ticker": ticker,
+            "Manager Tenure": extract_number(metrics.get("Manager Tenure", "")),
+            "Excess Performance (3Yr)": extract_percent(metrics.get("Excess Performance (3Yr)", "")),
+            "Excess Performance (5Yr)": extract_percent(metrics.get("Excess Performance (5Yr)", "")),
+            "Peer Return Rank (3Yr)": extract_rank(metrics.get("Peer Return Rank (3Yr)", "")),
+            "Peer Return Rank (5Yr)": extract_rank(metrics.get("Peer Return Rank (5Yr)", "")),
+            "Expense Ratio Rank": extract_rank(metrics.get("Expense Ratio Rank", "")),
+            "Sharpe Ratio Rank (3Yr)": extract_rank(metrics.get("Sharpe Ratio Rank (3Yr)", "")),
+            "Sharpe Ratio Rank (5Yr)": extract_rank(metrics.get("Sharpe Ratio Rank (5Yr)", "")),
+            "R-Squared (3Yr)": extract_percent(metrics.get("R-Squared (3Yr)", "")),
+            "R-Squared (5Yr)": extract_percent(metrics.get("R-Squared (5Yr)", "")),
+            "Sortino Ratio Rank (3Yr)": extract_rank(metrics.get("Sortino Ratio Rank (3Yr)", "")),
+            "Sortino Ratio Rank (5Yr)": extract_rank(metrics.get("Sortino Ratio Rank (5Yr)", "")),
+            "Tracking Error Rank (3Yr)": extract_rank(metrics.get("Tracking Error Rank (3Yr)", "")),
+            "Tracking Error Rank (5Yr)": extract_rank(metrics.get("Tracking Error Rank (5Yr)", "")),
+        }
+
+        # Table 1: pass/fail icons
+        display_row = {
+            "Investment Option": name,
+            "Ticker": ticker,
+        }
+        metric_columns = [
+            "Manager Tenure",
+            "Excess Performance (3Yr)",
+            "Excess Performance (5Yr)",
+            "Peer Return Rank (3Yr)",
+            "Peer Return Rank (5Yr)",
+            "Expense Ratio Rank",
+            "Sharpe Ratio Rank (3Yr)",
+            "Sharpe Ratio Rank (5Yr)",
+            "R-Squared (3Yr)",
+            "R-Squared (5Yr)",
+            "Sortino Ratio Rank (3Yr)",
+            "Sortino Ratio Rank (5Yr)",
+            "Tracking Error Rank (3Yr)",
+            "Tracking Error Rank (5Yr)",
+        ]
+        fail_count = 0
+        for col in metric_columns:
+            val = row_vals[col]
+            passed = pass_fail(val, col, passive)
+            display_row[col] = "✅" if passed else "❌"
+            if not passed:
+                fail_count += 1
+
+        # Overall IPS status logic
+        if fail_count <= 4:
+            overall = "Passed IPS Screen"
+        elif fail_count == 5:
+            overall = "Informal Watch (IW)"
+        else:
+            overall = "Formal Watch (FW)"
+
+        scorecard_rows.append(display_row)
+        ips_summary.append({
+            "Investment Option": name,
+            "Ticker": ticker,
+            "Fail Count": fail_count,
+            "Overall IPS Status": overall,
+        })
+
+    df_scorecard = pd.DataFrame(scorecard_rows)
+    df_ips = pd.DataFrame(ips_summary)
+    return df_scorecard, df_ips
+
+# --- usage in your app -----------------------------------------------
+fund_blocks = st.session_state.get("fund_blocks", [])
+fund_tickers = st.session_state.get("fund_tickers", {})
+
+if not fund_blocks:
+    st.warning("Run scorecard extraction first.")
+else:
+    st.subheader("Scorecard Metrics")  # Table 1
+    df_scorecard, df_ips = build_scorecard_tables(fund_blocks, fund_tickers)
+    st.dataframe(df_scorecard, use_container_width=True)
+
+    st.subheader("IPS Summary")  # Table 2
+    st.dataframe(df_ips, use_container_width=True)
+
