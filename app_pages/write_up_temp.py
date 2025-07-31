@@ -87,11 +87,13 @@ def process_toc(text):
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-# === Step 3 ===
 def step3_process_scorecard(pdf, start_page, declared_total):
-    # Gather all pages from the start page and extract text
+    """
+    Processes the scorecard section of the PDF starting from the specified page and extracts
+    fund name, metrics, and their status (Pass or Review).
+    """
     pages = []
-    for p in pdf.pages[start_page-1:]:
+    for p in pdf.pages[start_page - 1:]:
         txt = p.extract_text() or ""
         if "Fund Scorecard" in txt:
             pages.append(txt)
@@ -109,14 +111,12 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     name = None
     metrics = []
 
-    # Loop through lines to extract metric info (Metric, Pass/Review, Info)
     for i, line in enumerate(lines):
-        # Adjusted regex to correctly match "Metric Name", "Pass/Review", and "Info"
-        # This will match lines like: "Excess Performance (3Yr)    Pass    10%"
+        # Regex to match: Metric Name, Status (Pass/Review), and Info
         m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.*)$", line.strip())
         if not m:
             continue
-
+        
         metric, status, info = m.groups()
 
         # When encountering the "Manager Tenure" metric, save the previous fund block
@@ -144,12 +144,31 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     # Save extracted data to session state
     st.session_state["fund_blocks"] = fund_blocks
 
-    # Display the results for the extracted fund blocks
-    st.subheader("Step 3.5: Key Details per Metric")
-    for b in fund_blocks:
-        st.markdown(f"### {b['Fund Name']}")
-        for m in b["Metrics"]:
-            st.write(f"- **{m['Metric']}**: {m['Info'].strip()} (Status: {m['Status']})")
+    # Prepare data for the table (Fund Name and Metrics 1-14)
+    table_data = []
+    for block in fund_blocks:
+        row = [block["Fund Name"]]  # First column is the fund name
+        for i in range(1, 15):  # Metrics 1-14
+            # Find the status for each metric
+            metric_name = f"Metric {i}"
+
+            # Check if the metric exists in the current fund block
+            metric = next((m for m in block["Metrics"] if m["Metric"] == metric_name), None)
+
+            # If the metric is found, use its status; otherwise, mark as Fail
+            status = metric["Status"] if metric else "Fail"
+
+            # Add the status to the row
+            row.append(status)
+
+        table_data.append(row)
+
+    # Create DataFrame for display
+    df = pd.DataFrame(table_data, columns=["Fund Name"] + [f"Metric {i}" for i in range(1, 15)])
+
+    # Display the DataFrame
+    st.subheader("Step 3.5: Fund Metrics Overview")
+    st.dataframe(df, use_container_width=True)
 
     # Display the investment option count comparison
     st.subheader("Step 3.6: Investment Option Count")
