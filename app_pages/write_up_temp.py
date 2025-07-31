@@ -101,7 +101,11 @@ def process_toc(text):
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-# === Step 3 ===
+import pandas as pd
+import re
+import streamlit as st
+
+# === Step 3 === 
 def step3_process_scorecard(pdf, start_page, declared_total):
     """
     Processes the scorecard section of the PDF starting from the specified page and extracts
@@ -161,12 +165,24 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     # Save extracted data to session state
     st.session_state["fund_blocks"] = fund_blocks
 
-    # Display the fund blocks and metrics
-    st.subheader("Step 3.5: Key Details per Metric")
+    # Prepare data for the table (Fund Name and Metrics 1-14)
+    table_data = []
     for block in fund_blocks:
-        st.markdown(f"### {block['Fund Name']}")
-        for metric in block["Metrics"]:
-            st.write(f"- **{metric['Metric']}** ({metric['Status']}): {metric['Info'].strip()}")
+        row = [block["Fund Name"]]  # First column is the fund name
+        for i in range(1, 15):  # Metrics 1-14
+            # Find the status for each metric
+            metric_name = f"Metric {i}"
+            metric = next((m for m in block["Metrics"] if m["Metric"] == IPS[i-1]), None)
+            status = metric["Status"] if metric else "Fail"
+            row.append(status)
+        table_data.append(row)
+
+    # Create DataFrame for display
+    df = pd.DataFrame(table_data, columns=["Fund Name"] + [f"Metric {i}" for i in range(1, 15)])
+
+    # Display the DataFrame
+    st.subheader("Step 3.5: Fund Metrics Overview")
+    st.dataframe(df, use_container_width=True)
 
     # Display the investment option count comparison
     st.subheader("Step 3.6: Investment Option Count")
@@ -177,6 +193,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         st.success("✅ Counts match.")
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
+
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
