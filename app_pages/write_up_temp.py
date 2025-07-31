@@ -106,22 +106,22 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     # Split collected text into lines
     lines = "\n".join(pages).splitlines()
 
-    # Define the metric names for the 14 fund scorecards
+    # Define the metric names for the 14 fund scorecards (ensure no duplication)
     metric_labels = [
-        "Manager Tenure",
-        "Excess Performance",
-        "Excess Performance (5Yr)",
-        "Peer Return Rank (3Yr)",
-        "Peer Return Rank (5Yr)",
-        "Expense Ratio Rank",
-        "Sharpe Ratio Rank (3Yr)",
-        "Sharpe Ratio Rank (5Yr)",
-        "R-Squared (3Yr)",
-        "R-Squared (5Yr)",
-        "Sortino Ratio Rank (3Yr)",
-        "Sortino Ratio Rank (5Yr)",
-        "Tracking Error Rank (3Yr)",
-        "Tracking Error Rank (5Yr)"
+        "Manager Tenure",  # Fundscorecard 1
+        "Excess Performance (3Yr)",  # Fundscorecard 2
+        "Excess Performance (5Yr)",  # Fundscorecard 3
+        "Peer Return Rank (3Yr)",  # Fundscorecard 4
+        "Peer Return Rank (5Yr)",  # Fundscorecard 5
+        "Expense Ratio Rank",  # Fundscorecard 6
+        "Sharpe Ratio Rank (3Yr)",  # Fundscorecard 7
+        "Sharpe Ratio Rank (5Yr)",  # Fundscorecard 8
+        "R-Squared (3Yr)",  # Fundscorecard 9
+        "R-Squared (5Yr)",  # Fundscorecard 10
+        "Sortino Ratio Rank (3Yr)",  # Fundscorecard 11
+        "Sortino Ratio Rank (5Yr)",  # Fundscorecard 12
+        "Tracking Error Rank (3Yr)",  # Fundscorecard 13
+        "Tracking Error Rank (5Yr)"  # Fundscorecard 14
     ]
 
     fund_blocks = []
@@ -171,9 +171,6 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         st.success("✅ Counts match.")
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
-
-
-
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
