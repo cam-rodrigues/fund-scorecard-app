@@ -8,167 +8,136 @@ from pptx import Presentation
 from pptx.util import Inches
 from io import BytesIO
 
-# ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Utility: Extract & Label Report Date ===
 def extract_report_date(text):
-    """
-    Extracts and labels the report date from the provided text.
-    Returns a formatted string for quarter-end dates or a human-readable date.
-    """
-    # Regex to match dates in MM/DD/YYYY format
+    # find the first quarter‐end or any mm/dd/yyyy
     dates = re.findall(r'(\d{1,2})/(\d{1,2})/(20\d{2})', text or "")
-    
     for month, day, year in dates:
-        month, day = int(month), int(day)
-        
-        # Check if the date is a quarter-end date
-        if (month, day) in [(3, 31), (6, 30), (9, 30), (12, 31)]:
-            quarter_map = {(3, 31): "1st", (6, 30): "2nd", (9, 30): "3rd", (12, 31): "4th"}
-            return f"{quarter_map[(month, day)]} QTR, {year}"
-        
-        # Fallback: return a human-readable date
-        return f"As of {month_name[month]} {day}, {year}"
-
-    # If no date is found, return None
+        m, d = int(month), int(day)
+        # quarter‐end mapping
+        if (m, d) in [(3,31), (6,30), (9,30), (12,31)]:
+            q = { (3,31): "1st", (6,30): "2nd", (9,30): "3rd", (12,31): "4th" }[(m,d)]
+            return f"{q} QTR, {year}"
+        # fallback: human‐readable
+        return f"As of {month_name[m]} {d}, {year}"
     return None
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-# ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Step 1 & 1.5: Page 1 Extraction ===
 def process_page1(text):
-    """
-    Processes the text from Page 1 of the PDF to extract and store metadata 
-    such as report date, total options, prepared for/by information.
-    """
-    # Extract and store report date
     report_date = extract_report_date(text)
     if report_date:
         st.session_state['report_date'] = report_date
         st.success(f"Report Date: {report_date}")
     else:
         st.error("Could not detect report date on page 1.")
-    
-    # Extract and store the total options
-    total_options_match = re.search(r"Total Options:\s*(\d+)", text or "")
-    st.session_state['total_options'] = int(total_options_match.group(1)) if total_options_match else None
 
-    # Extract and store "Prepared For" value
-    prepared_for_match = re.search(r"Prepared For:\s*\n(.*)", text or "")
-    st.session_state['prepared_for'] = prepared_for_match.group(1).strip() if prepared_for_match else None
+    m = re.search(r"Total Options:\s*(\d+)", text or "")
+    st.session_state['total_options'] = int(m.group(1)) if m else None
 
-    # Extract and store "Prepared By" value, defaulting to "Procyon Partners, LLC"
-    prepared_by_match = re.search(r"Prepared By:\s*(.*)", text or "")
-    prepared_by = prepared_by_match.group(1).strip() if prepared_by_match else ""
-    if not prepared_by or "mpi stylus" in prepared_by.lower():
-        prepared_by = "Procyon Partners, LLC"
-    st.session_state['prepared_by'] = prepared_by
+    m = re.search(r"Prepared For:\s*\n(.*)", text or "")
+    st.session_state['prepared_for'] = m.group(1).strip() if m else None
 
-    # Display extracted metadata
+    m = re.search(r"Prepared By:\s*(.*)", text or "")
+    pb = m.group(1).strip() if m else ""
+    if not pb or "mpi stylus" in pb.lower():
+        pb = "Procyon Partners, LLC"
+    st.session_state['prepared_by'] = pb
+
     st.subheader("Page 1 Metadata")
     st.write(f"- Total Options: {st.session_state['total_options']}")
     st.write(f"- Prepared For: {st.session_state['prepared_for']}")
-    st.write(f"- Prepared By: {prepared_by}")
-# ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-#=== Step 2: Table of Contents Extraction ===
+    st.write(f"- Prepared By: {pb}")
+
+
+# === Step 2: Table of Contents Extraction ===
 def process_toc(text):
-    """
-    Extracts the page numbers for the different sections of the Table of Contents (TOC) from the provided text.
-    Stores the extracted page numbers in session state for future reference.
-    """
-    # Define the regex patterns to extract page numbers for each section
-    sections = {
-        "Fund Performance Current vs Proposed Comparison": r"Fund Performance[^\d]*(\d{1,3})",
-        "Fund Scorecard": r"Fund Scorecard\s+(\d{1,3})",
-        "Fund Factsheets": r"Fund Factsheets\s+(\d{1,3})",
-        "Fund Performance: Calendar Year": r"Fund Performance: Calendar Year\s+(\d{1,3})",
-        "Risk Analysis: MPT Statistics (3Yr)": r"Risk Analysis: MPT Statistics \(3Yr\)\s+(\d{1,3})",
-        "Risk Analysis: MPT Statistics (5Yr)": r"Risk Analysis: MPT Statistics \(5Yr\)\s+(\d{1,3})"
-    }
+    perf = re.search(r"Fund Performance[^\d]*(\d{1,3})", text or "")
+    sc   = re.search(r"Fund Scorecard\s+(\d{1,3})", text or "")
+    fs   = re.search(r"Fund Factsheets\s+(\d{1,3})", text or "")
+    cy   = re.search(r"Fund Performance: Calendar Year\s+(\d{1,3})", text or "")
+    r3yr = re.search(r"Risk Analysis: MPT Statistics \(3Yr\)\s+(\d{1,3})", text or "")
+    r5yr = re.search(r"Risk Analysis: MPT Statistics \(5Yr\)\s+(\d{1,3})", text or "")
 
-    # Extract page numbers using regex
-    page_numbers = {
-        section: (int(re.search(pattern, text or "").group(1)) if re.search(pattern, text) else None)
-        for section, pattern in sections.items()
-    }
+    perf_page = int(perf.group(1)) if perf else None
+    sc_page   = int(sc.group(1))   if sc   else None
+    fs_page   = int(fs.group(1))   if fs   else None
+    cy_page   = int(cy.group(1))   if cy   else None
+    r3yr_page = int(r3yr.group(1)) if r3yr else None
+    r5yr_page = int(r5yr.group(1)) if r5yr else None
 
-    # Display the extracted pages in the UI
     st.subheader("Table of Contents Pages")
-    for section, page in page_numbers.items():
-        st.write(f"- {section}: {page}")
+    st.write(f"- Fund Performance Current vs Proposed Comparison : {perf_page}")
+    st.write(f"- Fund Performance Calendar Year : {cy_page}")
+    st.write(f"- MPT 3Yr Risk Analysis : {r3yr_page}")
+    st.write(f"- MPT 5Yr Risk Analysis : {r5yr_page}")
+    st.write(f"- Fund Scorecard:   {sc_page}")
+    st.write(f"- Fund Factsheets :  {fs_page}")
+    
 
-    # Store extracted page numbers in session state for future reference
-    for section, page in page_numbers.items():
-        st.session_state[f"{section.lower().replace(' ', '_')}_page"] = page
+
+    # Store in session state for future reference
+    st.session_state['performance_page'] = perf_page
+    st.session_state['scorecard_page']   = sc_page
+    st.session_state['factsheets_page']  = fs_page
+    st.session_state['calendar_year_page'] = cy_page
+    st.session_state['r3yr_page'] = r3yr_page
+    st.session_state['r5yr_page'] = r5yr_page
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 3 ===
 def step3_process_scorecard(pdf, start_page, declared_total):
-    """
-    Processes the scorecard section of the PDF starting from the specified page and extracts
-    fund name, metrics, and their status (Pass or Review).
-    """
-    # Gather all pages from the start page and extract text
     pages = []
-    for p in pdf.pages[start_page - 1:]:
+    for p in pdf.pages[start_page-1:]:
         txt = p.extract_text() or ""
         if "Fund Scorecard" in txt:
             pages.append(txt)
         else:
             break
-
-    # Split the collected text into lines
     lines = "\n".join(pages).splitlines()
 
-    # Find the start of the metrics section after "Criteria Threshold"
-    idx = next((i for i, l in enumerate(lines) if "Criteria Threshold" in l), None)
+    idx = next((i for i,l in enumerate(lines) if "Criteria Threshold" in l), None)
     if idx is not None:
-        lines = lines[idx + 1:]
+        lines = lines[idx+1:]
 
     fund_blocks = []
     name = None
     metrics = []
 
-    # Loop through lines to extract metric info (Metric, Pass/Review, Info)
-    for i, line in enumerate(lines):
-        match = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
-        if not match:
+    for i,line in enumerate(lines):
+        m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
+        if not m:
             continue
+        metric, _, info = m.groups()
 
-        metric, status, info = match.groups()
-
-        # When encountering the "Manager Tenure" metric, save the previous fund block
         if metric == "Manager Tenure":
             if name and metrics:
                 fund_blocks.append({"Fund Name": name, "Metrics": metrics})
-
-            # Find the fund name from the previous non-blank line
+            # find the fund name from the previous non-blank line
             prev = ""
-            for j in range(i - 1, -1, -1):
+            for j in range(i-1, -1, -1):
                 if lines[j].strip():
                     prev = lines[j].strip()
                     break
             name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", prev).strip()
             metrics = []
 
-        # Append the metric and its status to the fund's metrics list
         if name:
-            metrics.append({"Metric": metric, "Status": status, "Info": info})
+            metrics.append({"Metric": metric, "Info": info})
 
-    # Ensure the last fund block is added
     if name and metrics:
         fund_blocks.append({"Fund Name": name, "Metrics": metrics})
 
-    # Save extracted data to session state
     st.session_state["fund_blocks"] = fund_blocks
 
-    # Display the fund blocks and metrics
     st.subheader("Step 3.5: Key Details per Metric")
-    for block in fund_blocks:
-        st.markdown(f"### {block['Fund Name']}")
-        for metric in block["Metrics"]:
-            st.write(f"- **{metric['Metric']}** ({metric['Status']}): {metric['Info'].strip()}")
+    for b in fund_blocks:
+        st.markdown(f"### {b['Fund Name']}")
+        for m in b["Metrics"]:
+            st.write(f"- **{m['Metric']}**: {m['Info'].strip()}")
 
-    # Display the investment option count comparison
     st.subheader("Step 3.6: Investment Option Count")
     count = len(fund_blocks)
     st.write(f"- Declared: **{declared_total}**")
@@ -178,82 +147,94 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
 
-
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 4: IPS Screening ===
 def step4_ips_screen():
-    # Define the Fund Scorecard indices that map to the IPS criteria
-    fund_scorecard_mapping = {
-        1:  "Manager Tenure",         # FundScorecard 1 -> IPS 1
-        2:  "Excess Performance (3Yr)",  # FundScorecard 2 -> IPS 2
-        4:  "Excess Performance (5Yr)",  # FundScorecard 4 -> IPS 3
-        7:  "Sharpe Ratio Rank (3Yr)",  # FundScorecard 7 -> IPS 4
-        11: "Expense Ratio Rank",      # FundScorecard 11 -> IPS 5
-        3:  "R-Squared (3Yr)",         # FundScorecard 3 -> IPS 6
-        5:  "R-Squared (5Yr)",         # FundScorecard 5 -> IPS 7
-        8:  "Peer Return Rank (3Yr)",  # FundScorecard 8 -> IPS 8
-        12: "Peer Return Rank (5Yr)",  # FundScorecard 12 -> IPS 9
-        6:  "Sortino Ratio Rank (3Yr)",  # FundScorecard 6 -> IPS 10
-    }
-
-    # Define IPS criteria (with IPS 11 always passing)
     IPS = [
         "Manager Tenure",
         "Excess Performance (3Yr)",
-        "Excess Performance (5Yr)",
-        "Sharpe Ratio Rank (3Yr)",
-        "Expense Ratio Rank",
         "R-Squared (3Yr)",
-        "R-Squared (5Yr)",
         "Peer Return Rank (3Yr)",
-        "Peer Return Rank (5Yr)",
+        "Sharpe Ratio Rank (3Yr)",
         "Sortino Ratio Rank (3Yr)",
-        "Sortino Ratio Rank (5Yr)",
         "Tracking Error Rank (3Yr)",
+        "Excess Performance (5Yr)",
+        "R-Squared (5Yr)",
+        "Peer Return Rank (5Yr)",
+        "Sharpe Ratio Rank (5Yr)",
+        "Sortino Ratio Rank (5Yr)",
         "Tracking Error Rank (5Yr)",
         "Expense Ratio Rank"
     ]
-    
     st.subheader("Step 4: IPS Investment Criteria Screening")
 
     for b in st.session_state["fund_blocks"]:
         name = b["Fund Name"]
-        is_passive = "index" in name.lower()  # Passive if 'index' is in the fund name
+        is_passive = "bitcoin" in name.lower()
         statuses, reasons = {}, {}
 
-        # Map FundScorecard metrics to IPS criteria based on active/passive
-        for scorecard_index, ips_index in fund_scorecard_mapping.items():
-            # Find the corresponding metric for the Fund Scorecard
-            metric = next((m for m in b["Metrics"] if m["Metric"] == f"FundScorecard {scorecard_index}"), None)
-            if metric and metric["Status"] == "Pass":
-                statuses[ips_index] = True
-                reasons[ips_index] = "Passed"
-            else:
-                statuses[ips_index] = False
-                reasons[ips_index] = "Failed"
+        # Manager Tenure ≥3
+        info = next((m["Info"] for m in b["Metrics"] if m["Metric"]=="Manager Tenure"), "")
+        yrs = float(re.search(r"(\d+\.?\d*)", info).group(1)) if re.search(r"(\d+\.?\d*)", info) else 0
+        ok = yrs>=3
+        statuses["Manager Tenure"] = ok
+        reasons["Manager Tenure"] = f"{yrs} yrs {'≥3' if ok else '<3'}"
 
-        # IPS 11 always passes
-        statuses["Tracking Error Rank (5Yr)"] = True
-        reasons["Tracking Error Rank (5Yr)"] = "Passed"
+        # map each IPS metric
+        for metric in IPS[1:]:  # skip tenure
+            m = next((x for x in b["Metrics"] if x["Metric"].startswith(metric.split()[0])), None)
+            info = m["Info"] if m else ""
+            if "Excess Performance" in metric:
+                val_m = re.search(r"([-+]?\d*\.\d+)%", info)
+                val = float(val_m.group(1)) if val_m else 0
+                ok = (val>0) if "3Yr" in metric else (val>0)
+                statuses[metric] = ok
+                reasons[metric] = f"{val}%"
+            elif "R-Squared" in metric:
+                pct_m = re.search(r"(\d+\.\d+)%", info)
+                pct = float(pct_m.group(1)) if pct_m else 0
+                ok = (pct>=95) if is_passive else True
+                statuses[metric] = ok
+                reasons[metric] = f"{pct}%"
+            elif "Peer Return" in metric or "Sharpe Ratio" in metric:
+                rank_m = re.search(r"(\d+)", info)
+                rank = int(rank_m.group(1)) if rank_m else 999
+                ok = rank<=50
+                statuses[metric] = ok
+                reasons[metric] = f"Rank {rank}"
+            elif "Sortino Ratio" in metric or "Tracking Error" in metric:
+                rank_m = re.search(r"(\d+)", info)
+                rank = int(rank_m.group(1)) if rank_m else 999
+                if "Sortino" in metric and not is_passive:
+                    ok = rank<=50
+                elif "Tracking Error" in metric and is_passive:
+                    ok = rank<90
+                else:
+                    ok = True
+                statuses[metric] = ok
+                reasons[metric] = f"Rank {rank}"
+            elif "Expense Ratio" in metric:
+                rank_m = re.search(r"(\d+)", info)
+                rank = int(rank_m.group(1)) if rank_m else 999
+                ok = rank<=50
+                statuses[metric] = ok
+                reasons[metric] = f"Rank {rank}"
 
-        # Count fails
-        fails = sum(1 for v in statuses.values() if not v)
-        if fails <= 4:
-            overall = "Passed IPS Screen"
-        elif fails == 5:
-            overall = "Informal Watch (IW)"
+        # count fails
+        fails = sum(not v for v in statuses.values())
+        if fails<=4:
+            overall="Passed IPS Screen"
+        elif fails==5:
+            overall="Informal Watch (IW)"
         else:
-            overall = "Formal Watch (FW)"
+            overall="Formal Watch (FW)"
 
-        # Display fund status and IPS screening results
         st.markdown(f"### {name} ({'Passive' if is_passive else 'Active'})")
         st.write(f"**Overall:** {overall} ({fails} fails)")
-        for ips_criteria, status in statuses.items():
-            sym = "✅" if status else "❌"
-            st.write(f"- {sym} **{ips_criteria}**: {reasons.get(ips_criteria, '—')}")
-
-
+        for m in IPS:
+            sym = "✅" if statuses.get(m,False) else "❌"
+            st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -1411,31 +1392,32 @@ def step16_bullet_points():
         st.markdown("- **Action:** Consider replacing this fund.")
 
 
+
+#── Build Powerpoint───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
-# Main App
 def run():
     import re
     st.title("Writeup")
-    
-    # Upload MPI PDF
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
-
-    # Open the PDF
+   #──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    
     with pdfplumber.open(uploaded) as pdf:
-        # Step 1: Process Page 1
+        # Step 1
         with st.expander("Step 1: Details", expanded=False):
             first = pdf.pages[0].extract_text() or ""
             process_page1(first)
 
-        # Step 2: Process Table of Contents
+        # Step 2
         with st.expander("Step 2: Table of Contents", expanded=False):
             toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
             process_toc(toc_text)
 
-        # Step 3: Process Scorecard Metrics
+        # Step 3
         with st.expander("Step 3: Scorecard Metrics", expanded=False):
             sp = st.session_state.get('scorecard_page')
             tot = st.session_state.get('total_options')
@@ -1444,11 +1426,11 @@ def run():
             else:
                 st.error("Missing scorecard page or total options")
 
-        # Step 4: Process IPS Screening
+        # Step 4
         with st.expander("Step 4: IPS Screening", expanded=False):
             step4_ips_screen()
 
-        # Step 5: Process Fund Performance
+        # Step 5
         with st.expander("Step 5: Fund Performance", expanded=False):
             pp = st.session_state.get('performance_page')
             names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
@@ -1457,89 +1439,86 @@ def run():
             else:
                 st.error("Missing performance page or fund blocks")
 
-        # Step 6: Process Fund Factsheets
+        # Step 6
         with st.expander("Step 6: Fund Factsheets", expanded=True):
             names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
             step6_process_factsheets(pdf, names)
 
-        # Step 7: Extract Returns
+        # Step 7
         with st.expander("Step 7: Annualized Returns", expanded=False):
             step7_extract_returns(pdf)
 
-        # Data Prep for Bullet Points
-        prepare_bullet_points_data()
+        # ── Data Prep for Bullet Points ───────────────────────────────────────────────
+        report_date = st.session_state.get("report_date", "")
+        m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
+        quarter = m.group(1) if m else ""
+        year    = m.group(2) if m else ""
+        
+        # make sure we have a list to iterate
+        for itm in st.session_state.get("fund_performance_data", []):
+            # force numeric defaults
+            qtd       = float(itm.get("QTD") or 0)
+            bench_qtd = float(itm.get("Bench QTD") or 0)
+        
+            # direction, quarter/year
+            itm["Perf Direction"] = "overperformed" if qtd >= bench_qtd else "underperformed"
+            itm["Quarter"]        = quarter
+            itm["Year"]           = year
+        
+            # basis‑points difference
+            diff_bps = round((qtd - bench_qtd) * 100, 1)
+            itm["QTD_bps_diff"] = str(diff_bps)
+        
+            # percent strings
+            fund_pct  = f"{qtd:.2f}%"
+            bench_pct = f"{bench_qtd:.2f}%"
+            itm["QTD_pct_diff"] = f"{(qtd - bench_qtd):.2f}%"
+            itm["QTD_vs"]       = f"{fund_pct} vs. {bench_pct}"
+        
+        # Initialize your template exactly once
+        if "bullet_point_templates" not in st.session_state:
+            st.session_state["bullet_point_templates"] = [
+                "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], "
+                "[Year] by [QTD_bps_diff] bps ([QTD_vs])."
+            ]
 
-        # Step 8: Calendar Year Returns
-        with st.expander("Step 8: Calendar Year Returns", expanded=False):
+        # ───────────────────────────────────────────────────────────────────────────────
+        
+        # Step 8: Calendar Year Section
+        with st.expander("Step 8: Calendar Year Returns", expanded=False):
             step8_calendar_returns(pdf)
 
-        # Step 9: Risk Analysis 3-Year
+        # Step 9: Match Tickers
         with st.expander("Step 9: Risk Analysis (3Yr)", expanded=False):
             step9_risk_analysis_3yr(pdf)
 
-        # Step 10: Risk Analysis 5-Year
+        # Step 10: Match Tickers
         with st.expander("Step 10: Risk Analysis (5Yr)", expanded=False):
             step10_risk_analysis_5yr(pdf)
 
         # Step 11: MPT Statistics Summary
         with st.expander("Step 11: MPT Statistics Summary", expanded=False):
             step11_create_summary()
-
-        # Step 12: Fund Facts
-        with st.expander("Step 12: Fund Facts", expanded=False):
+            
+        # Step 12: Find Factsheet Sub‑Headings
+        with st.expander("Step 12: Fund Facts ", expanded=False):
             step12_process_fund_facts(pdf)
 
-        # Step 13: Risk-Adjusted Returns
-        with st.expander("Step 13: Risk-Adjusted Returns", expanded=False):
+        # Step 13: Risk Adjusted Returns
+        with st.expander("Step 13: Risk-Adjusted Returns", expanded=False):
             step13_process_risk_adjusted_returns(pdf)
 
         # Step 14: Peer Risk-Adjusted Return Rank
-        with st.expander("Step 14: Peer Risk-Adjusted Return Rank", expanded=False):
+        with st.expander("Step 14: Peer Risk-Adjusted Return Rank", expanded=False):
             step14_extract_peer_risk_adjusted_return_rank(pdf)
-
+        
         # Step 15: View Single Fund Details
         with st.expander("Step 15: Single Fund Details", expanded=False):
             step15_display_selected_fund()
-
+                    
         # Step 16: Bullet Points
         with st.expander("Step 16: Bullet Points", expanded=False):
             step16_bullet_points()
-
-
-def prepare_bullet_points_data():
-    report_date = st.session_state.get("report_date", "")
-    m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
-    quarter = m.group(1) if m else ""
-    year    = m.group(2) if m else ""
-    
-    # Ensure the data is iterated through
-    for itm in st.session_state.get("fund_performance_data", []):
-        # Force numeric defaults
-        qtd       = float(itm.get("QTD") or 0)
-        bench_qtd = float(itm.get("Bench QTD") or 0)
-        
-        # Direction, Quarter and Year
-        itm["Perf Direction"] = "overperformed" if qtd >= bench_qtd else "underperformed"
-        itm["Quarter"]        = quarter
-        itm["Year"]           = year
-        
-        # Basis-points difference
-        diff_bps = round((qtd - bench_qtd) * 100, 1)
-        itm["QTD_bps_diff"] = str(diff_bps)
-        
-        # Percent strings
-        fund_pct  = f"{qtd:.2f}%"
-        bench_pct = f"{bench_qtd:.2f}%"
-        itm["QTD_pct_diff"] = f"{(qtd - bench_qtd):.2f}%"
-        itm["QTD_vs"]       = f"{fund_pct} vs. {bench_pct}"
-    
-    # Initialize template
-    if "bullet_point_templates" not in st.session_state:
-        st.session_state["bullet_point_templates"] = [
-            "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], "
-            "[Year] by [QTD_bps_diff] bps ([QTD_vs])."
-        ]
-
             
 
 
