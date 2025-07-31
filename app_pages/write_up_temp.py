@@ -88,7 +88,7 @@ def process_toc(text):
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 import re
 import streamlit as st
-import pdfplumber
+import pandas as pd
 
 # === Step 3 ===
 def step3_process_scorecard(pdf, start_page, declared_total):
@@ -174,26 +174,71 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
 
-    # Display a single table for Step 3.7 with metrics as headers and statuses under each metric
-    st.subheader("Step 3.7: Fund Scorecard Metrics (Status Only)")
+    # === Convert Fund Scorecard Metrics to IPS Metrics ===
+    st.subheader("Step 3.7: Fund Scorecard to IPS Metrics Conversion")
 
-    # Prepare data for the table: fund names as rows, metric statuses as columns
-    table_data = []
+    ips_labels = [
+        "IPS Investment Criteria 1",
+        "IPS Investment Criteria 2",
+        "IPS Investment Criteria 3",
+        "IPS Investment Criteria 4",
+        "IPS Investment Criteria 5",
+        "IPS Investment Criteria 6",
+        "IPS Investment Criteria 7",
+        "IPS Investment Criteria 8",
+        "IPS Investment Criteria 9",
+        "IPS Investment Criteria 10",
+        "IPS Investment Criteria 11"
+    ]
+    
+    # Prepare a new list to store the IPS statuses
+    ips_data = []
+
+    # Loop through the fund blocks and apply the conversion equations
     for b in fund_blocks:
         row = [b["Fund Name"]]  # First column is the fund name
-        for metric in metric_labels:  # Iterate through each metric label
-            # Find the status for each metric
-            metric_data = next((m for m in b["Metrics"] if m["Metric"] == metric), None)
-            status = metric_data["Status"] if metric_data else "Fail"  # Default to "Fail" if not found
-            row.append(status)  # Add the status to the row for the respective metric
-        table_data.append(row)  # Add the completed row to the table data
+        
+        # Check if fund is passive (contains the word 'Index')
+        is_passive = "index" in b["Fund Name"].lower()
 
-    # Create DataFrame with metrics as headers
-    df = pd.DataFrame(table_data, columns=["Fund Name"] + [f"Fundscorecard {i+1}" for i in range(14)])
+        # Apply conversion rules for each metric
+        ips_status = {}
 
-    # Display the table with metrics as headers
-    st.table(df)
+        if is_passive:  # For passive funds
+            ips_status["IPS Investment Criteria 1"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Manager Tenure"), "Fail")
+            ips_status["IPS Investment Criteria 2"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "R-Squared (3Yr)"), "Fail")
+            ips_status["IPS Investment Criteria 3"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Peer Return Rank (3Yr)"), "Fail")
+            ips_status["IPS Investment Criteria 4"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Sharpe Ratio Rank (3Yr)"), "Fail")
+            ips_status["IPS Investment Criteria 5"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Tracking Error Rank (3Yr)"), "Fail")
+            ips_status["IPS Investment Criteria 6"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "R-Squared (5Yr)"), "Fail")
+            ips_status["IPS Investment Criteria 7"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Peer Return Rank (5Yr)"), "Fail")
+            ips_status["IPS Investment Criteria 8"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Sharpe Ratio Rank (5Yr)"), "Fail")
+            ips_status["IPS Investment Criteria 9"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Tracking Error Rank (5Yr)"), "Fail")
+            ips_status["IPS Investment Criteria 10"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Expense Ratio Rank"), "Fail")
+            ips_status["IPS Investment Criteria 11"] = "Pass"  # Always Pass
 
+        else:  # For active funds
+            ips_status["IPS Investment Criteria 1"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Manager Tenure"), "Fail")
+            ips_status["IPS Investment Criteria 2"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Excess Performance (3Yr)"), "Fail")
+            ips_status["IPS Investment Criteria 3"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Peer Return Rank (3Yr)"), "Fail")
+            ips_status["IPS Investment Criteria 4"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Sharpe Ratio Rank (3Yr)"), "Fail")
+            ips_status["IPS Investment Criteria 5"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Sortino Ratio Rank (3Yr)"), "Fail")
+            ips_status["IPS Investment Criteria 6"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Excess Performance (5Yr)"), "Fail")
+            ips_status["IPS Investment Criteria 7"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Peer Return Rank (5Yr)"), "Fail")
+            ips_status["IPS Investment Criteria 8"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Sharpe Ratio Rank (5Yr)"), "Fail")
+            ips_status["IPS Investment Criteria 9"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Sortino Ratio Rank (5Yr)"), "Fail")
+            ips_status["IPS Investment Criteria 10"] = next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Expense Ratio Rank"), "Fail")
+            ips_status["IPS Investment Criteria 11"] = "Pass"  # Always Pass
+
+        # Append the IPS statuses for the fund
+        row.extend([ips_status[label] for label in ips_labels])
+        ips_data.append(row)
+
+    # Create a DataFrame with the IPS statuses
+    ips_df = pd.DataFrame(ips_data, columns=["Fund Name"] + ips_labels)
+
+    # Display the IPS metrics table
+    st.table(ips_df)
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
