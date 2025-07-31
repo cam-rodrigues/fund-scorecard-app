@@ -1592,9 +1592,8 @@ def step17_export_to_ppt_headings():
     
     # For a wider badge, increase the width while keeping the height the same
     badge_width = Inches(0.8)  # Increase the width to make the badge wider
-    badge_height = Inches(0.2)  # Keep the height the same
+    badge_height = Inches(0.4)  # Keep the height the same
     
-        
     # Data row formatting
     for c, val in enumerate(vals):
         cell = tbl.cell(1, c)
@@ -1614,14 +1613,15 @@ def step17_export_to_ppt_headings():
         else:
             # For IPS Status, add the badge (IW or FW)
             txt = str(val).lower()
-            # Adjusted badge size
-            badge_size = Inches(0.6)  # Wider badge
+            # Adjusted badge size (wider width with same height)
+            badge_width = Inches(0.8)  # Wider badge width
+            badge_height = Inches(0.4)  # Keep the height the same
     
             cell_left  = left + sum(Inches(w) for w in col_w[:c])
             cell_w     = Inches(col_w[c])
-            bx = cell_left + (cell_w - badge_size)/2
+            bx = cell_left + (cell_w - badge_width)/2  # Adjusted for new width
             by = top + (height/2) + Inches(0.07)
-            shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, bx, by, badge_size, badge_size)
+            shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, bx, by, badge_width, badge_height)
             shp.fill.solid(); shp.fill.fore_color.rgb = color  # Set color based on the status (IW or FW)
             shp.line.color.rgb = RGBColor(255, 255, 255)
             tf2 = shp.text_frame; tf2.clear()
