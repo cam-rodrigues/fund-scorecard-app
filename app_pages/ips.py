@@ -1,107 +1,115 @@
+import re
 import streamlit as st
 import pdfplumber
-import re
 import pandas as pd
 
+# === Utility: Parse Table of Contents to locate sections ===
+def parse_toc(text):
+    pages = {}
+    patterns = {
+        'scorecard': r'Fund Scorecard\s+(\d{1,3})',
+        'performance': r'Fund Performance[^\d]*(\d{1,3})'
+    }
+    for key, pattern in patterns.items():
+        m = re.search(pattern, text or "")
+        pages[key] = int(m.group(1)) if m else None
+    return pages
+
+# === Step 1: Extract Scorecard Metrics ===
+def extract_scorecard(pdf, start_page, total_declared=None):
+    lines = []
+    for p in pdf.pages[start_page-1:]:
+        txt = p.extract_text() or ''
+        if 'Fund Scorecard' in txt:
+            lines.extend(txt.splitlines())
+        else:
+            break
+    # find metrics
+    idx = next((i for i,l in enumerate(lines) if 'Criteria Threshold' in l), None)
+    if idx is not None:
+        lines = lines[idx+1:]
+
+    blocks = []
+    name = None
+    metrics = []
+    for i, line in enumerate(lines):
+        m = re.match(r'^(.*?)\s+(Pass|Review)\s+(.+)$', line.strip())
+        if not m:
+            continue
+        metric, status, info = m.groups()
+        if metric == 'Manager Tenure':
+            if name:
+                blocks.append({'Fund Name': name, **{m['Metric']: m['Info'] for m in metrics}})
+            # find name above
+            prev = next((l for l in reversed(lines[:i]) if l.strip()), '')
+            name = prev.strip()
+            metrics = []
+        if name is not None:
+            metrics.append({'Metric': metric, 'Status': status, 'Info': info.strip()})
+    if name:
+        blocks.append({'Fund Name': name, **{m['Metric']: m['Info'] for m in metrics}})
+    return pd.DataFrame(blocks)
+
+# === Step 2: IPS Screening ===
+def compute_ips(df_scorecard):
+    # define IPS criteria functions
+    def tenure_ok(x): return float(re.search(r'(\d+\.?\d*)', x).group(1)) >= 3
+    df = df_scorecard.copy()
+    # assume df has Manager Tenure column
+    df['IPS Pass'] = df['Manager Tenure'].apply(lambda x: tenure_ok(x))
+    # additional IPS logic can be expanded as needed
+    return df
+
+# === Step 3: Extract Tickers ===
+def extract_tickers(pdf, start_page, fund_names):
+    # extract lines
+    lines = []
+    text_block = ''
+    for p in pdf.pages[start_page-1:]:
+        text = p.extract_text() or ''
+        text_block += text + '\n'
+        lines.extend(text.splitlines())
+    mapping = {}
+    for ln in lines:
+        m = re.match(r'(.+?)\s+([A-Z]{1,5})$', ln.strip())
+        if m:
+            raw, tkr = m.groups()
+            norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw).strip().lower()
+            mapping[norm] = tkr
+    tickers = {}
+    for name in fund_names:
+        norm = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
+        tickers[name] = next((v for k,v in mapping.items() if k.startswith(norm)), None)
+    return pd.DataFrame([{'Fund Name': k, 'Ticker': v} for k,v in tickers.items()])
+
+# === Main App ===
 def run():
-    st.title("MPI Extraction")
-
-    # Step 0: Upload MPI PDF
-    uploaded_mpi = st.file_uploader("Upload your MPI PDF", type=["pdf"], key="mpi_upload")
-    if uploaded_mpi is None:
-        st.warning("Please upload an MPI PDF to continue.")
+    st.title('Fund Metrics Extractor')
+    uploaded = st.file_uploader('Upload MPI PDF', type='pdf')
+    if not uploaded:
         return
-    st.success(f"Uploaded: {uploaded_mpi.name}")
+    with pdfplumber.open(uploaded) as pdf:
+        # parse TOC pages 1-3
+        toc_text = ''.join((pdf.pages[i].extract_text() or '') for i in range(min(3, len(pdf.pages))))
+        pages = parse_toc(toc_text)
+        sc_page = pages['scorecard']
+        perf_page = pages['performance']
+        if sc_page:
+            df_score = extract_scorecard(pdf, sc_page)
+            st.subheader('Scorecard Metrics')
+            st.dataframe(df_score)
+        else:
+            st.error('Scorecard page not found')
 
-    # Open PDF once for pages 1 & 2
-    with pdfplumber.open(uploaded_mpi) as pdf:
-        first_text = pdf.pages[0].extract_text() or ""
-        toc_text   = pdf.pages[1].extract_text() or ""
+        if sc_page:
+            df_ips = compute_ips(df_score)
+            st.subheader('IPS Screening Results')
+            st.dataframe(df_ips)
+        if perf_page and sc_page:
+            names = df_score['Fund Name'].tolist()
+            df_tkr = extract_tickers(pdf, perf_page, names)
+            st.subheader('Extracted Tickers')
+            st.dataframe(df_tkr)
 
-    # === Step 1: Header Info (Page 1) ===
-    date_match = re.search(r"(3/31/20\d{2}|6/30/20\d{2}|9/30/20\d{2}|12/31/20\d{2})", first_text)
-    quarter_map = {"3/31":"Q1","6/30":"Q2","9/30":"Q3","12/31":"Q4"}
-    if date_match:
-        d = date_match.group(1)
-        q = quarter_map.get("/".join(d.split("/")[:2]), "Unknown")
-        y = d.split("/")[-1]
-        st.write(f"**Report Quarter:** {q} {y}")
-    else:
-        st.error("Could not determine report quarter.")
-
-    opts = re.search(r"Total Options\s*:\s*(\d+)", first_text)
-    st.write(f"**Total Investment Options:** {int(opts.group(1)) if opts else 'N/A'}")
-
-    pf = re.search(r"Prepared For\s*:\s*\n(.+)", first_text)
-    st.write(f"**Prepared For:** {pf.group(1).strip() if pf else 'N/A'}")
-
-    pb = re.search(r"Prepared By\s*:\s*\n(.+)", first_text)
-    st.write(f"**Prepared By:** {pb.group(1).strip() if pb else 'N/A'}")
-
-    # === Step 2: Parse TOC for key sections (Page 2) ===
-    sections = {"Fund Performance": None, "Fund Scorecard": None}
-    for raw in toc_text.splitlines():
-        line = raw.strip()
-        # look for our two sections with optional dots/leader & trailing page number
-        for key in sections:
-            if key.lower() in line.lower():
-                m = re.search(rf"{re.escape(key)}\s*\.{0,}\s*(\d+)$", line)
-                if not m:
-                    # fallback: any digits at end
-                    m = re.search(r"(\d+)$", line)
-                if m:
-                    sections[key] = int(m.group(1))
-
-    if sections["Fund Performance"]:
-        st.write(f"**Fund Performance** → page {sections['Fund Performance']}")
-    else:
-        st.error("Could not find 'Fund Performance' in TOC.")
-
-    if not sections["Fund Scorecard"]:
-        st.error("Could not find 'Fund Scorecard' in TOC.")
-        return
-    st.write(f"**Fund Scorecard** starts on page {sections['Fund Scorecard']}")
-
-    # === Step 3: Extract Scorecard Metrics ===
-    start_page = sections["Fund Scorecard"] - 1
-    records = []
-    current_fund = None
-    skip = ["Fund Scorecard", "Investment Options", "Criteria Threshold"]
-
-    with pdfplumber.open(uploaded_mpi) as pdf:
-        for i in range(start_page, len(pdf.pages)):
-            text = pdf.pages[i].extract_text() or ""
-            # stop once we leave the scorecard section
-            if i > start_page and "fund scorecard" not in text.lower() and not re.search(r"\bPass\b|\bReview\b", text):
-                break
-            for line in text.splitlines():
-                if any(s in line for s in skip):
-                    continue
-                # metric line?
-                m = re.match(r"\s*(.+?)\s+(Pass|Review)\s*(?:[-–—:]\s*(.*))?$", line)
-                if m:
-                    metric = m.group(1).strip()
-                    status = m.group(2)
-                    reason = (m.group(3) or "").strip()
-                    records.append({
-                        "Fund Name": current_fund,
-                        "Metric": metric,
-                        "Status": status,
-                        "Reason": reason
-                    })
-                else:
-                    # new fund heading
-                    if line.strip() and not line.startswith(" "):
-                        current_fund = line.strip()
-
-    # === Step 4: Display per-fund tables with icons ===
-    if not records:
-        st.error("No scorecard metrics found.")
-        return
-
-    df_all = pd.DataFrame(records)
-    for fund in df_all['Fund Name'].unique():
-        fund_df = df_all[df_all['Fund Name'] == fund][['Metric','Status','Reason']].copy()
-        fund_df['Status'] = fund_df['Status'].map({'Pass':'✅','Review':'❌'})
-        with st.expander(f"{fund} Scorecard Metrics", expanded=False):
-            st.table(fund_df)
+if __name__ == '__main__':
+    run()
