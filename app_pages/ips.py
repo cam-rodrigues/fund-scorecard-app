@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 from calendar import month_name
+from rapidfuzz import fuzz
 
 # === Utility ===
 def extract_report_date(text):
@@ -48,10 +49,13 @@ def pass_fail(val, metric_name, passive):
         return val < 90 if passive else True
     return False
 
-# === Step 1 ===
+# === Step 1: Header / declared fund count ===
 def process_page1(page_text):
+    # Quarter/Year
     date_match = re.search(r"(3/31/20\d{2}|6/30/20\d{2}|9/30/20\d{2}|12/31/20\d{2})", page_text)
     quarter = extract_report_date(date_match.group(0)) if date_match else "Unknown"
+
+    # Prepared for / by
     prepared_for = ""
     prepared_by = ""
     pf = re.search(r"Prepared For[:\s]*(.+)", page_text)
@@ -60,13 +64,28 @@ def process_page1(page_text):
         prepared_for = pf.group(1).strip()
     if pb:
         prepared_by = pb.group(1).strip()
+
+    # Declared number of funds: look for patterns like "Total Funds: 5" or "5 Funds"
+    declared_funds = None
+    m = re.search(r"Total\s+Funds[:\s]*([0-9]+)", page_text, flags=re.IGNORECASE)
+    if not m:
+        m = re.search(r"([0-9]+)\s+Funds", page_text, flags=re.IGNORECASE)
+    if m:
+        declared_funds = int(m.group(1))
+    else:
+        # fallback: try "Total Options" or similar
+        m2 = re.search(r"Total\s+Options[:\s]*([0-9]+)", page_text, flags=re.IGNORECASE)
+        if m2:
+            declared_funds = int(m2.group(1))
+
     st.session_state["report_metadata"] = {
         "Quarter": quarter,
         "Prepared For": prepared_for or "N/A",
-        "Prepared By": prepared_by or "N/A"
+        "Prepared By": prepared_by or "N/A",
+        "Declared Fund Count": declared_funds,
     }
 
-# === Step 2 ===
+# === Step 2: TOC locator ===
 def process_toc(full_text):
     def find_page(pattern):
         m = re.search(rf"{pattern}.*?(\d{{1,3}})", full_text, flags=re.IGNORECASE)
@@ -80,32 +99,47 @@ def process_toc(full_text):
     toc["Fund Factsheets"] = find_page("Fund Factsheet") or find_page("Factsheet")
     st.session_state["toc_pages"] = toc
 
-# === Step 3 ===
+# === Step 3: Scorecard metrics with fund name grouping & validation ===
 def step3_process_scorecard(pdf):
     start_page = st.session_state.get("toc_pages", {}).get("Fund Scorecard")
     if start_page is None or start_page >= len(pdf.pages):
         st.error("Scorecard page not found.")
         return []
     raw = pdf.pages[start_page].extract_text() or ""
-    lines = [l.strip() for l in raw.split("\n") if l.strip()]
+    lines = [l.rstrip() for l in raw.split("\n") if l.strip()]
     fund_blocks = []
     current = None
-    for line in lines:
-        if ("Fund" in line and len(line.split()) <= 6) or line.isupper():
+
+    # Heuristic: fund name lines are either ALL CAPS, contain "Fund", or are followed by metric lines with colons
+    for i, line in enumerate(lines):
+        is_potential_name = ("Fund" in line and len(line.split()) <= 8) or line.isupper()
+        has_metric_format_next = False
+        if i + 1 < len(lines):
+            nxt = lines[i+1]
+            has_metric_format_next = ":" in nxt  # next line is a metric
+        if is_potential_name and has_metric_format_next:
             if current:
                 fund_blocks.append(current)
-            current = {"Fund Name": line, "Metrics": []}
+            current = {"Fund Name": line.strip(), "Metrics": []}
         elif current:
             if ":" in line:
                 metric, info = line.split(":", 1)
                 current["Metrics"].append({"Metric": metric.strip(), "Info": info.strip()})
             else:
-                current["Metrics"].append({"Metric": "Unknown", "Info": line})
+                # continuation or unlabeled
+                current["Metrics"].append({"Metric": "Unknown", "Info": line.strip()})
     if current:
         fund_blocks.append(current)
+
+    declared = st.session_state.get("report_metadata", {}).get("Declared Fund Count")
+    if declared is not None and len(fund_blocks) != declared:
+        st.warning(
+            f"Declared fund count is {declared} but extracted {len(fund_blocks)} fund blocks. "
+            "Check scorecard parsing heuristics."
+        )
     st.session_state["fund_blocks"] = fund_blocks
 
-# === Step 5 ===
+# === Step 5: Ticker extraction from performance page with fuzzy fallback ===
 def step5_process_performance(pdf):
     start_page = st.session_state.get("toc_pages", {}).get("Fund Performance")
     if start_page is None or start_page >= len(pdf.pages):
@@ -114,17 +148,32 @@ def step5_process_performance(pdf):
     text = pdf.pages[start_page].extract_text() or ""
     fund_blocks = st.session_state.get("fund_blocks", [])
     name_to_ticker = {}
+
+    # Build a list of candidate tickers by finding parentheses content that looks like tickers
+    candidate_pairs = re.findall(r"([A-Za-z0-9 &\.\-]{3,60})\s*\((\w{1,5})\)", text)
+    # Normalize fund names from performance section
     for block in fund_blocks:
         name = block["Fund Name"]
-        pattern = rf"{re.escape(name)}.*?\((\w{{1,5}})\)"
-        m = re.search(pattern, text, flags=re.IGNORECASE)
-        if m:
-            name_to_ticker[name] = m.group(1).upper()
-        else:
-            name_to_ticker[name] = "UNKNOWN"
+        found = False
+        for perf_name, ticker in candidate_pairs:
+            # fuzzy match the performance section name to the scorecard name
+            score = fuzz.partial_ratio(name.lower(), perf_name.lower())
+            if score >= 70:
+                name_to_ticker[name] = ticker.upper()
+                found = True
+                break
+        if not found:
+            # direct pattern search for exact sequence
+            pattern = rf"{re.escape(name)}.*?\((\w{{1,5}})\)"
+            m = re.search(pattern, text, flags=re.IGNORECASE)
+            if m:
+                name_to_ticker[name] = m.group(1).upper()
+            else:
+                name_to_ticker[name] = "UNKNOWN"
+
     st.session_state["fund_tickers"] = name_to_ticker
 
-# === Step 6 ===
+# === Step 6: Factsheet placeholder (can be extended) ===
 def step6_process_factsheets(pdf):
     factsheet_page = st.session_state.get("toc_pages", {}).get("Fund Factsheets")
     if factsheet_page is None or factsheet_page >= len(pdf.pages):
@@ -145,7 +194,7 @@ def step6_process_factsheets(pdf):
         })
     st.session_state["fund_factsheets"] = facts
 
-# === Scorecard / IPS Table Builder ===
+# === Scorecard / IPS table builder ===
 def build_scorecard_tables(fund_blocks, tickers_map):
     scorecard_rows = []
     ips_summary = []
@@ -222,12 +271,12 @@ def build_scorecard_tables(fund_blocks, tickers_map):
     df_ips = pd.DataFrame(ips_summary)
     return df_scorecard, df_ips
 
-# === Entry point expected by your loader ===
+# === Entry point ===
 def run():
     st.title("MPI Scorecard & IPS Metrics")
     uploaded = st.file_uploader("Upload MPI PDF", type=["pdf"])
     if not uploaded:
-        st.warning("Please upload an MPI PDF to continue.")
+        st.warning("Upload an MPI PDF to proceed.")
         return
 
     with pdfplumber.open(uploaded) as pdf:
@@ -235,7 +284,7 @@ def run():
         first_text = pdf.pages[0].extract_text() or ""
         process_page1(first_text)
 
-        # Step 2 (try page 1 and 2 combined for TOC)
+        # Step 2
         toc_text = ""
         if len(pdf.pages) > 1:
             toc_text += (pdf.pages[1].extract_text() or "")
@@ -249,6 +298,10 @@ def run():
 
         # Step 6
         step6_process_factsheets(pdf)
+
+    # Display metadata
+    st.subheader("Report Metadata")
+    st.write(st.session_state.get("report_metadata", {}))
 
     fund_blocks = st.session_state.get("fund_blocks", [])
     fund_tickers = st.session_state.get("fund_tickers", {})
