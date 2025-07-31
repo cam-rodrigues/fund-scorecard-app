@@ -987,7 +987,7 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
 import pandas as pd
 import streamlit as st
 
-def active_passive():
+def active_passive(*args):
     # Extract data from session state
     fund_data = st.session_state.get("fund_factsheets_data", [])
     performance_data = st.session_state.get("fund_performance_data", [])
