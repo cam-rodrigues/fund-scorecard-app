@@ -2026,7 +2026,7 @@ def run():
             step14_extract_peer_risk_adjusted_return_rank(pdf)
 
         with st.expander("Step 14: Peer Risk-Adjusted Return Rank", expanded=False):
-            def active_passive(pdf)
+            active_passive(pdf)
         
         # Step 15: View Single Fund Details
         with st.expander("Step 15: Single Fund Details", expanded=False):
