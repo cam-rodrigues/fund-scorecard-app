@@ -1756,28 +1756,27 @@ def draw_table(slide, df, left, top, width, height, col_widths):
     # Keep **Table 3** as it was before
     # Ensure this is still below the Slide 2 code block without changes to its placement
     # Code for Table 3, which remains as before:
-    # --- keep this logic as it was previously ---
+    
+    # Table 3: Last 10 Calendar‑Year Returns - Positioned further down
+    fund_cy  = st.session_state.get("step8_returns", [])
+    bench_cy = st.session_state.get("benchmark_calendar_year_returns", [])
+    fund_rec = next((r for r in fund_cy if r.get("Name") == selected), {})
+    bench_rec= next((r for r in bench_cy if r.get("Name") == selected or r.get("Ticker") == fund_rec.get("Ticker")), {})
+    years    = sorted([c for c in fund_rec.keys() if re.match(r"20\d{2}", c)], reverse=True)[:10]
+    rows3 = [
+        {"Investment Manager": inv_mgr, **{y: fund_rec.get(y, "") for y in years}},
+        {"Investment Manager": f"{bench_rec.get('Name','Benchmark')} ({bench_rec.get('Ticker','')})",
+         **{y: bench_rec.get(y, "") for y in years}}
+    ]
+    df3 = pd.DataFrame(rows3, columns=["Investment Manager"] + years)
+    
+    # Adjust vertical positioning for Table 3 (further down the page)
+    by, bh  = ty_adjusted + hgh + 5.0, 2.0  # Adjusted for more space
+    first_w = 2.5
+    extras  = len(df3.columns) - 1
+    cw3     = [first_w] + ([(usable - first_w) / extras] * extras if extras > 0 else [])
+    draw_table(slide2, df3, lm, by, usable, bh, cw3)
 
-    
-        # Table 3: Last 10 Calendar‑Year Returns - Positioned further down
-        fund_cy  = st.session_state.get("step8_returns", [])
-        bench_cy = st.session_state.get("benchmark_calendar_year_returns", [])
-        fund_rec = next((r for r in fund_cy if r.get("Name") == selected), {})
-        bench_rec= next((r for r in bench_cy if r.get("Name") == selected or r.get("Ticker") == fund_rec.get("Ticker")), {})
-        years    = sorted([c for c in fund_rec.keys() if re.match(r"20\d{2}", c)], reverse=True)[:10]
-        rows3 = [
-            {"Investment Manager": inv_mgr, **{y: fund_rec.get(y, "") for y in years}},
-            {"Investment Manager": f"{bench_rec.get('Name','Benchmark')} ({bench_rec.get('Ticker','')})",
-             **{y: bench_rec.get(y, "") for y in years}}
-        ]
-        df3 = pd.DataFrame(rows3, columns=["Investment Manager"] + years)
-    
-        # Adjust vertical positioning for Table 3 (further down the page)
-        by, bh  = ty_adjusted + hgh + 5.0, 2.0  # Adjusted for more space
-        first_w = 2.5
-        extras  = len(df3.columns) - 1
-        cw3     = [first_w] + ([(usable - first_w) / extras] * extras if extras > 0 else [])
-        draw_table(slide2, df3, lm, by, usable, bh, cw3)
 
 
     # 9) Slide 3: Risk-Adjusted Statistics
