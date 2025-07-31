@@ -149,19 +149,21 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     for block in fund_blocks:
         row = [block["Fund Name"]]  # First column is the fund name
         for i in range(1, 15):  # Metrics 1-14
-            # Find the status for each metric
+            # Find the metric by its number (Metric 1, Metric 2, etc.)
             metric_name = f"Metric {i}"
 
             # Check if the metric exists in the current fund block
             metric = next((m for m in block["Metrics"] if m["Metric"] == metric_name), None)
 
-            # If the metric is found, use its status; otherwise, mark as Fail
-            status = metric["Status"] if metric else "Fail"
+            # If the metric is found, use its status ("Pass" or "Review"); otherwise, mark as "Fail"
+            if metric:
+                status = metric["Status"]
+            else:
+                status = "Fail"  # If metric is not found, default to "Fail"
 
-            # Add the status to the row
-            row.append(status)
+            row.append(status)  # Add status to the row for the respective metric
 
-        table_data.append(row)
+        table_data.append(row)  # Add the complete row (fund + metrics) to the table data
 
     # Create DataFrame for display
     df = pd.DataFrame(table_data, columns=["Fund Name"] + [f"Metric {i}" for i in range(1, 15)])
