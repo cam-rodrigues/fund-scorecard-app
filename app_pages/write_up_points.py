@@ -1592,7 +1592,7 @@ def step17_export_to_ppt_headings():
     
     # For a wider badge, increase the width while keeping the height the same
     badge_width = Inches(0.8)  # Increase the width to make the badge wider
-    badge_height = Inches(0.4)  # Keep the height the same
+    badge_height = Inches(0.2)  # Keep the height the same
     
         
     # Data row formatting
