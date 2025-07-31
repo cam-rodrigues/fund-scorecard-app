@@ -1591,7 +1591,8 @@ def step17_export_to_ppt_headings():
         p.alignment = PP_ALIGN.CENTER
     
     # For a wider badge, set the width to 0.6 inches while keeping the height the same
-    badge_width = Inches(0.6)  # Adjusted width to 0.6
+        # For a wider badge, set the width to 0.6 inches while keeping the height the same
+    badge_width = Inches(0.6)  # Set the badge width to 0.6
     badge_height = Inches(0.4)  # Keep the height the same
     
     # Data row formatting
@@ -1621,8 +1622,8 @@ def step17_export_to_ppt_headings():
             cell_left  = left + sum(Inches(w) for w in col_w[:c])
             cell_w     = Inches(col_w[c])
             bx = cell_left + (cell_w - badge_width) / 2  # Adjusted for new width
-            by = top + (height - badge_height) / 1 + Inches(0.02)  # Slight adjustment to move it up a little
-
+            by = top + (height - badge_height) / 2 + Inches(0.01)  # Very subtle move up
+    
             # Create the badge shape
             shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, bx, by, badge_width, badge_height)
             shp.fill.solid(); shp.fill.fore_color.rgb = color  # Set color based on the status (IW or FW)
@@ -1635,6 +1636,7 @@ def step17_export_to_ppt_headings():
             p2.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE  # Center the text vertically
             r2 = p2.add_run(); r2.text = badge
             r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255, 255, 255)
+
 
 
     # 7) Bullet textbox BELOW the table
