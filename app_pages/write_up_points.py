@@ -982,46 +982,6 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
     st.session_state["step14_peer_rank_table"] = records
     st.dataframe(df, use_container_width=True)
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-
-def active_passive(*args):
-    # Extract data from session state
-    fund_data = st.session_state.get("fund_factsheets_data", [])
-    performance_data = st.session_state.get("fund_performance_data", [])
-
-    # Create a list to store the rows for the table
-    table_data = []
-
-    # Loop through each fund and gather the necessary data
-    for fund in fund_data:
-        fund_name = fund.get("Matched Fund Name", "N/A")
-        benchmark = fund.get("Benchmark", "N/A")
-        
-        # Extract performance metrics by matching fund name
-        perf_item = next((p for p in performance_data if p.get("Fund Scorecard Name") == fund_name), None)
-
-        # If no matching performance data is found, use "N/A"
-        if perf_item is not None:
-            expense_ratio = perf_item.get("Net Expense Ratio", "N/A")
-            turnover_ratio = perf_item.get("Turnover Ratio", "N/A")
-            tracking_error = perf_item.get("Tracking Error", "N/A")
-            r_squared = perf_item.get("R-Squared", "N/A")
-        else:
-            expense_ratio = "N/A"
-            turnover_ratio = "N/A"
-            tracking_error = "N/A"
-            r_squared = "N/A"
-        
-        # Append the data to the list
-        table_data.append([fund_name, benchmark, expense_ratio, turnover_ratio, tracking_error, r_squared])
-
-    # Create DataFrame
-    df = pd.DataFrame(table_data, columns=["Investment Option Name", "Benchmark Name", "Expense Ratio", 
-                                           "Turnover Ratio", "Tracking Error", "R-Squared"])
-
-    # Display the table
-    st.dataframe(df, use_container_width=True)
-
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Step 15: Single Fund Details ===
@@ -2029,9 +1989,6 @@ def run():
         # Step 14: Peer Risk-Adjusted Return Rank
         with st.expander("Step 14: Peer Risk-Adjusted Return Rank", expanded=False):
             step14_extract_peer_risk_adjusted_return_rank(pdf)
-
-        with st.expander("Step 14: Peer Risk-Adjusted Return Rank", expanded=False):
-            active_passive(pdf)
         
         # Step 15: View Single Fund Details
         with st.expander("Step 15: Single Fund Details", expanded=False):
