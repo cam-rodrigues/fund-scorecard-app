@@ -1521,9 +1521,14 @@ def run():
             toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
             process_toc(toc_text)
 
-        # Step 4
-        with st.expander("Step 4", expanded=False):
-            step3_process_scorecard()
+        # Step 3
+        with st.expander("Step 3: Scorecard Metrics", expanded=False):
+            sp = st.session_state.get('scorecard_page')
+            tot = st.session_state.get('total_options')
+            if sp and tot is not None:
+                step3_process_scorecard(pdf, sp, tot)
+            else:
+                st.error("Missing scorecard page or total options")
 
         # Step 4
         with st.expander("Step 4: IPS Screening", expanded=False):
