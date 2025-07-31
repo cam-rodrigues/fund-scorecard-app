@@ -183,90 +183,77 @@ def step3_process_scorecard(pdf, start_page, declared_total):
 
 # === Step 4: IPS Screening ===
 def step4_ips_screen():
+    # Define the Fund Scorecard indices that map to the IPS criteria
+    fund_scorecard_mapping = {
+        1:  "Manager Tenure",         # FundScorecard 1 -> IPS 1
+        2:  "Excess Performance (3Yr)",  # FundScorecard 2 -> IPS 2
+        4:  "Excess Performance (5Yr)",  # FundScorecard 4 -> IPS 3
+        7:  "Sharpe Ratio Rank (3Yr)",  # FundScorecard 7 -> IPS 4
+        11: "Expense Ratio Rank",      # FundScorecard 11 -> IPS 5
+        3:  "R-Squared (3Yr)",         # FundScorecard 3 -> IPS 6
+        5:  "R-Squared (5Yr)",         # FundScorecard 5 -> IPS 7
+        8:  "Peer Return Rank (3Yr)",  # FundScorecard 8 -> IPS 8
+        12: "Peer Return Rank (5Yr)",  # FundScorecard 12 -> IPS 9
+        6:  "Sortino Ratio Rank (3Yr)",  # FundScorecard 6 -> IPS 10
+    }
+
+    # Define IPS criteria (with IPS 11 always passing)
     IPS = [
         "Manager Tenure",
         "Excess Performance (3Yr)",
-        "R-Squared (3Yr)",
-        "Peer Return Rank (3Yr)",
-        "Sharpe Ratio Rank (3Yr)",
-        "Sortino Ratio Rank (3Yr)",
-        "Tracking Error Rank (3Yr)",
         "Excess Performance (5Yr)",
+        "Sharpe Ratio Rank (3Yr)",
+        "Expense Ratio Rank",
+        "R-Squared (3Yr)",
         "R-Squared (5Yr)",
+        "Peer Return Rank (3Yr)",
         "Peer Return Rank (5Yr)",
-        "Sharpe Ratio Rank (5Yr)",
+        "Sortino Ratio Rank (3Yr)",
         "Sortino Ratio Rank (5Yr)",
+        "Tracking Error Rank (3Yr)",
         "Tracking Error Rank (5Yr)",
         "Expense Ratio Rank"
     ]
+    
     st.subheader("Step 4: IPS Investment Criteria Screening")
 
     for b in st.session_state["fund_blocks"]:
         name = b["Fund Name"]
-        is_passive = "bitcoin" in name.lower()
+        is_passive = "index" in name.lower()  # Passive if 'index' is in the fund name
         statuses, reasons = {}, {}
 
-        # Manager Tenure ≥3
-        info = next((m["Info"] for m in b["Metrics"] if m["Metric"]=="Manager Tenure"), "")
-        yrs = float(re.search(r"(\d+\.?\d*)", info).group(1)) if re.search(r"(\d+\.?\d*)", info) else 0
-        ok = yrs>=3
-        statuses["Manager Tenure"] = ok
-        reasons["Manager Tenure"] = f"{yrs} yrs {'≥3' if ok else '<3'}"
+        # Map FundScorecard metrics to IPS criteria based on active/passive
+        for scorecard_index, ips_index in fund_scorecard_mapping.items():
+            # Find the corresponding metric for the Fund Scorecard
+            metric = next((m for m in b["Metrics"] if m["Metric"] == f"FundScorecard {scorecard_index}"), None)
+            if metric and metric["Status"] == "Pass":
+                statuses[ips_index] = True
+                reasons[ips_index] = "Passed"
+            else:
+                statuses[ips_index] = False
+                reasons[ips_index] = "Failed"
 
-        # map each IPS metric
-        for metric in IPS[1:]:  # skip tenure
-            m = next((x for x in b["Metrics"] if x["Metric"].startswith(metric.split()[0])), None)
-            info = m["Info"] if m else ""
-            if "Excess Performance" in metric:
-                val_m = re.search(r"([-+]?\d*\.\d+)%", info)
-                val = float(val_m.group(1)) if val_m else 0
-                ok = (val>0) if "3Yr" in metric else (val>0)
-                statuses[metric] = ok
-                reasons[metric] = f"{val}%"
-            elif "R-Squared" in metric:
-                pct_m = re.search(r"(\d+\.\d+)%", info)
-                pct = float(pct_m.group(1)) if pct_m else 0
-                ok = (pct>=95) if is_passive else True
-                statuses[metric] = ok
-                reasons[metric] = f"{pct}%"
-            elif "Peer Return" in metric or "Sharpe Ratio" in metric:
-                rank_m = re.search(r"(\d+)", info)
-                rank = int(rank_m.group(1)) if rank_m else 999
-                ok = rank<=50
-                statuses[metric] = ok
-                reasons[metric] = f"Rank {rank}"
-            elif "Sortino Ratio" in metric or "Tracking Error" in metric:
-                rank_m = re.search(r"(\d+)", info)
-                rank = int(rank_m.group(1)) if rank_m else 999
-                if "Sortino" in metric and not is_passive:
-                    ok = rank<=50
-                elif "Tracking Error" in metric and is_passive:
-                    ok = rank<90
-                else:
-                    ok = True
-                statuses[metric] = ok
-                reasons[metric] = f"Rank {rank}"
-            elif "Expense Ratio" in metric:
-                rank_m = re.search(r"(\d+)", info)
-                rank = int(rank_m.group(1)) if rank_m else 999
-                ok = rank<=50
-                statuses[metric] = ok
-                reasons[metric] = f"Rank {rank}"
+        # IPS 11 always passes
+        statuses["Tracking Error Rank (5Yr)"] = True
+        reasons["Tracking Error Rank (5Yr)"] = "Passed"
 
-        # count fails
-        fails = sum(not v for v in statuses.values())
-        if fails<=4:
-            overall="Passed IPS Screen"
-        elif fails==5:
-            overall="Informal Watch (IW)"
+        # Count fails
+        fails = sum(1 for v in statuses.values() if not v)
+        if fails <= 4:
+            overall = "Passed IPS Screen"
+        elif fails == 5:
+            overall = "Informal Watch (IW)"
         else:
-            overall="Formal Watch (FW)"
+            overall = "Formal Watch (FW)"
 
+        # Display fund status and IPS screening results
         st.markdown(f"### {name} ({'Passive' if is_passive else 'Active'})")
         st.write(f"**Overall:** {overall} ({fails} fails)")
-        for m in IPS:
-            sym = "✅" if statuses.get(m,False) else "❌"
-            st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
+        for ips_criteria, status in statuses.items():
+            sym = "✅" if status else "❌"
+            st.write(f"- {sym} **{ips_criteria}**: {reasons.get(ips_criteria, '—')}")
+
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
