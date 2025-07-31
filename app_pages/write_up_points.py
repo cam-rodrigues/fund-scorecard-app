@@ -1594,6 +1594,11 @@ def step17_export_to_ppt_headings():
     badge_width = Inches(0.5)  # Set the badge width to 0.5
     badge_height = Inches(0.4)  # Keep the height the same
     
+    # Calculate the row height by dividing the total table height by the number of rows
+    row_count = 2  # The table has 2 rows (header + data row)
+    table_height = Inches(0.6)  # Set this to your table height (adjust if necessary)
+    row_height = table_height / row_count  # Approximate row height
+    
     # Data row formatting
     for c, val in enumerate(vals):
         cell = tbl.cell(1, c)
@@ -1617,16 +1622,16 @@ def step17_export_to_ppt_headings():
             badge_width = Inches(0.5)  # Set the badge width to 0.5
             badge_height = Inches(0.4)  # Keep the height the same
     
-            # Calculate the position to place the badge at the center of the cell
-            # Get the dimensions of the table cell (from the cell’s row and column index)
-            row_height = cell.height  # Height of the row
-            col_width = cell.width    # Width of the column
-            left = cell.left  # Left position of the cell
-            top = cell.top  # Top position of the cell
+            # Manually calculate the position of the badge inside the cell
+            # Use a fixed left position based on table width and adjust top based on row height
+            left = tbl.cell(1, c).left  # Get the left position of the current cell
+            top = tbl.cell(1, c).top  # Get the top position of the current cell
+            width = tbl.cell(1, c).width  # Get the width of the current cell
+            height = row_height  # Use calculated row height as the vertical position for badge
     
-            # Calculate the badge's position in the center of the cell
-            badge_left = left + (col_width - badge_width) / 2  # Center horizontally
-            badge_top = top + (row_height - badge_height) / 2  # Center vertically
+            # Calculate the position to place the badge at the center of the cell
+            badge_left = left + (width - badge_width) / 2  # Center horizontally
+            badge_top = top + (height - badge_height) / 2  # Center vertically
     
             # Create the badge shape in the cell
             shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, badge_left, badge_top, badge_width, badge_height)
@@ -1640,6 +1645,7 @@ def step17_export_to_ppt_headings():
             p2.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE  # Center the text vertically
             r2 = p2.add_run(); r2.text = badge
             r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255, 255, 255)
+
     
 
     # 7) Bullet textbox BELOW the table
