@@ -183,6 +183,11 @@ def step3_process_scorecard(pdf, start_page, declared_total):
 
 # === Step 4: IPS Screening ===
 def step4_ips_screen():
+    # Check if 'fund_blocks' exist in session state, indicating Step 3 has run
+    if "fund_blocks" not in st.session_state:
+        st.error("❌ 'fund_blocks' not found. Please run Step 3 to process scorecard data first.")
+        return
+
     IPS = [
         "Manager Tenure",
         "Excess Performance (3Yr)",
@@ -200,11 +205,6 @@ def step4_ips_screen():
         "Expense Ratio Rank"
     ]
     st.subheader("Step 4: IPS Investment Criteria Screening")
-
-    # Ensure fund_blocks are initialized and available
-    if "fund_blocks" not in st.session_state:
-        st.error("❌ 'fund_blocks' not found. Please run Step 3 to process scorecard data first.")
-        return
 
     for b in st.session_state["fund_blocks"]:
         name = b["Fund Name"]
@@ -243,7 +243,6 @@ def step4_ips_screen():
 
         for criterion, status in statuses.items():
             st.write(f"- {status} **{criterion}**: {reasons.get(criterion, '—')}")
-
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
