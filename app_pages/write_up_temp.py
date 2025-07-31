@@ -89,6 +89,7 @@ def process_toc(text):
 
 # === Step 3 ===
 def step3_process_scorecard(pdf, start_page, declared_total):
+    # Gather all pages from the start page and extract text
     pages = []
     for p in pdf.pages[start_page-1:]:
         txt = p.extract_text() or ""
@@ -96,48 +97,61 @@ def step3_process_scorecard(pdf, start_page, declared_total):
             pages.append(txt)
         else:
             break
+
     lines = "\n".join(pages).splitlines()
 
-    idx = next((i for i,l in enumerate(lines) if "Criteria Threshold" in l), None)
+    # Find the start of the metrics section after "Criteria Threshold"
+    idx = next((i for i, l in enumerate(lines) if "Criteria Threshold" in l), None)
     if idx is not None:
-        lines = lines[idx+1:]
+        lines = lines[idx + 1:]
 
     fund_blocks = []
     name = None
     metrics = []
 
-    for i,line in enumerate(lines):
-        m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.+)$", line.strip())
+    # Loop through lines to extract metric info (Metric, Pass/Review, Info)
+    for i, line in enumerate(lines):
+        # Adjusted regex to correctly match "Metric Name", "Pass/Review", and "Info"
+        # This will match lines like: "Excess Performance (3Yr)    Pass    10%"
+        m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.*)$", line.strip())
         if not m:
             continue
-        metric, _, info = m.groups()
 
+        metric, status, info = m.groups()
+
+        # When encountering the "Manager Tenure" metric, save the previous fund block
         if metric == "Manager Tenure":
             if name and metrics:
                 fund_blocks.append({"Fund Name": name, "Metrics": metrics})
-            # find the fund name from the previous non-blank line
+
+            # Find the fund name from the previous non-blank line
             prev = ""
-            for j in range(i-1, -1, -1):
+            for j in range(i - 1, -1, -1):
                 if lines[j].strip():
                     prev = lines[j].strip()
                     break
             name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", prev).strip()
             metrics = []
 
+        # Append the metric, its status, and the information to the metrics list
         if name:
-            metrics.append({"Metric": metric, "Info": info})
+            metrics.append({"Metric": metric, "Status": status, "Info": info})
 
+    # Ensure the last fund block is added
     if name and metrics:
         fund_blocks.append({"Fund Name": name, "Metrics": metrics})
 
+    # Save extracted data to session state
     st.session_state["fund_blocks"] = fund_blocks
 
+    # Display the results for the extracted fund blocks
     st.subheader("Step 3.5: Key Details per Metric")
     for b in fund_blocks:
         st.markdown(f"### {b['Fund Name']}")
         for m in b["Metrics"]:
-            st.write(f"- **{m['Metric']}**: {m['Info'].strip()}")
+            st.write(f"- **{m['Metric']}**: {m['Info'].strip()} (Status: {m['Status']})")
 
+    # Display the investment option count comparison
     st.subheader("Step 3.6: Investment Option Count")
     count = len(fund_blocks)
     st.write(f"- Declared: **{declared_total}**")
@@ -146,6 +160,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         st.success("✅ Counts match.")
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
