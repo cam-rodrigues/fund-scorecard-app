@@ -111,6 +111,25 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     name = None
     metrics = []
 
+    # Define the metric labels (Fundscorecard 1, Fundscorecard 2, ...)
+    metric_labels = [
+        "Manager Tenure",
+        "Excess Performance",
+        "Excess Performance (5Yr)",
+        "Peer Return Rank (3Yr)",
+        "Peer Return Rank (5Yr)",
+        "Expense Ratio Rank",
+        "Sharpe Ratio Rank (3Yr)",
+        "Sharpe Ratio Rank (5Yr)",
+        "R-Squared (3Yr)",
+        "R-Squared (5Yr)",
+        "Sortino Ratio Rank (3Yr)",
+        "Sortino Ratio Rank (5Yr)",
+        "Tracking Error Rank (3Yr)",
+        "Tracking Error Rank (5Yr)"
+    ]
+
+    # Loop through lines to extract metric info (Metric Name, Pass/Review, Info)
     for i, line in enumerate(lines):
         # Regex to match: Metric Name, Status (Pass/Review), and Info
         m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.*)$", line.strip())
@@ -119,23 +138,28 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         
         metric, status, info = m.groups()
 
-        # When encountering the "Manager Tenure" metric, save the previous fund block
-        if metric == "Manager Tenure":
-            if name and metrics:
-                fund_blocks.append({"Fund Name": name, "Metrics": metrics})
+        # Find the metric label from the defined list based on order
+        if metric in metric_labels:
+            fundscorecard_number = metric_labels.index(metric) + 1
+            metric_label = f"Fundscorecard {fundscorecard_number}"
 
-            # Find the fund name from the previous non-blank line
-            prev = ""
-            for j in range(i - 1, -1, -1):
-                if lines[j].strip():
-                    prev = lines[j].strip()
-                    break
-            name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", prev).strip()
-            metrics = []
+            # When encountering a new metric, save the previous fund block
+            if metric_label:
+                if name and metrics:
+                    fund_blocks.append({"Fund Name": name, "Metrics": metrics})
 
-        # Append the metric, its status, and the information to the metrics list
-        if name:
-            metrics.append({"Metric": metric, "Status": status, "Info": info})
+                # Find the fund name from the previous non-blank line
+                prev = ""
+                for j in range(i - 1, -1, -1):
+                    if lines[j].strip():
+                        prev = lines[j].strip()
+                        break
+                name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", prev).strip()
+                metrics = []
+
+            # Append the metric, its status, and the information to the metrics list
+            if name:
+                metrics.append({"Metric": metric_label, "Status": status, "Info": info})
 
     # Ensure the last fund block is added
     if name and metrics:
@@ -148,22 +172,24 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     table_data = []
     for block in fund_blocks:
         row = [block["Fund Name"]]  # First column is the fund name
+        
+        # Loop through the metrics (1 to 14) based on the predefined labels
         for i in range(1, 15):  # Metrics 1-14
-            # Find the metric by its number (Metric 1, Metric 2, etc.)
-            metric_name = f"Metric {i}"
+            # Get the corresponding metric label
+            metric_label = f"Fundscorecard {i}"
 
-            # Check if the metric exists in the current fund block
-            metric = next((m for m in block["Metrics"] if m["Metric"] == metric_name), None)
+            # Find the corresponding metric in the current fund block
+            metric = next((m for m in block["Metrics"] if m["Metric"] == metric_label), None)
 
             # If the metric is found, use its status ("Pass" or "Review"); otherwise, mark as "Fail"
             if metric:
                 status = metric["Status"]
             else:
-                status = "Fail"  # If metric is not found, default to "Fail"
+                status = "Fail"  # Default to "Fail" if the metric is not found
 
             row.append(status)  # Add status to the row for the respective metric
 
-        table_data.append(row)  # Add the complete row (fund + metrics) to the table data
+        table_data.append(row)  # Add the completed row (fund + metrics) to the table data
 
     # Create DataFrame for display
     df = pd.DataFrame(table_data, columns=["Fund Name"] + [f"Metric {i}" for i in range(1, 15)])
@@ -181,6 +207,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         st.success("✅ Counts match.")
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
+
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
