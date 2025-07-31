@@ -59,3 +59,47 @@ def run():
         st.write(f"**Prepared By:** {prepared_by}")
     else:
         st.error("Could not find 'Prepared By' on the first page.")
+
+
+# Step 2: Locate Key Sections in Table of Contents
+import re
+import streamlit as st
+import pdfplumber
+
+# Assume `uploaded_mpi` is already available from Step 0
+
+with pdfplumber.open(uploaded_mpi) as pdf:
+    # Read the text of page 2 (0-indexed)
+    toc_text = pdf.pages[1].extract_text() or ""
+    
+# Split into lines for easier parsing
+toc_lines = toc_text.splitlines()
+
+# Define the section titles we care about
+sections = {
+    "Fund Performance: Current vs. Proposed Comparison": None,
+    "Fund Scorecard": None,
+}
+
+# Search each line for our section titles and capture the page number
+for line in toc_lines:
+    for title in sections:
+        # Regex: title, then some whitespace, then a page number
+        pattern = rf"{re.escape(title)}\s+(\d+)"
+        m = re.search(pattern, line)
+        if m:
+            sections[title] = int(m.group(1))
+
+# Display results
+if sections["Fund Performance: Current vs. Proposed Comparison"]:
+    st.write(
+        f"**Fund Performance** → page {sections['Fund Performance: Current vs. Proposed Comparison']}"
+    )
+else:
+    st.error("Could not find 'Fund Performance: Current vs. Proposed Comparison' in TOC.")
+
+if sections["Fund Scorecard"]:
+    st.write(f"**Fund Scorecard** → page {sections['Fund Scorecard']}")
+else:
+    st.error("Could not find 'Fund Scorecard' in TOC.")
+
