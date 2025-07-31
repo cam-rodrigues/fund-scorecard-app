@@ -1401,7 +1401,9 @@ import streamlit as st
 def update_heading():
     # 1) Load the PowerPoint template
     try:
-        prs = Presentation("writeup_slides.pptx")  # Path to your PowerPoint template
+        # Correct path if the file is inside a subfolder named 'assets'
+        prs = Presentation("assets/writeup_slides.pptx")
+
     except Exception as e:
         st.error(f"❌ Could not load template: {e}")
         return
