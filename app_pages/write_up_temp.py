@@ -172,14 +172,25 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
 
-    # Display the fund scorecard metrics without information in the second expander
-    st.subheader("Step 3.7: Fund Scorecard Metrics without Information")
+    # Display a single table for Step 3.7 with metrics as headers and statuses under each metric
+    st.subheader("Step 3.7: Fund Scorecard Metrics (Status Only)")
+
+    # Prepare data for the table: fund names as rows, metric statuses as columns
+    table_data = []
     for b in fund_blocks:
-        st.markdown(f"### {b['Fund Name']}")
-        table_data_no_info = [
-            [m["Metric"], m["Status"]] for m in b["Metrics"]
-        ]
-        st.table(table_data_no_info)
+        row = [b["Fund Name"]]  # First column is the fund name
+        for metric in metric_labels:  # Iterate through each metric label
+            # Find the status for each metric
+            metric_data = next((m for m in b["Metrics"] if m["Metric"] == metric), None)
+            status = metric_data["Status"] if metric_data else "Fail"  # Default to "Fail" if not found
+            row.append(status)  # Add the status to the row for the respective metric
+        table_data.append(row)  # Add the completed row to the table data
+
+    # Create DataFrame with metrics as headers
+    df = pd.DataFrame(table_data, columns=["Fund Name"] + [f"Fundscorecard {i+1}" for i in range(14)])
+
+    # Display the table with metrics as headers
+    st.table(df)
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
