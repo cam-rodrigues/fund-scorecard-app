@@ -1627,7 +1627,7 @@ def step17_export_to_ppt_headings():
         p.font.name    = "Cambria"; p.font.size = Pt(11); p.font.bold = text.startswith("Action")
         p.alignment    = PP_ALIGN.LEFT; p.line_spacing = 2.0
 
-    # 8) Slide 2: Expense & Return
+    # === Slide 2: Expense & Return ===
     if len(prs.slides) > 1:
         slide2 = prs.slides[1]
         # Table 1: Net Expense Ratio
@@ -1637,7 +1637,7 @@ def step17_export_to_ppt_headings():
         if net_exp and not str(net_exp).endswith("%"):
             net_exp = f"{net_exp}%"
         df1 = pd.DataFrame([{"Investment Manager": inv_mgr, "Net Expense Ratio": net_exp}])
-
+    
         # Table 2: QTD / 1Yr / 3Yr / 5Yr / 10Yr
         date_label = st.session_state.get("report_date", "QTD")
         def _pct(v): return f"{v}%" if v and not str(v).endswith("%") else (v or "")
@@ -1649,7 +1649,7 @@ def step17_export_to_ppt_headings():
             "5 Year":             _pct(perf_item.get("5Yr")),
             "10 Year":            _pct(perf_item.get("10Yr")),
         }])
-
+    
         # Table 3: Last 10 Calendar‑Year Returns
         fund_cy  = st.session_state.get("step8_returns", [])
         bench_cy = st.session_state.get("benchmark_calendar_year_returns", [])
@@ -1662,7 +1662,7 @@ def step17_export_to_ppt_headings():
              **{y: bench_rec.get(y, "") for y in years}}
         ]
         df3 = pd.DataFrame(rows3, columns=["Investment Manager"] + years)
-
+    
         def draw_table(slide, df, left, top, width, height, col_widths):
             tbl = slide.shapes.add_table(len(df)+1, len(df.columns),
                                          Inches(left), Inches(top),
@@ -1672,10 +1672,10 @@ def step17_export_to_ppt_headings():
             # header
             for c, name in enumerate(df.columns):
                 cell = tbl.cell(0, c); cell.text = name
-                cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(33,43,88)
+                cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(33,43,88)  # Dark blue header
                 p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
                 run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.bold=True
-                run.font.color.rgb = RGBColor(255,255,255)
+                run.font.color.rgb = RGBColor(255,255,255)  # White text for the header
             # body
             for r in range(len(df)):
                 for c in range(len(df.columns)):
@@ -1684,20 +1684,26 @@ def step17_export_to_ppt_headings():
                         cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(240,245,255)
                     p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
                     run = p.runs[0]; run.font.name="Cambria"; run.font.size=Pt(12); run.font.color.rgb = RGBColor(0,0,0)
-
+                    # Dark blue for the first column
+                    if c == 0:
+                        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(33,43,88)
+                        p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+                        run = p.runs[0]; run.font.color.rgb = RGBColor(255,255,255)  # White text for the first column
+    
         sw      = prs.slide_width / Inches(1)
         lm, rm, gap = 0.5, 0.5, 0.2
         usable = sw - lm - rm - gap
         half   = usable / 2
         ty, hgh = 1.0, 1.2
-        by, bh  = ty + hgh + 0.3, 2.0
-
+        by, bh  = ty + hgh + 0.3, 2.0  # Adjusted for positioning
+    
         draw_table(slide2, df1, lm, ty, half, hgh, [2.0, half-2.0])
         draw_table(slide2, df2, lm+half+gap, ty, half, hgh, [2.0] + [(half-2.0)/5]*5)
         first_w = 2.5
         extras  = len(df3.columns) - 1
         cw3     = [first_w] + ([(usable-first_w)/extras]*extras if extras>0 else [])
         draw_table(slide2, df3, lm, by, usable, bh, cw3)
+
 
 
     # 9) Slide 3: Risk-Adjusted Statistics
