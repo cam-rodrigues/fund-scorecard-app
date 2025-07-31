@@ -93,3 +93,60 @@ def run():
         st.write(f"**Fund Scorecard** → page {sections['Fund Scorecard']}")
     else:
         st.error("Could not find 'Fund Scorecard' in TOC.")
+
+
+
+# Step 3: Extract Fund Scorecard Metrics
+import re
+import streamlit as st
+import pdfplumber
+import pandas as pd
+
+# Assume `uploaded_mpi` and `sections` (from Step 2) are available
+
+# 1) Collect all pages of the Fund Scorecard section
+start_idx = sections["Fund Scorecard"] - 1
+scorecard_texts = []
+with pdfplumber.open(uploaded_mpi) as pdf:
+    for i in range(start_idx, len(pdf.pages)):
+        text = pdf.pages[i].extract_text() or ""
+        # Start when we hit the first "Fund Scorecard" page
+        if "Fund Scorecard" in text or scorecard_texts:
+            scorecard_texts.append(text)
+            # Stop once the heading disappears (i.e. section ends)
+            if i > start_idx and "Fund Scorecard" not in text:
+                break
+
+# 2) Parse out each fund and its metrics
+records = []
+current_fund = None
+
+for page_text in scorecard_texts:
+    for line in page_text.splitlines():
+        # Skip boxes and headings
+        if any(skip in line for skip in ["Criteria Threshold", "Fund Scorecard", "Investment Options"]):
+            continue
+
+        # Detect a new fund (bold subheading, no indent)
+        if not line.startswith(" "):
+            # Strip off any watchlist status text
+            fund_name = re.split(r"Fund Meets|Fund has been placed", line)[0].strip()
+            current_fund = fund_name
+
+        # Detect metric lines (indented)
+        else:
+            m = re.match(r"\s*(.+?)\s+(Pass|Review)\s*(?:-\s*(.*))?$", line)
+            if m and current_fund:
+                metric, status, reason = m.group(1).strip(), m.group(2), m.group(3) or ""
+                records.append({
+                    "Fund Name": current_fund,
+                    "Metric": metric,
+                    "Status": status,
+                    "Reason": reason.strip()
+                })
+
+# 3) Display as a table
+df_scorecard = pd.DataFrame(records)
+st.subheader("Fund Scorecard Metrics")
+st.dataframe(df_scorecard)
+
