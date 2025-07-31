@@ -1395,34 +1395,25 @@ def step16_bullet_points():
 
 #── Build Powerpoint───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-from pptx import Presentation
-import streamlit as st
-
+# Step 16: PowerPoint Slide Update
 def update_heading():
-    # 1) Load the PowerPoint template
     try:
-        # Correct path if the file is inside a subfolder named 'assets'
         prs = Presentation("assets/writeup_slides.pptx")
-
+        st.write("PowerPoint loaded successfully.")
     except Exception as e:
         st.error(f"❌ Could not load template: {e}")
         return
 
-    # 2) Get the selected fund from session state (Step 15)
     selected = st.session_state.get("selected_fund")
     if not selected:
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
-    
-    # 3) Get the first slide (or the slide you need to modify)
-    slide1 = prs.slides[0]
 
-    # 4) Search for the shape with text in the first slide
+    slide1 = prs.slides[0]
     heading_found = False
     for shape in slide1.shapes:
         if not shape.has_text_frame:
             continue
-        # If the shape has a text frame, update its text
         if shape.text_frame:
             shape.text_frame.clear()  # Clear any existing text
             shape.text_frame.text = f"Fund Overview: {selected}"
@@ -1433,15 +1424,10 @@ def update_heading():
         st.error("❌ No editable text found on the first slide.")
         return
 
-    # 5) Save the modified PowerPoint with the new heading
     output_path = "modified_writeup.pptx"
     prs.save(output_path)
-    
-    # 6) Provide a download link to the user
     st.success(f"✅ PowerPoint updated successfully. Download the file: [Download here]({output_path})")
 
-# Call the function to update the heading
-update_heading()
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -1575,7 +1561,7 @@ def run():
             if "selected_fund" in st.session_state:
                 selected_fund = st.session_state["selected_fund"]
                 pptx_file = "/mnt/data/Writeup_slides.pptx"  # Path to the uploaded PowerPoint template
-                updated_pptx_path = add_step17_to_pptx(pptx_file, selected_fund)  # Update the PPTX with data
+                updated_pptx_path = update_heading(pptx_file, selected_fund)  # Update the PPTX with data
                 
                 st.write(f"Updated PowerPoint file is ready for download: [Download here](/{updated_pptx_path})")
             else:
