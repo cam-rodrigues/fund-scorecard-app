@@ -1039,7 +1039,7 @@ def step15_display_selected_fund():
     st.write(f"Details for: {selected_fund}")
 
     # === Step 3: Scorecard Metrics ===
-    st.markdown("**Step 3: Scorecard Metrics**")
+    st.markdown("**Scorecard Metrics**")
     blocks = st.session_state.get("fund_blocks", [])
     block = next((b for b in blocks if b["Fund Name"] == selected_fund), None)
     if block:
