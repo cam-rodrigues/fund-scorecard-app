@@ -86,19 +86,16 @@ def process_toc(text):
     st.session_state['r5yr_page'] = r5yr_page
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-
 def step3_process_scorecard(pdf, start_page, declared_total):
     """
     Processes the scorecard section of the PDF starting from the specified page and extracts
     fund name, metrics, and their status (Pass or Review).
     """
     pages = []
+    # Loop through all pages starting from the start_page
     for p in pdf.pages[start_page - 1:]:
         txt = p.extract_text() or ""
-        if "Fund Scorecard" in txt:
-            pages.append(txt)
-        else:
-            break
+        pages.append(txt)
 
     lines = "\n".join(pages).splitlines()
 
@@ -126,6 +123,10 @@ def step3_process_scorecard(pdf, start_page, declared_total):
 
     # Loop through lines to extract fund names, metric names, and statuses (Pass/Review)
     for i, line in enumerate(lines):
+        # Ignore lines that mention "Criteria Threshold"
+        if "Criteria Threshold" in line:
+            continue
+
         # Check if the line matches any of the defined metrics
         if any(metric in line for metric in metric_labels):
             # If we find a metric, capture the fund name just above the metric
