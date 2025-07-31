@@ -1395,83 +1395,6 @@ def step16_bullet_points():
 
 #── Build Powerpoint───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-from pptx import Presentation
-
-def add_step17_to_pptx(pptx_path, selected_fund):
-    # Load PowerPoint presentation
-    prs = Presentation(assets/writeup_slides.pptx)
-
-    # Replace placeholders with data
-    slide_1 = prs.slides[0]  # Assuming slide 1 is the title slide
-
-    # Replace [Fund Name]
-    fund_name_placeholder = "[Fund Name]"
-    bullet_point1_placeholder = "[Bullet Point 1]"
-    bullet_point2_placeholder = "[Bullet Point 2]"
-    bullet_point3_placeholder = "[Optional Bullet Point 3]"
-    
-    # Find and replace placeholders with actual values
-    for shape in slide_1.shapes:
-        if hasattr(shape, "text"):
-            if fund_name_placeholder in shape.text:
-                shape.text = shape.text.replace(fund_name_placeholder, selected_fund)
-            if bullet_point1_placeholder in shape.text:
-                shape.text = shape.text.replace(bullet_point1_placeholder, generate_bullet_point_1(selected_fund))
-            if bullet_point2_placeholder in shape.text:
-                shape.text = shape.text.replace(bullet_point2_placeholder, generate_bullet_point_2(selected_fund))
-            if bullet_point3_placeholder in shape.text:
-                shape.text = shape.text.replace(bullet_point3_placeholder, generate_bullet_point_3(selected_fund))
-
-    # Adding tables from Step 15 and bullet points from Step 16
-    # Slide for the expense/return table (Example: You can adjust the slide index as needed)
-    slide_2 = prs.slides[1]  # Assuming slide 2 holds the expense/return table
-    table_placeholder = "[Category] – Expense & Return"
-
-    for shape in slide_2.shapes:
-        if hasattr(shape, "text"):
-            if table_placeholder in shape.text:
-                shape.text = shape.text.replace(table_placeholder, generate_expense_return_table(selected_fund))
-
-    # Slide for risk-adjusted statistics table
-    slide_3 = prs.slides[2]  # Adjust as necessary
-    risk_adjusted_stats_placeholder = "[Category] – Risk Adjusted Statistics"
-    for shape in slide_3.shapes:
-        if hasattr(shape, "text"):
-            if risk_adjusted_stats_placeholder in shape.text:
-                shape.text = shape.text.replace(risk_adjusted_stats_placeholder, generate_risk_adjusted_statistics(selected_fund))
-
-    # Save the updated PowerPoint
-    updated_pptx_path = "/mnt/data/Updated_Writeup_Slides.pptx"
-    prs.save(updated_pptx_path)
-
-    return updated_pptx_path
-
-# Example generation functions for bullet points and tables
-def generate_bullet_point_1(selected_fund):
-    return f"{selected_fund} has outperformed its benchmark in the most recent quarter."
-
-def generate_bullet_point_2(selected_fund):
-    return f"{selected_fund}'s three-year return has trailed its benchmark by 100 bps."
-
-def generate_bullet_point_3(selected_fund):
-    return f"Further analysis of {selected_fund} suggests potential for long-term growth."
-
-def generate_expense_return_table(selected_fund):
-    # This function would generate and return a formatted string or table for the expense/return data
-    return f"Expense and return data for {selected_fund}."
-
-def generate_risk_adjusted_statistics(selected_fund):
-    # This function would generate and return a formatted string or table for the risk-adjusted statistics
-    return f"Risk-adjusted statistics for {selected_fund}."
-
-# Assuming that the user has selected a fund, pass its name
-selected_fund = "Sample Fund"  # Replace with dynamic selection logic
-pptx_file = "/mnt/data/Writeup_slides.pptx"  # Path to the uploaded PPTX file
-
-# Add Step 17 to the PowerPoint
-updated_pptx_path = add_step17_to_pptx(pptx_file, selected_fund)
-st.write(f"Updated PowerPoint file has been saved: {updated_pptx_path}")
-
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
@@ -1597,18 +1520,6 @@ def run():
         with st.expander("Step 16: Bullet Points", expanded=False):
             step16_bullet_points()
             
-        # Inside the run() method, after processing the bullet points from Step 16
-        
-        # Add Step 17: Create a PowerPoint with the extracted data
-        with st.expander("Step 17: Create PowerPoint", expanded=False):
-            if "selected_fund" in st.session_state:
-                selected_fund = st.session_state["selected_fund"]
-                pptx_file = "/mnt/data/Writeup_slides.pptx"  # Path to the uploaded PowerPoint template
-                updated_pptx_path = add_step17_to_pptx(pptx_file, selected_fund)  # Update the PPTX with data
-                
-                st.write(f"Updated PowerPoint file is ready for download: [Download here](/{updated_pptx_path})")
-            else:
-                st.error("Please select a fund in Step 15 before generating the PowerPoint.")
 
 
 if __name__ == "__main__":
