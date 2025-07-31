@@ -99,35 +99,86 @@ def process_toc(full_text):
     toc["Fund Factsheets"] = find_page("Fund Factsheet") or find_page("Factsheet")
     st.session_state["toc_pages"] = toc
 
-# === Step 3: Scorecard metrics with fund name grouping & validation ===
 def step3_process_scorecard(pdf):
-    start_page = st.session_state.get("toc_pages", {}).get("Fund Scorecard")
-    if start_page is None or start_page >= len(pdf.pages):
-        st.error("Scorecard page not found.")
-        return []
-    raw = pdf.pages[start_page].extract_text() or ""
-    lines = [l.rstrip() for l in raw.split("\n") if l.strip()]
+    # Helper to get candidate pages: primary scorecard page, then +/−2 as fallback
+    toc = st.session_state.get("toc_pages", {})
+    base_page = toc.get("Fund Scorecard")
+    candidate_pages = []
+    if base_page is not None:
+        candidate_pages.append(base_page)
+        # add neighbors
+        for delta in (1, -1, 2, -2):
+            p = base_page + delta
+            if 0 <= p < len(pdf.pages):
+                candidate_pages.append(p)
+    else:
+        # fallback: scan first 5 pages if TOC didn't locate it
+        candidate_pages = list(range(min(5, len(pdf.pages))))
+
+    raw_combined = ""
+    for p in candidate_pages:
+        try:
+            raw_combined += "\n" + (pdf.pages[p].extract_text() or "")
+        except Exception:
+            continue
+
+    lines = [l.rstrip() for l in raw_combined.split("\n") if l.strip()]
+
+    # Define what constitutes a fund name: contains word "Fund" or is Title Case with 2-4 words
+    def is_fund_name_line(line):
+        if "Fund" in line:
+            return True
+        # heuristic: 2-4 words, each capitalized (e.g., "Vanguard Growth Fund" or "Large Value")
+        parts = line.split()
+        if 1 < len(parts) <= 4 and all(p[0].isupper() for p in parts if p):
+            return True
+        return False
+
+    # Known metric keywords to help identify metric lines
+    metric_keywords = [
+        "Manager Tenure", "Excess Performance", "Peer Return Rank",
+        "Expense Ratio Rank", "Sharpe Ratio Rank", "Sortino Ratio Rank",
+        "Tracking Error Rank", "R-Squared"
+    ]
+
     fund_blocks = []
     current = None
 
-    # Heuristic: fund name lines are either ALL CAPS, contain "Fund", or are followed by metric lines with colons
     for i, line in enumerate(lines):
-        is_potential_name = ("Fund" in line and len(line.split()) <= 8) or line.isupper()
-        has_metric_format_next = False
-        if i + 1 < len(lines):
-            nxt = lines[i+1]
-            has_metric_format_next = ":" in nxt  # next line is a metric
-        if is_potential_name and has_metric_format_next:
+        # If line looks like a fund name and next line looks like a metric, start new block
+        next_line = lines[i+1] if i+1 < len(lines) else ""
+        next_is_metric = any(kw.lower() in next_line.lower() for kw in metric_keywords) or ":" in next_line
+
+        if is_fund_name_line(line) and next_is_metric:
             if current:
                 fund_blocks.append(current)
             current = {"Fund Name": line.strip(), "Metrics": []}
-        elif current:
+            continue
+
+        # If within a block, append metric-like content
+        if current:
+            # Accept lines that have a colon or match known metric keywords
             if ":" in line:
                 metric, info = line.split(":", 1)
                 current["Metrics"].append({"Metric": metric.strip(), "Info": info.strip()})
             else:
-                # continuation or unlabeled
-                current["Metrics"].append({"Metric": "Unknown", "Info": line.strip()})
+                # attempt to associate if line contains a keyword
+                lowered = line.lower()
+                matched = False
+                for kw in metric_keywords:
+                    if kw.lower() in lowered:
+                        # split heuristically, e.g., "Manager Tenure 4 yrs" or "R-Squared 96%"
+                        parts = line.split(None, 2)
+                        if len(parts) >= 2:
+                            current["Metrics"].append({"Metric": kw, "Info": line.replace(kw, "").strip()})
+                        else:
+                            current["Metrics"].append({"Metric": kw, "Info": line.strip()})
+                        matched = True
+                        break
+                if not matched:
+                    # treat as continuation or unknown
+                    current["Metrics"].append({"Metric": "Unknown", "Info": line.strip()})
+
     if current:
         fund_blocks.append(current)
 
@@ -135,9 +186,19 @@ def step3_process_scorecard(pdf):
     if declared is not None and len(fund_blocks) != declared:
         st.warning(
             f"Declared fund count is {declared} but extracted {len(fund_blocks)} fund blocks. "
-            "Check scorecard parsing heuristics."
+            "Here are the first 30 raw lines for debugging:"
         )
+        # show context to help you tune heuristics
+        sample = "\n".join(lines[:30])
+        st.code(sample, language="text")
+
+    if not fund_blocks:
+        st.error("No fund blocks parsed; dumping broader context for inspection.")
+        st.subheader("Raw candidate pages snippet")
+        st.code("\n".join(lines[:100]), language="text")
+
     st.session_state["fund_blocks"] = fund_blocks
+
 
 # === Step 5: Ticker extraction from performance page with fuzzy fallback ===
 def step5_process_performance(pdf):
