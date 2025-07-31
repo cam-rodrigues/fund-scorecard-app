@@ -1399,7 +1399,7 @@ from pptx import Presentation
 
 def add_step17_to_pptx(pptx_path, selected_fund):
     # Load PowerPoint presentation
-    prs = Presentation(assets/writeup_slides.pptx)
+    prs = Presentation(writeup_slides.pptx)
 
     # Replace placeholders with data
     slide_1 = prs.slides[0]  # Assuming slide 1 is the title slide
