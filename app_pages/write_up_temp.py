@@ -101,11 +101,7 @@ def process_toc(text):
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-import pandas as pd
-import re
-import streamlit as st
-
-# === Step 3 === 
+# === Step 3 ===
 def step3_process_scorecard(pdf, start_page, declared_total):
     """
     Processes the scorecard section of the PDF starting from the specified page and extracts
@@ -165,24 +161,12 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     # Save extracted data to session state
     st.session_state["fund_blocks"] = fund_blocks
 
-    # Prepare data for the table (Fund Name and Metrics 1-14)
-    table_data = []
+    # Display the fund blocks and metrics
+    st.subheader("Step 3.5: Key Details per Metric")
     for block in fund_blocks:
-        row = [block["Fund Name"]]  # First column is the fund name
-        for i in range(1, 15):  # Metrics 1-14
-            # Find the status for each metric
-            metric_name = f"Metric {i}"
-            metric = next((m for m in block["Metrics"] if m["Metric"] == IPS[i-1]), None)
-            status = metric["Status"] if metric else "Fail"
-            row.append(status)
-        table_data.append(row)
-
-    # Create DataFrame for display
-    df = pd.DataFrame(table_data, columns=["Fund Name"] + [f"Metric {i}" for i in range(1, 15)])
-
-    # Display the DataFrame
-    st.subheader("Step 3.5: Fund Metrics Overview")
-    st.dataframe(df, use_container_width=True)
+        st.markdown(f"### {block['Fund Name']}")
+        for metric in block["Metrics"]:
+            st.write(f"- **{metric['Metric']}** ({metric['Status']}): {metric['Info'].strip()}")
 
     # Display the investment option count comparison
     st.subheader("Step 3.6: Investment Option Count")
@@ -195,16 +179,10 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         st.error(f"❌ Expected {declared_total}, found {count}.")
 
 
-
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 4: IPS Screening ===
 def step4_ips_screen():
-    # Check if 'fund_blocks' exist in session state, indicating Step 3 has run
-    if "fund_blocks" not in st.session_state:
-        st.error("❌ 'fund_blocks' not found. Please run Step 3 to process scorecard data first.")
-        return
-
     IPS = [
         "Manager Tenure",
         "Excess Performance (3Yr)",
@@ -225,42 +203,70 @@ def step4_ips_screen():
 
     for b in st.session_state["fund_blocks"]:
         name = b["Fund Name"]
-        is_passive = "bitcoin" in name.lower()  # Assuming funds with 'bitcoin' are passive; adjust as needed
+        is_passive = "bitcoin" in name.lower()
         statuses, reasons = {}, {}
 
-        # Extract the scorecard metrics and convert them to IPS criteria
-        scorecard_metrics = {
-            1: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Manager Tenure"), "Fail"),
-            2: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Excess Performance"), "Fail"),
-            3: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Excess Performance (5Yr)"), "Fail"),
-            4: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Peer Return Rank (3Yr)"), "Fail"),
-            5: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Peer Return Rank (5Yr)"), "Fail"),
-            6: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Expense Ratio Rank"), "Fail"),
-            7: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Sharpe Ratio Rank (3Yr)"), "Fail"),
-            8: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Sharpe Ratio Rank (5Yr)"), "Fail"),
-            9: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "R-Squared (3Yr)"), "Fail"),
-            10: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "R-Squared (5Yr)"), "Fail"),
-            11: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Sortino Ratio Rank (3Yr)"), "Fail"),
-            12: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Sortino Ratio Rank (5Yr)"), "Fail"),
-            13: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Tracking Error Rank (3Yr)"), "Fail"),
-            14: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Tracking Error Rank (5Yr)"), "Fail"),
-        }
+        # Manager Tenure ≥3
+        info = next((m["Info"] for m in b["Metrics"] if m["Metric"]=="Manager Tenure"), "")
+        yrs = float(re.search(r"(\d+\.?\d*)", info).group(1)) if re.search(r"(\d+\.?\d*)", info) else 0
+        ok = yrs>=3
+        statuses["Manager Tenure"] = ok
+        reasons["Manager Tenure"] = f"{yrs} yrs {'≥3' if ok else '<3'}"
 
-        # Conversion logic for scorecard metrics to IPS criteria
-        ips_criteria = convert_scorecard_to_ips(scorecard_metrics, fund_type="passive" if is_passive else "active")
+        # map each IPS metric
+        for metric in IPS[1:]:  # skip tenure
+            m = next((x for x in b["Metrics"] if x["Metric"].startswith(metric.split()[0])), None)
+            info = m["Info"] if m else ""
+            if "Excess Performance" in metric:
+                val_m = re.search(r"([-+]?\d*\.\d+)%", info)
+                val = float(val_m.group(1)) if val_m else 0
+                ok = (val>0) if "3Yr" in metric else (val>0)
+                statuses[metric] = ok
+                reasons[metric] = f"{val}%"
+            elif "R-Squared" in metric:
+                pct_m = re.search(r"(\d+\.\d+)%", info)
+                pct = float(pct_m.group(1)) if pct_m else 0
+                ok = (pct>=95) if is_passive else True
+                statuses[metric] = ok
+                reasons[metric] = f"{pct}%"
+            elif "Peer Return" in metric or "Sharpe Ratio" in metric:
+                rank_m = re.search(r"(\d+)", info)
+                rank = int(rank_m.group(1)) if rank_m else 999
+                ok = rank<=50
+                statuses[metric] = ok
+                reasons[metric] = f"Rank {rank}"
+            elif "Sortino Ratio" in metric or "Tracking Error" in metric:
+                rank_m = re.search(r"(\d+)", info)
+                rank = int(rank_m.group(1)) if rank_m else 999
+                if "Sortino" in metric and not is_passive:
+                    ok = rank<=50
+                elif "Tracking Error" in metric and is_passive:
+                    ok = rank<90
+                else:
+                    ok = True
+                statuses[metric] = ok
+                reasons[metric] = f"Rank {rank}"
+            elif "Expense Ratio" in metric:
+                rank_m = re.search(r"(\d+)", info)
+                rank = int(rank_m.group(1)) if rank_m else 999
+                ok = rank<=50
+                statuses[metric] = ok
+                reasons[metric] = f"Rank {rank}"
 
-        # Map the converted IPS criteria to statuses
-        for idx, criterion in enumerate(ips_criteria):
-            statuses[IPS[idx]] = "✅" if ips_criteria[criterion] == "Pass" else "❌"
-            reasons[IPS[idx]] = f"{ips_criteria[criterion]}"
+        # count fails
+        fails = sum(not v for v in statuses.values())
+        if fails<=4:
+            overall="Passed IPS Screen"
+        elif fails==5:
+            overall="Informal Watch (IW)"
+        else:
+            overall="Formal Watch (FW)"
 
-        # Display the fund's IPS status
         st.markdown(f"### {name} ({'Passive' if is_passive else 'Active'})")
-        st.write(f"**Overall IPS Status:** {statuses['Manager Tenure']} ({sum(1 for v in statuses.values() if v == '✅')} passes)")
-
-        for criterion, status in statuses.items():
-            st.write(f"- {status} **{criterion}**: {reasons.get(criterion, '—')}")
-
+        st.write(f"**Overall:** {overall} ({fails} fails)")
+        for m in IPS:
+            sym = "✅" if statuses.get(m,False) else "❌"
+            st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -1032,8 +1038,30 @@ def step15_display_selected_fund():
     # Now use this selected fund for further details
     st.write(f"Details for: {selected_fund}")
 
+    # Display the fund details as before
+    # --- (Existing code for displaying the details of the selected fund) ---
+
+    # === Step 1: Page 1 Metadata ===
+    st.markdown("**Step 1: Page 1 Metadata**")
+    st.write(f"- Report Date:   {st.session_state.get('report_date','N/A')}")
+    st.write(f"- Total Options: {st.session_state.get('total_options','N/A')}")
+    st.write(f"- Prepared For:  {st.session_state.get('prepared_for','N/A')}")
+    st.write(f"- Prepared By:   {st.session_state.get('prepared_by','N/A')}")
+
+    # === Step 2: Table of Contents Pages ===
+    st.markdown("**Step 2: Table of Contents**")
+    for key,label in [
+        ("performance_page","Fund Performance Current vs Proposed"),
+        ("calendar_year_page","Fund Performance Calendar Year"),
+        ("r3yr_page","MPT 3Yr Risk Analysis"),
+        ("r5yr_page","MPT 5Yr Risk Analysis"),
+        ("scorecard_page","Fund Scorecard"),
+        ("factsheets_page","Fund Factsheets")
+    ]:
+        st.write(f"- {label}: {st.session_state.get(key,'N/A')}")
+
     # === Step 3: Scorecard Metrics ===
-    st.markdown("**Scorecard Metrics**")
+    st.markdown("**Step 3: Scorecard Metrics**")
     blocks = st.session_state.get("fund_blocks", [])
     block = next((b for b in blocks if b["Fund Name"] == selected_fund), None)
     if block:
