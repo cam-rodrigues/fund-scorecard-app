@@ -155,24 +155,28 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     # Save extracted data to session state
     st.session_state["fund_blocks"] = fund_blocks
 
-    # Display the fund scorecard metrics with information in the first expander
-    st.subheader("Step 3.5: Fund Scorecard Metrics with Information")
+    # Use st.empty() to hide Step 3.5 and Step 3.6 (individual metric tables)
+    step_3_5_placeholder = st.empty()
+    step_3_6_placeholder = st.empty()
+
+    # Step 3.5: Fund Scorecard Metrics with Information - Hidden
+    step_3_5_placeholder.subheader("Step 3.5: Fund Scorecard Metrics with Information")
     for b in fund_blocks:
-        st.markdown(f"### {b['Fund Name']}")
+        step_3_5_placeholder.markdown(f"### {b['Fund Name']}")
         table_data = [
             [m["Metric"], m["Status"], m["Info"]] for m in b["Metrics"]
         ]
-        st.table(table_data)
+        step_3_5_placeholder.table(table_data)
 
-    # Display the counts
-    st.subheader("Step 3.6: Investment Option Count")
+    # Step 3.6: Investment Option Count - Hidden
+    step_3_6_placeholder.subheader("Step 3.6: Investment Option Count")
     count = len(fund_blocks)
-    st.write(f"- Declared: **{declared_total}**")
-    st.write(f"- Extracted: **{count}**")
+    step_3_6_placeholder.write(f"- Declared: **{declared_total}**")
+    step_3_6_placeholder.write(f"- Extracted: **{count}**")
     if count == declared_total:
-        st.success("✅ Counts match.")
+        step_3_6_placeholder.success("✅ Counts match.")
     else:
-        st.error(f"❌ Expected {declared_total}, found {count}.")
+        step_3_6_placeholder.error(f"❌ Expected {declared_total}, found {count}.")
 
     # === Convert Fund Scorecard Metrics to IPS Metrics ===
     st.subheader("Step 3.7: Fund Scorecard to IPS Metrics Conversion")
@@ -250,7 +254,6 @@ def step3_process_scorecard(pdf, start_page, declared_total):
 
     # Display the IPS metrics table
     st.table(ips_df)
-
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
