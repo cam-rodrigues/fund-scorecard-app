@@ -102,15 +102,6 @@ def step3_process_scorecard(pdf, start_page, declared_total):
 
     lines = "\n".join(pages).splitlines()
 
-    # Find the start of the metrics section after "Criteria Threshold"
-    idx = next((i for i, l in enumerate(lines) if "Criteria Threshold" in l), None)
-    if idx is not None:
-        lines = lines[idx + 1:]
-
-    fund_blocks = []
-    name = None
-    metrics = []
-
     # Define the metric names for the 14 fund scorecards
     metric_labels = [
         "Manager Tenure",
@@ -129,29 +120,30 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         "Tracking Error Rank (5Yr)"
     ]
 
+    fund_blocks = []
+    name = None
+    metrics = []
+
     # Loop through lines to extract fund names, metric names, and statuses (Pass/Review)
     for i, line in enumerate(lines):
-        # Regex to match: Fund Name, Metric Name, Status (Pass/Review), and Info
-        m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.*)$", line.strip())
-        if not m:
-            continue
-        
-        metric, status, info = m.groups()
+        # Check if the line matches any of the defined metrics
+        if any(metric in line for metric in metric_labels):
+            # If we find a metric, capture the fund name just above the metric
+            if name is None:
+                # Look for the previous non-empty line as the fund name
+                for j in range(i - 1, -1, -1):
+                    if lines[j].strip():  # Find the first non-empty line above the metric
+                        name = lines[j].strip()
+                        break
 
-        # If we detect a new fund name (it will be above the metrics)
-        if "Fund" in line and not any(x in line for x in metric_labels):
-            # Save previous fund block if any
-            if name and metrics:
-                fund_blocks.append({"Fund Name": name, "Metrics": metrics})
+            # Regex to match: Metric Name, Status (Pass/Review), and Info
+            m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.*)$", line.strip())
+            if m:
+                metric, status, info = m.groups()
 
-            # Assign the fund name
-            name = line.strip()
-            metrics = []  # Reset metrics for new fund
-
-        # Match the metric name to the defined list of metrics
-        if metric in metric_labels:
-            # Append the metric, its status, and the info
-            metrics.append({"Metric": metric, "Status": status, "Info": info})
+                # Append the metric, its status, and the information to the metrics list
+                if metric in metric_labels:
+                    metrics.append({"Metric": metric, "Status": status, "Info": info})
 
     # Ensure the last fund block is added
     if name and metrics:
@@ -198,8 +190,6 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         st.success("✅ Counts match.")
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
-
-
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
