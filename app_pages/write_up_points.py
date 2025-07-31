@@ -1630,6 +1630,7 @@ def step17_export_to_ppt_headings():
     # === Slide 2: Expense & Return ===
     if len(prs.slides) > 1:
         slide2 = prs.slides[1]
+        
         # Table 1: Net Expense Ratio
         perf_item = next(p for p in perf_data if p["Fund Scorecard Name"] == selected)
         inv_mgr   = f"{selected} ({perf_item['Ticker']})"
@@ -1690,30 +1691,27 @@ def step17_export_to_ppt_headings():
                         p = cell.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
                         run = p.runs[0]; run.font.color.rgb = RGBColor(255,255,255)  # White text for the first column
     
-
         # Get slide width and margins
         sw      = prs.slide_width / Inches(1)  # Slide width in inches
         lm, rm, gap = 0.5, 0.5, 0.2  # Left margin, right margin, and gap between tables
         usable = sw - lm - rm - gap  # Usable space in width
         half   = usable / 2  # Half of the usable width for splitting the table
         ty, hgh = 1.0, 1.2  # Starting top position (ty) and height (hgh) for the first table
-        
+    
         # Adjust the vertical position for Slide 2 Table 3 (increased by 3.0 to push it lower)
         by, bh  = ty + hgh + 3.0, 2.0  # Increased the vertical distance from the previous table (was 0.3)
-        
+    
         # Draw Table 1 (Net Expense Ratio) - Positioned at the top of the slide
         draw_table(slide2, df1, lm, ty, half, hgh, [2.0, half-2.0])
-        
+    
         # Draw Table 2 (QTD / 1Yr / 3Yr / 5Yr / 10Yr) - Positioned to the right of Table 1
         draw_table(slide2, df2, lm+half+gap, ty, half, hgh, [2.0] + [(half-2.0)/5]*5)
-        
+    
         # Prepare and draw Table 3 (Last 10 Calendar-Year Returns) - Positioned further down
         first_w = 2.5  # Starting width for the first column in Table 3
         extras  = len(df3.columns) - 1  # Number of extra columns to be evenly distributed
         cw3     = [first_w] + ([(usable-first_w)/extras]*extras if extras > 0 else [])  # Calculate column widths for Table 3
         draw_table(slide2, df3, lm, by, usable, bh, cw3)  # Draw Table 3 at the new adjusted position
-
-
 
 
     # 9) Slide 3: Risk-Adjusted Statistics
