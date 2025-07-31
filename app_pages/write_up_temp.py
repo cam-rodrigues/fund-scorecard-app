@@ -201,40 +201,10 @@ def step4_ips_screen():
     ]
     st.subheader("Step 4: IPS Investment Criteria Screening")
 
-    # Conversion function to map fund scorecard metrics to IPS criteria
-    def convert_scorecard_to_ips(scorecard_metrics, fund_type="active"):
-        # Initialize an empty dictionary to store IPS criteria results
-        ips_criteria = {f"IPS Investment Criteria {i}": "Fail" for i in range(1, 12)}
-
-        if fund_type == "active":
-            # Active Fund Conversion Logic
-            if scorecard_metrics[1] == "Pass": ips_criteria[1] = "Pass"
-            if scorecard_metrics[2] == "Pass": ips_criteria[2] = "Pass"
-            if scorecard_metrics[4] == "Pass": ips_criteria[3] = "Pass"
-            if scorecard_metrics[7] == "Pass": ips_criteria[4] = "Pass"
-            if scorecard_metrics[11] == "Pass": ips_criteria[5] = "Pass"
-            if scorecard_metrics[3] == "Pass": ips_criteria[6] = "Pass"
-            if scorecard_metrics[5] == "Pass": ips_criteria[7] = "Pass"
-            if scorecard_metrics[8] == "Pass": ips_criteria[8] = "Pass"
-            if scorecard_metrics[12] == "Pass": ips_criteria[9] = "Pass"
-            if scorecard_metrics[6] == "Pass": ips_criteria[10] = "Pass"
-            ips_criteria[11] = "Pass"  # Always Pass for IPS Investment Criteria 11
-
-        elif fund_type == "passive":
-            # Passive Fund Conversion Logic
-            if scorecard_metrics[1] == "Pass": ips_criteria[1] = "Pass"
-            if scorecard_metrics[9] == "Pass": ips_criteria[2] = "Pass"
-            if scorecard_metrics[4] == "Pass": ips_criteria[3] = "Pass"
-            if scorecard_metrics[7] == "Pass": ips_criteria[4] = "Pass"
-            if scorecard_metrics[13] == "Pass": ips_criteria[5] = "Pass"
-            if scorecard_metrics[10] == "Pass": ips_criteria[6] = "Pass"
-            if scorecard_metrics[5] == "Pass": ips_criteria[7] = "Pass"
-            if scorecard_metrics[8] == "Pass": ips_criteria[8] = "Pass"
-            if scorecard_metrics[14] == "Pass": ips_criteria[9] = "Pass"
-            if scorecard_metrics[6] == "Pass": ips_criteria[10] = "Pass"
-            ips_criteria[11] = "Pass"  # Always Pass for IPS Investment Criteria 11
-
-        return ips_criteria
+    # Ensure fund_blocks are initialized and available
+    if "fund_blocks" not in st.session_state:
+        st.error("❌ 'fund_blocks' not found. Please run Step 3 to process scorecard data first.")
+        return
 
     for b in st.session_state["fund_blocks"]:
         name = b["Fund Name"]
@@ -259,6 +229,7 @@ def step4_ips_screen():
             14: next((m["Status"] for m in b["Metrics"] if m["Metric"] == "Tracking Error Rank (5Yr)"), "Fail"),
         }
 
+        # Conversion logic for scorecard metrics to IPS criteria
         ips_criteria = convert_scorecard_to_ips(scorecard_metrics, fund_type="passive" if is_passive else "active")
 
         # Map the converted IPS criteria to statuses
@@ -272,6 +243,7 @@ def step4_ips_screen():
 
         for criterion, status in statuses.items():
             st.write(f"- {status} **{criterion}**: {reasons.get(criterion, '—')}")
+
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
