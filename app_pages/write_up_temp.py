@@ -155,9 +155,9 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     # Save extracted data to session state
     st.session_state["fund_blocks"] = fund_blocks
 
-    # Use st.empty() to hide Step 3.5 and Step 3.6 (individual metric tables)
-    step_3_5_placeholder = st.empty()
-    step_3_6_placeholder = st.empty()
+    # === Hide Step 3.5 and Step 3.6 Tables ===
+    step_3_5_placeholder = st.empty()  # Placeholder for Step 3.5 (hidden)
+    step_3_6_placeholder = st.empty()  # Placeholder for Step 3.6 (hidden)
 
     # Step 3.5: Fund Scorecard Metrics with Information - Hidden
     step_3_5_placeholder.subheader("Step 3.5: Fund Scorecard Metrics with Information")
