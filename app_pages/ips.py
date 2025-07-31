@@ -100,84 +100,70 @@ def process_toc(full_text):
     st.session_state["toc_pages"] = toc
 
 def step3_process_scorecard(pdf):
-    # Helper to get candidate pages: primary scorecard page, then +/−2 as fallback
     toc = st.session_state.get("toc_pages", {})
-    base_page = toc.get("Fund Scorecard")
-    candidate_pages = []
-    if base_page is not None:
-        candidate_pages.append(base_page)
-        # add neighbors
-        for delta in (1, -1, 2, -2):
-            p = base_page + delta
-            if 0 <= p < len(pdf.pages):
-                candidate_pages.append(p)
+    start_page = toc.get("Fund Scorecard")
+    # Determine end of section: use next known section after scorecard (e.g., Fund Performance)
+    end_page = toc.get("Fund Performance")
+    if start_page is None:
+        st.error("Scorecard start page not found.")
+        return []
+
+    # Collect text across the whole scorecard section
+    pages_to_scan = []
+    if end_page is not None and end_page > start_page:
+        pages_to_scan = list(range(start_page, end_page))
     else:
-        # fallback: scan first 5 pages if TOC didn't locate it
-        candidate_pages = list(range(min(5, len(pdf.pages))))
+        # fallback: scan start page plus next 2 if no clear boundary
+        pages_to_scan = [p for p in range(start_page, min(start_page + 3, len(pdf.pages)))]
 
     raw_combined = ""
-    for p in candidate_pages:
-        try:
-            raw_combined += "\n" + (pdf.pages[p].extract_text() or "")
-        except Exception:
-            continue
+    for p in pages_to_scan:
+        raw_combined += "\n" + (pdf.pages[p].extract_text() or "")
 
-    lines = [l.rstrip() for l in raw_combined.split("\n") if l.strip()]
-
-    # Define what constitutes a fund name: contains word "Fund" or is Title Case with 2-4 words
-    def is_fund_name_line(line):
-        if "Fund" in line:
-            return True
-        # heuristic: 2-4 words, each capitalized (e.g., "Vanguard Growth Fund" or "Large Value")
-        parts = line.split()
-        if 1 < len(parts) <= 4 and all(p[0].isupper() for p in parts if p):
-            return True
-        return False
-
-    # Known metric keywords to help identify metric lines
-    metric_keywords = [
-        "Manager Tenure", "Excess Performance", "Peer Return Rank",
-        "Expense Ratio Rank", "Sharpe Ratio Rank", "Sortino Ratio Rank",
-        "Tracking Error Rank", "R-Squared"
-    ]
+    lines = [l.strip() for l in raw_combined.split("\n") if l.strip()]
 
     fund_blocks = []
     current = None
 
-    for i, line in enumerate(lines):
-        # If line looks like a fund name and next line looks like a metric, start new block
-        next_line = lines[i+1] if i+1 < len(lines) else ""
-        next_is_metric = any(kw.lower() in next_line.lower() for kw in metric_keywords) or ":" in next_line
+    # Skip past the explanatory "Criteria Threshold" section by ignoring header until first real fund line
+    # Heuristic for fund header: contains "Fund" and ends with "Criteria." or "Meets Watchlist Criteria." or similar
+    fund_header_pattern = re.compile(r".*Fund.*(Meets Watchlist Criteria\.|Watchlist Criteria\.|Fund$)", flags=re.IGNORECASE)
 
-        if is_fund_name_line(line) and next_is_metric:
+    metric_line_pattern = re.compile(
+        r"^(Manager Tenure|Excess Performance \(3Yr\)|Excess Performance \(5Yr\)|"
+        r"Peer Return Rank \(3Yr\)|Peer Return Rank \(5Yr\)|Expense Ratio Rank|"
+        r"Sharpe Ratio Rank \(3Yr\)|Sharpe Ratio Rank \(5Yr\)|R-Squared \(3Yr\)|"
+        r"R-Squared \(5Yr\)|Sortino Ratio Rank \(3Yr\)|Sortino Ratio Rank \(5Yr\)|"
+        r"Tracking Error Rank \(3Yr\)|Tracking Error Rank \(5Yr\))\s+(Pass|Review)\s*(.*)$",
+        flags=re.IGNORECASE
+    )
+
+    for i, line in enumerate(lines):
+        # Detect the start of a new fund
+        if fund_header_pattern.match(line):
             if current:
                 fund_blocks.append(current)
-            current = {"Fund Name": line.strip(), "Metrics": []}
+            # Clean name: strip off trailing descriptor like "Meets Watchlist Criteria."
+            fund_name = re.sub(r"(Meets Watchlist Criteria\.?|Watchlist Criteria\.?)", "", line, flags=re.IGNORECASE).strip()
+            current = {"Fund Name": fund_name, "Metrics": []}
             continue
 
-        # If within a block, append metric-like content
+        # Within a fund block, capture metrics lines with status
         if current:
-            # Accept lines that have a colon or match known metric keywords
-            if ":" in line:
-                metric, info = line.split(":", 1)
-                current["Metrics"].append({"Metric": metric.strip(), "Info": info.strip()})
+            m = metric_line_pattern.match(line)
+            if m:
+                metric_name = m.group(1).strip()
+                status = m.group(2).strip().capitalize()  # Pass / Review
+                rest = m.group(3).strip()
+                info = f"{status}" + (f": {rest}" if rest else "")
+                current["Metrics"].append({"Metric": metric_name, "Info": info})
             else:
-                # attempt to associate if line contains a keyword
-                lowered = line.lower()
-                matched = False
-                for kw in metric_keywords:
-                    if kw.lower() in lowered:
-                        # split heuristically, e.g., "Manager Tenure 4 yrs" or "R-Squared 96%"
-                        parts = line.split(None, 2)
-                        if len(parts) >= 2:
-                            current["Metrics"].append({"Metric": kw, "Info": line.replace(kw, "").strip()})
-                        else:
-                            current["Metrics"].append({"Metric": kw, "Info": line.strip()})
-                        matched = True
-                        break
-                if not matched:
-                    # treat as continuation or unknown
-                    current["Metrics"].append({"Metric": "Unknown", "Info": line.strip()})
+                # Sometimes explanation spills on next line; attach to last metric if exists and doesn't look like a new metric
+                if current["Metrics"]:
+                    last = current["Metrics"][-1]
+                    # Avoid appending if this line looks like a new metric again
+                    if not metric_line_pattern.match(line):
+                        last["Info"] += " " + line
 
     if current:
         fund_blocks.append(current)
@@ -186,18 +172,18 @@ def step3_process_scorecard(pdf):
     if declared is not None and len(fund_blocks) != declared:
         st.warning(
             f"Declared fund count is {declared} but extracted {len(fund_blocks)} fund blocks. "
-            "Here are the first 30 raw lines for debugging:"
+            "Showing snippet for debugging."
         )
-        # show context to help you tune heuristics
-        sample = "\n".join(lines[:30])
+        sample = "\n".join(lines[:100])
         st.code(sample, language="text")
 
     if not fund_blocks:
-        st.error("No fund blocks parsed; dumping broader context for inspection.")
-        st.subheader("Raw candidate pages snippet")
-        st.code("\n".join(lines[:100]), language="text")
+        st.error("No fund blocks parsed. Dumping entire section for inspection.")
+        st.subheader("Raw Scorecard Section Snippet")
+        st.code("\n".join(lines[:300]), language="text")
 
     st.session_state["fund_blocks"] = fund_blocks
+
 
 
 # === Step 5: Ticker extraction from performance page with fuzzy fallback ===
