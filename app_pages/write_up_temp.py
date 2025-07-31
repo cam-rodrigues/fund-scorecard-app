@@ -111,7 +111,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     name = None
     metrics = []
 
-    # Define the metric labels (Fundscorecard 1, Fundscorecard 2, ...)
+    # Define the metric names for the 14 fund scorecards
     metric_labels = [
         "Manager Tenure",
         "Excess Performance",
@@ -129,37 +129,29 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         "Tracking Error Rank (5Yr)"
     ]
 
-    # Loop through lines to extract metric info (Metric Name, Pass/Review, Info)
+    # Loop through lines to extract fund names, metric names, and statuses (Pass/Review)
     for i, line in enumerate(lines):
-        # Regex to match: Metric Name, Status (Pass/Review), and Info
+        # Regex to match: Fund Name, Metric Name, Status (Pass/Review), and Info
         m = re.match(r"^(.*?)\s+(Pass|Review)\s+(.*)$", line.strip())
         if not m:
             continue
         
         metric, status, info = m.groups()
 
-        # Find the metric label from the defined list based on order
+        # If we detect a new fund name (it will be above the metrics)
+        if "Fund" in line and not any(x in line for x in metric_labels):
+            # Save previous fund block if any
+            if name and metrics:
+                fund_blocks.append({"Fund Name": name, "Metrics": metrics})
+
+            # Assign the fund name
+            name = line.strip()
+            metrics = []  # Reset metrics for new fund
+
+        # Match the metric name to the defined list of metrics
         if metric in metric_labels:
-            fundscorecard_number = metric_labels.index(metric) + 1
-            metric_label = f"Fundscorecard {fundscorecard_number}"
-
-            # When encountering a new metric, save the previous fund block
-            if metric_label:
-                if name and metrics:
-                    fund_blocks.append({"Fund Name": name, "Metrics": metrics})
-
-                # Find the fund name from the previous non-blank line
-                prev = ""
-                for j in range(i - 1, -1, -1):
-                    if lines[j].strip():
-                        prev = lines[j].strip()
-                        break
-                name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed.*)", "", prev).strip()
-                metrics = []
-
-            # Append the metric, its status, and the information to the metrics list
-            if name:
-                metrics.append({"Metric": metric_label, "Status": status, "Info": info})
+            # Append the metric, its status, and the info
+            metrics.append({"Metric": metric, "Status": status, "Info": info})
 
     # Ensure the last fund block is added
     if name and metrics:
@@ -174,9 +166,8 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         row = [block["Fund Name"]]  # First column is the fund name
         
         # Loop through the metrics (1 to 14) based on the predefined labels
-        for i in range(1, 15):  # Metrics 1-14
-            # Get the corresponding metric label
-            metric_label = f"Fundscorecard {i}"
+        for i in range(14):  # Metrics 1-14 (fixed number of metrics)
+            metric_label = metric_labels[i]
 
             # Find the corresponding metric in the current fund block
             metric = next((m for m in block["Metrics"] if m["Metric"] == metric_label), None)
@@ -192,7 +183,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         table_data.append(row)  # Add the completed row (fund + metrics) to the table data
 
     # Create DataFrame for display
-    df = pd.DataFrame(table_data, columns=["Fund Name"] + [f"Metric {i}" for i in range(1, 15)])
+    df = pd.DataFrame(table_data, columns=["Fund Name"] + [f"Fundscorecard {i+1}" for i in range(14)])
 
     # Display the DataFrame
     st.subheader("Step 3.5: Fund Metrics Overview")
@@ -207,6 +198,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         st.success("✅ Counts match.")
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
+
 
 
 
