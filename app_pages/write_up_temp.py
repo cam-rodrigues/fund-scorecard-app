@@ -1395,98 +1395,55 @@ def step16_bullet_points():
 
 #── Build Powerpoint───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+from pptx import Presentation
 import streamlit as st
-import pdfplumber
-from pptx import Presentation
-from pptx.util import Inches, Pt
-from pptx.enum.text import PP_ALIGN
-import pandas as pdimport streamlit as st
-from pptx import Presentation
-import pdfplumber
 
-# Function to load PowerPoint template
-def load_ppt_template():
-    # 1) Selected fund & category
+def populate_pptx():
+    # 1) Load the PowerPoint template
+    try:
+        prs = Presentation("writeup_slides.pptx")  # Path to your template file
+    except Exception as e:
+        st.error(f"❌ Could not load template: {e}")
+        return
+
+    # 2) Get the selected fund from the session state
     selected = st.session_state.get("selected_fund")
     if not selected:
         st.error("❌ No fund selected. Please select a fund in Step 15.")
-        return None
+        return
     
+    # 3) Fetch the fund factsheet data
     facts = st.session_state.get("fund_factsheets_data", [])
     rec = next((f for f in facts if f["Matched Fund Name"] == selected), None)
     if not rec or not rec.get("Category"):
         st.error(f"❌ Could not find category for '{selected}'.")
-        return None
+        return
     category = rec["Category"].strip()
 
-    # 2) Load PPTX template (updated to writeup_slides.pptx)
-    try:
-        prs = Presentation("assets/writeup_slides.pptx")  # Load template from assets folder
-    except Exception as e:
-        st.error(f"❌ Could not load template: {e}")
-        return None
-    
-    return prs, selected, category, rec
-
-# Function to add data to a new slide
-def add_slide_with_data(prs, title, data):
-    slide_layout = prs.slide_layouts[1]  # Title and Content layout
-    slide = prs.slides.add_slide(slide_layout)
-    
-    title_shape = slide.shapes.title
-    title_shape.text = title
-    
-    content_shape = slide.shapes.placeholders[1]
-    content_shape.text = "\n".join([f"{key}: {value}" for key, value in data.items()])
-    
-    return prs
-
-# Function to generate PowerPoint from the selected fund data
-def generate_ppt():
-    # Load the PowerPoint template and selected fund data
-    prs, selected, category, rec = load_ppt_template()
-    if not prs:
-        return
-
-    # Slide 1: Fund Info (Category)
+    # 4) Slide 1: Fund Info (Category)
     slide_data = {
         "Fund Name": selected,
         "Category": category,
         "Net Assets": rec.get("Net Assets", "N/A"),
         "Avg. Market Cap": rec.get("Avg. Market Cap", "N/A"),
     }
-    prs = add_slide_with_data(prs, "Fund Info", slide_data)
+    slide1 = prs.slides[0]
+    slide1.shapes[0].text = slide_data["Fund Name"]  # Assuming the first shape is where the fund name goes
+    slide1.shapes[1].text = slide_data["Category"]   # Assuming the second shape is where the category goes
+    slide1.shapes[2].text = slide_data["Net Assets"]  # Similarly for the other fields
+    slide1.shapes[3].text = slide_data["Avg. Market Cap"]
 
-    # Slide 2: Additional Metrics (for example, Manager Tenure)
-    tenure = next((m["Info"] for m in rec.get("Metrics", []) if m["Metric"] == "Manager Tenure"), "N/A")
-    slide_data = {
-        "Manager Tenure": tenure,
-        "Expense Ratio": rec.get("Expense Ratio", "N/A"),
-    }
-    prs = add_slide_with_data(prs, "Additional Metrics", slide_data)
+    # 5) Slide 2: Performance Data
+    slide2 = prs.slides[1]
+    # Add similar code here to populate performance-related data (QTD, 1Yr, 3Yr, etc.)
+    
+    # 6) Save the modified PowerPoint
+    output_path = "modified_writeup.pptx"
+    prs.save(output_path)
+    st.success(f"✅ PowerPoint updated successfully. Download the file: [Download here]({output_path})")
 
-    # Save the PowerPoint presentation
-    output_pptx = "/tmp/fund_report.pptx"
-    prs.save(output_pptx)
-
-    # Provide the download link
-    with open(output_pptx, "rb") as f:
-        st.download_button("Download PowerPoint", data=f, file_name="fund_report.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
-
-# Main function to run the app
-def run():
-    uploaded_pdf = st.file_uploader("Upload your MPI PDF", type="pdf")
-    if uploaded_pdf:
-        # Process the PDF here (example for Step 1)
-        with pdfplumber.open(uploaded_pdf) as pdf:
-            first_page = pdf.pages[0].extract_text()
-            # You can store the extracted data in session state as required.
-        
-        # After processing, generate the PowerPoint
-        generate_ppt()
-
-if __name__ == "__main__":
-    run()
+# Example of calling the function to populate the PowerPoint
+populate_pptx()
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
