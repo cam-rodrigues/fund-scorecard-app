@@ -1395,82 +1395,98 @@ def step16_bullet_points():
 
 #── Build Powerpoint───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+import streamlit as st
+import pdfplumber
 from pptx import Presentation
+from pptx.util import Inches, Pt
+from pptx.enum.text import PP_ALIGN
+import pandas as pdimport streamlit as st
+from pptx import Presentation
+import pdfplumber
 
-def add_step17_to_pptx(pptx_path, selected_fund):
-    # Load PowerPoint presentation
-    prs = Presentation(writeup_slides.pptx)
-
-    # Replace placeholders with data
-    slide_1 = prs.slides[0]  # Assuming slide 1 is the title slide
-
-    # Replace [Fund Name]
-    fund_name_placeholder = "[Fund Name]"
-    bullet_point1_placeholder = "[Bullet Point 1]"
-    bullet_point2_placeholder = "[Bullet Point 2]"
-    bullet_point3_placeholder = "[Optional Bullet Point 3]"
+# Function to load PowerPoint template
+def load_ppt_template():
+    # 1) Selected fund & category
+    selected = st.session_state.get("selected_fund")
+    if not selected:
+        st.error("❌ No fund selected. Please select a fund in Step 15.")
+        return None
     
-    # Find and replace placeholders with actual values
-    for shape in slide_1.shapes:
-        if hasattr(shape, "text"):
-            if fund_name_placeholder in shape.text:
-                shape.text = shape.text.replace(fund_name_placeholder, selected_fund)
-            if bullet_point1_placeholder in shape.text:
-                shape.text = shape.text.replace(bullet_point1_placeholder, generate_bullet_point_1(selected_fund))
-            if bullet_point2_placeholder in shape.text:
-                shape.text = shape.text.replace(bullet_point2_placeholder, generate_bullet_point_2(selected_fund))
-            if bullet_point3_placeholder in shape.text:
-                shape.text = shape.text.replace(bullet_point3_placeholder, generate_bullet_point_3(selected_fund))
+    facts = st.session_state.get("fund_factsheets_data", [])
+    rec = next((f for f in facts if f["Matched Fund Name"] == selected), None)
+    if not rec or not rec.get("Category"):
+        st.error(f"❌ Could not find category for '{selected}'.")
+        return None
+    category = rec["Category"].strip()
 
-    # Adding tables from Step 15 and bullet points from Step 16
-    # Slide for the expense/return table (Example: You can adjust the slide index as needed)
-    slide_2 = prs.slides[1]  # Assuming slide 2 holds the expense/return table
-    table_placeholder = "[Category] – Expense & Return"
+    # 2) Load PPTX template (updated to writeup_slides.pptx)
+    try:
+        prs = Presentation("assets/writeup_slides.pptx")  # Load template from assets folder
+    except Exception as e:
+        st.error(f"❌ Could not load template: {e}")
+        return None
+    
+    return prs, selected, category, rec
 
-    for shape in slide_2.shapes:
-        if hasattr(shape, "text"):
-            if table_placeholder in shape.text:
-                shape.text = shape.text.replace(table_placeholder, generate_expense_return_table(selected_fund))
+# Function to add data to a new slide
+def add_slide_with_data(prs, title, data):
+    slide_layout = prs.slide_layouts[1]  # Title and Content layout
+    slide = prs.slides.add_slide(slide_layout)
+    
+    title_shape = slide.shapes.title
+    title_shape.text = title
+    
+    content_shape = slide.shapes.placeholders[1]
+    content_shape.text = "\n".join([f"{key}: {value}" for key, value in data.items()])
+    
+    return prs
 
-    # Slide for risk-adjusted statistics table
-    slide_3 = prs.slides[2]  # Adjust as necessary
-    risk_adjusted_stats_placeholder = "[Category] – Risk Adjusted Statistics"
-    for shape in slide_3.shapes:
-        if hasattr(shape, "text"):
-            if risk_adjusted_stats_placeholder in shape.text:
-                shape.text = shape.text.replace(risk_adjusted_stats_placeholder, generate_risk_adjusted_statistics(selected_fund))
+# Function to generate PowerPoint from the selected fund data
+def generate_ppt():
+    # Load the PowerPoint template and selected fund data
+    prs, selected, category, rec = load_ppt_template()
+    if not prs:
+        return
 
-    # Save the updated PowerPoint
-    updated_pptx_path = "/mnt/data/Updated_Writeup_Slides.pptx"
-    prs.save(updated_pptx_path)
+    # Slide 1: Fund Info (Category)
+    slide_data = {
+        "Fund Name": selected,
+        "Category": category,
+        "Net Assets": rec.get("Net Assets", "N/A"),
+        "Avg. Market Cap": rec.get("Avg. Market Cap", "N/A"),
+    }
+    prs = add_slide_with_data(prs, "Fund Info", slide_data)
 
-    return updated_pptx_path
+    # Slide 2: Additional Metrics (for example, Manager Tenure)
+    tenure = next((m["Info"] for m in rec.get("Metrics", []) if m["Metric"] == "Manager Tenure"), "N/A")
+    slide_data = {
+        "Manager Tenure": tenure,
+        "Expense Ratio": rec.get("Expense Ratio", "N/A"),
+    }
+    prs = add_slide_with_data(prs, "Additional Metrics", slide_data)
 
-# Example generation functions for bullet points and tables
-def generate_bullet_point_1(selected_fund):
-    return f"{selected_fund} has outperformed its benchmark in the most recent quarter."
+    # Save the PowerPoint presentation
+    output_pptx = "/tmp/fund_report.pptx"
+    prs.save(output_pptx)
 
-def generate_bullet_point_2(selected_fund):
-    return f"{selected_fund}'s three-year return has trailed its benchmark by 100 bps."
+    # Provide the download link
+    with open(output_pptx, "rb") as f:
+        st.download_button("Download PowerPoint", data=f, file_name="fund_report.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
 
-def generate_bullet_point_3(selected_fund):
-    return f"Further analysis of {selected_fund} suggests potential for long-term growth."
+# Main function to run the app
+def run():
+    uploaded_pdf = st.file_uploader("Upload your MPI PDF", type="pdf")
+    if uploaded_pdf:
+        # Process the PDF here (example for Step 1)
+        with pdfplumber.open(uploaded_pdf) as pdf:
+            first_page = pdf.pages[0].extract_text()
+            # You can store the extracted data in session state as required.
+        
+        # After processing, generate the PowerPoint
+        generate_ppt()
 
-def generate_expense_return_table(selected_fund):
-    # This function would generate and return a formatted string or table for the expense/return data
-    return f"Expense and return data for {selected_fund}."
-
-def generate_risk_adjusted_statistics(selected_fund):
-    # This function would generate and return a formatted string or table for the risk-adjusted statistics
-    return f"Risk-adjusted statistics for {selected_fund}."
-
-# Assuming that the user has selected a fund, pass its name
-selected_fund = "Sample Fund"  # Replace with dynamic selection logic
-pptx_file = "/mnt/data/Writeup_slides.pptx"  # Path to the uploaded PPTX file
-
-# Add Step 17 to the PowerPoint
-updated_pptx_path = add_step17_to_pptx(pptx_file, selected_fund)
-st.write(f"Updated PowerPoint file has been saved: {updated_pptx_path}")
+if __name__ == "__main__":
+    run()
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
