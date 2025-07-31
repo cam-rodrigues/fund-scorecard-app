@@ -134,7 +134,9 @@ def step3_process_scorecard(pdf, start_page, declared_total):
         if not any(metric in line for metric in metric_labels) and line.strip():
             if fund_name and metrics:
                 fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
-            fund_name = line.strip()  # Capture the fund name
+            # Clean the fund name to remove unwanted phrases
+            fund_name = line.strip()
+            fund_name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed on watchlist for not meeting .* out of 14 criteria)", "", fund_name).strip()
             metrics = []  # Reset metrics for the next fund
 
         # Check if the line contains any of the metric names
