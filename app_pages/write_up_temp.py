@@ -137,10 +137,10 @@ def main():
     st.title("IPS Screening")
 
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf", label_visibility="visible")
-    st.markdown('</div>', unsafe_allow_html=True)
     if not uploaded:
         st.info("Upload your MPI PDF to begin.")
         st.stop()
+
     with pdfplumber.open(uploaded) as pdf:
         toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
         sc_match = re.search(r"Fund Scorecard\s+(\d{1,3})", toc_text or "")
@@ -157,7 +157,7 @@ def main():
             st.stop()
         tickers = extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page)
 
-        # --- Fund Type Guess logic (Yahoo guess: always Passive if index detected, else Active) ---
+        # Fund Type Guess logic
         fund_type_guesses = []
         for name in fund_names:
             guess = ""
@@ -168,7 +168,7 @@ def main():
             else:
                 fund_type_guesses.append("Active")
 
-        # --- Default logic (index in name → Passive, else Active) ---
+        # Default logic (index in name → Passive, else Active)
         fund_type_defaults = ["Passive" if "index" in n.lower() else "Active" for n in fund_names]
 
         st.markdown('<b>Edit Fund Type for Screening:</b>', unsafe_allow_html=True)
@@ -182,20 +182,19 @@ def main():
             unsafe_allow_html=True
         )
 
-        # --- Checkbox for logic choice ---
+        # Checkbox for prefill logic
         use_guess = st.checkbox(
             "Prefill Fund Type with Yahoo Finance guess instead of default (index = Passive, else Active)",
             value=True
         )
 
-        # --- Decide which to use for editable Fund Type column ---
         prefill_fund_type = fund_type_guesses if use_guess else fund_type_defaults
 
         df_types = pd.DataFrame({
             "Fund Name": fund_names,
             "Ticker": [tickers[name] for name in fund_names],
-            "Fund Type Guess": fund_type_guesses,      # read-only
-            "Fund Type": prefill_fund_type,            # editable
+            "Fund Type Guess": fund_type_guesses,
+            "Fund Type": prefill_fund_type,
         })
 
         edited_types = st.data_editor(
@@ -203,46 +202,36 @@ def main():
             column_config={
                 "Fund Type": st.column_config.SelectboxColumn("Fund Type", options=["Active", "Passive"]),
             },
-            disabled=["Fund Name", "Ticker", "Fund Type Guess"],  # Only Fund Type is editable!
+            disabled=["Fund Name", "Ticker", "Fund Type Guess"],
             hide_index=True,
             key="data_editor_fundtype",
             use_container_width=True,
         )
-        st.markdown('</div>', unsafe_allow_html=True)
 
         fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
         df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
-        
-        # Add Watch Key here, right above the IPS Screening Table!
-        st.markdown(
-            '<div class="watch-key" style="margin-bottom: 1em;">'
-            '<span style="background:#d6f5df; color:#217a3e; padding:0.07em 0.55em; border-radius:2px;">NW</span> '
-            '(No Watch) &nbsp;'
-            '<span style="background:#fff3cd; color:#B87333; padding:0.07em 0.55em; border-radius:2px;">IW</span> '
-            '(Informal Watch) &nbsp;'
-            '<span style="background:#f8d7da; color:#c30000; padding:0.07em 0.55em; border-radius:2px;">FW</span> '
-            '(Formal Watch)</div>', unsafe_allow_html=True
-        )
-        
-        st.dataframe(styled, use_container_width=True, hide_index=True)
-        st.download_button(
-            "Download CSV",
-            data=df_raw.to_csv(index=False),
-            file_name="ips_screening_table.csv",
-            mime="text/csv",
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown('<div class="app-card" style="padding:1.2rem 1.2rem 1rem 1.2rem; margin-bottom:0.3rem;">', unsafe_allow_html=True)
-        styled = df_icon.style.applymap(watch_status_color, subset=["IPS Watch Status"])
-        st.dataframe(styled, use_container_width=True, hide_index=True)
-        st.download_button(
-            "Download CSV",
-            data=df_raw.to_csv(index=False),
-            file_name="ips_screening_table.csv",
-            mime="text/csv",
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
+        if not df_icon.empty:
+            # Watch key right above the IPS screening table
+            st.markdown(
+                '<div class="watch-key" style="margin-bottom: 1em;">'
+                '<span style="background:#d6f5df; color:#217a3e; padding:0.07em 0.55em; border-radius:2px;">NW</span> '
+                '(No Watch) &nbsp;'
+                '<span style="background:#fff3cd; color:#B87333; padding:0.07em 0.55em; border-radius:2px;">IW</span> '
+                '(Informal Watch) &nbsp;'
+                '<span style="background:#f8d7da; color:#c30000; padding:0.07em 0.55em; border-radius:2px;">FW</span> '
+                '(Formal Watch)</div>', unsafe_allow_html=True
+            )
+            styled = df_icon.style.applymap(watch_status_color, subset=["IPS Watch Status"])
+            st.dataframe(styled, use_container_width=True, hide_index=True)
+            st.download_button(
+                "Download CSV",
+                data=df_raw.to_csv(index=False),
+                file_name="ips_screening_table.csv",
+                mime="text/csv",
+            )
+        else:
+            st.info("No IPS screening data available.")
 
 if __name__ == "__main__":
     main()
