@@ -915,8 +915,6 @@ def step13_process_risk_adjusted_returns(pdf):
     import streamlit as st
     import pandas as pd
 
-    st.write("Risk‑Adjusted Returns")
-
     fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
     if not fs_start or not factsheets:
