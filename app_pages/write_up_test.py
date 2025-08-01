@@ -1689,29 +1689,49 @@ def run():
     import pdfplumber
 
     st.title("Writeup Generator")
+
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
 
-    # Checkbox to toggle detailed steps visibility
+    # Checkbox to toggle detailed expanders visibility for Steps 3-14
     show_detailed = st.checkbox("Show Detailed Steps (3-14)", value=False)
 
-    with pdfplumber.open(uploaded) as pdf:
-        
-        # Step 1
-        first = pdf.pages[0].extract_text() or ""
-        process_page1(first)
+    # Helper to prepare bullet point data after performance extraction
+    def prepare_bullet_points_data():
+        report_date = st.session_state.get("report_date", "")
+        m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
+        quarter = m.group(1) if m else ""
+        year    = m.group(2) if m else ""
 
-        # Step 2: Extract TOC page numbers silently (no UI output)
+        for itm in st.session_state.get("fund_performance_data", []):
+            qtd       = float(itm.get("QTD") or 0)
+            bench_qtd = float(itm.get("Bench QTD") or 0)
+            itm["Perf Direction"] = "overperformed" if qtd >= bench_qtd else "underperformed"
+            itm["Quarter"]        = quarter
+            itm["Year"]           = year
+            diff_bps = round((qtd - bench_qtd) * 100, 1)
+            itm["QTD_bps_diff"] = str(diff_bps)
+            itm["QTD_pct_diff"] = f"{(qtd - bench_qtd):.2f}%"
+            itm["QTD_vs"]       = f"{qtd:.2f}% vs. {bench_qtd:.2f}%"
+
+    # Open PDF and start processing
+    with pdfplumber.open(uploaded) as pdf:
+
+        # Step 1: Basic metadata extraction (always visible)
+        first_page_text = pdf.pages[0].extract_text() or ""
+        process_page1(first_page_text)
+
+        # Step 2: Extract TOC silently (no UI display)
         toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
-        process_toc(toc_text)  # page numbers stored internally
+        process_toc(toc_text)  # just stores page numbers in session_state
 
         sp = st.session_state.get('scorecard_page')
         tot = st.session_state.get('total_options')
         pp = st.session_state.get('performance_page')
         factsheets_page = st.session_state.get('factsheets_page')
 
-        # Steps 3 to 14: toggle visibility based on checkbox
+        # Steps 3-14: Conditionally show in one expander or run silently
         if show_detailed:
             with st.expander("Steps 3 to 14: Detailed Processing", expanded=True):
                 if sp and tot is not None and pp:
@@ -1723,7 +1743,6 @@ def run():
                 step6_process_factsheets(pdf, names)
                 step7_extract_returns(pdf)
 
-                # --- Data prep for bullet points ---
                 prepare_bullet_points_data()
 
                 step8_calendar_returns(pdf)
@@ -1733,15 +1752,15 @@ def run():
                 step12_process_fund_facts(pdf)
                 step13_process_risk_adjusted_returns(pdf)
                 step14_extract_peer_risk_adjusted_return_rank(pdf)
+
         else:
-            # Run steps silently without UI clutter
+            # Run all silently (no UI clutter)
             if sp and tot is not None and pp:
                 step3_5_6_scorecard_and_ips(pdf, sp, pp, factsheets_page, tot)
             names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
             step6_process_factsheets(pdf, names)
             step7_extract_returns(pdf)
 
-            # --- Data prep for bullet points ---
             prepare_bullet_points_data()
 
             step8_calendar_returns(pdf)
@@ -1752,41 +1771,16 @@ def run():
             step13_process_risk_adjusted_returns(pdf)
             step14_extract_peer_risk_adjusted_return_rank(pdf)
 
-        # Steps 15-17 keep their expanders visible as before
+        # Steps 15-17: Always visible expanders for user interaction
         with st.expander("Step 15: Single Fund Details", expanded=False):
             step15_display_selected_fund()
-                    
+
         with st.expander("Step 16: Bullet Points", expanded=False):
             step16_bullet_points()
 
         with st.expander("Step 17: Powerpoint", expanded=False):
             step17_export_to_ppt()
 
-# Helper function for bullet point data prep:
-def prepare_bullet_points_data():
-    import re
-    import streamlit as st
-
-    report_date = st.session_state.get("report_date", "")
-    m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
-    quarter = m.group(1) if m else ""
-    year    = m.group(2) if m else ""
-
-    for itm in st.session_state.get("fund_performance_data", []):
-        qtd       = float(itm.get("QTD") or 0)
-        bench_qtd = float(itm.get("Bench QTD") or 0)
-
-        itm["Perf Direction"] = "overperformed" if qtd >= bench_qtd else "underperformed"
-        itm["Quarter"]        = quarter
-        itm["Year"]           = year
-
-        diff_bps = round((qtd - bench_qtd) * 100, 1)
-        itm["QTD_bps_diff"] = str(diff_bps)
-
-        fund_pct  = f"{qtd:.2f}%"
-        bench_pct = f"{bench_qtd:.2f}%"
-        itm["QTD_pct_diff"] = f"{(qtd - bench_qtd):.2f}%"
-        itm["QTD_vs"]       = f"{fund_pct} vs. {bench_pct}"
 
 
 if __name__ == "__main__":
