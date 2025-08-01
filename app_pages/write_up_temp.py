@@ -212,6 +212,27 @@ def main():
 
         fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
         df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
+        
+        # Add Watch Key here, right above the IPS Screening Table!
+        st.markdown(
+            '<div class="watch-key" style="margin-bottom: 1em;">'
+            '<span style="background:#d6f5df; color:#217a3e; padding:0.07em 0.55em; border-radius:2px;">NW</span> '
+            '(No Watch) &nbsp;'
+            '<span style="background:#fff3cd; color:#B87333; padding:0.07em 0.55em; border-radius:2px;">IW</span> '
+            '(Informal Watch) &nbsp;'
+            '<span style="background:#f8d7da; color:#c30000; padding:0.07em 0.55em; border-radius:2px;">FW</span> '
+            '(Formal Watch)</div>', unsafe_allow_html=True
+        )
+        
+        st.dataframe(styled, use_container_width=True, hide_index=True)
+        st.download_button(
+            "Download CSV",
+            data=df_raw.to_csv(index=False),
+            file_name="ips_screening_table.csv",
+            mime="text/csv",
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+
         st.markdown('<div class="app-card" style="padding:1.2rem 1.2rem 1rem 1.2rem; margin-bottom:0.3rem;">', unsafe_allow_html=True)
         styled = df_icon.style.applymap(watch_status_color, subset=["IPS Watch Status"])
         st.dataframe(styled, use_container_width=True, hide_index=True)
