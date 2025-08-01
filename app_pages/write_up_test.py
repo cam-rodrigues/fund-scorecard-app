@@ -1450,6 +1450,9 @@ def step17_export_to_ppt():
         return False
 
     def fill_table_with_formatting(table, df_table):
+        from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
+        from pptx.dml.color import RGBColor
+    
         n_rows = min(len(df_table), len(table.rows) - 1)
         for i in range(n_rows):
             for j, col in enumerate(df_table.columns):
@@ -1457,15 +1460,19 @@ def step17_export_to_ppt():
                 cell = table.cell(i + 1, j)
                 text_val = str(val) if val is not None else ""
                 cell.text = text_val
-
+    
                 cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
                 for paragraph in cell.text_frame.paragraphs:
                     paragraph.alignment = PP_ALIGN.CENTER
                     for run in paragraph.runs:
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
-                        run.font.color.rgb = RGBColor(0, 0, 0)
+                        if col == "Investment Manager":
+                            run.font.color.rgb = RGBColor(255, 255, 255)  # White font
+                        else:
+                            run.font.color.rgb = RGBColor(0, 0, 0)        # Black font
                         run.font.bold = False
+
 
     def fill_slide2_table1(prs, df_table1):
         slide2 = prs.slides[1]
