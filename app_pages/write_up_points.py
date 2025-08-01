@@ -1232,7 +1232,6 @@ def step15_display_selected_fund():
     st.dataframe(df_slide4_2, use_container_width=True)
 
 
-
 def step16_bullet_points():
     import streamlit as st
 
@@ -1249,59 +1248,62 @@ def step16_bullet_points():
         st.error(f"❌ Performance data for '{selected_fund}' not found.")
         return
 
-    # — Bullet 1: Performance vs. Benchmark —
+    # Bullet 1: Performance vs. Benchmark, using template
     template = st.session_state.get("bullet_point_templates", [""])[0]
     b1 = template
     for fld, val in item.items():
         b1 = b1.replace(f"[{fld}]", str(val))
     st.markdown(f"- {b1}")
 
-    # — Bullet 2: IPS Screening Status & Returns Comparison —
-    ips_status = st.session_state.get("ips_status_map", {}).get(selected_fund, "")
+    # Get IPS status from icon table (guaranteed to match Slide 1 Table)
+    ips_icon_table = st.session_state.get("ips_icon_table")
+    ips_status = None
+    if ips_icon_table is not None and not ips_icon_table.empty:
+        row = ips_icon_table[ips_icon_table["Fund Name"] == selected_fund]
+        ips_status = row.iloc[0]["IPS Watch Status"] if not row.empty else None
 
-    if "Passed" in ips_status:
-        st.markdown("- This fund is not on watch.")
+    # Bullet 2: Watch status and return comparison
+    if ips_status == "NW":
+        st.markdown("- This fund is **not on watch**.")
     else:
-        if "Formal" in ips_status:
-            status_label = "Formal Watch"
-        elif "Informal" in ips_status:
-            status_label = "Informal Watch"
-        else:
-            status_label = ips_status or "on watch"
+        status_label = (
+            "Formal Watch" if ips_status == "FW" else
+            "Informal Watch" if ips_status == "IW" else
+            ips_status or "on watch"
+        )
 
-        three   = float(item.get("3Yr")      or 0)
+        three   = float(item.get("3Yr") or 0)
         bench3  = float(item.get("Bench 3Yr") or 0)
-        five    = float(item.get("5Yr")      or 0)
+        five    = float(item.get("5Yr") or 0)
         bench5  = float(item.get("Bench 5Yr") or 0)
-        bps3 = round((three  - bench3)*100, 1)
-        bps5 = round((five   - bench5)*100, 1)
+        bps3 = round((three - bench3) * 100, 1)
+        bps5 = round((five  - bench5) * 100, 1)
 
+        # Peer rank logic (safe handling)
         peer = st.session_state.get("step14_peer_rank_table", [])
-        raw3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer
+        raw3 = next((r.get("Sharpe Ratio 3Yr") or r.get("Sharpe Ratio Rank 3Yr") for r in peer
                      if r.get("Fund Name") == selected_fund), None)
-        raw5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer
+        raw5 = next((r.get("Sharpe Ratio 5Yr") or r.get("Sharpe Ratio Rank 5Yr") for r in peer
                      if r.get("Fund Name") == selected_fund), None)
         try:
-            pos3 = "top" if int(raw3) <= 50 else "bottom"
+            pos3 = "top" if raw3 and int(raw3) <= 50 else "bottom"
         except:
             pos3 = "bottom"
         try:
-            pos5 = "top" if int(raw5) <= 50 else "bottom"
+            pos5 = "top" if raw5 and int(raw5) <= 50 else "bottom"
         except:
             pos5 = "bottom"
 
         st.markdown(
-            f"- The fund is now on {status_label}. Its three‑year return trails the benchmark by "
-            f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its five‑year return trails by "
+            f"- The fund is now on **{status_label}**. Its 3‑year return trails the benchmark by "
+            f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its 5‑year return trails by "
             f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half of peers "
             f"and its 5‑Yr Sharpe ranks in the {pos5} half."
         )
 
-    # — Bullet 3: Action for Formal Watch only —
-    if "Formal" in ips_status:
+    # Bullet 3: Action for Formal Watch only
+    if ips_status == "FW":
         st.markdown("- **Action:** Consider replacing this fund.")
-
-
 
 #── Build Powerpoint───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
