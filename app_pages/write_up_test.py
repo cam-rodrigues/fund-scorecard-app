@@ -1818,21 +1818,14 @@ def run():
 
         # Returns
         with st.expander("Returns", expanded=False):
-            # Step 7: Annualized Returns
+            # Annualized Returns
             st.markdown("### Annualized Returns")
             step7_extract_returns(pdf)
             
-            # Step 8: Calendar Returns
+            # Calendar Returns (Funds and Benchmarks)
             st.markdown("### Calendar Returns")
-            df_fund = step8_calendar_returns(pdf, return_fund_df=True)
-            if df_fund is not None:
-                st.dataframe(df_fund, use_container_width=True)
-            
-            # Step 8: Benchmark Calendar Returns
-            st.markdown("### Benchmark Calendar Returns")
-            df_bench = step8_calendar_returns(pdf, return_bench_df=True)
-            if df_bench is not None:
-                st.dataframe(df_bench, use_container_width=True)
+            step8_calendar_returns(pdf)
+
 
 
 
