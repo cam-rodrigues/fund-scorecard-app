@@ -1307,10 +1307,10 @@ def step16_bullet_points():
         st.markdown("- **Action:** Consider replacing this fund.")
 
 
-
 def step17_export_to_ppt():
     import streamlit as st
     from pptx import Presentation
+    from pptx.util import Pt
     from io import BytesIO
     import pandas as pd
 
@@ -1329,7 +1329,7 @@ def step17_export_to_ppt():
         st.error(f"Could not load PowerPoint template: {e}")
         return
 
-    # Get fund facts for Slide 1 Table (example: IPS screening results)
+    # Get data for Slide 1 Table
     ips_icon_table = st.session_state.get("ips_icon_table")
     row = None
     if ips_icon_table is not None and not ips_icon_table.empty:
@@ -1340,26 +1340,21 @@ def step17_export_to_ppt():
         st.error("❌ No table data found for selected fund.")
         return
 
-    # Build DataFrame with same columns as Slide 1 table headers
-    # Make sure the columns below match your actual PowerPoint table headers exactly:
+    # Build DataFrame with same columns as table headers
     display_columns = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
     table_data = {
         **{display_columns.get(k, k): v for k, v in row.items() if k.startswith("IPS Investment Criteria")},
         "IPS Status": row.get("IPS Watch Status", "")
     }
-    # Optionally add any additional columns (Category, Time Period, etc.)
     facts = st.session_state.get("fund_factsheets_data", [])
     fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected), {})
     table_data["Category"] = fs_rec.get("Category", "")
     table_data["Time Period"] = st.session_state.get("report_date", "")
     table_data["Plan Assets"] = "$"  # Or replace with actual value
 
-    # Arrange columns in desired order (headers must match PowerPoint table headers)
-    # Adjust the list below to match the table headers in your slide
     headers = ["Category", "Time Period", "Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
     df_slide1 = pd.DataFrame([table_data], columns=headers)
 
-    # --- Helper functions ---
     def get_table_header(table):
         return tuple(cell.text.strip() for cell in table.rows[0].cells)
 
@@ -1368,7 +1363,13 @@ def step17_export_to_ppt():
         for i in range(n_rows):
             for j, col in enumerate(df.columns):
                 val = df.iloc[i, j]
-                table.cell(i + 1, j).text = str(val) if val is not None else ""
+                cell = table.cell(i + 1, j)
+                cell.text = str(val) if val is not None else ""
+                # Set font to Cambria, size 11 for all paragraphs/runs in the cell
+                for paragraph in cell.text_frame.paragraphs:
+                    for run in paragraph.runs:
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(11)
 
     # Find the first table on Slide 1 and fill it
     slide1 = prs.slides[0]
@@ -1377,7 +1378,6 @@ def step17_export_to_ppt():
         if shape.has_table:
             table = shape.table
             header = get_table_header(table)
-            # Match by header
             if header == tuple(df_slide1.columns):
                 fill_table(table, df_slide1)
                 table_filled = True
@@ -1390,14 +1390,13 @@ def step17_export_to_ppt():
     # Save and download
     output = BytesIO()
     prs.save(output)
-    st.success("Slide 1 table filled!")
+    st.success("Slide 1 table filled with Cambria size 11 font!")
     st.download_button(
         label="Download Writeup PowerPoint",
         data=output.getvalue(),
         file_name=f"{selected} Writeup.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
-
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
