@@ -145,16 +145,6 @@ def process_toc(text):
     r3yr_page = int(r3yr.group(1)) if r3yr else None
     r5yr_page = int(r5yr.group(1)) if r5yr else None
 
-    st.subheader("Table of Contents Pages")
-    st.write(f"- Fund Performance Current vs Proposed Comparison : {perf_page}")
-    st.write(f"- Fund Performance Calendar Year : {cy_page}")
-    st.write(f"- MPT 3Yr Risk Analysis : {r3yr_page}")
-    st.write(f"- MPT 5Yr Risk Analysis : {r5yr_page}")
-    st.write(f"- Fund Scorecard:   {sc_page}")
-    st.write(f"- Fund Factsheets :  {fs_page}")
-    
-
-
     # Store in session state for future reference
     st.session_state['performance_page'] = perf_page
     st.session_state['scorecard_page']   = sc_page
@@ -386,8 +376,6 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     # Save for Step 7 and others
     st.session_state["fund_performance_data"] = perf_data
     st.session_state["tickers"] = tickers  # Keep ticker mapping for legacy steps
-
-    st.session_state["step3_done"] = True
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Step 6: Fund Factsheets ===
@@ -1710,13 +1698,9 @@ def run():
         first = pdf.pages[0].extract_text() or ""
         process_page1(first)
 
-        # Show Step 2 only if Step 3 NOT done yet
-        if not st.session_state.get("step3_done", False):
-            with st.expander("Table of Contents", expanded=False):
-                toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
-                process_toc(toc_text)
-        else:
-            st.info("Table of Contents hidden because Screening is completed.")
+        # Step 2: Extract TOC page numbers silently
+        toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
+        process_toc(toc_text)  # stores page numbers internally; no UI output here
 
         # --- COMBINED STEPS 3, 4, 5 ---
         with st.expander("Step 3: Scorecard + IPS + Fund Type", expanded=True):
