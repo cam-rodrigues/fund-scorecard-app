@@ -1375,7 +1375,7 @@ def step17_export_to_ppt():
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
 
-    template_path = "/mnt/data/writeup_templates.pptx"  # Adjust path if needed
+    template_path = "assets/writeup_templates.pptx"  # Adjust path if needed
     try:
         prs = Presentation(template_path)
     except Exception as e:
