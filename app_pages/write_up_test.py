@@ -1314,6 +1314,10 @@ def step17_export_to_ppt():
     from io import BytesIO
     import pandas as pd
     from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
+    from pptx.dml.color import RGBColor
+    from pptx.enum.shapes import MSO_FILL
+    from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
+
 
     st.subheader("Step 17: Export to PowerPoint")
 
@@ -1358,20 +1362,58 @@ def step17_export_to_ppt():
         return tuple(cell.text.strip() for cell in table.rows[0].cells)
 
     def fill_table(table, df):
-        from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR  # Safe to import here too
+        from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
+        from pptx.dml.color import RGBColor
+        
+        # Define badge colors (RGB)
+        badge_colors = {
+            "NW": RGBColor(0x00, 0x80, 0x00),   # Green
+            "IW": RGBColor(0xFF, 0xA5, 0x00),   # Orange
+            "FW": RGBColor(0xFF, 0x00, 0x00),   # Red
+        }
+        
         n_rows = min(len(df), len(table.rows) - 1)
         for i in range(n_rows):
             for j, col in enumerate(df.columns):
                 val = df.iloc[i, j]
                 cell = table.cell(i + 1, j)
-                cell.text = str(val) if val is not None else ""
-                # Set cell alignment
+                text_val = str(val) if val is not None else ""
+                cell.text = text_val
+                
+                # Center align both vertically and horizontally
                 cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
                 for paragraph in cell.text_frame.paragraphs:
                     paragraph.alignment = PP_ALIGN.CENTER
+                    
+                    # Format text runs
                     for run in paragraph.runs:
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
+                        
+                        # If this is the IPS Status column, add badge styling
+                        if col == "IPS Status":
+                            # White bold font for contrast
+                            run.font.color.rgb = RGBColor(255, 255, 255)
+                            run.font.bold = True
+                        else:
+                            # Normal black font for other columns
+                            run.font.color.rgb = RGBColor(0, 0, 0)
+                            run.font.bold = False
+                
+                # Set cell background color for IPS Status badges
+                if col == "IPS Status":
+                    color = badge_colors.get(text_val, None)
+                    if color:
+                        fill = cell.fill
+                        fill.solid()
+                        fill.fore_color.rgb = color
+                    else:
+                        # No fill or default fill if status unknown
+                        cell.fill.background()  # resets to default
+                else:
+                    # Reset fill for non IPS Status cells if needed
+                    cell.fill.background()
+
 
 
     slide1 = prs.slides[0]
