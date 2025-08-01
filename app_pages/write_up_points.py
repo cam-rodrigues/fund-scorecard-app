@@ -1321,11 +1321,12 @@ def step17_export_to_ppt_headings():
 
     st.subheader("Step 17: Export to PowerPoint")
 
-    # 1) Selected fund & category
+    # --- 1) Selected fund & category
     selected = st.session_state.get("selected_fund")
     if not selected:
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
+
     facts = st.session_state.get("fund_factsheets_data", [])
     rec   = next((f for f in facts if f["Matched Fund Name"] == selected), None)
     if not rec or not rec.get("Category"):
@@ -1333,7 +1334,7 @@ def step17_export_to_ppt_headings():
         return
     category = rec["Category"].strip()
 
-    # 2) Load PPTX template
+    # --- 2) Load PPTX template
     try:
         prs = Presentation("assets/template.pptx")
     except Exception as e:
@@ -1341,7 +1342,7 @@ def step17_export_to_ppt_headings():
         return
     slide1 = prs.slides[0]
 
-    # 3) Titles on slides 1–4
+    # --- 3) Titles on slides 1–4
     def set_title(slide, text):
         if slide.shapes.title:
             tx = slide.shapes.title.text_frame.paragraphs[0]
@@ -1365,7 +1366,7 @@ def step17_export_to_ppt_headings():
     if len(prs.slides) > 3:
         set_title(prs.slides[3], f"{category} – Qualitative Factors")
 
-    # 4) Subheader on Slide 1
+    # --- 4) Subheader on Slide 1
     sub = slide1.shapes.add_textbox(Inches(0.5), Inches(1.3), prs.slide_width - Inches(1), Inches(0.4))
     sf  = sub.text_frame.paragraphs[0]
     sf.text = selected
@@ -1377,92 +1378,79 @@ def step17_export_to_ppt_headings():
     run.font.color.rgb = RGBColor(0, 0, 0)
     sf.alignment       = PP_ALIGN.LEFT
 
-    # 5) Prepare bullets from Step 16 logic
+    # --- 5) Prepare bullets from Step 16 logic
     perf_data = st.session_state.get("fund_performance_data", [])
     item      = next((x for x in perf_data if x["Fund Scorecard Name"] == selected), {})
 
-    # Bullet 1: template fill
-    tmpl = st.session_state["bullet_point_templates"][0]
-    b1   = tmpl
+    template = st.session_state.get("bullet_point_templates", [""])[0]
+    b1 = template
     for fld, val in item.items():
         b1 = b1.replace(f"[{fld}]", str(val))
 
-    # Bullet 2 & 3: IPS status
-    ips_status = st.session_state.get("ips_status_map", {}).get(selected, "")
-    if "Passed" in ips_status:
-        b2, b3 = "This fund is not on watch.", ""
+    # --- IPS status: get from icon table for consistency
+    ips_icon_table = st.session_state.get("ips_icon_table")
+    ips_status = None
+    if ips_icon_table is not None and not ips_icon_table.empty:
+        row = ips_icon_table[ips_icon_table["Fund Name"] == selected]
+        ips_status = row.iloc[0]["IPS Watch Status"] if not row.empty else None
+
+    # --- Bullet 2: Watch status and return comparison
+    if ips_status == "NW":
+        b2 = "This fund is **not on watch**."
+        b3 = ""
     else:
-        if "Formal" in ips_status:
-            status_label = "Formal Watch"
-        elif "Informal" in ips_status:
-            status_label = "Informal Watch"
-        else:
-            status_label = ips_status
-        three, bench3 = float(item.get("3Yr") or 0), float(item.get("Bench 3Yr") or 0)
-        five,  bench5 = float(item.get("5Yr") or 0), float(item.get("Bench 5Yr") or 0)
-        bps3 = round((three  - bench3) * 100, 1)
-        bps5 = round((five   - bench5)  * 100, 1)
+        status_label = (
+            "Formal Watch" if ips_status == "FW" else
+            "Informal Watch" if ips_status == "IW" else
+            ips_status or "on watch"
+        )
+        three   = float(item.get("3Yr") or 0)
+        bench3  = float(item.get("Bench 3Yr") or 0)
+        five    = float(item.get("5Yr") or 0)
+        bench5  = float(item.get("Bench 5Yr") or 0)
+        bps3 = round((three - bench3) * 100, 1)
+        bps5 = round((five  - bench5) * 100, 1)
 
         peer = st.session_state.get("step14_peer_rank_table", [])
         raw3 = next((r.get("Sharpe Ratio Rank 3Yr") for r in peer if r.get("Fund Name") == selected), None)
         raw5 = next((r.get("Sharpe Ratio Rank 5Yr") for r in peer if r.get("Fund Name") == selected), None)
-        pos3 = "top" if raw3 and int(raw3) <= 50 else "bottom"
-        pos5 = "top" if raw5 and int(raw5) <= 50 else "bottom"
+        try:
+            pos3 = "top" if raw3 and int(raw3) <= 50 else "bottom"
+        except:
+            pos3 = "bottom"
+        try:
+            pos5 = "top" if raw5 and int(raw5) <= 50 else "bottom"
+        except:
+            pos5 = "bottom"
 
         b2 = (
-            f"The fund is now on {status_label}. Its 3‑Yr return trails the benchmark by "
-            f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its 5‑Yr return trails by "
-            f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half and "
-            f"its 5‑Yr Sharpe ranks in the {pos5} half."
+            f"The fund is now on **{status_label}**. Its 3‑year return trails the benchmark by "
+            f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its 5‑year return trails by "
+            f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half of peers "
+            f"and its 5‑Yr Sharpe ranks in the {pos5} half."
         )
-        b3 = "Action: Consider replacing this fund." if status_label == "Formal Watch" else ""
+        b3 = "**Action:** Consider replacing this fund." if ips_status == "FW" else ""
 
-    # 6) Build Slide 1 Table
-    IPS = [
-        "Manager Tenure","Excess Performance (3Yr)","R‑Squared (3Yr)",
-        "Peer Return Rank (3Yr)","Sharpe Ratio Rank (3Yr)","Sortino Ratio Rank (3Yr)",
-        "Tracking Error Rank (3Yr)","Excess Performance (5Yr)","R‑Squared (5Yr)",
-        "Peer Return Rank (5Yr)","Sharpe Ratio Rank (5Yr)"
-    ]
-    blocks = st.session_state.get("fund_blocks", [])
-    block = next((b for b in blocks if b["Fund Name"] == selected), {})
-    statuses = {}
-
-    # Manager Tenure
-    ten_info = next((m["Info"] for m in block.get("Metrics",[]) if m["Metric"]=="Manager Tenure"), "")
-    yrs = float(re.search(r"(\d+(\.\d+)?)", ten_info).group(1)) if re.search(r"(\d+(\.\d+)?)", ten_info) else 0
-    statuses["Manager Tenure"] = yrs >= 3
-
-    # Other IPS criteria
-    for crit in IPS[1:]:
-        raw = next((m["Info"] for m in block.get("Metrics",[]) if m["Metric"].startswith(crit.split()[0])), "")
-        if "Excess Performance" in crit:
-            pct = float(re.search(r"([-+]?\d*\.\d+)%", raw).group(1)) if re.search(r"([-+]?\d*\.\d+)%", raw) else 0
-            statuses[crit] = pct > 0
-        elif "R‑Squared" in crit:
-            statuses[crit] = True
-        else:
-            rk = int(re.search(r"(\d+)", raw).group(1)) if re.search(r"(\d+)", raw) else 999
-            statuses[crit] = rk <= 50
-
-    # Ensure the "overall" status is correctly determined
-    fails = sum(not statuses[c] for c in IPS)
-    overall = "Passed IPS Screen" if fails <= 4 else ("Informal Watch (IW)" if fails == 5 else "Formal Watch (FW)")
-    
-    # Set the badge and color logic based on the 'overall' status
-    badge, color = "", RGBColor(0,176,80)  # Default: green (✔) for Passed
-    if "Informal Watch" in overall:
-        badge, color = "IW", RGBColor(255,165,0)  # Orange for Informal Watch
-    elif "Formal Watch" in overall:
-        badge, color = "FW", RGBColor(192,0,0)  # Red for Formal Watch
-    
-    # Set the badge in the row data
+    # --- 6) Build Slide 1 Table (category, time, $plan assets, 1-11, status)
     row = {"Category": category, "Time Period": st.session_state.get("report_date", ""), "Plan Assets": "$"}
-    for i, crit in enumerate(IPS, start=1):
-        row[str(i)] = statuses[crit]
-    row["IPS Status"] = overall  # Update the status field with the overall result
-    
-    # Define table width and column widths
+    # Use icon table to populate 1-11 & IPS status, match Slide 1 table
+    if row and ips_icon_table is not None and not ips_icon_table.empty:
+        icon_row = ips_icon_table[ips_icon_table["Fund Name"] == selected]
+        if not icon_row.empty:
+            icon_row = icon_row.iloc[0]
+            for i in range(1, 12):
+                row[str(i)] = icon_row.get(f"IPS Investment Criteria {i}", "")
+            row["IPS Status"] = icon_row.get("IPS Watch Status", "")
+        else:
+            for i in range(1, 12):
+                row[str(i)] = ""
+            row["IPS Status"] = ""
+    else:
+        for i in range(1, 12):
+            row[str(i)] = ""
+        row["IPS Status"] = ""
+
+    # --- Table setup
     slide_w = prs.slide_width
     table_w = Inches(9)
     left    = (slide_w - table_w) // 2
@@ -1471,16 +1459,16 @@ def step17_export_to_ppt_headings():
     cols    = 15
     col_w   = [1.2, 1.2, 1.2] + [0.4]*11 + [1.0]
     tbl     = slide1.shapes.add_table(2, cols, left, top, table_w, height).table
-    
-    # Set column widths
+
+    # Column widths
     for idx, w in enumerate(col_w):
         tbl.columns[idx].width = Inches(w)
-    
-    # Table headers and data values
+
+    # Headers/vals
     headers = ["Category", "Time Period", "Plan Assets"] + [str(i) for i in range(1, 12)] + ["IPS Status"]
     vals = [row["Category"], row["Time Period"], row["Plan Assets"]] + [row[str(i)] for i in range(1, 12)] + [row["IPS Status"]]
-    
-    # Helper function for setting borders
+
+    # Helper: set border
     def _set_border(cell, color=RGBColor(0,0,0)):
         tc   = cell._tc
         tcPr = tc.get_or_add_tcPr()
@@ -1490,7 +1478,7 @@ def step17_export_to_ppt_headings():
             lnPr = OxmlElement("a:solidFill")
             srgb = OxmlElement("a:srgbClr"); srgb.set("val", hex_val)
             lnPr.append(srgb); ln.append(lnPr); tcPr.append(ln)
-    
+
     # Header row formatting
     for c, h in enumerate(headers):
         cell = tbl.cell(0, c)
@@ -1501,13 +1489,8 @@ def step17_export_to_ppt_headings():
         p = tfc.paragraphs[0]; r = p.add_run(); r.text = h
         r.font.name = "Cambria"; r.font.size = Pt(12); r.font.bold = True; r.font.color.rgb = RGBColor(0, 0, 0)
         p.alignment = PP_ALIGN.CENTER
-    
-    # For a wider badge, set the width to 0.6 inches while keeping the height the same
-    # For a wider badge, set the width to 0.6 inches while keeping the height the same
-    badge_width = Inches(0.6)  # Set the badge width to 0.6
-    badge_height = Inches(0.4)  # Keep the height the same
-    
-    # Data row formatting
+
+    # Data row formatting (icons for ✔/✖)
     for c, val in enumerate(vals):
         cell = tbl.cell(1, c)
         _set_border(cell)
@@ -1515,45 +1498,42 @@ def step17_export_to_ppt_headings():
         tfc = cell.text_frame; tfc.clear()
         tfc.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE; tfc.margin_top = tfc.margin_bottom = 0
         p = tfc.paragraphs[0]; p.font.name = "Cambria"; p.font.size = Pt(12); p.alignment = PP_ALIGN.CENTER
-    
+
         if c < 14:
-            if val is True:
-                p.text = "✔"; p.runs[0].font.color.rgb = RGBColor(0,176,80)  # Green for passed
-            elif val is False:
-                p.text = "✖"; p.runs[0].font.color.rgb = RGBColor(192,0,0)  # Red for failed
+            if val == "✔":
+                p.text = "✔"; p.runs[0].font.color.rgb = RGBColor(0,176,80)
+            elif val == "✗":
+                p.text = "✖"; p.runs[0].font.color.rgb = RGBColor(192,0,0)
             else:
                 p.text = str(val)
         else:
-            # For IPS Status, add the badge (IW or FW)
-            txt = str(val).lower()
-            # Adjusted badge size (wider width with same height)
-            badge_width = Inches(0.6)  # Set the badge width to 0.6
-            badge_height = Inches(0.4)  # Keep the height the same
-    
-            # Calculate position to center the badge inside the cell
+            # IPS Status badge
+            badge, color = "", RGBColor(0,176,80)
+            if vals[c] == "IW":
+                badge, color = "IW", RGBColor(255,165,0)
+            elif vals[c] == "FW":
+                badge, color = "FW", RGBColor(192,0,0)
+            elif vals[c] == "NW":
+                badge, color = "NW", RGBColor(0,176,80)
+            else:
+                badge, color = str(vals[c]), RGBColor(200,200,200)
+            badge_width = Inches(0.6)
+            badge_height = Inches(0.4)
             cell_left  = left + sum(Inches(w) for w in col_w[:c])
             cell_w     = Inches(col_w[c])
-            bx = cell_left + (cell_w - badge_width) / 2  # Adjusted for new width
-            # Move the badge much lower by increasing the offset
-            by = top + (height - badge_height) / 2 + Inches(0.08)  # Moved lower
-    
-            # Create the badge shape
+            bx = cell_left + (cell_w - badge_width) / 2
+            by = top + (height - badge_height) / 2 + Inches(0.08)
             shp = slide1.shapes.add_shape(MSO_SHAPE.OVAL, bx, by, badge_width, badge_height)
-            shp.fill.solid(); shp.fill.fore_color.rgb = color  # Set color based on the status (IW or FW)
+            shp.fill.solid(); shp.fill.fore_color.rgb = color
             shp.line.color.rgb = RGBColor(255, 255, 255)
-    
-            # Add text to the badge and center it
             tf2 = shp.text_frame; tf2.clear()
             p2 = tf2.paragraphs[0]
-            p2.alignment = PP_ALIGN.CENTER  # Ensure the text is centered horizontally
-            p2.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE  # Center the text vertically
+            p2.alignment = PP_ALIGN.CENTER
+            p2.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
             r2 = p2.add_run(); r2.text = badge
             r2.font.name = "Cambria"; r2.font.size = Pt(10); r2.font.bold = True; r2.font.color.rgb = RGBColor(255, 255, 255)
 
-
-
-
-    # 7) Bullet textbox BELOW the table
+    # --- 7) Bullet textbox BELOW the table
     bullet_gap  = Inches(0.1)
     bullet_left = left
     bullet_top  = top + height + bullet_gap
@@ -1564,7 +1544,7 @@ def step17_export_to_ppt_headings():
     tf = tb.text_frame; tf.clear(); tf.word_wrap = True
     for text in [b1, b2] + ([b3] if b3 else []):
         p = tf.add_paragraph(); p.text = f"• {text}"
-        p.font.name    = "Cambria"; p.font.size = Pt(11); p.font.bold = text.startswith("Action")
+        p.font.name    = "Cambria"; p.font.size = Pt(11); p.font.bold = text.startswith("**Action")
         p.alignment    = PP_ALIGN.LEFT; p.line_spacing = 2.0
 
     # === Slide 2: Expense & Return ===
