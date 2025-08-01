@@ -102,7 +102,7 @@ def scorecard_to_ips(fund_blocks, fund_types):
 
 # --- Streamlit App ---
 def main():
-    st.title("Fidsync: Scorecard ➔ IPS Investment Criteria (User-select Active/Passive)")
+    st.title("Fidsync: Scorecard ➔ IPS Investment Criteria")
     st.markdown(
         "Upload your MPI PDF and set each fund as Active or Passive for custom IPS screening. "
         "Green check = Pass, Red X = Review/Fail."
@@ -125,45 +125,42 @@ def main():
             st.error("Could not extract fund scorecard blocks. Check the PDF and page number.")
             return
 
-        # Show fund type selectors in sidebar
-        st.sidebar.header("Select Fund Type (Active/Passive)")
+        # -- "Right sidebar" using columns: left = table, right = selectors --
+        left, right = st.columns([3, 1], gap="large")
 
-        # Persist fund type selection across reruns using session_state
+        # Persist fund type selection
         if "fund_types" not in st.session_state:
-            st.session_state["fund_types"] = {}
-            # Initial default: Passive if "index" in name, else Active
+            st.session_state["fund_types"] = {
+                fund["Fund Name"]: "Passive" if "index" in fund["Fund Name"].lower() else "Active"
+                for fund in fund_blocks
+            }
+
+        with right:
+            st.markdown("### Fund Type (Active/Passive)")
             for fund in fund_blocks:
                 name = fund["Fund Name"]
-                st.session_state["fund_types"][name] = "Passive" if "index" in name.lower() else "Active"
-
-        # Allow user to change type for each fund
-        for fund in fund_blocks:
-            name = fund["Fund Name"]
-            current_type = st.session_state["fund_types"].get(name, "Passive" if "index" in name.lower() else "Active")
-            selected_type = st.sidebar.radio(
-                f"{name}",
-                options=["Active", "Passive"],
-                index=0 if current_type == "Active" else 1,
-                key=f"ftype_{name}"
-            )
-            st.session_state["fund_types"][name] = selected_type
+                current_type = st.session_state["fund_types"].get(name, "Passive" if "index" in name.lower() else "Active")
+                selected_type = st.radio(
+                    label=name,
+                    options=["Active", "Passive"],
+                    index=0 if current_type == "Active" else 1,
+                    key=f"ftype_{name}",
+                )
+                st.session_state["fund_types"][name] = selected_type
 
         # Do IPS conversion with current user settings
         df_icon, df_raw = scorecard_to_ips(fund_blocks, st.session_state["fund_types"])
 
-        st.header("Scorecard ➔ IPS Investment Criteria Table")
-        st.dataframe(df_icon, use_container_width=True)
+        with left:
+            st.header("Scorecard ➔ IPS Investment Criteria Table")
+            st.dataframe(df_icon, use_container_width=True)
 
-        st.download_button(
-            "Download IPS Screening Table as CSV",
-            data=df_raw.to_csv(index=False),
-            file_name="ips_screening_table.csv",
-            mime="text/csv",
-        )
+            st.download_button(
+                "Download IPS Screening Table as CSV",
+                data=df_raw.to_csv(index=False),
+                file_name="ips_screening_table.csv",
+                mime="text/csv",
+            )
 
 if __name__ == "__main__":
-    main()
-
-
-def run():
     main()
