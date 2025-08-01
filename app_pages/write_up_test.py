@@ -1509,10 +1509,16 @@ def step17_export_to_ppt():
                     return True
         return False
 
-    def fill_slide2_table2(prs, df_table2, quarter_label):
-        slide2 = prs.slides[1]
 
+    def fill_slide2_table2(prs, df_table2, quarter_label):
+        from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
+        from pptx.dml.color import RGBColor
+        from pptx.util import Pt
+    
+        slide2 = prs.slides[1]
+    
         def is_match(table):
+            # Checks headers match except 2nd header (dynamic)
             headers = [cell.text.strip() for cell in table.rows[0].cells]
             if len(headers) != len(df_table2.columns):
                 return False
@@ -1522,14 +1528,27 @@ def step17_export_to_ppt():
                 if headers[i] != df_table2.columns[i]:
                     return False
             return True
-
+    
         for shape in slide2.shapes:
             if shape.has_table:
                 table = shape.table
                 if is_match(table):
-                    # Replace 2nd header with quarter label (e.g. "Q1 2025")
-                    table.cell(0, 1).text = quarter_label
-
+                    # ---- Set header formatting (row 0) ----
+                    for j, col in enumerate(df_table2.columns):
+                        cell = table.cell(0, j)
+                        if j == 1:
+                            cell.text = quarter_label  # Overwrite Q_,20__ header with actual label
+                        else:
+                            cell.text = str(col)
+                        for paragraph in cell.text_frame.paragraphs:
+                            paragraph.alignment = PP_ALIGN.CENTER
+                            for run in paragraph.runs:
+                                run.font.name = "Cambria"
+                                run.font.size = Pt(11)
+                                run.font.color.rgb = RGBColor(0, 0, 0)
+                                run.font.bold = True
+    
+                    # ---- Set body formatting (rows 1+) ----
                     n_rows = min(len(df_table2), len(table.rows) - 1)
                     for i in range(n_rows):
                         for j, col in enumerate(df_table2.columns):
@@ -1537,7 +1556,6 @@ def step17_export_to_ppt():
                             cell = table.cell(i + 1, j)
                             text_val = str(val) if val is not None else ""
                             cell.text = text_val
-
                             cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
                             for paragraph in cell.text_frame.paragraphs:
                                 paragraph.alignment = PP_ALIGN.CENTER
@@ -1548,6 +1566,7 @@ def step17_export_to_ppt():
                                     run.font.bold = False
                     return True
         return False
+
 
     # --- Fill Slide 1 ---
     slide1 = prs.slides[0]
