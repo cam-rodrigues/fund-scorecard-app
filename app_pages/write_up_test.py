@@ -1467,6 +1467,17 @@ def step17_export_to_ppt():
     if not bullet_filled:
         st.warning("Could not find a bullet point placeholder (with [Bullet Point 1]). Please check your template.")
 
+
+    # --- Fill Slide 2 category heading ---
+    slide2 = prs.slides[1]
+    category = fs_rec.get("Category", "N/A")
+    category_filled = fill_text_placeholder(slide2, "[Category]", category,
+                                            font_size=14, bold=True)
+    if not category_filled:
+        st.warning("Could not find [Category] placeholder on Slide 2.")
+
+
+    
     # Save and download
     output = BytesIO()
     prs.save(output)
