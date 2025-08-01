@@ -148,7 +148,7 @@ def main():
         unsafe_allow_html=True
     )
 
-    uploaded = st.file_uploader("📄 Upload MPI PDF", type="pdf", label_visibility="visible")
+    uploaded = st.file_uploader("Upload MPI PDF", type="pdf", label_visibility="visible")
     st.markdown('</div>', unsafe_allow_html=True)
 
     if not uploaded:
@@ -204,18 +204,19 @@ def main():
         st.dataframe(
             df_icon,
             use_container_width=True,
-            hide_index=True,
-            height=52 + 42*len(df_icon)  # snuggly fit
+            hide_index=True
+            # <-- No height argument!
         )
 
         st.download_button(
-            "Download IPS Screening Table as CSV",
+            "⬇️ Download IPS Screening Table as CSV",
             data=df_raw.to_csv(index=False),
             file_name="ips_screening_table.csv",
             mime="text/csv",
             help="Download the full screening table with Pass/Review/Fail text for compliance records."
         )
         st.markdown('</div>', unsafe_allow_html=True)
+
 
         st.markdown(
             '<div style="text-align:center; color:#A3A3A3; margin-top:1em; font-size:0.96em;">'
