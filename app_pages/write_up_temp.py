@@ -3,7 +3,7 @@ import pdfplumber
 import re
 import pandas as pd
 
-# Hide default Streamlit UI
+# --- CSS for professional look ---
 st.markdown("""
     <style>
     #MainMenu, header, footer {visibility: hidden;}
@@ -36,7 +36,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- Utility: Extract Scorecard Fund Blocks ---
+# --- Scorecard Extraction ---
 def extract_scorecard_blocks(pdf, scorecard_page):
     pages = []
     for p in pdf.pages[scorecard_page-1:]:
@@ -70,8 +70,33 @@ def extract_scorecard_blocks(pdf, scorecard_page):
         fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
     return fund_blocks
 
-# --- Conversion: Scorecard → IPS Investment Criteria ---
-def scorecard_to_ips(fund_blocks, fund_types):
+# --- Ticker Extraction ---
+def extract_fund_tickers(pdf, performance_page, fund_names):
+    # Pull all lines from the fund performance section
+    perf_text = ""
+    for p in pdf.pages[performance_page-1:performance_page+1]:
+        perf_text += (p.extract_text() or "") + "\n"
+    lines = perf_text.splitlines()
+
+    # Match lines like: "Some Fund Name       ABCDX"
+    mapping = {}
+    for ln in lines:
+        m = re.match(r"(.+?)\s+([A-Z]{1,5})$", ln.strip())
+        if m:
+            raw_name, ticker = m.groups()
+            norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
+            mapping[norm] = ticker
+
+    # Map fund_names to tickers (with fallback)
+    tickers = {}
+    for name in fund_names:
+        norm = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
+        ticker = mapping.get(norm, "")
+        tickers[name] = ticker
+    return tickers
+
+# --- Scorecard → IPS Investment Criteria ---
+def scorecard_to_ips(fund_blocks, fund_types, tickers):
     metrics_order = [
         "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
         "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Expense Ratio Rank",
@@ -102,7 +127,7 @@ def scorecard_to_ips(fund_blocks, fund_types):
             else:
                 ips_status.append("Pass")
         review_fail = sum(1 for status in ips_status if status in ["Review","Fail"])
-        # No icons, just pass/fail marks
+        # Watch status
         if review_fail >= 6:
             watch_status = "FW"
         elif review_fail >= 5:
@@ -117,6 +142,7 @@ def scorecard_to_ips(fund_blocks, fund_types):
             return ""
         row = {
             "Fund Name": fund_name,
+            "Ticker": tickers.get(fund_name, ""),
             "Fund Type": fund_type,
             **{ips_labels[i]: iconify(ips_status[i]) for i in range(11)},
             "IPS Watch Status": watch_status,
@@ -124,6 +150,7 @@ def scorecard_to_ips(fund_blocks, fund_types):
         ips_results.append(row)
         raw_results.append({
             "Fund Name": fund_name,
+            "Ticker": tickers.get(fund_name, ""),
             "Fund Type": fund_type,
             **{ips_labels[i]: ips_status[i] for i in range(11)},
             "IPS Watch Status": watch_status,
@@ -132,7 +159,7 @@ def scorecard_to_ips(fund_blocks, fund_types):
     df_raw  = pd.DataFrame(raw_results)
     return df_icon, df_raw
 
-# --- Styler for background coloring ---
+# --- Styler for Watch Status Coloring ---
 def watch_status_color(val):
     if val == "FW":
         return "background-color: #f8d7da; color: #c30000; font-weight: 700;"  # red
@@ -147,8 +174,7 @@ def main():
     st.markdown('<div class="app-card">', unsafe_allow_html=True)
     st.markdown('<div class="big-title">Fidsync Fund IPS Screener</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="subtle">Upload your MPI PDF and screen funds for Investment Policy compliance. '
-        'Set fund type (Active/Passive) directly in the table.<br><br>'
+        '<div class="subtle">Upload your MPI PDF and screen funds for Investment Policy compliance.<br>'
         '<span class="watch-key">'
         '<span style="background:#d6f5df; color:#217a3e; padding:0.1em 0.55em; border-radius:3px;">NW</span> (No Watch) &nbsp;'
         '<span style="background:#fff3cd; color:#B87333; padding:0.1em 0.55em; border-radius:3px;">IW</span> (Informal Watch) &nbsp;'
@@ -165,23 +191,31 @@ def main():
         st.stop()
 
     with pdfplumber.open(uploaded) as pdf:
+        # Detect relevant pages from TOC
         toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
         sc_match = re.search(r"Fund Scorecard\s+(\d{1,3})", toc_text or "")
+        perf_match = re.search(r"Fund Performance[^\d]*(\d{1,3})", toc_text or "")
         scorecard_page = int(sc_match.group(1)) if sc_match else 3
+        performance_page = int(perf_match.group(1)) if perf_match else scorecard_page + 1
 
-        st.markdown(f'<span class="label-clean">Detected scorecard page: <b>{scorecard_page}</b></span>', unsafe_allow_html=True)
+        st.markdown(f'<span class="label-clean">Detected scorecard page: <b>{scorecard_page}</b> | Performance page: <b>{performance_page}</b></span>', unsafe_allow_html=True)
 
         fund_blocks = extract_scorecard_blocks(pdf, scorecard_page)
+        fund_names = [fund["Fund Name"] for fund in fund_blocks]
         if not fund_blocks:
             st.error("Could not extract fund scorecard blocks. Check the PDF and page number.")
             st.stop()
+
+        # ---- Extract tickers
+        tickers = extract_fund_tickers(pdf, performance_page, fund_names)
 
         fund_type_defaults = [
             "Passive" if "index" in fund["Fund Name"].lower() else "Active"
             for fund in fund_blocks
         ]
         df_types = pd.DataFrame({
-            "Fund Name": [fund["Fund Name"] for fund in fund_blocks],
+            "Fund Name": fund_names,
+            "Ticker": [tickers[name] for name in fund_names],
             "Fund Type": fund_type_defaults
         })
 
@@ -204,7 +238,7 @@ def main():
 
         fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
 
-        df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types)
+        df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
 
         st.markdown('<div class="app-card" style="padding:1.5rem 1.5rem 1.3rem 1.5rem; margin-bottom:0.5rem;">', unsafe_allow_html=True)
         st.subheader("IPS Investment Criteria Results")
@@ -216,7 +250,6 @@ def main():
             '</div>', unsafe_allow_html=True
         )
 
-        # --- Use Pandas Styler for cell color in DataFrame ---
         styled = df_icon.style.applymap(watch_status_color, subset=["IPS Watch Status"])
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
@@ -231,7 +264,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 def run():
     main()
