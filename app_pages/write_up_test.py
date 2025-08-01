@@ -503,7 +503,7 @@ def step7_extract_returns(pdf):
     import streamlit as st
     from rapidfuzz import fuzz
 
-    st.subheader("Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr / Net Expense & Benchmark QTD")
+    st.subheader("Returns")
 
     # 1) Where to scan
     perf_page = st.session_state.get("performance_page")
@@ -588,12 +588,12 @@ def step7_extract_returns(pdf):
     # 5) Save & display
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
-
-    st.success(f"✅ Matched {matched} fund(s) with return data.")
-    for itm in perf_data:
-        missing = [f for f in fields if not itm.get(f)]
-        if missing:
-            st.warning(f"⚠️ Incomplete for {itm['Fund Scorecard Name']} ({itm['Ticker']}): missing {', '.join(missing)}")
+    # Hide the per-fund warnings and overall success message, but still alert if something is off
+    
+    expected_count = len(perf_data)
+    if matched < expected_count:
+        st.error(f"❌ Only matched {matched} of {expected_count} funds with return data. Check your PDF or extraction logic.")
+    # (Do NOT display per-fund warnings or success)
 
     st.dataframe(
         df[["Fund Scorecard Name", "Ticker"] + fields],
