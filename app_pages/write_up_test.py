@@ -1636,13 +1636,15 @@ def step17_export_to_ppt():
             # Fill second table with Slide 3 Table 2 data (by position)
             fill_table_with_investment_manager_white(tables[1], df_slide3_table2)
 
-
     # --- Slide 4 ---
-    slide4 = prs.slides[3]
-    
+    slide4 = prs.slides[3]  # Slide 4 (zero-based index 3)
     category = fs_rec.get("Category", "N/A")
-    placeholder_text = "[Category] - Qualitative Factors"
-    replacement_text = f"{category} - Qualitative Factors"
+    
+    placeholder_text = "[Category]– Qualitative Factors"  # EXACT text from your template
+    
+    if not fill_text_placeholder_preserving_format(slide4, placeholder_text, category):
+        st.warning(f"Could not find the placeholder '{placeholder_text}' on Slide 4.")
+
     
     # Reuse the replace_placeholder_with_style function from before
     def replace_placeholder_with_style(slide, placeholder, replacement):
