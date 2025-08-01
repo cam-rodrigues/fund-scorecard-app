@@ -406,7 +406,7 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Step 6: Fund Factsheets ===
 def step6_process_factsheets(pdf, fund_names):
-
+    st.subheader("Step 6: Fund Factsheets Section")
     factsheet_start = st.session_state.get("factsheets_page")
     total_declared = st.session_state.get("total_options")
     performance_data = [
@@ -474,7 +474,7 @@ def step6_process_factsheets(pdf, fund_names):
             "Matched": "✅" if best_score > 20 else "❌"
         })
 
-
+    df_facts = pd.DataFrame(matched_factsheets)
     st.session_state['fund_factsheets_data'] = matched_factsheets
 
     display_df = df_facts[[
