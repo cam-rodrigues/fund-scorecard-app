@@ -1333,7 +1333,7 @@ def step17_export_to_ppt():
         st.error(f"Could not load PowerPoint template: {e}")
         return
 
-    # --- Prepare data for Slide 1 Table ---
+    # --- Slide 1 Data Preparation ---
     ips_icon_table = st.session_state.get("ips_icon_table")
     row = None
     if ips_icon_table is not None and not ips_icon_table.empty:
@@ -1358,6 +1358,8 @@ def step17_export_to_ppt():
 
     headers = ["Category", "Time Period", "Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
     df_slide1 = pd.DataFrame([table_data], columns=headers)
+
+    # --- Helper functions ---
 
     def get_table_header(table):
         return tuple(cell.text.strip() for cell in table.rows[0].cells)
@@ -1450,9 +1452,6 @@ def step17_export_to_ppt():
         return False
 
     def fill_table_with_formatting(table, df_table):
-        from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
-        from pptx.dml.color import RGBColor
-    
         n_rows = min(len(df_table), len(table.rows) - 1)
         for i in range(n_rows):
             for j, col in enumerate(df_table.columns):
@@ -1460,19 +1459,19 @@ def step17_export_to_ppt():
                 cell = table.cell(i + 1, j)
                 text_val = str(val) if val is not None else ""
                 cell.text = text_val
-    
+
                 cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
                 for paragraph in cell.text_frame.paragraphs:
                     paragraph.alignment = PP_ALIGN.CENTER
                     for run in paragraph.runs:
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
+                        # White font for Investment Manager column only
                         if col == "Investment Manager":
-                            run.font.color.rgb = RGBColor(255, 255, 255)  # White font
+                            run.font.color.rgb = RGBColor(255, 255, 255)
                         else:
-                            run.font.color.rgb = RGBColor(0, 0, 0)        # Black font
+                            run.font.color.rgb = RGBColor(0, 0, 0)
                         run.font.bold = False
-
 
     def fill_slide2_table1(prs, df_table1):
         slide2 = prs.slides[1]
@@ -1484,10 +1483,49 @@ def step17_export_to_ppt():
                     return True
         return False
 
+    def fill_slide2_table2(prs, df_table2, quarter_label):
+        slide2 = prs.slides[1]
+
+        def is_match(table):
+            headers = [cell.text.strip() for cell in table.rows[0].cells]
+            if len(headers) != len(df_table2.columns):
+                return False
+            if headers[0] != df_table2.columns[0]:
+                return False
+            for i in range(2, len(headers)):
+                if headers[i] != df_table2.columns[i]:
+                    return False
+            return True
+
+        for shape in slide2.shapes:
+            if shape.has_table:
+                table = shape.table
+                if is_match(table):
+                    # Replace 2nd header with quarter label (e.g. "Q1 2025")
+                    table.cell(0, 1).text = quarter_label
+
+                    n_rows = min(len(df_table2), len(table.rows) - 1)
+                    for i in range(n_rows):
+                        for j, col in enumerate(df_table2.columns):
+                            val = df_table2.iloc[i, j]
+                            cell = table.cell(i + 1, j)
+                            text_val = str(val) if val is not None else ""
+                            cell.text = text_val
+
+                            cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
+                            for paragraph in cell.text_frame.paragraphs:
+                                paragraph.alignment = PP_ALIGN.CENTER
+                                for run in paragraph.runs:
+                                    run.font.name = "Cambria"
+                                    run.font.size = Pt(11)
+                                    run.font.color.rgb = RGBColor(0, 0, 0)
+                                    run.font.bold = False
+                    return True
+        return False
+
     # --- Fill Slide 1 ---
     slide1 = prs.slides[0]
-    fund_name_filled = fill_text_placeholder_preserving_format(
-        slide1, "[Fund Name]", selected)
+    fund_name_filled = fill_text_placeholder_preserving_format(slide1, "[Fund Name]", selected)
     if not fund_name_filled:
         st.warning("Could not find the [Fund Name] placeholder on Slide 1.")
 
@@ -1522,6 +1560,17 @@ def step17_export_to_ppt():
         table1_filled = fill_slide2_table1(prs, df_slide2_table1)
         if not table1_filled:
             st.warning("Could not find matching table for Slide 2 Table 1 to fill.")
+
+    # --- Fill Slide 2 Table 2 ---
+    df_slide2_table2 = st.session_state.get("slide2_table2_data")
+    report_date = st.session_state.get("report_date", "")
+    quarter_label = report_date if report_date else "QTD"
+    if df_slide2_table2 is None:
+        st.warning("Slide 2 Table 2 data not found in session state.")
+    else:
+        table2_filled = fill_slide2_table2(prs, df_slide2_table2, quarter_label)
+        if not table2_filled:
+            st.warning("Could not find matching table for Slide 2 Table 2 to fill.")
 
     # --- Save and provide download button ---
     output = BytesIO()
