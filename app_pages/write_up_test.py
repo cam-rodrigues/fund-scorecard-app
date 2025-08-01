@@ -1306,7 +1306,6 @@ def step16_bullet_points():
     if ips_status == "FW":
         st.markdown("- **Action:** Consider replacing this fund.")
 
-
 def step17_export_to_ppt():
     import streamlit as st
     from pptx import Presentation
@@ -1340,7 +1339,6 @@ def step17_export_to_ppt():
         st.error("❌ No table data found for selected fund.")
         return
 
-    # Build DataFrame with same columns as table headers
     display_columns = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
     table_data = {
         **{display_columns.get(k, k): v for k, v in row.items() if k.startswith("IPS Investment Criteria")},
@@ -1365,14 +1363,15 @@ def step17_export_to_ppt():
                 val = df.iloc[i, j]
                 cell = table.cell(i + 1, j)
                 cell.text = str(val) if val is not None else ""
-                # Set font to Cambria, size 11 for all paragraphs/runs in the cell
+                # Set font to Cambria, size 11
                 for paragraph in cell.text_frame.paragraphs:
                     for run in paragraph.runs:
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
 
-    # Find the first table on Slide 1 and fill it
     slide1 = prs.slides[0]
+
+    # --- Fill the table ---
     table_filled = False
     for shape in slide1.shapes:
         if shape.has_table:
@@ -1387,16 +1386,34 @@ def step17_export_to_ppt():
         st.error("❌ Could not find a table on Slide 1 with matching headers. Please check your template.")
         return
 
+    # --- Fill the [Fund Name] text box ---
+    textbox_filled = False
+    for shape in slide1.shapes:
+        if shape.has_text_frame:
+            for paragraph in shape.text_frame.paragraphs:
+                if "[Fund Name]" in paragraph.text:
+                    paragraph.text = paragraph.text.replace("[Fund Name]", selected)
+                    # Style: Cambria, size 16, bold if originally bold
+                    for run in paragraph.runs:
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(16)
+                        run.font.bold = True
+                    textbox_filled = True
+
+    if not textbox_filled:
+        st.warning("Could not find the [Fund Name] textbox to fill. Please check your template.")
+
     # Save and download
     output = BytesIO()
     prs.save(output)
-    st.success("Slide 1 table filled with Cambria size 11 font!")
+    st.success("Slide 1 table and Fund Name textbox filled!")
     st.download_button(
         label="Download Writeup PowerPoint",
         data=output.getvalue(),
         file_name=f"{selected} Writeup.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
