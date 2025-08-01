@@ -97,6 +97,7 @@ def process_page1(text):
     report_date = extract_report_date(text)
     if report_date:
         st.session_state['report_date'] = report_date
+        st.success(f"Report Date: {report_date}")
     else:
         st.error("Could not detect report date on page 1.")
 
@@ -112,22 +113,12 @@ def process_page1(text):
         pb = "Procyon Partners, LLC"
     st.session_state['prepared_by'] = pb
 
-    # Replace old display with this:
-    metadata_items = {
-        "Time Period": st.session_state.get("report_date", "N/A"),
-        "Total Options": st.session_state.get("total_options", "N/A"),
-        "Prepared For": st.session_state.get("prepared_for", "N/A"),
-        "Prepared By": pb or "N/A",
-    }
+    st.subheader("Page 1 Metadata")
+    st.write(f"- Total Options: {st.session_state['total_options']}")
+    st.write(f"- Prepared For: {st.session_state['prepared_for']}")
+    st.write(f"- Prepared By: {pb}")
 
-    st.markdown(
-        "<div style='border: 1px solid #ddd; padding: 1em; border-radius: 0.5em; background-color: #f9f9f9;'>"
-        + "".join(f"<p><strong>{k}:</strong> {v}</p>" for k, v in metadata_items.items())
-        + "</div>",
-        unsafe_allow_html=True,
-    )
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Step 2: Table of Contents Extraction ===
 def process_toc(text):
     perf = re.search(r"Fund Performance[^\d]*(\d{1,3})", text or "")
@@ -143,6 +134,16 @@ def process_toc(text):
     cy_page   = int(cy.group(1))   if cy   else None
     r3yr_page = int(r3yr.group(1)) if r3yr else None
     r5yr_page = int(r5yr.group(1)) if r5yr else None
+
+    st.subheader("Table of Contents Pages")
+    st.write(f"- Fund Performance Current vs Proposed Comparison : {perf_page}")
+    st.write(f"- Fund Performance Calendar Year : {cy_page}")
+    st.write(f"- MPT 3Yr Risk Analysis : {r3yr_page}")
+    st.write(f"- MPT 5Yr Risk Analysis : {r5yr_page}")
+    st.write(f"- Fund Scorecard:   {sc_page}")
+    st.write(f"- Fund Factsheets :  {fs_page}")
+    
+
 
     # Store in session state for future reference
     st.session_state['performance_page'] = perf_page
@@ -1685,102 +1686,119 @@ def step17_export_to_ppt():
 # === Main App ===
 def run():
     import re
-    import streamlit as st
-    import pdfplumber
-
-    st.title("Writeup Generator")
-
+    st.title("Writeup")
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
+   #──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    
+    with pdfplumber.open(uploaded) as pdf:
+        # Step 1
+        with st.expander("Step 1: Details", expanded=False):
+            first = pdf.pages[0].extract_text() or ""
+            process_page1(first)
 
-    # Checkbox to toggle detailed expanders visibility for Steps 3-14
-    show_detailed = st.checkbox("Show Detailed Steps (3-14)", value=False)
+        # Step 2
+        with st.expander("Step 2: Table of Contents", expanded=False):
+            toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
+            process_toc(toc_text)
 
-    # Helper to prepare bullet point data after performance extraction
-    def prepare_bullet_points_data():
+        # --- COMBINED STEPS 3, 4, 5 ---
+        with st.expander("Step 3: Scorecard + IPS + Fund Type", expanded=True):
+            sp = st.session_state.get('scorecard_page')
+            tot = st.session_state.get('total_options')
+            pp = st.session_state.get('performance_page')
+            factsheets_page = st.session_state.get('factsheets_page')
+            if sp and tot is not None and pp:
+                step3_5_6_scorecard_and_ips(pdf, sp, pp, factsheets_page, tot)
+            else:
+                st.error("Missing scorecard, performance page, or total options")
+
+        
+        # Step 6
+        with st.expander("Step 6: Fund Factsheets", expanded=True):
+            names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
+            step6_process_factsheets(pdf, names)
+
+        # Step 7
+        with st.expander("Step 7: Annualized Returns", expanded=False):
+            step7_extract_returns(pdf)
+
+        # ── Data Prep for Bullet Points ───────────────────────────────────────────────
         report_date = st.session_state.get("report_date", "")
         m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
         quarter = m.group(1) if m else ""
         year    = m.group(2) if m else ""
-
+        
+        # make sure we have a list to iterate
         for itm in st.session_state.get("fund_performance_data", []):
+            # force numeric defaults
             qtd       = float(itm.get("QTD") or 0)
             bench_qtd = float(itm.get("Bench QTD") or 0)
+        
+            # direction, quarter/year
             itm["Perf Direction"] = "overperformed" if qtd >= bench_qtd else "underperformed"
             itm["Quarter"]        = quarter
             itm["Year"]           = year
+        
+            # basis‑points difference
             diff_bps = round((qtd - bench_qtd) * 100, 1)
             itm["QTD_bps_diff"] = str(diff_bps)
+        
+            # percent strings
+            fund_pct  = f"{qtd:.2f}%"
+            bench_pct = f"{bench_qtd:.2f}%"
             itm["QTD_pct_diff"] = f"{(qtd - bench_qtd):.2f}%"
-            itm["QTD_vs"]       = f"{qtd:.2f}% vs. {bench_qtd:.2f}%"
+            itm["QTD_vs"]       = f"{fund_pct} vs. {bench_pct}"
+        
+        # Initialize your template exactly once
+        if "bullet_point_templates" not in st.session_state:
+            st.session_state["bullet_point_templates"] = [
+                "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], "
+                "[Year] by [QTD_bps_diff] bps ([QTD_vs])."
+            ]
 
-    # Open PDF and start processing
-    with pdfplumber.open(uploaded) as pdf:
-
-        # Step 1: Basic metadata extraction (always visible)
-        first_page_text = pdf.pages[0].extract_text() or ""
-        process_page1(first_page_text)
-
-        # Step 2: Extract TOC silently (no UI display)
-        toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
-        process_toc(toc_text)  # just stores page numbers in session_state
-
-        sp = st.session_state.get('scorecard_page')
-        tot = st.session_state.get('total_options')
-        pp = st.session_state.get('performance_page')
-        factsheets_page = st.session_state.get('factsheets_page')
-
-        # Steps 3-14: Conditionally show in one expander or run silently
-        if show_detailed:
-            with st.expander("Steps 3 to 14: Detailed Processing", expanded=True):
-                if sp and tot is not None and pp:
-                    step3_5_6_scorecard_and_ips(pdf, sp, pp, factsheets_page, tot)
-                else:
-                    st.error("Missing scorecard, performance page, or total options")
-
-                names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
-                step6_process_factsheets(pdf, names)
-                step7_extract_returns(pdf)
-
-                prepare_bullet_points_data()
-
-                step8_calendar_returns(pdf)
-                step9_risk_analysis_3yr(pdf)
-                step10_risk_analysis_5yr(pdf)
-                step11_create_summary()
-                step12_process_fund_facts(pdf)
-                step13_process_risk_adjusted_returns(pdf)
-                step14_extract_peer_risk_adjusted_return_rank(pdf)
-
-        else:
-            # Run all silently (no UI clutter)
-            if sp and tot is not None and pp:
-                step3_5_6_scorecard_and_ips(pdf, sp, pp, factsheets_page, tot)
-            names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
-            step6_process_factsheets(pdf, names)
-            step7_extract_returns(pdf)
-
-            prepare_bullet_points_data()
-
+        # ───────────────────────────────────────────────────────────────────────────────
+        
+        # Step 8: Calendar Year Section
+        with st.expander("Step 8: Calendar Year Returns", expanded=False):
             step8_calendar_returns(pdf)
-            step9_risk_analysis_3yr(pdf)
-            step10_risk_analysis_5yr(pdf)
-            step11_create_summary()
-            step12_process_fund_facts(pdf)
-            step13_process_risk_adjusted_returns(pdf)
-            step14_extract_peer_risk_adjusted_return_rank(pdf)
 
-        # Steps 15-17: Always visible expanders for user interaction
+        # Step 9: Match Tickers
+        with st.expander("Step 9: Risk Analysis (3Yr)", expanded=False):
+            step9_risk_analysis_3yr(pdf)
+
+        # Step 10: Match Tickers
+        with st.expander("Step 10: Risk Analysis (5Yr)", expanded=False):
+            step10_risk_analysis_5yr(pdf)
+
+        # Step 11: MPT Statistics Summary
+        with st.expander("Step 11: MPT Statistics Summary", expanded=False):
+            step11_create_summary()
+            
+        # Step 12: Find Factsheet Sub‑Headings
+        with st.expander("Step 12: Fund Facts ", expanded=False):
+            step12_process_fund_facts(pdf)
+
+        # Step 13: Risk Adjusted Returns
+        with st.expander("Step 13: Risk-Adjusted Returns", expanded=False):
+            step13_process_risk_adjusted_returns(pdf)
+
+        # Step 14: Peer Risk-Adjusted Return Rank
+        with st.expander("Step 14: Peer Risk-Adjusted Return Rank", expanded=False):
+            step14_extract_peer_risk_adjusted_return_rank(pdf)
+        
+        # Step 15: View Single Fund Details
         with st.expander("Step 15: Single Fund Details", expanded=False):
             step15_display_selected_fund()
-
+                    
+        # Step 16: Bullet Points
         with st.expander("Step 16: Bullet Points", expanded=False):
             step16_bullet_points()
 
-        with st.expander("Step 17: Powerpoint", expanded=False):
+        # Step 17: Powerpoint
+        with st.expander("Powerpoint", expanded=False):
             step17_export_to_ppt()
-
 
 
 if __name__ == "__main__":
