@@ -1127,8 +1127,10 @@ def step15_display_selected_fund():
     ten   = append_pct(perf_item.get("10Yr", ""))
     
     bench_qtd   = append_pct(perf_item.get("Bench QTD", ""))
+    bench_one   = append_pct(perf_item.get("Bench 1Yr", ""))
     bench_3yr   = append_pct(perf_item.get("Bench 3Yr", ""))
     bench_5yr   = append_pct(perf_item.get("Bench 5Yr", ""))
+    bench_ten   = append_pct(perf_item.get("Bench 10Yr", ""))
     
     # Fund row
     row_fund = {
@@ -1148,10 +1150,10 @@ def step15_display_selected_fund():
     row_benchmark = {
         "Investment Manager": bench_inv_mgr,
         date_label:           bench_qtd,
-        "1 Year":             "",          # No benchmark 1Yr data extracted in step7, could add if available
+        "1 Year":             bench_one,
         "3 Year":             bench_3yr,
         "5 Year":             bench_5yr,
-        "10 Year":            ""           # No benchmark 10Yr data extracted in step7, add if you have it
+        "10 Year":            bench_ten
     }
     
     df_slide2_2 = pd.DataFrame([row_fund, row_benchmark])
