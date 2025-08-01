@@ -1355,7 +1355,6 @@ def step17_export_to_ppt():
     headers = ["Category", "Time Period", "Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
     df_slide1 = pd.DataFrame([table_data], columns=headers)
 
-    # --- Functions to fill table and text ---
     def get_table_header(table):
         return tuple(cell.text.strip() for cell in table.rows[0].cells)
 
@@ -1399,21 +1398,33 @@ def step17_export_to_ppt():
                 else:
                     cell.fill.background()
 
-    def fill_text_placeholder(slide, placeholder_text, replacement_text, font_name="Cambria",
-                              font_size=12, bold=False, underline=False):
-        """Replace placeholder text in any shape's paragraphs and style the runs."""
+    def fill_text_placeholder_preserving_format(slide, placeholder_text, replacement_text):
+        """
+        Replace placeholder_text inside paragraphs on slide, preserving original font/size/color styles.
+        Returns True if replaced at least once.
+        """
+        replaced = False
         for shape in slide.shapes:
-            if shape.has_text_frame:
-                for paragraph in shape.text_frame.paragraphs:
-                    if placeholder_text in paragraph.text:
-                        paragraph.text = paragraph.text.replace(placeholder_text, replacement_text)
-                        for run in paragraph.runs:
-                            run.font.name = font_name
-                            run.font.size = Pt(font_size)
-                            run.font.bold = bold
-                            run.font.underline = underline
-                        return True
-        return False
+            if not shape.has_text_frame:
+                continue
+            for paragraph in shape.text_frame.paragraphs:
+                full_text = "".join(run.text for run in paragraph.runs)
+                if placeholder_text in full_text:
+                    new_text = full_text.replace(placeholder_text, replacement_text)
+                    runs = paragraph.runs
+                    if len(runs) == 1:
+                        runs[0].text = new_text
+                    else:
+                        for run in runs:
+                            run.text = ""
+                        avg_len = len(new_text) // len(runs)
+                        idx = 0
+                        for run in runs[:-1]:
+                            run.text = new_text[idx:idx+avg_len]
+                            idx += avg_len
+                        runs[-1].text = new_text[idx:]
+                    replaced = True
+        return replaced
 
     def fill_bullet_points(slide, bullet_placeholder="[Bullet Point 1]", bullet_points=None):
         if bullet_points is None:
@@ -1442,13 +1453,11 @@ def step17_export_to_ppt():
 
     # --- Fill Slide 1 ---
     slide1 = prs.slides[0]
-    # Fund Name placeholder
-    fund_name_filled = fill_text_placeholder(slide1, "[Fund Name]", selected,
-                                            font_size=12, bold=True, underline=True)
+    fund_name_filled = fill_text_placeholder_preserving_format(
+        slide1, "[Fund Name]", selected)
     if not fund_name_filled:
         st.warning("Could not find the [Fund Name] placeholder on Slide 1.")
 
-    # Table fill
     table_filled = False
     for shape in slide1.shapes:
         if shape.has_table:
@@ -1460,7 +1469,6 @@ def step17_export_to_ppt():
     if not table_filled:
         st.error("Could not find matching table on Slide 1 to fill.")
 
-    # Bullet points fill
     bullets = st.session_state.get("bullet_points", None)
     bullets_filled = fill_bullet_points(slide1, "[Bullet Point 1]", bullets)
     if not bullets_filled:
@@ -1469,8 +1477,7 @@ def step17_export_to_ppt():
     # --- Fill Slide 2 category heading ---
     slide2 = prs.slides[1]
     category = fs_rec.get("Category", "N/A")
-    category_filled = fill_text_placeholder(slide2, "[Category]", category,
-                                            font_size=14, bold=True)
+    category_filled = fill_text_placeholder_preserving_format(slide2, "[Category]", category)
     if not category_filled:
         st.warning("Could not find [Category] placeholder on Slide 2.")
 
@@ -1484,7 +1491,6 @@ def step17_export_to_ppt():
         file_name=f"{selected} Writeup.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
-
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
