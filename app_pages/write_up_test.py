@@ -1079,6 +1079,28 @@ def step15_display_selected_fund():
 
     st.write(f"Details for: {selected_fund}")
 
+    # --- Fund Facts (from Step 12) ---
+    fund_facts_table = st.session_state.get("step12_fund_facts_table", [])
+    facts_rec = next((row for row in fund_facts_table if row["Fund Name"] == selected_fund), None)
+
+    if facts_rec:
+        st.markdown("#### Fund Facts")
+        st.markdown(
+            f"""
+            <ul style="list-style: disc; margin-left:1.2em;">
+                <li><b>Manager Tenure:</b> {facts_rec.get("Manager Tenure Yrs.", "—")}</li>
+                <li><b>Expense Ratio:</b> {facts_rec.get("Expense Ratio", "—")}</li>
+                <li><b>Expense Ratio Rank:</b> {facts_rec.get("Expense Ratio Rank", "—")}</li>
+                <li><b>Total Number of Holdings:</b> {facts_rec.get("Total Number of Holdings", "—")}</li>
+                <li><b>Turnover Ratio:</b> {facts_rec.get("Turnover Ratio", "—")}</li>
+            </ul>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.info("No Fund Facts available for this fund.")
+
+
     # --- Slide 1 Table: IPS Results ---
     ips_icon_table = st.session_state.get("ips_icon_table")
     facts = st.session_state.get("fund_factsheets_data", [])
