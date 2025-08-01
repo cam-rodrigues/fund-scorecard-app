@@ -5,9 +5,12 @@ from calendar import month_name
 import pandas as pd
 from rapidfuzz import fuzz
 from pptx import Presentation
-from pptx.util import Inches
+from pptx.util import Inches, Pt
+from pptx.dml.color import RGBColor
+from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
 from io import BytesIO
 import yfinance as yf
+
 
 def extract_performance_table(pdf, performance_page, fund_names, end_page=None):
     import re
@@ -113,10 +116,39 @@ def process_page1(text):
         pb = "Procyon Partners, LLC"
     st.session_state['prepared_by'] = pb
 
-    st.subheader("Page 1 Metadata")
-    st.write(f"- Total Options: {st.session_state['total_options']}")
-    st.write(f"- Prepared For: {st.session_state['prepared_for']}")
-    st.write(f"- Prepared By: {pb}")
+def show_report_summary():
+    # Pull from session state (after process_page1)
+    report_date = st.session_state.get('report_date', 'N/A')
+    total_options = st.session_state.get('total_options', 'N/A')
+    prepared_for = st.session_state.get('prepared_for', 'N/A')
+    prepared_by = st.session_state.get('prepared_by', 'N/A')
+
+    st.markdown(
+        """
+        <div style="
+            background: #F7FAFC;
+            border-radius: 1.5rem;
+            box-shadow: 0 2px 16px rgba(60,60,60,0.08);
+            padding: 1.8rem 2.5rem 1.2rem 2.5rem;
+            margin-bottom: 2rem;
+            font-size: 1.08rem;
+            ">
+            <span style="font-weight:700; font-size:1.25rem; color:#244369;">Report Summary</span>
+            <div style="margin-top:1rem;">
+                <b>Report Date:</b> {report_date} <br>
+                <b>Total Options:</b> {total_options} <br>
+                <b>Prepared For:</b> {prepared_for} <br>
+                <b>Prepared By:</b> {prepared_by}
+            </div>
+        </div>
+        """.format(
+            report_date=report_date,
+            total_options=total_options,
+            prepared_for=prepared_for,
+            prepared_by=prepared_by,
+        ),
+        unsafe_allow_html=True,
+    )
 
 
 # === Step 2: Table of Contents Extraction ===
@@ -1694,9 +1726,9 @@ def run():
     
     with pdfplumber.open(uploaded) as pdf:
         # Step 1
-        with st.expander("Step 1: Details", expanded=False):
-            first = pdf.pages[0].extract_text() or ""
-            process_page1(first)
+        first = pdf.pages[0].extract_text() or ""
+        process_page1(first)
+        show_report_summary()
 
         # Step 2
         with st.expander("Step 2: Table of Contents", expanded=False):
