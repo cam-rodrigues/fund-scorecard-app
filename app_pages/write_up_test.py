@@ -1309,9 +1309,12 @@ def step16_bullet_points():
 def step17_export_to_ppt():
     import streamlit as st
     from pptx import Presentation
-    from pptx.util import Pt, RGBColor
+    from pptx.util import Pt
+    from pptx.dml.color import RGBColor
     from io import BytesIO
     import pandas as pd
+    # ...rest of your code...
+
 
     st.subheader("Step 17: Export to PowerPoint")
 
