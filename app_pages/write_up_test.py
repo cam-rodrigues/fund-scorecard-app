@@ -1606,7 +1606,7 @@ def step17_export_to_ppt():
     slide4 = prs.slides[3]
     # The heading on Slide 4 contains "[Category] - Qualitative Factors"
     # Replace the placeholder with actual category plus suffix, preserving font & size & color
-    qualitative_placeholder = f"[Category] - Qualitative Factors"
+    qualitative_placeholder = f"[Category]– Qualitative Factors"
     qualitative_replacement = f"{category} - Qualitative Factors"
     if not fill_text_placeholder_preserving_format(slide4, qualitative_placeholder, qualitative_replacement):
         st.warning(f"Could not find placeholder '{qualitative_placeholder}' on Slide 4.")
