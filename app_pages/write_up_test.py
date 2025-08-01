@@ -1110,8 +1110,8 @@ def step15_display_selected_fund():
             <div><b>Category:</b> {factsheet_rec.get("Category", "—")}</div>
             <div><b>Benchmark:</b> {factsheet_rec.get("Benchmark", "—")}</div>
             <div><b>Net Assets:</b> {factsheet_rec.get("Net Assets", "—")}</div>
-            <div><b>Manager Name:</b> {factsheet_rec.get("Manager Name", "—")}</div>
-            <div><b>Average Market Cap:</b> {factsheet_rec.get("Avg. Market Cap", "—")}</div>
+            <div><b>Manager:</b> {factsheet_rec.get("Manager Name", "—")}</div>
+            <div><b>Avg. Market Cap:</b> {factsheet_rec.get("Avg. Market Cap", "—")}</div>
         </div>"""
         if factsheet_rec else "<div style='display:inline-block; min-width:220px; color:#666;'>No factsheet info found.</div>"
     )
