@@ -33,7 +33,7 @@ st.markdown("""
         font-size: 1.05em;
         margin-top: 0.6em;
     }
-    .css-1kyxreq {padding-bottom: 0px !important;} /* tighter table */
+    .css-1kyxreq {padding-bottom: 0px !important;}
     .stDataFrame th, .stDataFrame td {padding: 0.32em 0.62em !important;}
     .stButton>button {
         border-radius: 6px !important;
@@ -50,6 +50,10 @@ st.markdown("""
         border-bottom: 1px solid #E3E8EF;
         margin: 1.2rem 0 1.3rem 0;
     }
+    .watch-fw {color:#D32F2F;font-weight:700;}
+    .watch-iw {color:#F57C00;font-weight:700;}
+    .watch-nw {color:#228B22;font-weight:700;}
+    .watch-key {font-size:0.98em; color:#6B7280; margin-bottom:0.7em;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -119,13 +123,13 @@ def scorecard_to_ips(fund_blocks, fund_types):
             else:
                 ips_status.append("Pass")
         review_fail = sum(1 for status in ips_status if status in ["Review","Fail"])
-        # Clean watch status, no emojis
+        # Colorful, text-only status
         if review_fail >= 6:
-            watch_status = "Formal Watch"
+            watch_status = '<span class="watch-fw">FW</span>'
         elif review_fail >= 5:
-            watch_status = "Informal Watch"
+            watch_status = '<span class="watch-iw">IW</span>'
         else:
-            watch_status = "Pass"
+            watch_status = '<span class="watch-nw">NW</span>'
         def iconify(status):
             if status == "Pass":
                 return "✔"
@@ -143,7 +147,7 @@ def scorecard_to_ips(fund_blocks, fund_types):
             "Fund Name": fund_name,
             "Fund Type": fund_type,
             **{ips_labels[i]: ips_status[i] for i in range(11)},
-            "IPS Watch Status": watch_status,
+            "IPS Watch Status": re.sub('<.*?>','',watch_status),  # strip HTML for CSV
         })
     df_icon = pd.DataFrame(ips_results)
     df_raw  = pd.DataFrame(raw_results)
@@ -210,13 +214,25 @@ def main():
         df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types)
 
         st.markdown('<div class="app-card" style="padding:1.3rem 1.5rem 1.2rem 1.5rem; margin-bottom:0.5rem;">', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="watch-key">IPS Watch Status Key: '
+            '<span class="watch-fw">FW</span> (Formal Watch) &nbsp;&nbsp;'
+            '<span class="watch-iw">IW</span> (Informal Watch) &nbsp;&nbsp;'
+            '<span class="watch-nw">NW</span> (No Watch)'
+            '</div>', unsafe_allow_html=True
+        )
         st.markdown('<div style="font-size:1.15rem;font-weight:600;margin-bottom:0.35em;">IPS Investment Criteria Results</div>', unsafe_allow_html=True)
         st.markdown('<div class="card-divider"></div>', unsafe_allow_html=True)
-        st.dataframe(
-            df_icon,
-            use_container_width=True,
-            hide_index=True
-        )
+        # Render HTML inside Watch Status using unsafe_allow_html
+        def render_html_table(df):
+            """Display a styled dataframe where the Watch Status cell HTML is rendered."""
+            import streamlit.components.v1 as components
+            html = df.to_html(escape=False, index=False)
+            components.html(f"""
+            <div style="overflow-x:auto">{html}</div>
+            """, height=min(440, 52 + 42*len(df)), scrolling=True)
+        render_html_table(df_icon)
+
         st.download_button(
             "Download IPS Screening Table (CSV)",
             data=df_raw.to_csv(index=False),
@@ -235,7 +251,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 
 def run():
