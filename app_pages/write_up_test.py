@@ -1235,9 +1235,9 @@ def step15_display_selected_fund():
     }])
     st.dataframe(df_slide4, use_container_width=True)
     # Save for Step 17 to use
-    st.session_state["slide4_table1_data"] = df_slide4_1
+    st.session_state["slide4"] = df_slide4
 
-    st.dataframe(df_slide4_1, use_container_width=True)
+    st.dataframe(df_slide4, use_container_width=True)
     
     # --- Slide 4 Table 2 ---
     st.markdown("**Slide 4 Table 2**")
