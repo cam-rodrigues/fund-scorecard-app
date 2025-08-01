@@ -180,10 +180,13 @@ def main():
         # --- Default logic (index in name → Passive, else Active) ---
         fund_type_defaults = ["Passive" if "index" in n.lower() else "Active" for n in fund_names]
 
-        st.markdown('<div class="app-card" style="padding:1.1rem 1.1rem 0.6rem 1.1rem; margin-bottom:1rem;">', unsafe_allow_html=True)
+        st.markdown('<b>Edit Fund Type for Screening:</b>', unsafe_allow_html=True)
         st.markdown(
             "<div style='font-size:0.96em; color:#374151; margin-bottom:0.25em;'>"
-            "<b>Fund Type Guess:</b> This column is based on Yahoo Finance data. If the fund name or description mentions 'index' or tracking an index, it's classified as Passive. Otherwise, it's marked Active. This guess is for convenience only—always confirm with the official fund documentation. The editable Fund Type column below lets you override or accept this guess."
+            "<b>Fund Type Guess:</b> This column is based on Yahoo Finance data. "
+            "If the fund name or description mentions 'index' or tracking an index, it's classified as Passive. "
+            "Otherwise, it's marked Active. This guess is for convenience only—always confirm with the official fund documentation. "
+            "The editable Fund Type column lets you override or accept this guess."
             "</div>",
             unsafe_allow_html=True
         )
