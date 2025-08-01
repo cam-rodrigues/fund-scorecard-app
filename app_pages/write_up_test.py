@@ -1509,7 +1509,6 @@ def step17_export_to_ppt():
                     return True
         return False
 
-
     def fill_slide2_table2(prs, df_table2, quarter_label):
         from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
         from pptx.dml.color import RGBColor
@@ -1545,7 +1544,7 @@ def step17_export_to_ppt():
                             for run in paragraph.runs:
                                 run.font.name = "Cambria"
                                 run.font.size = Pt(11)
-                                run.font.color.rgb = RGBColor(0, 0, 0)
+                                run.font.color.rgb = RGBColor(255, 255, 255)  # White
                                 run.font.bold = True
     
                     # ---- Set body formatting (rows 1+) ----
@@ -1562,10 +1561,15 @@ def step17_export_to_ppt():
                                 for run in paragraph.runs:
                                     run.font.name = "Cambria"
                                     run.font.size = Pt(11)
-                                    run.font.color.rgb = RGBColor(0, 0, 0)
+                                    # Investment Manager column is white, rest are black
+                                    if j == 0:
+                                        run.font.color.rgb = RGBColor(255, 255, 255)  # White
+                                    else:
+                                        run.font.color.rgb = RGBColor(0, 0, 0)        # Black
                                     run.font.bold = False
                     return True
         return False
+
 
 
     # --- Fill Slide 1 ---
