@@ -1311,20 +1311,18 @@ def step16_bullet_points():
 def step17_export_to_ppt():
     import streamlit as st
     from pptx import Presentation
-    from pptx.util import Pt
-    from pptx.enum.text import PP_ALIGN
     from io import BytesIO
     import pandas as pd
-    import re
+
     st.subheader("Step 17: Export to PowerPoint")
-    
-    # 1. Select Fund
+
+    # 1. Get Selected Fund
     selected = st.session_state.get("selected_fund")
     if not selected:
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
 
-    # 2. Load template
+    # 2. Load PowerPoint Template
     template_path = "assets/writeup_template.pptx"
     try:
         prs = Presentation(template_path)
@@ -1332,135 +1330,79 @@ def step17_export_to_ppt():
         st.error(f"Could not load PowerPoint template: {e}")
         return
 
-    # 3. Data sources (from Step 15)
-    # --- HEADINGS & BULLET POINTS ---
-    bullets = []
-    # Gather bullet points from Step 16 or build them
-    if "bullet_point_templates" in st.session_state:
-        perf_data = st.session_state.get("fund_performance_data", [])
-        perf_item = next((x for x in perf_data if x["Fund Scorecard Name"] == selected), None)
-        if perf_item:
-            template = st.session_state["bullet_point_templates"][0]
-            b1 = template
-            for fld, val in perf_item.items():
-                b1 = b1.replace(f"[{fld}]", str(val))
-            bullets.append(b1)
-    # Watch status bullet
-    ips_icon_table = st.session_state.get("ips_icon_table")
-    ips_status = None
-    if ips_icon_table is not None and not ips_icon_table.empty:
-        row = ips_icon_table[ips_icon_table["Fund Name"] == selected]
-        ips_status = row.iloc[0]["IPS Watch Status"] if not row.empty else None
-    if ips_status:
-        bullets.append(f"IPS Watch Status: {ips_status}")
-    # You can add more bullet logic here as needed
-
-    # --- CATEGORIES ---
+    # 3. Prepare DataFrames (add/modify as needed for each table)
+    # You can expand this section to cover all tables on all slides.
+    perf_item = next((x for x in st.session_state.get("fund_performance_data", []) if x["Fund Scorecard Name"] == selected), {})
+    # Table: Net Expense Ratio
+    df_expense = pd.DataFrame([{
+        "Investment Manager": f"{selected} ({perf_item.get('Ticker','')})",
+        "Net Expense Ratio": perf_item.get("Net Expense Ratio", ""),
+    }])
+    # Table: Returns (Annualized)
+    df_returns = pd.DataFrame([{
+        "Investment Manager": f"{selected} ({perf_item.get('Ticker','')})",
+        "QTD": perf_item.get("QTD", ""),
+        "1 Year": perf_item.get("1Yr", ""),
+        "3 Year": perf_item.get("3Yr", ""),
+        "5 Year": perf_item.get("5Yr", ""),
+        "10 Year": perf_item.get("10Yr", ""),
+    }])
+    # Example: Slide 4 Table 2 (Assets & Avg. Market Cap)
     facts = st.session_state.get("fund_factsheets_data", [])
-    rec = next((f for f in facts if f["Matched Fund Name"] == selected), {})
-    category = rec.get("Category", "N/A")
+    fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected), None)
+    assets = fs_rec.get("Net Assets", "") if fs_rec else ""
+    avg_cap = fs_rec.get("Avg. Market Cap", "") if fs_rec else ""
+    df_assets = pd.DataFrame([{
+        "Investment Manager": f"{selected} ({perf_item.get('Ticker','')})",
+        "Assets Under Management": assets,
+        "Average Market Capitalization": avg_cap,
+    }])
 
-    # --- SLIDE TABLES (Step 15) ---
-    # 1. IPS Table (icon table, 1 row)
-    ips_icon_table = st.session_state.get("ips_icon_table")
-    ips_row = {}
-    if ips_icon_table is not None and not ips_icon_table.empty:
-        row = ips_icon_table[ips_icon_table["Fund Name"] == selected]
-        if not row.empty:
-            ips_row = row.iloc[0].to_dict()
-    # 2. Fund performance (QTD, 1yr, etc)
-    perf_data = st.session_state.get("fund_performance_data", [])
-    perf_item = next((x for x in perf_data if x["Fund Scorecard Name"] == selected), {})
-    # 3. Calendar Year returns
-    fund_cy = st.session_state.get("step8_returns", [])
-    fund_cy_item = next((r for r in fund_cy if r.get("Name") == selected), None)
-    # 4. Risk Adjusted returns
-    mpt3 = st.session_state.get("step9_mpt_stats", [])
-    mpt5 = st.session_state.get("step10_mpt_stats", [])
-    stats3 = next((r for r in mpt3 if r["Fund Name"] == selected), {})
-    stats5 = next((r for r in mpt5 if r["Fund Name"] == selected), {})
+    # === Add more DataFrames here for each table as needed ===
 
-    # --- BEGIN SLIDE POPULATION ---
-    def fill_shape_text(slide, search, value):
-        """Replace placeholder text anywhere in slide (shapes, tables)."""
+    # 4. Create header-to-DataFrame mapping
+    dataframes_by_header = {
+        tuple(df_expense.columns): df_expense,
+        tuple(df_returns.columns): df_returns,
+        tuple(df_assets.columns): df_assets,
+        # Add: tuple(your_df.columns): your_df, for each additional table
+    }
+
+    # 5. Helpers for table handling
+    def get_table_header(table):
+        return tuple(cell.text.strip() for cell in table.rows[0].cells)
+
+    def fill_table(table, df):
+        n_rows = min(len(df), len(table.rows) - 1)
+        for i in range(n_rows):
+            for j, col in enumerate(df.columns):
+                val = df.iloc[i, j]
+                table.cell(i + 1, j).text = str(val) if val is not None else ""
+
+    # 6. Fill all tables in all slides by header
+    filled_count = 0
+    for slide in prs.slides:
         for shape in slide.shapes:
-            if shape.has_text_frame:
-                for p in shape.text_frame.paragraphs:
-                    if search in p.text:
-                        p.text = p.text.replace(search, str(value))
-            if shape.has_table:
-                for row in shape.table.rows:
-                    for cell in row.cells:
-                        if search in cell.text:
-                            cell.text = cell.text.replace(search, str(value))
+            if not shape.has_table:
+                continue
+            table = shape.table
+            header = get_table_header(table)
+            df = dataframes_by_header.get(header)
+            if df is not None:
+                fill_table(table, df)
+                filled_count += 1
 
-    # Slide 1: Cover (assumed order, adjust as needed)
-    slide1 = prs.slides[0]
-    fill_shape_text(slide1, "[Fund Name]", selected)
-    for i, b in enumerate(bullets, 1):
-        fill_shape_text(slide1, f"[Bullet Point {i}]", b)
-    # Slide 2: Expense & Return
-    slide2 = prs.slides[1]
-    fill_shape_text(slide2, "[Category]", category)
-    # (insert logic to fill tables here; see below)
-
-    # Slide 3: Risk Adjusted Statistics
-    slide3 = prs.slides[2]
-    fill_shape_text(slide3, "[Category]", category)
-    # (insert logic to fill tables here)
-
-    # Slide 4: Qualitative Factors
-    slide4 = prs.slides[3]
-    fill_shape_text(slide4, "[Category]", category)
-    # (insert logic to fill tables here)
-
-    # --- Populate all tables with data ---
-    # Helper: fill a table by column name
-    def fill_table_by_column(table, df: pd.DataFrame):
-        col_names = [c.text.strip() for c in table.rows[0].cells]
-        for r, row in enumerate(df.itertuples(index=False), 1):
-            for c, col in enumerate(col_names):
-                val = getattr(row, col, "")
-                table.cell(r, c).text = str(val)
-
-    # For each slide, you may want to use something like:
-    # Find the table you want to fill (based on column headers, or by order)
-    # Example: Slide 2 table 1, Net Expense Ratio
-    # If your table is always in the same order on each slide:
-    try:
-        # Slide 2 Table 1: Net Expense
-        table2_1 = slide2.shapes[1].table  # (adjust index if needed)
-        df2_1 = pd.DataFrame([{
-            "Investment Manager": f"{selected} ({perf_item.get('Ticker','')})",
-            "Net Expense Ratio": perf_item.get("Net Expense Ratio", ""),
-        }])
-        fill_table_by_column(table2_1, df2_1)
-
-        # Slide 2 Table 2: Returns
-        table2_2 = slide2.shapes[2].table  # (adjust index if needed)
-        df2_2 = pd.DataFrame([{
-            "Investment Manager": f"{selected} ({perf_item.get('Ticker','')})",
-            "QTD": perf_item.get("QTD", ""),
-            "1 Year": perf_item.get("1Yr", ""),
-            "3 Year": perf_item.get("3Yr", ""),
-            "5 Year": perf_item.get("5Yr", ""),
-            "10 Year": perf_item.get("10Yr", ""),
-        }])
-        fill_table_by_column(table2_2, df2_2)
-        # Continue for other slides/tables as needed...
-
-    except Exception as e:
-        st.warning(f"Could not fill all tables: {e}")
-
-    # --- Save to BytesIO and provide for download ---
+    # 7. Save to BytesIO and provide download button
     output = BytesIO()
     prs.save(output)
+    st.success(f"Filled {filled_count} tables by header matching.")
     st.download_button(
         label="Download Writeup PowerPoint",
         data=output.getvalue(),
         file_name=f"{selected} Writeup.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
