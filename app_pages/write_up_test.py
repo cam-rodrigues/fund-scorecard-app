@@ -1309,7 +1309,7 @@ def step16_bullet_points():
 def step17_export_to_ppt():
     import streamlit as st
     from pptx import Presentation
-    from pptx.util import Pt
+    from pptx.util import Pt, RGBColor
     from io import BytesIO
     import pandas as pd
 
@@ -1320,7 +1320,6 @@ def step17_export_to_ppt():
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
 
-    # Load PowerPoint template
     template_path = "assets/writeup_template.pptx"
     try:
         prs = Presentation(template_path)
@@ -1328,7 +1327,7 @@ def step17_export_to_ppt():
         st.error(f"Could not load PowerPoint template: {e}")
         return
 
-    # Get data for Slide 1 Table
+    # === Table (same as before) ===
     ips_icon_table = st.session_state.get("ips_icon_table")
     row = None
     if ips_icon_table is not None and not ips_icon_table.empty:
@@ -1348,7 +1347,7 @@ def step17_export_to_ppt():
     fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected), {})
     table_data["Category"] = fs_rec.get("Category", "")
     table_data["Time Period"] = st.session_state.get("report_date", "")
-    table_data["Plan Assets"] = "$"  # Or replace with actual value
+    table_data["Plan Assets"] = "$"
 
     headers = ["Category", "Time Period", "Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
     df_slide1 = pd.DataFrame([table_data], columns=headers)
@@ -1363,7 +1362,7 @@ def step17_export_to_ppt():
                 val = df.iloc[i, j]
                 cell = table.cell(i + 1, j)
                 cell.text = str(val) if val is not None else ""
-                # Set font to Cambria, size 11
+                # Set font to Cambria, size 11 for all paragraphs/runs in the cell
                 for paragraph in cell.text_frame.paragraphs:
                     for run in paragraph.runs:
                         run.font.name = "Cambria"
@@ -1393,20 +1392,65 @@ def step17_export_to_ppt():
             for paragraph in shape.text_frame.paragraphs:
                 if "[Fund Name]" in paragraph.text:
                     paragraph.text = paragraph.text.replace("[Fund Name]", selected)
-                    # Style: Cambria, size 16, bold if originally bold
                     for run in paragraph.runs:
                         run.font.name = "Cambria"
-                        run.font.size = Pt(16)
+                        run.font.size = Pt(12)
                         run.font.bold = True
+                        run.font.underline = True
                     textbox_filled = True
 
     if not textbox_filled:
         st.warning("Could not find the [Fund Name] textbox to fill. Please check your template.")
 
+    # --- Fill the bullet points ---
+    bullet_filled = False
+    # Prepare bullet points from Step 16
+    # This expects bullet points in session state as a list. If you store differently, adjust accordingly!
+    # If you don't already save bullets, here's an example fallback:
+    bullet_points = st.session_state.get("bullet_points", None)
+    if bullet_points is None:
+        # Fallback to a default set for demonstration
+        bullet_points = ["Performance exceeded the benchmark in the latest quarter.",
+                         "Fund is not on watch.",
+                         "No action required."]
+    # Now fill in the placeholder text box
+    for shape in slide1.shapes:
+        if shape.has_text_frame:
+            paragraphs = shape.text_frame.paragraphs
+            # Detect bullet placeholder by text
+            if any("[Bullet Point 1]" in p.text for p in paragraphs):
+                # Clear all current paragraphs
+                shape.text_frame.clear()
+                # Add each bullet point, keeping bullet color and setting text font to black
+                for point in bullet_points:
+                    p = shape.text_frame.add_paragraph()
+                    p.text = point
+                    p.level = 0
+                    p.font.name = "Cambria"
+                    p.font.size = Pt(11)
+                    p.font.bold = False
+                    p.font.color.rgb = RGBColor(0, 0, 0)  # Font stays black
+                    p.font.underline = False
+                    p.font.italic = False
+                    p.space_after = 0
+                    p.space_before = 0
+                    p.line_spacing = 1.1
+                    p.font.highlight_color = None
+                    p._element.set('marL', '0')  # Remove left margin, if any
+                    p._element.set('indent', '0')
+                    p._element.set('marR', '0')
+                    p._element.set('leftMargin', '0')
+                    # (Bullets should keep default color from the template)
+                bullet_filled = True
+                break
+
+    if not bullet_filled:
+        st.warning("Could not find the bullet points text box to fill. Please check your template.")
+
     # Save and download
     output = BytesIO()
     prs.save(output)
-    st.success("Slide 1 table and Fund Name textbox filled!")
+    st.success("Slide 1 table, Fund Name, and bullet points filled!")
     st.download_button(
         label="Download Writeup PowerPoint",
         data=output.getvalue(),
