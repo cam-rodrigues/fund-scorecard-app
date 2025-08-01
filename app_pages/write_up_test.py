@@ -1798,7 +1798,7 @@ def run():
             process_toc(toc_text)
 
         # --- COMBINED STEPS 3, 4, 5 ---
-        with st.expander("Step 3: Scorecard + IPS + Fund Type", expanded=True):
+        with st.expander("IPS Investment Screening", expanded=True):
             sp = st.session_state.get('scorecard_page')
             tot = st.session_state.get('total_options')
             pp = st.session_state.get('performance_page')
@@ -1820,7 +1820,6 @@ def run():
             step7_extract_returns(pdf)
             
             # Calendar Returns (Funds and Benchmarks)
-            st.markdown("### Calendar Returns")
             step8_calendar_returns(pdf)
 
 
