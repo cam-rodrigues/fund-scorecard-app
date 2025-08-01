@@ -1084,7 +1084,6 @@ def step15_display_selected_fund():
     facts_rec = next((row for row in fund_facts_table if row["Fund Name"] == selected_fund), None)
 
     if facts_rec:
-        st.markdown("#### Fund Facts")
         st.markdown(
             f"""
             <ul style="list-style: disc; margin-left:1.2em;">
