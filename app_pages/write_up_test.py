@@ -1106,54 +1106,54 @@ def step15_display_selected_fund():
     
     st.dataframe(df_slide2, use_container_width=True)
 
-# --- Slide 2 Table 2 ---
-st.markdown("**Slide 2 Table 2**")
-date_label = st.session_state.get("report_date", "QTD")
-
-def append_pct(val):
-    s = str(val) if val is not None else ""
-    return s if s.endswith("%") or s == "" else f"{s}%"
-
-qtd   = append_pct(perf_item.get("QTD", ""))
-one   = append_pct(perf_item.get("1Yr", ""))
-three = append_pct(perf_item.get("3Yr", ""))
-five  = append_pct(perf_item.get("5Yr", ""))
-ten   = append_pct(perf_item.get("10Yr", ""))
-
-bench_qtd   = append_pct(perf_item.get("Bench QTD", ""))
-bench_3yr   = append_pct(perf_item.get("Bench 3Yr", ""))
-bench_5yr   = append_pct(perf_item.get("Bench 5Yr", ""))
-
-# Fund row
-row_fund = {
-    "Investment Manager": inv_mgr,
-    date_label:           qtd,
-    "1 Year":             one,
-    "3 Year":             three,
-    "5 Year":             five,
-    "10 Year":            ten
-}
-
-# Benchmark row with corresponding benchmark returns
-bench_name = fs_rec.get("Benchmark", "") if fs_rec else ""
-bench_ticker = fs_rec.get("Matched Ticker", "") if fs_rec else ""
-bench_inv_mgr = f"{bench_name} ({bench_ticker})" if bench_name else "Benchmark"
-
-row_benchmark = {
-    "Investment Manager": bench_inv_mgr,
-    date_label:           bench_qtd,
-    "1 Year":             "",          # No benchmark 1Yr data extracted in step7, could add if available
-    "3 Year":             bench_3yr,
-    "5 Year":             bench_5yr,
-    "10 Year":            ""           # No benchmark 10Yr data extracted in step7, add if you have it
-}
-
-df_slide2_2 = pd.DataFrame([row_fund, row_benchmark])
-
-# Save for Step 17 to use
-st.session_state["slide2_table2_data"] = df_slide2_2
-
-st.dataframe(df_slide2_2, use_container_width=True)
+    # --- Slide 2 Table 2 ---
+    st.markdown("**Slide 2 Table 2**")
+    date_label = st.session_state.get("report_date", "QTD")
+    
+    def append_pct(val):
+        s = str(val) if val is not None else ""
+        return s if s.endswith("%") or s == "" else f"{s}%"
+    
+    qtd   = append_pct(perf_item.get("QTD", ""))
+    one   = append_pct(perf_item.get("1Yr", ""))
+    three = append_pct(perf_item.get("3Yr", ""))
+    five  = append_pct(perf_item.get("5Yr", ""))
+    ten   = append_pct(perf_item.get("10Yr", ""))
+    
+    bench_qtd   = append_pct(perf_item.get("Bench QTD", ""))
+    bench_3yr   = append_pct(perf_item.get("Bench 3Yr", ""))
+    bench_5yr   = append_pct(perf_item.get("Bench 5Yr", ""))
+    
+    # Fund row
+    row_fund = {
+        "Investment Manager": inv_mgr,
+        date_label:           qtd,
+        "1 Year":             one,
+        "3 Year":             three,
+        "5 Year":             five,
+        "10 Year":            ten
+    }
+    
+    # Benchmark row with corresponding benchmark returns
+    bench_name = fs_rec.get("Benchmark", "") if fs_rec else ""
+    bench_ticker = fs_rec.get("Matched Ticker", "") if fs_rec else ""
+    bench_inv_mgr = f"{bench_name} ({bench_ticker})" if bench_name else "Benchmark"
+    
+    row_benchmark = {
+        "Investment Manager": bench_inv_mgr,
+        date_label:           bench_qtd,
+        "1 Year":             "",          # No benchmark 1Yr data extracted in step7, could add if available
+        "3 Year":             bench_3yr,
+        "5 Year":             bench_5yr,
+        "10 Year":            ""           # No benchmark 10Yr data extracted in step7, add if you have it
+    }
+    
+    df_slide2_2 = pd.DataFrame([row_fund, row_benchmark])
+    
+    # Save for Step 17 to use
+    st.session_state["slide2_table2_data"] = df_slide2_2
+    
+    st.dataframe(df_slide2_2, use_container_width=True)
 
 
     # --- Slide 2 Table 3 ---
