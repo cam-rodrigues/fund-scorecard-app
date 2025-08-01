@@ -3,16 +3,6 @@ import pdfplumber
 import re
 import pandas as pd
 
-st.markdown("""
-    <style>
-    #MainMenu, header, footer {visibility: hidden;}
-    .block-container {padding-top:2rem; padding-bottom:2rem;}
-    .app-card {background: #fff; border-radius:1rem; box-shadow:0 2px 8px rgba(60,60,60,0.03); padding:1.2rem 2rem 1.2rem 2rem; margin-bottom:1.3rem;}
-    .big-title {font-size:2rem !important; font-weight:600; letter-spacing:-0.03em; margin-bottom:0.2em;}
-    .watch-key {font-size:0.95em; color:#6B7280;}
-    </style>
-""", unsafe_allow_html=True)
-
 def extract_scorecard_blocks(pdf, scorecard_page):
     metric_labels = [
         "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
