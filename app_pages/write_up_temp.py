@@ -212,7 +212,10 @@ def main():
         df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
 
         if not df_icon.empty:
-            # Watch key right above the IPS screening table
+            # Short labels for columns 1-11
+            display_columns = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
+            display_df = df_icon.rename(columns=display_columns)
+        
             st.markdown(
                 '<div class="watch-key" style="margin-bottom: 1em;">'
                 '<span style="background:#d6f5df; color:#217a3e; padding:0.07em 0.55em; border-radius:2px;">NW</span> '
@@ -222,7 +225,7 @@ def main():
                 '<span style="background:#f8d7da; color:#c30000; padding:0.07em 0.55em; border-radius:2px;">FW</span> '
                 '(Formal Watch)</div>', unsafe_allow_html=True
             )
-            styled = df_icon.style.applymap(watch_status_color, subset=["IPS Watch Status"])
+            styled = display_df.style.applymap(watch_status_color, subset=["IPS Watch Status"])
             st.dataframe(styled, use_container_width=True, hide_index=True)
             st.download_button(
                 "Download CSV",
@@ -232,6 +235,7 @@ def main():
             )
         else:
             st.info("No IPS screening data available.")
+
 
 if __name__ == "__main__":
     main()
