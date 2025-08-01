@@ -40,7 +40,7 @@ def extract_scorecard_blocks(pdf, scorecard_page):
     return fund_blocks
 
 # --- Conversion: Scorecard → IPS Investment Criteria ---
-def scorecard_to_ips(fund_blocks):
+def scorecard_to_ips(fund_blocks, fund_types):
     metrics_order = [
         "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
         "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Expense Ratio Rank",
@@ -53,16 +53,16 @@ def scorecard_to_ips(fund_blocks):
     ips_labels = [f"IPS Investment Criteria {i+1}" for i in range(11)]
 
     ips_results = []
-    raw_results = []  # For CSV download (keeps original Pass/Review/Fail)
+    raw_results = []
     for fund in fund_blocks:
         fund_name = fund["Fund Name"]
-        is_passive = "index" in fund_name.lower()
+        fund_type = fund_types.get(fund_name, "Passive" if "index" in fund_name.lower() else "Active")
         metrics = fund["Metrics"]
         scorecard_status = []
         for label in metrics_order:
             found = next((m for m in metrics if m["Metric"] == label), None)
             scorecard_status.append(found["Status"] if found else None)
-        idx_map = passive_map if is_passive else active_map
+        idx_map = passive_map if fund_type == "Passive" else active_map
         ips_status = []
         for i, m_idx in enumerate(idx_map):
             if m_idx is not None:
@@ -77,7 +77,6 @@ def scorecard_to_ips(fund_blocks):
             watch_status = "Informal Watch"
         else:
             watch_status = "No Watch"
-        # Prepare iconified row for display
         def iconify(status):
             if status == "Pass":
                 return "✅"
@@ -86,15 +85,14 @@ def scorecard_to_ips(fund_blocks):
             return ""
         row = {
             "Fund Name": fund_name,
-            "Fund Type": "Passive" if is_passive else "Active",
+            "Fund Type": fund_type,
             **{ips_labels[i]: iconify(ips_status[i]) for i in range(11)},
             "IPS Watch Status": watch_status,
         }
         ips_results.append(row)
-        # Prepare raw row for download
         raw_results.append({
             "Fund Name": fund_name,
-            "Fund Type": "Passive" if is_passive else "Active",
+            "Fund Type": fund_type,
             **{ips_labels[i]: ips_status[i] for i in range(11)},
             "IPS Watch Status": watch_status,
         })
@@ -104,10 +102,10 @@ def scorecard_to_ips(fund_blocks):
 
 # --- Streamlit App ---
 def main():
-    st.title("Fidsync: Scorecard ➔ IPS Investment Criteria (with ✅ and ❌)")
+    st.title("Fidsync: Scorecard ➔ IPS Investment Criteria (User-select Active/Passive)")
     st.markdown(
-        "Upload your MPI PDF and view the IPS screening for all funds. "
-        "**Green check = Pass, Red X = Review/Fail.**"
+        "Upload your MPI PDF and set each fund as Active or Passive for custom IPS screening. "
+        "Green check = Pass, Red X = Review/Fail."
     )
 
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
@@ -127,7 +125,31 @@ def main():
             st.error("Could not extract fund scorecard blocks. Check the PDF and page number.")
             return
 
-        df_icon, df_raw = scorecard_to_ips(fund_blocks)
+        # Show fund type selectors in sidebar
+        st.sidebar.header("Select Fund Type (Active/Passive)")
+
+        # Persist fund type selection across reruns using session_state
+        if "fund_types" not in st.session_state:
+            st.session_state["fund_types"] = {}
+            # Initial default: Passive if "index" in name, else Active
+            for fund in fund_blocks:
+                name = fund["Fund Name"]
+                st.session_state["fund_types"][name] = "Passive" if "index" in name.lower() else "Active"
+
+        # Allow user to change type for each fund
+        for fund in fund_blocks:
+            name = fund["Fund Name"]
+            current_type = st.session_state["fund_types"].get(name, "Passive" if "index" in name.lower() else "Active")
+            selected_type = st.sidebar.radio(
+                f"{name}",
+                options=["Active", "Passive"],
+                index=0 if current_type == "Active" else 1,
+                key=f"ftype_{name}"
+            )
+            st.session_state["fund_types"][name] = selected_type
+
+        # Do IPS conversion with current user settings
+        df_icon, df_raw = scorecard_to_ips(fund_blocks, st.session_state["fund_types"])
 
         st.header("Scorecard ➔ IPS Investment Criteria Table")
         st.dataframe(df_icon, use_container_width=True)
