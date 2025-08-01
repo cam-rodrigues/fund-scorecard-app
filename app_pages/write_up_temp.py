@@ -102,9 +102,9 @@ def scorecard_to_ips(fund_blocks, fund_types):
 
 # --- Streamlit App ---
 def main():
-    st.title("Fidsync: Scorecard ➔ IPS Investment Criteria")
+    st.title("Fidsync: Scorecard ➔ IPS Investment Criteria (Edit Fund Type in Table)")
     st.markdown(
-        "Upload your MPI PDF and set each fund as Active or Passive for custom IPS screening. "
+        "Upload your MPI PDF. Use the 'Fund Type' dropdown inside the table below. "
         "Green check = Pass, Red X = Review/Fail."
     )
 
@@ -116,7 +116,7 @@ def main():
     with pdfplumber.open(uploaded) as pdf:
         toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
         sc_match = re.search(r"Fund Scorecard\s+(\d{1,3})", toc_text or "")
-        scorecard_page = int(sc_match.group(1)) if sc_match else 3  # fallback to page 3 if not found
+        scorecard_page = int(sc_match.group(1)) if sc_match else 3
 
         st.info(f"Using Scorecard page: {scorecard_page}")
 
@@ -125,42 +125,49 @@ def main():
             st.error("Could not extract fund scorecard blocks. Check the PDF and page number.")
             return
 
-        # -- "Right sidebar" using columns: left = table, right = selectors --
-        left, right = st.columns([3, 1], gap="large")
+        # --- Prepare initial Fund Type mapping DataFrame for st.data_editor
+        fund_type_defaults = [
+            "Passive" if "index" in fund["Fund Name"].lower() else "Active"
+            for fund in fund_blocks
+        ]
+        df_types = pd.DataFrame({
+            "Fund Name": [fund["Fund Name"] for fund in fund_blocks],
+            "Fund Type": fund_type_defaults
+        })
 
-        # Persist fund type selection
-        if "fund_types" not in st.session_state:
-            st.session_state["fund_types"] = {
-                fund["Fund Name"]: "Passive" if "index" in fund["Fund Name"].lower() else "Active"
-                for fund in fund_blocks
-            }
+        # --- Editable Data Editor Table ---
+        edited_types = st.data_editor(
+            df_types,
+            column_config={
+                "Fund Type": st.column_config.SelectboxColumn(
+                    "Fund Type",
+                    help="Set Active or Passive for each fund",
+                    options=["Active", "Passive"]
+                ),
+            },
+            hide_index=True,
+            key="data_editor_fundtype",
+        )
 
-        with right:
-            st.markdown("### Fund Type (Active/Passive)")
-            for fund in fund_blocks:
-                name = fund["Fund Name"]
-                current_type = st.session_state["fund_types"].get(name, "Passive" if "index" in name.lower() else "Active")
-                selected_type = st.radio(
-                    label=name,
-                    options=["Active", "Passive"],
-                    index=0 if current_type == "Active" else 1,
-                    key=f"ftype_{name}",
-                )
-                st.session_state["fund_types"][name] = selected_type
+        # --- Build Fund Type mapping for logic
+        fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
 
-        # Do IPS conversion with current user settings
-        df_icon, df_raw = scorecard_to_ips(fund_blocks, st.session_state["fund_types"])
+        # --- Run conversion using latest choices
+        df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types)
 
-        with left:
-            st.header("Scorecard ➔ IPS Investment Criteria Table")
-            st.dataframe(df_icon, use_container_width=True)
+        st.header("Scorecard ➔ IPS Investment Criteria Table")
+        st.dataframe(df_icon, use_container_width=True)
 
-            st.download_button(
-                "Download IPS Screening Table as CSV",
-                data=df_raw.to_csv(index=False),
-                file_name="ips_screening_table.csv",
-                mime="text/csv",
-            )
+        st.download_button(
+            "Download IPS Screening Table as CSV",
+            data=df_raw.to_csv(index=False),
+            file_name="ips_screening_table.csv",
+            mime="text/csv",
+        )
+
+if __name__ == "__main__":
+    main()
+
 
 if __name__ == "__main__":
     main()
