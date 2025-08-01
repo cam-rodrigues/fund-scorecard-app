@@ -7,6 +7,29 @@ from rapidfuzz import fuzz
 from pptx import Presentation
 from pptx.util import Inches
 from io import BytesIO
+import yfinance as yf
+import yfinance as yf
+
+def infer_fund_type_guess(ticker):
+    """Infer 'Active' or 'Passive' based on Yahoo Finance info (name and summary)."""
+    try:
+        if not ticker:
+            return ""
+        info = yf.Ticker(ticker).info
+        name = (info.get("longName") or info.get("shortName") or "").lower()
+        summary = (info.get("longBusinessSummary") or "").lower()
+        # Passive if index-related, otherwise Active
+        if "index" in name or "index" in summary:
+            return "Passive"
+        if "track" in summary and "index" in summary:
+            return "Passive"
+        if "actively managed" in summary or "actively-managed" in summary:
+            return "Active"
+        if "outperform" in summary or "manager selects" in summary:
+            return "Active"
+        return ""
+    except Exception:
+        return ""
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Utility: Extract & Label Report Date ===
