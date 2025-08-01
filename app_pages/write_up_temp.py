@@ -70,29 +70,50 @@ def extract_scorecard_blocks(pdf, scorecard_page):
         fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
     return fund_blocks
 
-# --- Ticker Extraction ---
-def extract_fund_tickers(pdf, performance_page, fund_names):
-    # Pull all lines from the fund performance section
-    perf_text = ""
-    for p in pdf.pages[performance_page-1:performance_page+1]:
-        perf_text += (p.extract_text() or "") + "\n"
-    lines = perf_text.splitlines()
+# --- Ticker Extraction: full performance section robust ---
+def extract_fund_tickers_full_section(pdf, performance_page, fund_names, factsheets_page=None):
+    """
+    Extract 5-letter tickers for each fund in fund_names, searching the full performance section.
+    Args:
+        pdf: pdfplumber PDF object
+        performance_page: int, page number where performance section starts (1-based)
+        fund_names: list of fund names (from scorecard)
+        factsheets_page: int or None, page number where performance section ends (optional)
+    Returns:
+        dict: {fund_name: ticker}
+    """
+    # Set the end page to the start of factsheets or the end of the document
+    if factsheets_page:
+        end_page = factsheets_page - 1
+    else:
+        end_page = len(pdf.pages)
 
-    # Match lines like: "Some Fund Name       ABCDX"
-    mapping = {}
-    for ln in lines:
-        m = re.match(r"(.+?)\s+([A-Z]{1,5})$", ln.strip())
-        if m:
-            raw_name, ticker = m.groups()
-            norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
-            mapping[norm] = ticker
+    perf_lines = []
+    for p in pdf.pages[performance_page-1:end_page]:
+        txt = p.extract_text() or ""
+        perf_lines += [ln.strip() for ln in txt.splitlines() if ln.strip()]
 
-    # Map fund_names to tickers (with fallback)
     tickers = {}
     for name in fund_names:
-        norm = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
-        ticker = mapping.get(norm, "")
-        tickers[name] = ticker
+        # Build a flexible regex: Fund name, then whitespace, then 5 uppercase letters
+        pattern = re.compile(re.escape(name) + r'\s+([A-Z]{5})\b')
+        found = None
+        # 1. Try strict: exact match with full name and 5-letter ticker
+        for line in perf_lines:
+            m = pattern.search(line)
+            if m:
+                found = m.group(1)
+                break
+        # 2. Fallback: Look for any 5-uppercase token at end of a line containing the name
+        if not found:
+            for line in perf_lines:
+                if name in line:
+                    tokens = line.split()
+                    possible = [t for t in tokens if re.fullmatch(r'[A-Z]{5}', t)]
+                    if possible:
+                        found = possible[-1]
+                        break
+        tickers[name] = found or ""
     return tickers
 
 # --- Scorecard → IPS Investment Criteria ---
@@ -195,10 +216,15 @@ def main():
         toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
         sc_match = re.search(r"Fund Scorecard\s+(\d{1,3})", toc_text or "")
         perf_match = re.search(r"Fund Performance[^\d]*(\d{1,3})", toc_text or "")
+        factsheets_match = re.search(r"Fund Factsheets\s+(\d{1,3})", toc_text or "")
         scorecard_page = int(sc_match.group(1)) if sc_match else 3
         performance_page = int(perf_match.group(1)) if perf_match else scorecard_page + 1
+        factsheets_page = int(factsheets_match.group(1)) if factsheets_match else None
 
-        st.markdown(f'<span class="label-clean">Detected scorecard page: <b>{scorecard_page}</b> | Performance page: <b>{performance_page}</b></span>', unsafe_allow_html=True)
+        st.markdown(
+            f'<span class="label-clean">Detected scorecard page: <b>{scorecard_page}</b> | Performance page: <b>{performance_page}</b></span>',
+            unsafe_allow_html=True
+        )
 
         fund_blocks = extract_scorecard_blocks(pdf, scorecard_page)
         fund_names = [fund["Fund Name"] for fund in fund_blocks]
@@ -206,8 +232,8 @@ def main():
             st.error("Could not extract fund scorecard blocks. Check the PDF and page number.")
             st.stop()
 
-        # ---- Extract tickers
-        tickers = extract_fund_tickers(pdf, performance_page, fund_names)
+        # ---- Extract tickers using full section
+        tickers = extract_fund_tickers_full_section(pdf, performance_page, fund_names, factsheets_page)
 
         fund_type_defaults = [
             "Passive" if "index" in fund["Fund Name"].lower() else "Active"
