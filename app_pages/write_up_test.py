@@ -127,8 +127,7 @@ def process_page1(text):
         unsafe_allow_html=True,
     )
 
-
-
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Step 2: Table of Contents Extraction ===
 def process_toc(text):
     perf = re.search(r"Fund Performance[^\d]*(\d{1,3})", text or "")
@@ -1686,118 +1685,108 @@ def step17_export_to_ppt():
 # === Main App ===
 def run():
     import re
-    st.title("Writeup")
+    import streamlit as st
+    import pdfplumber
+
+    st.title("Writeup Generator")
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
-   #──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-    
+
+    # Checkbox to toggle detailed steps visibility
+    show_detailed = st.checkbox("Show Detailed Steps (3-14)", value=False)
+
     with pdfplumber.open(uploaded) as pdf:
         
         # Step 1
         first = pdf.pages[0].extract_text() or ""
         process_page1(first)
 
-        # Step 2: Extract TOC page numbers silently
+        # Step 2: Extract TOC page numbers silently (no UI output)
         toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
-        process_toc(toc_text)  # stores page numbers internally; no UI output here
+        process_toc(toc_text)  # page numbers stored internally
 
-        # --- COMBINED STEPS 3, 4, 5 ---
-        with st.expander("Step 3: Scorecard + IPS + Fund Type", expanded=True):
-            sp = st.session_state.get('scorecard_page')
-            tot = st.session_state.get('total_options')
-            pp = st.session_state.get('performance_page')
-            factsheets_page = st.session_state.get('factsheets_page')
+        sp = st.session_state.get('scorecard_page')
+        tot = st.session_state.get('total_options')
+        pp = st.session_state.get('performance_page')
+        factsheets_page = st.session_state.get('factsheets_page')
+
+        # Steps 3 to 14: toggle visibility based on checkbox
+        if show_detailed:
+            with st.expander("Steps 3 to 14: Detailed Processing", expanded=True):
+                if sp and tot is not None and pp:
+                    step3_5_6_scorecard_and_ips(pdf, sp, pp, factsheets_page, tot)
+                else:
+                    st.error("Missing scorecard, performance page, or total options")
+
+                names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
+                step6_process_factsheets(pdf, names)
+                step7_extract_returns(pdf)
+
+                # --- Data prep for bullet points ---
+                prepare_bullet_points_data()
+
+                step8_calendar_returns(pdf)
+                step9_risk_analysis_3yr(pdf)
+                step10_risk_analysis_5yr(pdf)
+                step11_create_summary()
+                step12_process_fund_facts(pdf)
+                step13_process_risk_adjusted_returns(pdf)
+                step14_extract_peer_risk_adjusted_return_rank(pdf)
+        else:
+            # Run steps silently without UI clutter
             if sp and tot is not None and pp:
                 step3_5_6_scorecard_and_ips(pdf, sp, pp, factsheets_page, tot)
-            else:
-                st.error("Missing scorecard, performance page, or total options")
-
-        
-        # Step 6
-        with st.expander("Step 6: Fund Factsheets", expanded=True):
             names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
             step6_process_factsheets(pdf, names)
-
-        # Step 7
-        with st.expander("Step 7: Annualized Returns", expanded=False):
             step7_extract_returns(pdf)
 
-        # ── Data Prep for Bullet Points ───────────────────────────────────────────────
-        report_date = st.session_state.get("report_date", "")
-        m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
-        quarter = m.group(1) if m else ""
-        year    = m.group(2) if m else ""
-        
-        # make sure we have a list to iterate
-        for itm in st.session_state.get("fund_performance_data", []):
-            # force numeric defaults
-            qtd       = float(itm.get("QTD") or 0)
-            bench_qtd = float(itm.get("Bench QTD") or 0)
-        
-            # direction, quarter/year
-            itm["Perf Direction"] = "overperformed" if qtd >= bench_qtd else "underperformed"
-            itm["Quarter"]        = quarter
-            itm["Year"]           = year
-        
-            # basis‑points difference
-            diff_bps = round((qtd - bench_qtd) * 100, 1)
-            itm["QTD_bps_diff"] = str(diff_bps)
-        
-            # percent strings
-            fund_pct  = f"{qtd:.2f}%"
-            bench_pct = f"{bench_qtd:.2f}%"
-            itm["QTD_pct_diff"] = f"{(qtd - bench_qtd):.2f}%"
-            itm["QTD_vs"]       = f"{fund_pct} vs. {bench_pct}"
-        
-        # Initialize your template exactly once
-        if "bullet_point_templates" not in st.session_state:
-            st.session_state["bullet_point_templates"] = [
-                "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], "
-                "[Year] by [QTD_bps_diff] bps ([QTD_vs])."
-            ]
+            # --- Data prep for bullet points ---
+            prepare_bullet_points_data()
 
-        # ───────────────────────────────────────────────────────────────────────────────
-        
-        # Step 8: Calendar Year Section
-        with st.expander("Step 8: Calendar Year Returns", expanded=False):
             step8_calendar_returns(pdf)
-
-        # Step 9: Match Tickers
-        with st.expander("Step 9: Risk Analysis (3Yr)", expanded=False):
             step9_risk_analysis_3yr(pdf)
-
-        # Step 10: Match Tickers
-        with st.expander("Step 10: Risk Analysis (5Yr)", expanded=False):
             step10_risk_analysis_5yr(pdf)
-
-        # Step 11: MPT Statistics Summary
-        with st.expander("Step 11: MPT Statistics Summary", expanded=False):
             step11_create_summary()
-            
-        # Step 12: Find Factsheet Sub‑Headings
-        with st.expander("Step 12: Fund Facts ", expanded=False):
             step12_process_fund_facts(pdf)
-
-        # Step 13: Risk Adjusted Returns
-        with st.expander("Step 13: Risk-Adjusted Returns", expanded=False):
             step13_process_risk_adjusted_returns(pdf)
-
-        # Step 14: Peer Risk-Adjusted Return Rank
-        with st.expander("Step 14: Peer Risk-Adjusted Return Rank", expanded=False):
             step14_extract_peer_risk_adjusted_return_rank(pdf)
-        
-        # Step 15: View Single Fund Details
+
+        # Steps 15-17 keep their expanders visible as before
         with st.expander("Step 15: Single Fund Details", expanded=False):
             step15_display_selected_fund()
                     
-        # Step 16: Bullet Points
         with st.expander("Step 16: Bullet Points", expanded=False):
             step16_bullet_points()
 
-        # Step 17: Powerpoint
-        with st.expander("Powerpoint", expanded=False):
+        with st.expander("Step 17: Powerpoint", expanded=False):
             step17_export_to_ppt()
+
+# Helper function for bullet point data prep:
+def prepare_bullet_points_data():
+    import re
+    import streamlit as st
+
+    report_date = st.session_state.get("report_date", "")
+    m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
+    quarter = m.group(1) if m else ""
+    year    = m.group(2) if m else ""
+
+    for itm in st.session_state.get("fund_performance_data", []):
+        qtd       = float(itm.get("QTD") or 0)
+        bench_qtd = float(itm.get("Bench QTD") or 0)
+
+        itm["Perf Direction"] = "overperformed" if qtd >= bench_qtd else "underperformed"
+        itm["Quarter"]        = quarter
+        itm["Year"]           = year
+
+        diff_bps = round((qtd - bench_qtd) * 100, 1)
+        itm["QTD_bps_diff"] = str(diff_bps)
+
+        fund_pct  = f"{qtd:.2f}%"
+        bench_pct = f"{bench_qtd:.2f}%"
+        itm["QTD_pct_diff"] = f"{(qtd - bench_qtd):.2f}%"
+        itm["QTD_vs"]       = f"{fund_pct} vs. {bench_pct}"
 
 
 if __name__ == "__main__":
