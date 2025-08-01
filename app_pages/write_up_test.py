@@ -1081,14 +1081,20 @@ def step15_display_selected_fund():
                 "IPS Status": row_dict.get("IPS Watch Status", "")
             }])
 
-            def color_bool(v): return "background-color: green" if v == "✔" else ("background-color: red" if v == "✗" else "")
+            def color_bool(v):
+                return "background-color: green" if v == "✔" else ("background-color: red" if v == "✗" else "")
+            
             def style_status(v):
-                if v == "NW": return "background-color: green; color: white"
-                if v == "IW": return "background-color: orange; color: white"
-                if v == "FW": return "background-color: red; color: white"
+                if v == "NW": return "background-color: green; color: white; font-weight: 600;"
+                if v == "IW": return "background-color: orange; color: white; font-weight: 600;"
+                if v == "FW": return "background-color: red; color: white; font-weight: 600;"
                 return ""
-            styled = row_df.style.applymap(color_bool, subset=[str(i) for i in range(1, 12)]).applymap(style_status, subset=["IPS Status"])
+            
+            styled = row_df.style.applymap(color_bool, subset=[str(i) for i in range(1, 12)]) \
+                                 .applymap(style_status, subset=["IPS Status"])
+            
             st.dataframe(styled, use_container_width=True)
+
         else:
             st.warning("No IPS screening result found for selected fund.")
     else:
