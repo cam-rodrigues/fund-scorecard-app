@@ -1383,7 +1383,7 @@ def step17_export_to_ppt():
         st.error(f"Could not load PowerPoint template: {e}")
         return
 
-    # --- Slide 1 Data Preparation ---
+    # Slide 1 Data Prep
     ips_icon_table = st.session_state.get("ips_icon_table")
     row = None
     if ips_icon_table is not None and not ips_icon_table.empty:
@@ -1409,8 +1409,7 @@ def step17_export_to_ppt():
     headers = ["Category", "Time Period", "Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
     df_slide1 = pd.DataFrame([table_data], columns=headers)
 
-    # --- Helper functions ---
-
+    # Helper functions
     def get_table_header(table):
         return tuple(cell.text.strip() for cell in table.rows[0].cells)
 
@@ -1501,7 +1500,7 @@ def step17_export_to_ppt():
                 return True
         return False
 
-    def fill_table_with_formatting(table, df_table):
+    def fill_table_with_investment_manager_white(table, df_table):
         n_rows = min(len(df_table), len(table.rows) - 1)
         for i in range(n_rows):
             for j, col in enumerate(df_table.columns):
@@ -1516,8 +1515,8 @@ def step17_export_to_ppt():
                     for run in paragraph.runs:
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
-                        # White font for Investment Manager column only
-                        if col == "Investment Manager":
+                        # Investment Manager column white font
+                        if j == 0:
                             run.font.color.rgb = RGBColor(255, 255, 255)
                         else:
                             run.font.color.rgb = RGBColor(0, 0, 0)
@@ -1529,17 +1528,13 @@ def step17_export_to_ppt():
             if shape.has_table:
                 table = shape.table
                 if get_table_header(table) == tuple(df_table1.columns):
-                    fill_table_with_formatting(table, df_table1)
+                    fill_table_with_investment_manager_white(table, df_table1)
                     return True
         return False
 
     def fill_slide2_table2(prs, df_table2, quarter_label):
-        from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
-        from pptx.dml.color import RGBColor
-        from pptx.util import Pt
-    
         slide2 = prs.slides[1]
-    
+
         def is_match(table):
             headers = [cell.text.strip() for cell in table.rows[0].cells]
             if len(headers) != len(df_table2.columns):
@@ -1550,18 +1545,17 @@ def step17_export_to_ppt():
                 if headers[i] != df_table2.columns[i]:
                     return False
             return True
-    
+
         for shape in slide2.shapes:
             if shape.has_table:
                 table = shape.table
                 if is_match(table):
-                    # Set header row font as before (white bold)
-                    for j, col in enumerate(df_table2.columns):
+                    # Replace 2nd header cell with quarter_label
+                    table.cell(0, 1).text = quarter_label
+
+                    # Header formatting
+                    for j in range(len(df_table2.columns)):
                         cell = table.cell(0, j)
-                        if j == 1:
-                            cell.text = quarter_label
-                        else:
-                            cell.text = str(col)
                         for paragraph in cell.text_frame.paragraphs:
                             paragraph.alignment = PP_ALIGN.CENTER
                             for run in paragraph.runs:
@@ -1569,11 +1563,65 @@ def step17_export_to_ppt():
                                 run.font.size = Pt(11)
                                 run.font.color.rgb = RGBColor(255, 255, 255)
                                 run.font.bold = True
-    
+
                     n_rows = min(len(df_table2), len(table.rows) - 1)
                     for i in range(n_rows):
                         for j, col in enumerate(df_table2.columns):
                             val = df_table2.iloc[i, j]
+                            cell = table.cell(i + 1, j)
+                            text_val = str(val) if val is not None else ""
+                            cell.text = text_val
+
+                            cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
+                            for paragraph in cell.text_frame.paragraphs:
+                                paragraph.alignment = PP_ALIGN.CENTER
+                                for run in paragraph.runs:
+                                    run.font.name = "Cambria"
+                                    run.font.size = Pt(11)
+                                    if j == 0:
+                                        run.font.color.rgb = RGBColor(255, 255, 255)
+                                    else:
+                                        run.font.color.rgb = RGBColor(0, 0, 0)
+
+                                    # Benchmark row bold (second row)
+                                    run.font.bold = True if i == 1 else False
+                    return True
+        return False
+
+    def fill_slide2_table3(prs, df_table3):
+        slide2 = prs.slides[1]
+
+        def is_match(table):
+            headers = [cell.text.strip() for cell in table.rows[0].cells]
+            if len(headers) != len(df_table3.columns):
+                return False
+            if headers[0] != df_table3.columns[0]:
+                return False
+            for i in range(1, len(headers)):
+                if headers[i] != df_table3.columns[i]:
+                    return False
+            return True
+
+        for shape in slide2.shapes:
+            if shape.has_table:
+                table = shape.table
+                if is_match(table):
+                    # Set headers with years, white bold font
+                    for j, col in enumerate(df_table3.columns):
+                        cell = table.cell(0, j)
+                        cell.text = str(col)
+                        for paragraph in cell.text_frame.paragraphs:
+                            paragraph.alignment = PP_ALIGN.CENTER
+                            for run in paragraph.runs:
+                                run.font.name = "Cambria"
+                                run.font.size = Pt(11)
+                                run.font.color.rgb = RGBColor(255, 255, 255)
+                                run.font.bold = True
+
+                    n_rows = min(len(df_table3), len(table.rows) - 1)
+                    for i in range(n_rows):
+                        for j, col in enumerate(df_table3.columns):
+                            val = df_table3.iloc[i, j]
                             cell = table.cell(i + 1, j)
                             cell.text = str(val) if val is not None else ""
                             cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
@@ -1582,19 +1630,15 @@ def step17_export_to_ppt():
                                 for run in paragraph.runs:
                                     run.font.name = "Cambria"
                                     run.font.size = Pt(11)
-                                    # Investment Manager column white font for both rows
                                     if j == 0:
                                         run.font.color.rgb = RGBColor(255, 255, 255)
                                     else:
                                         run.font.color.rgb = RGBColor(0, 0, 0)
-    
-                                    # Make the benchmark row bold (row index 1)
                                     run.font.bold = True if i == 1 else False
                     return True
         return False
 
-
-    # --- Fill Slide 1 ---
+    # Fill Slide 1
     slide1 = prs.slides[0]
     fund_name_filled = fill_text_placeholder_preserving_format(slide1, "[Fund Name]", selected)
     if not fund_name_filled:
@@ -1616,34 +1660,38 @@ def step17_export_to_ppt():
     if not bullets_filled:
         st.warning("Could not find bullet points placeholder on Slide 1.")
 
-    # --- Fill Slide 2 category heading ---
+    # Fill Slide 2 Category
     slide2 = prs.slides[1]
     category = fs_rec.get("Category", "N/A")
     category_filled = fill_text_placeholder_preserving_format(slide2, "[Category]", category)
     if not category_filled:
         st.warning("Could not find [Category] placeholder on Slide 2.")
 
-    # --- Fill Slide 2 Table 1 ---
+    # Fill Slide 2 Tables 1, 2, 3
     df_slide2_table1 = st.session_state.get("slide2_table1_data")
     if df_slide2_table1 is None:
         st.warning("Slide 2 Table 1 data not found in session state.")
     else:
-        table1_filled = fill_slide2_table1(prs, df_slide2_table1)
-        if not table1_filled:
+        if not fill_slide2_table1(prs, df_slide2_table1):
             st.warning("Could not find matching table for Slide 2 Table 1 to fill.")
 
-    # --- Fill Slide 2 Table 2 ---
     df_slide2_table2 = st.session_state.get("slide2_table2_data")
     report_date = st.session_state.get("report_date", "")
     quarter_label = report_date if report_date else "QTD"
     if df_slide2_table2 is None:
         st.warning("Slide 2 Table 2 data not found in session state.")
     else:
-        table2_filled = fill_slide2_table2(prs, df_slide2_table2, quarter_label)
-        if not table2_filled:
+        if not fill_slide2_table2(prs, df_slide2_table2, quarter_label):
             st.warning("Could not find matching table for Slide 2 Table 2 to fill.")
 
-    # --- Save and provide download button ---
+    df_slide2_table3 = st.session_state.get("slide2_table3_data")
+    if df_slide2_table3 is None:
+        st.warning("Slide 2 Table 3 data not found in session state.")
+    else:
+        if not fill_slide2_table3(prs, df_slide2_table3):
+            st.warning("Could not find matching table for Slide 2 Table 3 to fill.")
+
+    # Save & download
     output = BytesIO()
     prs.save(output)
     st.success("Writeup PowerPoint generated successfully!")
@@ -1653,7 +1701,6 @@ def step17_export_to_ppt():
         file_name=f"{selected} Writeup.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
-
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
