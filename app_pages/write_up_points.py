@@ -1068,10 +1068,13 @@ def step15_display_selected_fund():
             row_dict = row.iloc[0].to_dict()
             display_columns = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
             row_df = pd.DataFrame([{
-                **{"Category": fs_rec.get("Category", "") if fs_rec else ""},
+                "Category": fs_rec.get("Category", "") if fs_rec else "",
+                "Time Period": st.session_state.get("report_date", ""),
+                "Plan Assets": st.session_state.get("plan_assets", ""),  # Or replace with actual variable if you store this elsewhere!
                 **{display_columns.get(k, k): v for k, v in row_dict.items() if k.startswith("IPS Investment Criteria")},
                 "IPS Status": row_dict.get("IPS Watch Status", "")
             }])
+
             def color_bool(v): return "background-color: green" if v == "✔" else ("background-color: red" if v == "✗" else "")
             def style_status(v):
                 if v == "NW": return "background-color: green; color: white"
