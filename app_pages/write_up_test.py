@@ -1231,6 +1231,7 @@ def step15_display_selected_fund():
     }])
     st.dataframe(df_slide4_2, use_container_width=True)
 
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 def step16_bullet_points():
     import streamlit as st
