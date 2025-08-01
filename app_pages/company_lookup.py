@@ -4,126 +4,114 @@ import pandas as pd
 from datetime import date, timedelta
 
 def run():
-    st.markdown("""
-        <style>
-            #MainMenu, header, footer {visibility: hidden;}
-            .block-container {padding-top: 2rem;}
-            .stButton > button {
-                border-radius: 8px;
-                padding: 0.4rem 1.2rem;
-                background: #2563eb;
-                color: white;
-                font-weight: 600;
-                border: none;
-            }
-        </style>
-        """, unsafe_allow_html=True)
-
     st.title("Ticker Info Lookup")
-    st.write("Enter a valid stock ticker (ex: AAPL, TSLA, BRK-B, BTC-USD):")
 
-    ticker = st.text_input("Ticker Symbol", max_chars=12).strip().upper()
-    st.button("Search", key="search")
+    ticker_input = st.text_input("Enter a stock ticker (e.g., AAPL, TSLA, MSFT):", max_chars=10)
 
-    with st.expander("Known Limitations", expanded=False):
+    with st.expander("Known Limitations"):
         st.markdown("""
-        - Ticker must exist on [Yahoo Finance](https://finance.yahoo.com/).
-        - Use dashes (`-`) not dots (`.`): BRK-B, not BRK.B.
-        - Some foreign tickers need suffixes (e.g., .TO, .NS).
-        - Delisted, micro-cap, or very new tickers may not return full data.
-        - Most ETFs and cryptos (BTC-USD, ETH-USD) have limited financials.
-        """)
+- Ticker must be valid and supported by Yahoo Finance (try it [here](https://finance.yahoo.com/)).
+- Use dashes (`-`) not dots (`.`) for tickers like `BRK-B` (not `BRK.B`).
+- Some foreign tickers require exchange suffixes like `.TO`, `.T`, or `.NS`.
+- Delisted, micro-cap, or very new tickers may not return full data.
+- Cryptos (like `BTC-USD`) work, but fundamental metrics will be blank.
+- Financial metrics for ETFs may be limited or unavailable.
+""")
 
-    if ticker and st.session_state.search:
+    # Session state setup
+    if "searched" not in st.session_state:
+        st.session_state.searched = False
+    if "last_ticker" not in st.session_state:
+        st.session_state.last_ticker = ""
+
+    if st.button("Search"):
+        if not ticker_input:
+            st.warning("Please enter a valid stock ticker.")
+            return
+        ticker = ticker_input.strip().upper()
+        st.session_state.last_ticker = ticker
+        st.session_state.searched = True
+
+    if st.session_state.searched and st.session_state.last_ticker:
         try:
+            ticker = st.session_state.last_ticker
             stock = yf.Ticker(ticker)
             info = stock.info
 
-            name = info.get('longName') or info.get('shortName') or ticker
-            st.subheader(f"{name} ({ticker})")
+            st.subheader(f"{info.get('longName', 'Company Info')} ({ticker})")
 
-            # --- Meta info row
             col1, col2, col3 = st.columns(3)
-            col1.metric("Sector", info.get("sector", "N/A"))
-            col2.metric("Industry", info.get("industry", "N/A"))
-            mc = info.get("marketCap")
-            col3.metric("Market Cap", f"${mc:,}" if mc else "N/A")
+            col1.markdown(f"**Sector:** {info.get('sector', 'N/A')}")
+            col2.markdown(f"**Industry:** {info.get('industry', 'N/A')}")
+            col3.markdown(f"**Market Cap:** ${info.get('marketCap', 'N/A'):,}")
 
-            # --- Price & stats row
             col1, col2, col3 = st.columns(3)
-            cp = info.get("currentPrice")
-            col1.metric("Price", f"${cp:,.2f}" if cp else "N/A")
-            col2.metric("52W Range", 
-                f"${info.get('fiftyTwoWeekLow','N/A')}–${info.get('fiftyTwoWeekHigh','N/A')}")
-            pe = info.get("trailingPE")
-            col3.metric("P/E (TTM)", f"{pe:.2f}" if pe else "N/A")
+            col1.markdown(f"**Price:** ${info.get('currentPrice', 'N/A')}")
+            col2.markdown(f"**52-Week Range:** ${info.get('fiftyTwoWeekLow', 'N/A')} – ${info.get('fiftyTwoWeekHigh', 'N/A')}")
+            col3.markdown(f"**PE Ratio (TTM):** {info.get('trailingPE', 'N/A')}")
 
-            # --- Dividend & website
-            d_yield = info.get("dividendYield")
-            st.write(
-                f"**Dividend Yield:** "
-                f"{d_yield*100:.2f}%" if d_yield else "**Dividend Yield:** None"
-            )
+            st.markdown(f"**Dividend Yield:** {info.get('dividendYield', 0) * 100:.2f}%" if info.get('dividendYield') else "**Dividend Yield:** No Dividend")
+
             if info.get("website"):
-                st.markdown(f"[Company Website]({info['website']})")
+                st.markdown(f"[Visit Company Website]({info['website']})")
 
-            # --- Headquarters
-            loc = ", ".join([info.get(x, "") for x in ["address1", "city", "state", "country"] if info.get(x)])
-            if loc:
-                st.info(f"{loc}")
+            # === Location Fallback (No geopy)
+            location_str = ", ".join(filter(None, [
+                info.get("address1", ""),
+                info.get("city", ""),
+                info.get("state", ""),
+                info.get("country", "")
+            ]))
+            if location_str.strip():
+                st.subheader("Company Headquarters")
+                st.info(f"{location_str}")
 
-            # --- Business Summary
             st.write("---")
-            st.markdown("**Business Description:**")
-            st.caption(info.get("longBusinessSummary", "No summary available."))
+            st.markdown(f"**Description:**\n\n{info.get('longBusinessSummary', 'No summary available.')}")
 
-            # --- Historical Data Section
-            st.write("---")
-            st.subheader("Price History & Moving Averages")
-
+            # === Date Range Selection
+            st.subheader("Customize Date Range for Charts")
             today = date.today()
-            start_default = today - timedelta(days=180)
-            c1, c2 = st.columns(2)
-            with c1:
-                start = st.date_input("Start Date", start_default, max_value=today)
-            with c2:
-                end = st.date_input("End Date", today, min_value=start, max_value=today)
+            default_start = today - timedelta(days=180)
 
-            hist = stock.history(start=start, end=end)
+            start_date = st.date_input("Start Date", value=default_start, max_value=today)
+            end_date = st.date_input("End Date", value=today, min_value=start_date, max_value=today)
+
+            hist = stock.history(start=start_date, end=end_date)
+
             if not hist.empty:
                 hist.index = pd.to_datetime(hist.index)
-                hist["MA20"] = hist["Close"].rolling(20).mean()
-                hist["MA50"] = hist["Close"].rolling(50).mean()
+                hist["MA20"] = hist["Close"].rolling(window=20).mean()
+                hist["MA50"] = hist["Close"].rolling(window=50).mean()
 
+                st.subheader("Price Chart with Moving Averages")
                 st.line_chart(hist[["Close", "MA20", "MA50"]])
 
-                st.caption(f"Latest close: {hist['Close'][-1]:.2f}  |  Last date: {hist.index[-1].strftime('%b %d, %Y')}")
+                st.subheader("Volume Chart")
+                st.bar_chart(hist["Volume"])
 
-                with st.expander("Raw Data Table & Download"):
-                    freq = st.radio("Frequency", ["Daily", "Monthly", "Quarterly"], horizontal=True)
+                last_date = hist.index[-1].strftime("%B %d, %Y")
+                st.caption(f"Data last updated: {last_date}")
+
+                with st.expander("View Raw Price History Table"):
+                    freq = st.selectbox("View Frequency", ["Daily", "Monthly", "Quarterly"], index=0)
+
                     if freq == "Monthly":
                         df = hist.resample("M").last()
                     elif freq == "Quarterly":
                         df = hist.resample("Q").last()
                     else:
                         df = hist.copy()
-                    st.dataframe(df[["Close", "Volume"]].style.format({"Close": "${:,.2f}", "Volume": "{:,}"}), use_container_width=True)
+
+                    st.dataframe(df.style.format({"Close": "${:,.2f}", "Volume": "{:,}"}), use_container_width=True)
+
                     csv = df.reset_index().to_csv(index=False).encode("utf-8")
-                    st.download_button(
-                        "Download CSV", 
-                        data=csv, 
-                        file_name=f"{ticker}_{freq.lower()}_history.csv", 
-                        mime="text/csv"
-                    )
-                with st.expander("Volume Chart"):
-                    st.bar_chart(hist["Volume"])
+                    st.download_button("Download as CSV", data=csv, file_name=f"{ticker}_{freq.lower()}_history.csv", mime="text/csv")
             else:
-                st.warning("No price data for this period/ticker.")
+                st.warning("No historical data available for that range.")
 
         except Exception as e:
-            st.error(f"Could not fetch data for `{ticker}`. ({e})")
+            st.error(f"❌ Failed to retrieve data. Try a different ticker. ({str(e)})")
 
-    st.write("---")
-    st.caption("This app is for informational purposes only. Data sourced from Yahoo Finance.")
-
-# To use in Streamlit, call run()
+    st.markdown("---")
+    st.caption("This content was generated using automation and may not be perfectly accurate. Please verify against official sources.")
