@@ -3,6 +3,40 @@ import pdfplumber
 import re
 import pandas as pd
 
+# ----- Hide Streamlit default menu, footer -----
+st.markdown("""
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .block-container {padding-top: 2rem; padding-bottom: 2rem;}
+    .app-card {
+        background: #f8f9fa;
+        border-radius: 1.5rem;
+        box-shadow: 0 2px 16px rgba(60,60,60,0.06);
+        padding: 2rem 2.5rem 2rem 2.5rem;
+        margin-bottom: 2rem;
+    }
+    .big-title {
+        font-size: 2.2rem !important;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        margin-bottom: 0.3em;
+    }
+    .subtle {
+        color: #4B5563;
+        font-size: 1.08rem;
+        margin-bottom: 1.8em;
+    }
+    .label-clean {
+        font-weight: 600;
+        color: #374151;
+        font-size: 1.08em;
+        margin-top: 0.7em;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # --- Utility: Extract Scorecard Fund Blocks ---
 def extract_scorecard_blocks(pdf, scorecard_page):
     pages = []
@@ -71,12 +105,13 @@ def scorecard_to_ips(fund_blocks, fund_types):
             else:
                 ips_status.append("Pass")
         review_fail = sum(1 for status in ips_status if status in ["Review","Fail"])
+        # --- Add icons to Watch Status ---
         if review_fail >= 6:
-            watch_status = "Formal Watch"
+            watch_status = "❌ Formal Watch"
         elif review_fail >= 5:
-            watch_status = "Informal Watch"
+            watch_status = "⚠️ Informal Watch"
         else:
-            watch_status = "No Watch"
+            watch_status = "✅ No Watch"
         def iconify(status):
             if status == "Pass":
                 return "✅"
@@ -100,30 +135,37 @@ def scorecard_to_ips(fund_blocks, fund_types):
     df_raw  = pd.DataFrame(raw_results)
     return df_icon, df_raw
 
-# --- Streamlit App ---
+# --- App Body ---
 def main():
-    st.title("Fidsync: Scorecard ➔ IPS Investment Criteria (Edit Fund Type in Table)")
+    st.markdown('<div class="app-card">', unsafe_allow_html=True)
+    st.markdown('<div class="big-title">Fidsync Fund IPS Screener</div>', unsafe_allow_html=True)
     st.markdown(
-        "Upload your MPI PDF. Use the 'Fund Type' dropdown inside the table below. "
-        "Green check = Pass, Red X = Review/Fail."
+        '<div class="subtle">Upload your MPI PDF and screen funds for Investment Policy compliance in one click. '
+        'You can set fund type (Active/Passive) directly in the table. Export your IPS results instantly.<br><br>'
+        '<span style="color:#00B386;font-weight:600">✅ Pass</span> &nbsp;&nbsp;'
+        '<span style="color:#F59E42;font-weight:600">⚠️ Informal Watch</span> &nbsp;&nbsp;'
+        '<span style="color:#E1463A;font-weight:600">❌ Fail/Formal Watch</span></div>', 
+        unsafe_allow_html=True
     )
 
-    uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
+    uploaded = st.file_uploader("📄 Upload MPI PDF", type="pdf", label_visibility="visible")
+    st.markdown('</div>', unsafe_allow_html=True)
+
     if not uploaded:
-        st.info("Please upload your MPI PDF file.")
-        return
+        st.info("Upload your MPI PDF to begin.")
+        st.stop()
 
     with pdfplumber.open(uploaded) as pdf:
         toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
         sc_match = re.search(r"Fund Scorecard\s+(\d{1,3})", toc_text or "")
         scorecard_page = int(sc_match.group(1)) if sc_match else 3
 
-        st.info(f"Using Scorecard page: {scorecard_page}")
+        st.markdown(f'<span class="label-clean">Detected scorecard page: <b>{scorecard_page}</b></span>', unsafe_allow_html=True)
 
         fund_blocks = extract_scorecard_blocks(pdf, scorecard_page)
         if not fund_blocks:
             st.error("Could not extract fund scorecard blocks. Check the PDF and page number.")
-            return
+            st.stop()
 
         # --- Prepare initial Fund Type mapping DataFrame for st.data_editor
         fund_type_defaults = [
@@ -135,7 +177,8 @@ def main():
             "Fund Type": fund_type_defaults
         })
 
-        # --- Editable Data Editor Table ---
+        st.markdown('<div class="app-card" style="padding:1.5rem 1.5rem 0.8rem 1.5rem; margin-bottom:1.2rem;">', unsafe_allow_html=True)
+        st.markdown('<b>Edit Fund Type for Screening:</b>', unsafe_allow_html=True)
         edited_types = st.data_editor(
             df_types,
             column_config={
@@ -147,30 +190,43 @@ def main():
             },
             hide_index=True,
             key="data_editor_fundtype",
+            use_container_width=True,
         )
+        st.markdown('</div>', unsafe_allow_html=True)
 
         # --- Build Fund Type mapping for logic
         fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
 
-        # --- Run conversion using latest choices
         df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types)
 
-        st.header("Scorecard ➔ IPS Investment Criteria Table")
-        st.dataframe(df_icon, use_container_width=True)
+        st.markdown('<div class="app-card" style="padding:1.5rem 1.5rem 1.3rem 1.5rem; margin-bottom:0.5rem;">', unsafe_allow_html=True)
+        st.subheader("IPS Investment Criteria Results", divider="rainbow")
+        st.dataframe(
+            df_icon,
+            use_container_width=True,
+            hide_index=True,
+            height=52 + 42*len(df_icon)  # snuggly fit
+        )
 
         st.download_button(
             "Download IPS Screening Table as CSV",
             data=df_raw.to_csv(index=False),
             file_name="ips_screening_table.csv",
             mime="text/csv",
+            help="Download the full screening table with Pass/Review/Fail text for compliance records."
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown(
+            '<div style="text-align:center; color:#A3A3A3; margin-top:1em; font-size:0.96em;">'
+            'Questions or feedback? Contact your administrator or <a href="mailto:support@fidsync.com" style="color:#F59E42;">Fidsync</a>.'
+            '</div>',
+            unsafe_allow_html=True
         )
 
 if __name__ == "__main__":
     main()
 
-
-if __name__ == "__main__":
-    main()
 
 def run():
     main()
