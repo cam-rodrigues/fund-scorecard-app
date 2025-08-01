@@ -1313,6 +1313,7 @@ def step17_export_to_ppt():
     from pptx.dml.color import RGBColor
     from io import BytesIO
     import pandas as pd
+    from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
 
     st.subheader("Step 17: Export to PowerPoint")
 
@@ -1357,16 +1358,21 @@ def step17_export_to_ppt():
         return tuple(cell.text.strip() for cell in table.rows[0].cells)
 
     def fill_table(table, df):
+        from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR  # Safe to import here too
         n_rows = min(len(df), len(table.rows) - 1)
         for i in range(n_rows):
             for j, col in enumerate(df.columns):
                 val = df.iloc[i, j]
                 cell = table.cell(i + 1, j)
                 cell.text = str(val) if val is not None else ""
+                # Set cell alignment
+                cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
                 for paragraph in cell.text_frame.paragraphs:
+                    paragraph.alignment = PP_ALIGN.CENTER
                     for run in paragraph.runs:
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
+
 
     slide1 = prs.slides[0]
 
