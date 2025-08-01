@@ -11,6 +11,7 @@ from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
 from io import BytesIO
 import yfinance as yf
 
+#────────────────────────────────────────────────────────────────────────────────────
 
 def extract_performance_table(pdf, performance_page, fund_names, end_page=None):
     import re
@@ -77,7 +78,6 @@ def extract_performance_table(pdf, performance_page, fund_names, end_page=None):
 
         perf_data.append(item)
     return perf_data
-
 
 #────────────────────────────────────────────────────────────────────────────────────
 #Utility
@@ -154,7 +154,7 @@ def show_report_summary():
         </div>
     """, unsafe_allow_html=True)
 
-
+#────────────────────────────────────────────────────────────────────────────────────
 # === Step 2: Table of Contents Extraction ===
 def process_toc(text):
     perf = re.search(r"Fund Performance[^\d]*(\d{1,3})", text or "")
@@ -170,16 +170,6 @@ def process_toc(text):
     cy_page   = int(cy.group(1))   if cy   else None
     r3yr_page = int(r3yr.group(1)) if r3yr else None
     r5yr_page = int(r5yr.group(1)) if r5yr else None
-
-    st.subheader("Table of Contents Pages")
-    st.write(f"- Fund Performance Current vs Proposed Comparison : {perf_page}")
-    st.write(f"- Fund Performance Calendar Year : {cy_page}")
-    st.write(f"- MPT 3Yr Risk Analysis : {r3yr_page}")
-    st.write(f"- MPT 5Yr Risk Analysis : {r5yr_page}")
-    st.write(f"- Fund Scorecard:   {sc_page}")
-    st.write(f"- Fund Factsheets :  {fs_page}")
-    
-
 
     # Store in session state for future reference
     st.session_state['performance_page'] = perf_page
