@@ -1312,23 +1312,25 @@ def step15_display_selected_fund():
     # === Slide 4 Table 2 ===
     st.markdown("**Slide 4 Table 2**")
     # grab factsheet details for the selected fund
+    # grab factsheet details for the selected fund
     facts = st.session_state.get("fund_factsheets_data", [])
-    fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected_fund), {})
+    fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected_fund), None)
+    
     # grab ticker for label
     perf_data = st.session_state.get("fund_performance_data", [])
-    perf_item = next((p for p in perf_data if p["Fund Scorecard Name"] == selected_fund), {})
+    perf_item = next((p for p in perf_data if p["Fund Scorecard Name"] == selected_fund), None)
+    
     # build Investment Manager label
-    inv_mgr    = f"{selected_fund} ({perf_item.get('Ticker','')})"
-    # extract Net Assets and Avg. Market Cap
-    assets     = fs_rec.get("Net Assets", "")
-    avg_cap    = fs_rec.get("Avg. Market Cap", "")
-    # assemble and display
+    inv_mgr    = f"{selected_fund} ({perf_item.get('Ticker','') if perf_item else ''})"
+    assets     = fs_rec.get("Net Assets", "") if fs_rec else ""
+    avg_cap    = fs_rec.get("Avg. Market Cap", "") if fs_rec else ""
     df_slide4_2 = pd.DataFrame([{
         "Investment Manager":             inv_mgr,
         "Assets Under Management":        assets,
         "Average Market Capitalization":  avg_cap
     }])
     st.dataframe(df_slide4_2, use_container_width=True)
+
 
 
 def step16_bullet_points():
