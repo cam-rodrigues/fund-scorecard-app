@@ -135,15 +135,6 @@ def watch_status_color(val):
 def main():
     st.set_page_config(page_title="IPS Screening")
     st.title("IPS Screening")
-    st.markdown(
-        '<div class="watch-key">'
-        '<span style="background:#d6f5df; color:#217a3e; padding:0.07em 0.55em; border-radius:2px;">NW</span> '
-        '(No Watch) &nbsp;'
-        '<span style="background:#fff3cd; color:#B87333; padding:0.07em 0.55em; border-radius:2px;">IW</span> '
-        '(Informal Watch) &nbsp;'
-        '<span style="background:#f8d7da; color:#c30000; padding:0.07em 0.55em; border-radius:2px;">FW</span> '
-        '(Formal Watch)</div>', unsafe_allow_html=True
-    )
 
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf", label_visibility="visible")
     st.markdown('</div>', unsafe_allow_html=True)
