@@ -1093,29 +1093,29 @@ def step15_display_selected_fund():
     else:
         st.write("_No scorecard data found._")
 
-# Slide 1 Table: Use real IPS results from the main screening table (step3/4/5)
-ips_icon_table = st.session_state.get("ips_icon_table")
-if ips_icon_table is not None and not ips_icon_table.empty:
-    # Find the row for the selected fund (match by Fund Name)
-    row = ips_icon_table[ips_icon_table["Fund Name"] == selected_fund]
-    if not row.empty:
-        row_dict = row.iloc[0].to_dict()
-        # Display as DataFrame (relabel columns for display)
-        display_columns = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
-        row_df = pd.DataFrame([{**{"Category": fs_rec.get("Category", "")}, **{display_columns.get(k, k): v for k, v in row_dict.items() if k.startswith("IPS Investment Criteria")}, "IPS Status": row_dict.get("IPS Watch Status", "")}])
-        # Style
-        def color_bool(v): return "background-color: green" if v == "✔" else ("background-color: red" if v == "✗" else "")
-        def style_status(v):
-            if v == "NW": return "background-color: green; color: white"
-            if v == "IW": return "background-color: orange; color: white"
-            if v == "FW": return "background-color: red; color: white"
-            return ""
-        styled = row_df.style.applymap(color_bool, subset=[str(i) for i in range(1, 12)]).applymap(style_status, subset=["IPS Status"])
-        st.dataframe(styled, use_container_width=True)
+    # Slide 1 Table: Use real IPS results from the main screening table (step3/4/5)
+    ips_icon_table = st.session_state.get("ips_icon_table")
+    if ips_icon_table is not None and not ips_icon_table.empty:
+        # Find the row for the selected fund (match by Fund Name)
+        row = ips_icon_table[ips_icon_table["Fund Name"] == selected_fund]
+        if not row.empty:
+            row_dict = row.iloc[0].to_dict()
+            # Display as DataFrame (relabel columns for display)
+            display_columns = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
+            row_df = pd.DataFrame([{**{"Category": fs_rec.get("Category", "")}, **{display_columns.get(k, k): v for k, v in row_dict.items() if k.startswith("IPS Investment Criteria")}, "IPS Status": row_dict.get("IPS Watch Status", "")}])
+            # Style
+            def color_bool(v): return "background-color: green" if v == "✔" else ("background-color: red" if v == "✗" else "")
+            def style_status(v):
+                if v == "NW": return "background-color: green; color: white"
+                if v == "IW": return "background-color: orange; color: white"
+                if v == "FW": return "background-color: red; color: white"
+                return ""
+            styled = row_df.style.applymap(color_bool, subset=[str(i) for i in range(1, 12)]).applymap(style_status, subset=["IPS Status"])
+            st.dataframe(styled, use_container_width=True)
+        else:
+            st.warning("No IPS screening result found for selected fund.")
     else:
-        st.warning("No IPS screening result found for selected fund.")
-else:
-    st.warning("IPS screening table not found. Run earlier steps first.")
+        st.warning("IPS screening table not found. Run earlier steps first.")
 
 
     # === Slide 2 Table 1 ===
