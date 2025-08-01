@@ -915,7 +915,7 @@ def step13_process_risk_adjusted_returns(pdf):
     import streamlit as st
     import pandas as pd
 
-    st.subheader("Risk‑Adjusted Returns")
+    st.write("Risk‑Adjusted Returns")
 
     fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
@@ -985,7 +985,7 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
     import streamlit as st
     import pandas as pd
 
-    st.subheader("Peer Risk-Adjusted Return Rank")
+    st.write("Peer Risk-Adjusted Return Rank")
 
     factsheets = st.session_state.get("fund_factsheets_data", [])
     if not factsheets:
