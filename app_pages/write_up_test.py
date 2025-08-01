@@ -503,8 +503,6 @@ def step7_extract_returns(pdf):
     import streamlit as st
     from rapidfuzz import fuzz
 
-    st.subheader("Returns")
-
     # 1) Where to scan
     perf_page = st.session_state.get("performance_page")
     end_page  = st.session_state.get("calendar_year_page") or (len(pdf.pages) + 1)
@@ -1819,7 +1817,6 @@ def run():
         # Returns
         with st.expander("Returns", expanded=False):
             # Annualized Returns
-            st.markdown("### Annualized Returns")
             step7_extract_returns(pdf)
             
             # Calendar Returns (Funds and Benchmarks)
