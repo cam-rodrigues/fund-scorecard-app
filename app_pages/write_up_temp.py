@@ -127,7 +127,6 @@ def main():
         '<span style="background:#f8d7da; color:#c30000; padding:0.07em 0.55em; border-radius:2px;">FW</span> '
         '(Formal Watch)</div>', unsafe_allow_html=True
     )
-
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf", label_visibility="visible")
     st.markdown('</div>', unsafe_allow_html=True)
     if not uploaded:
@@ -154,19 +153,27 @@ def main():
             "Ticker": [tickers[name] for name in fund_names],
             "Fund Type": fund_type_defaults
         })
-        st.markdown('<div class="app-card" style="padding:1.1rem 1.1rem 0.6rem 1.1rem; margin-bottom:1rem;">', unsafe_allow_html=True)
-        st.markdown('<b>Edit Fund Type for Screening:</b>', unsafe_allow_html=True)
-        edited_types = st.data_editor(
-            df_types,
-            column_config={
-                "Fund Type": st.column_config.SelectboxColumn("Fund Type", options=["Active", "Passive"]),
-            },
-            hide_index=True,
-            key="data_editor_fundtype",
-            use_container_width=True,
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
-        fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
+
+        # Button for Fund Type Edit
+        edit_ft = st.button("Edit Fund Type", key="edit_ft_btn")
+        if edit_ft or "edited_types" in st.session_state:
+            st.markdown('<div class="app-card" style="padding:1.1rem 1.1rem 0.6rem 1.1rem; margin-bottom:1rem;">', unsafe_allow_html=True)
+            st.markdown('<b>Edit Fund Type for Screening:</b>', unsafe_allow_html=True)
+            edited_types = st.data_editor(
+                df_types,
+                column_config={
+                    "Fund Type": st.column_config.SelectboxColumn("Fund Type", options=["Active", "Passive"]),
+                },
+                hide_index=True,
+                key="data_editor_fundtype",
+                use_container_width=True,
+            )
+            st.session_state["edited_types"] = edited_types
+            st.markdown('</div>', unsafe_allow_html=True)
+            fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
+        else:
+            fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in df_types.iterrows()}
+
         df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
         st.markdown('<div class="app-card" style="padding:1.2rem 1.2rem 1rem 1.2rem; margin-bottom:0.3rem;">', unsafe_allow_html=True)
         styled = df_icon.style.applymap(watch_status_color, subset=["IPS Watch Status"])
