@@ -296,6 +296,20 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     st.session_state["ips_icon_table"] = df_icon
     st.session_state["ips_raw_table"] = df_raw
 
+    # 7. Extract & save fund performance data for later steps
+    perf_data = extract_performance_table(
+        pdf,
+        performance_page,
+        fund_names,
+        factsheets_page
+    )
+    # Attach tickers (already extracted earlier!)
+    for itm in perf_data:
+        itm["Ticker"] = tickers.get(itm["Fund Scorecard Name"], "")
+
+    # Save for Step 7 and others
+    st.session_state["fund_performance_data"] = perf_data
+    st.session_state["tickers"] = tickers  # Keep ticker mapping for legacy steps
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Step 6: Fund Factsheets ===
