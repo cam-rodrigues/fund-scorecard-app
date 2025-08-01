@@ -3,12 +3,10 @@ import pdfplumber
 import re
 import pandas as pd
 
-# ----- Hide Streamlit default menu, footer -----
+# Hide default Streamlit UI
 st.markdown("""
     <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+    #MainMenu, header, footer {visibility: hidden;}
     .block-container {padding-top: 2rem; padding-bottom: 2rem;}
     .app-card {
         background: #f8f9fa;
@@ -34,9 +32,6 @@ st.markdown("""
         font-size: 1.08em;
         margin-top: 0.7em;
     }
-    .watch-nw {color:#128c39;font-weight:700;}
-    .watch-iw {color:#F59E42;font-weight:700;}
-    .watch-fw {color:#E1463A;font-weight:700;}
     .watch-key {font-size:0.98em; color:#6B7280; margin-bottom:0.7em;}
     </style>
 """, unsafe_allow_html=True)
@@ -48,7 +43,6 @@ def extract_scorecard_blocks(pdf, scorecard_page):
         txt = p.extract_text() or ""
         pages.append(txt)
     lines = "\n".join(pages).splitlines()
-
     metric_labels = [
         "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
         "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Expense Ratio Rank",
@@ -56,7 +50,6 @@ def extract_scorecard_blocks(pdf, scorecard_page):
         "R-Squared (5Yr)", "Sortino Ratio Rank (3Yr)", "Sortino Ratio Rank (5Yr)",
         "Tracking Error Rank (3Yr)", "Tracking Error Rank (5Yr)"
     ]
-
     fund_blocks = []
     fund_name = None
     metrics = []
@@ -109,14 +102,13 @@ def scorecard_to_ips(fund_blocks, fund_types):
             else:
                 ips_status.append("Pass")
         review_fail = sum(1 for status in ips_status if status in ["Review","Fail"])
-
-        # --- Color-only watch status (no emojis) ---
+        # No icons, just pass/fail marks
         if review_fail >= 6:
-            watch_status = '<span class="watch-fw">FW</span>'
+            watch_status = "FW"
         elif review_fail >= 5:
-            watch_status = '<span class="watch-iw">IW</span>'
+            watch_status = "IW"
         else:
-            watch_status = '<span class="watch-nw">NW</span>'
+            watch_status = "NW"
         def iconify(status):
             if status == "Pass":
                 return "✔"
@@ -134,22 +126,33 @@ def scorecard_to_ips(fund_blocks, fund_types):
             "Fund Name": fund_name,
             "Fund Type": fund_type,
             **{ips_labels[i]: ips_status[i] for i in range(11)},
-            "IPS Watch Status": re.sub('<.*?>','',watch_status),  # strip HTML for CSV
+            "IPS Watch Status": watch_status,
         })
     df_icon = pd.DataFrame(ips_results)
     df_raw  = pd.DataFrame(raw_results)
     return df_icon, df_raw
 
+# --- Styler for background coloring ---
+def watch_status_color(val):
+    if val == "FW":
+        return "background-color: #f8d7da; color: #c30000; font-weight: 700;"  # red
+    elif val == "IW":
+        return "background-color: #fff3cd; color: #B87333; font-weight: 700;"  # orange
+    elif val == "NW":
+        return "background-color: #d6f5df; color: #217a3e; font-weight: 700;"  # green
+    else:
+        return ""
+
 def main():
     st.markdown('<div class="app-card">', unsafe_allow_html=True)
     st.markdown('<div class="big-title">Fidsync Fund IPS Screener</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="subtle">Upload your MPI PDF and screen funds for Investment Policy compliance in one click. '
-        'You can set fund type (Active/Passive) directly in the table. Export your IPS results instantly.<br><br>'
+        '<div class="subtle">Upload your MPI PDF and screen funds for Investment Policy compliance. '
+        'Set fund type (Active/Passive) directly in the table.<br><br>'
         '<span class="watch-key">'
-        '<span class="watch-nw">NW</span> (No Watch) &nbsp;&nbsp;'
-        '<span class="watch-iw">IW</span> (Informal Watch) &nbsp;&nbsp;'
-        '<span class="watch-fw">FW</span> (Formal Watch)'
+        '<span style="background:#d6f5df; color:#217a3e; padding:0.1em 0.55em; border-radius:3px;">NW</span> (No Watch) &nbsp;'
+        '<span style="background:#fff3cd; color:#B87333; padding:0.1em 0.55em; border-radius:3px;">IW</span> (Informal Watch) &nbsp;'
+        '<span style="background:#f8d7da; color:#c30000; padding:0.1em 0.55em; border-radius:3px;">FW</span> (Formal Watch)'
         '</span></div>',
         unsafe_allow_html=True
     )
@@ -207,17 +210,15 @@ def main():
         st.subheader("IPS Investment Criteria Results")
         st.markdown(
             '<div class="watch-key" style="margin-bottom:0.2em;">'
-            '<span class="watch-nw">NW</span> (No Watch) &nbsp;&nbsp;'
-            '<span class="watch-iw">IW</span> (Informal Watch) &nbsp;&nbsp;'
-            '<span class="watch-fw">FW</span> (Formal Watch)'
+            '<span style="background:#d6f5df; color:#217a3e; padding:0.1em 0.55em; border-radius:3px;">NW</span> (No Watch) &nbsp;'
+            '<span style="background:#fff3cd; color:#B87333; padding:0.1em 0.55em; border-radius:3px;">IW</span> (Informal Watch) &nbsp;'
+            '<span style="background:#f8d7da; color:#c30000; padding:0.1em 0.55em; border-radius:3px;">FW</span> (Formal Watch)'
             '</div>', unsafe_allow_html=True
         )
-        # Render HTML inside Watch Status using unsafe_allow_html
-        import streamlit.components.v1 as components
-        html = df_icon.to_html(escape=False, index=False)
-        components.html(f"""
-        <div style="overflow-x:auto">{html}</div>
-        """, height=min(440, 52 + 42*len(df_icon)), scrolling=True)
+
+        # --- Use Pandas Styler for cell color in DataFrame ---
+        styled = df_icon.style.applymap(watch_status_color, subset=["IPS Watch Status"])
+        st.dataframe(styled, use_container_width=True, hide_index=True)
 
         st.download_button(
             "Download IPS Screening Table as CSV",
@@ -230,6 +231,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 def run():
     main()
