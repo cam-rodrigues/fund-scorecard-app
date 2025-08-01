@@ -107,11 +107,11 @@ def scorecard_to_ips(fund_blocks, fund_types):
         review_fail = sum(1 for status in ips_status if status in ["Review","Fail"])
         # --- Add icons to Watch Status ---
         if review_fail >= 6:
-            watch_status = "❌ Formal Watch"
+            watch_status = "❌ FW"
         elif review_fail >= 5:
-            watch_status = "⚠️ Informal Watch"
+            watch_status = "⚠️ IW"
         else:
-            watch_status = "✅ No Watch"
+            watch_status = "✅ NW"
         def iconify(status):
             if status == "Pass":
                 return "✅"
@@ -209,7 +209,7 @@ def main():
         )
 
         st.download_button(
-            "⬇️ Download IPS Screening Table as CSV",
+            "⬇Download IPS Screening Table as CSV",
             data=df_raw.to_csv(index=False),
             file_name="ips_screening_table.csv",
             mime="text/csv",
@@ -217,13 +217,6 @@ def main():
         )
         st.markdown('</div>', unsafe_allow_html=True)
 
-
-        st.markdown(
-            '<div style="text-align:center; color:#A3A3A3; margin-top:1em; font-size:0.96em;">'
-            'Questions or feedback? Contact your administrator or <a href="mailto:support@fidsync.com" style="color:#F59E42;">Fidsync</a>.'
-            '</div>',
-            unsafe_allow_html=True
-        )
 
 if __name__ == "__main__":
     main()
