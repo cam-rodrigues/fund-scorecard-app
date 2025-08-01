@@ -1316,13 +1316,12 @@ def step17_export_to_ppt():
 
     st.subheader("Step 17: Export to PowerPoint")
 
-    # 1. Get Selected Fund
     selected = st.session_state.get("selected_fund")
     if not selected:
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
 
-    # 2. Load PowerPoint Template
+    # Load PowerPoint template
     template_path = "assets/writeup_template.pptx"
     try:
         prs = Presentation(template_path)
@@ -1330,45 +1329,37 @@ def step17_export_to_ppt():
         st.error(f"Could not load PowerPoint template: {e}")
         return
 
-    # 3. Prepare DataFrames (add/modify as needed for each table)
-    # You can expand this section to cover all tables on all slides.
-    perf_item = next((x for x in st.session_state.get("fund_performance_data", []) if x["Fund Scorecard Name"] == selected), {})
-    # Table: Net Expense Ratio
-    df_expense = pd.DataFrame([{
-        "Investment Manager": f"{selected} ({perf_item.get('Ticker','')})",
-        "Net Expense Ratio": perf_item.get("Net Expense Ratio", ""),
-    }])
-    # Table: Returns (Annualized)
-    df_returns = pd.DataFrame([{
-        "Investment Manager": f"{selected} ({perf_item.get('Ticker','')})",
-        "QTD": perf_item.get("QTD", ""),
-        "1 Year": perf_item.get("1Yr", ""),
-        "3 Year": perf_item.get("3Yr", ""),
-        "5 Year": perf_item.get("5Yr", ""),
-        "10 Year": perf_item.get("10Yr", ""),
-    }])
-    # Example: Slide 4 Table 2 (Assets & Avg. Market Cap)
-    facts = st.session_state.get("fund_factsheets_data", [])
-    fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected), None)
-    assets = fs_rec.get("Net Assets", "") if fs_rec else ""
-    avg_cap = fs_rec.get("Avg. Market Cap", "") if fs_rec else ""
-    df_assets = pd.DataFrame([{
-        "Investment Manager": f"{selected} ({perf_item.get('Ticker','')})",
-        "Assets Under Management": assets,
-        "Average Market Capitalization": avg_cap,
-    }])
+    # Get fund facts for Slide 1 Table (example: IPS screening results)
+    ips_icon_table = st.session_state.get("ips_icon_table")
+    row = None
+    if ips_icon_table is not None and not ips_icon_table.empty:
+        filtered = ips_icon_table[ips_icon_table["Fund Name"] == selected]
+        if not filtered.empty:
+            row = filtered.iloc[0]
+    if row is None:
+        st.error("❌ No table data found for selected fund.")
+        return
 
-    # === Add more DataFrames here for each table as needed ===
-
-    # 4. Create header-to-DataFrame mapping
-    dataframes_by_header = {
-        tuple(df_expense.columns): df_expense,
-        tuple(df_returns.columns): df_returns,
-        tuple(df_assets.columns): df_assets,
-        # Add: tuple(your_df.columns): your_df, for each additional table
+    # Build DataFrame with same columns as Slide 1 table headers
+    # Make sure the columns below match your actual PowerPoint table headers exactly:
+    display_columns = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
+    table_data = {
+        **{display_columns.get(k, k): v for k, v in row.items() if k.startswith("IPS Investment Criteria")},
+        "IPS Status": row.get("IPS Watch Status", "")
     }
+    # Optionally add any additional columns (Category, Time Period, etc.)
+    facts = st.session_state.get("fund_factsheets_data", [])
+    fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected), {})
+    table_data["Category"] = fs_rec.get("Category", "")
+    table_data["Time Period"] = st.session_state.get("report_date", "")
+    table_data["Plan Assets"] = "$"  # Or replace with actual value
 
-    # 5. Helpers for table handling
+    # Arrange columns in desired order (headers must match PowerPoint table headers)
+    # Adjust the list below to match the table headers in your slide
+    headers = ["Category", "Time Period", "Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
+    df_slide1 = pd.DataFrame([table_data], columns=headers)
+
+    # --- Helper functions ---
     def get_table_header(table):
         return tuple(cell.text.strip() for cell in table.rows[0].cells)
 
@@ -1379,23 +1370,27 @@ def step17_export_to_ppt():
                 val = df.iloc[i, j]
                 table.cell(i + 1, j).text = str(val) if val is not None else ""
 
-    # 6. Fill all tables in all slides by header
-    filled_count = 0
-    for slide in prs.slides:
-        for shape in slide.shapes:
-            if not shape.has_table:
-                continue
+    # Find the first table on Slide 1 and fill it
+    slide1 = prs.slides[0]
+    table_filled = False
+    for shape in slide1.shapes:
+        if shape.has_table:
             table = shape.table
             header = get_table_header(table)
-            df = dataframes_by_header.get(header)
-            if df is not None:
-                fill_table(table, df)
-                filled_count += 1
+            # Match by header
+            if header == tuple(df_slide1.columns):
+                fill_table(table, df_slide1)
+                table_filled = True
+                break
 
-    # 7. Save to BytesIO and provide download button
+    if not table_filled:
+        st.error("❌ Could not find a table on Slide 1 with matching headers. Please check your template.")
+        return
+
+    # Save and download
     output = BytesIO()
     prs.save(output)
-    st.success(f"Filled {filled_count} tables by header matching.")
+    st.success("Slide 1 table filled!")
     st.download_button(
         label="Download Writeup PowerPoint",
         data=output.getvalue(),
