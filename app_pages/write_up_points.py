@@ -1070,7 +1070,7 @@ def step15_display_selected_fund():
             row_df = pd.DataFrame([{
                 "Category": fs_rec.get("Category", "") if fs_rec else "",
                 "Time Period": st.session_state.get("report_date", ""),
-                "Plan Assets": st.session_state.get("plan_assets", ""),  # Or replace with actual variable if you store this elsewhere!
+                "Plan Assets": "$",  # Or replace with actual variable if you store this elsewhere!
                 **{display_columns.get(k, k): v for k, v in row_dict.items() if k.startswith("IPS Investment Criteria")},
                 "IPS Status": row_dict.get("IPS Watch Status", "")
             }])
