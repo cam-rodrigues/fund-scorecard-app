@@ -79,61 +79,77 @@ def extract_performance_table(pdf, performance_page, fund_names, end_page=None):
     return perf_data
 
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-# === Utility: Extract & Label Report Date ===
+#────────────────────────────────────────────────────────────────────────────────────
+#Utility
 def extract_report_date(text):
-    # find the first quarter‐end or any mm/dd/yyyy
+    """
+    Extracts and formats the report date from a block of text.
+    Returns a string like '2nd QTR, 2024' for quarter-end dates,
+    or 'As of March 12, 2024' for other dates.
+    """
     dates = re.findall(r'(\d{1,2})/(\d{1,2})/(20\d{2})', text or "")
     for month, day, year in dates:
         m, d = int(month), int(day)
-        # quarter‐end mapping
-        if (m, d) in [(3,31), (6,30), (9,30), (12,31)]:
-            q = { (3,31): "1st", (6,30): "2nd", (9,30): "3rd", (12,31): "4th" }[(m,d)]
-            return f"{q} QTR, {year}"
-        # fallback: human‐readable
+        # Quarter-end mapping
+        quarter_map = {(3,31): "1st", (6,30): "2nd", (9,30): "3rd", (12,31): "4th"}
+        if (m, d) in quarter_map:
+            return f"{quarter_map[(m, d)]} QTR, {year}"
+        # Fallback: month-day-year as human readable
         return f"As of {month_name[m]} {d}, {year}"
     return None
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-# === Step 1 & 1.5: Page 1 Extraction ===
+#────────────────────────────────────────────────────────────────────────────────────
+#Page 1
 def process_page1(text):
+    """
+    Extracts 'report_date', 'total_options', 'prepared_for', and 'prepared_by' from text.
+    Populates st.session_state with those keys.
+    """
+    # Extract report date
     report_date = extract_report_date(text)
     if report_date:
         st.session_state['report_date'] = report_date
-        st.success(f"Report Date: {report_date}")
     else:
-        st.error("Could not detect report date on page 1.")
+        st.session_state['report_date'] = None
 
+    # Extract total options
     m = re.search(r"Total Options:\s*(\d+)", text or "")
     st.session_state['total_options'] = int(m.group(1)) if m else None
 
+    # Extract prepared for
     m = re.search(r"Prepared For:\s*\n(.*)", text or "")
     st.session_state['prepared_for'] = m.group(1).strip() if m else None
 
+    # Extract prepared by, default if blank or says "mpi stylus"
     m = re.search(r"Prepared By:\s*(.*)", text or "")
     pb = m.group(1).strip() if m else ""
     if not pb or "mpi stylus" in pb.lower():
         pb = "Procyon Partners, LLC"
     st.session_state['prepared_by'] = pb
 
+#────────────────────────────────────────────────────────────────────────────────────
+#Info Card
 def show_report_summary():
-    # Pull from session state (after process_page1)
-    report_date = st.session_state.get('report_date', 'N/A')
-    total_options = st.session_state.get('total_options', 'N/A')
-    prepared_for = st.session_state.get('prepared_for', 'N/A')
-    prepared_by = st.session_state.get('prepared_by', 'N/A')
+    """
+    Displays a styled summary card with Report Date, Total Options, Prepared For, and Prepared By.
+    Assumes those values have already been set in st.session_state.
+    """
+    report_date    = st.session_state.get('report_date', 'N/A')
+    total_options  = st.session_state.get('total_options', 'N/A')
+    prepared_for   = st.session_state.get('prepared_for', 'N/A')
+    prepared_by    = st.session_state.get('prepared_by', 'N/A')
 
-    st.markdown(
-        """
+    st.markdown(f"""
         <div style="
             background: #F7FAFC;
             border-radius: 1.5rem;
             box-shadow: 0 2px 16px rgba(60,60,60,0.08);
             padding: 1.8rem 2.5rem 1.2rem 2.5rem;
             margin-bottom: 2rem;
-            font-size: 1.08rem;
-            ">
-            <span style="font-weight:700; font-size:1.25rem; color:#244369;">Report Summary</span>
+            font-size: 1.08rem;">
+            <span style="font-weight:700; font-size:1.25rem; color:#244369;">
+                Report Summary
+            </span>
             <div style="margin-top:1rem;">
                 <b>Report Date:</b> {report_date} <br>
                 <b>Total Options:</b> {total_options} <br>
@@ -141,14 +157,7 @@ def show_report_summary():
                 <b>Prepared By:</b> {prepared_by}
             </div>
         </div>
-        """.format(
-            report_date=report_date,
-            total_options=total_options,
-            prepared_for=prepared_for,
-            prepared_by=prepared_by,
-        ),
-        unsafe_allow_html=True,
-    )
+    """, unsafe_allow_html=True)
 
 
 # === Step 2: Table of Contents Extraction ===
