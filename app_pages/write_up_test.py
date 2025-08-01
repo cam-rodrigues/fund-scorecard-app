@@ -1541,7 +1541,6 @@ def step17_export_to_ppt():
         slide2 = prs.slides[1]
     
         def is_match(table):
-            # Checks headers match except 2nd header (dynamic)
             headers = [cell.text.strip() for cell in table.rows[0].cells]
             if len(headers) != len(df_table2.columns):
                 return False
@@ -1556,11 +1555,11 @@ def step17_export_to_ppt():
             if shape.has_table:
                 table = shape.table
                 if is_match(table):
-                    # ---- Set header formatting (row 0) ----
+                    # Set header row font as before (white bold)
                     for j, col in enumerate(df_table2.columns):
                         cell = table.cell(0, j)
                         if j == 1:
-                            cell.text = quarter_label  # Overwrite Q_,20__ header with actual label
+                            cell.text = quarter_label
                         else:
                             cell.text = str(col)
                         for paragraph in cell.text_frame.paragraphs:
@@ -1568,32 +1567,31 @@ def step17_export_to_ppt():
                             for run in paragraph.runs:
                                 run.font.name = "Cambria"
                                 run.font.size = Pt(11)
-                                run.font.color.rgb = RGBColor(255, 255, 255)  # White
+                                run.font.color.rgb = RGBColor(255, 255, 255)
                                 run.font.bold = True
     
-                    # ---- Set body formatting (rows 1+) ----
                     n_rows = min(len(df_table2), len(table.rows) - 1)
                     for i in range(n_rows):
                         for j, col in enumerate(df_table2.columns):
                             val = df_table2.iloc[i, j]
                             cell = table.cell(i + 1, j)
-                            text_val = str(val) if val is not None else ""
-                            cell.text = text_val
+                            cell.text = str(val) if val is not None else ""
                             cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
                             for paragraph in cell.text_frame.paragraphs:
                                 paragraph.alignment = PP_ALIGN.CENTER
                                 for run in paragraph.runs:
                                     run.font.name = "Cambria"
                                     run.font.size = Pt(11)
-                                    # Investment Manager column is white, rest are black
+                                    # Investment Manager column white font for both rows
                                     if j == 0:
-                                        run.font.color.rgb = RGBColor(255, 255, 255)  # White
+                                        run.font.color.rgb = RGBColor(255, 255, 255)
                                     else:
-                                        run.font.color.rgb = RGBColor(0, 0, 0)        # Black
-                                    run.font.bold = False
+                                        run.font.color.rgb = RGBColor(0, 0, 0)
+    
+                                    # Make the benchmark row bold (row index 1)
+                                    run.font.bold = True if i == 1 else False
                     return True
         return False
-
 
 
     # --- Fill Slide 1 ---
