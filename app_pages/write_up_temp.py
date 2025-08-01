@@ -3,6 +3,29 @@ import pdfplumber
 import re
 import pandas as pd
 
+# --- Add yfinance for fund type guessing ---
+import yfinance as yf
+
+def infer_fund_type_guess(ticker):
+    """Infer 'Active' or 'Passive' based on Yahoo Finance info (name and summary)."""
+    try:
+        if not ticker: return ""
+        info = yf.Ticker(ticker).info
+        name = (info.get("longName") or info.get("shortName") or "").lower()
+        summary = (info.get("longBusinessSummary") or "").lower()
+        # Simple rules
+        if "index" in name or "index" in summary:
+            return "Passive"
+        if "track" in summary and "index" in summary:
+            return "Passive"
+        if "actively managed" in summary or "actively-managed" in summary:
+            return "Active"
+        if "outperform" in summary or "manager selects" in summary:
+            return "Active"
+        return ""
+    except Exception:
+        return ""
+
 def extract_scorecard_blocks(pdf, scorecard_page):
     metric_labels = [
         "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
@@ -139,11 +162,21 @@ def main():
             st.stop()
         tickers = extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page)
         fund_type_defaults = ["Passive" if "index" in n.lower() else "Active" for n in fund_names]
+
+        # --- FUND TYPE GUESS ADDED ---
+        fund_type_guesses = [
+            infer_fund_type_guess(tickers[name]) if tickers.get(name) else "" 
+            for name in fund_names
+        ]
+
         df_types = pd.DataFrame({
             "Fund Name": fund_names,
             "Ticker": [tickers[name] for name in fund_names],
-            "Fund Type": fund_type_defaults
+            "Fund Type (Default)": fund_type_defaults,
+            "Fund Type Guess": fund_type_guesses,   # new column (readonly)
+            "Fund Type": fund_type_defaults,        # editable
         })
+
         st.markdown('<div class="app-card" style="padding:1.1rem 1.1rem 0.6rem 1.1rem; margin-bottom:1rem;">', unsafe_allow_html=True)
         st.markdown('<b>Edit Fund Type for Screening:</b>', unsafe_allow_html=True)
         edited_types = st.data_editor(
@@ -151,11 +184,13 @@ def main():
             column_config={
                 "Fund Type": st.column_config.SelectboxColumn("Fund Type", options=["Active", "Passive"]),
             },
+            disabled=["Fund Name", "Ticker", "Fund Type (Default)", "Fund Type Guess"],
             hide_index=True,
             key="data_editor_fundtype",
             use_container_width=True,
         )
         st.markdown('</div>', unsafe_allow_html=True)
+
         fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
         df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
         st.markdown('<div class="app-card" style="padding:1.2rem 1.2rem 1rem 1.2rem; margin-bottom:0.3rem;">', unsafe_allow_html=True)
