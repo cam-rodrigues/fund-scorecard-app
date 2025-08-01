@@ -486,7 +486,10 @@ def step7_extract_returns(pdf):
         return
 
     # 2) Prep output slots
-    fields = ["QTD", "1Yr", "3Yr", "5Yr", "10Yr", "Net Expense Ratio", "Bench QTD", "Bench 3Yr", "Bench 5Yr"]
+    fields = [
+        "QTD", "1Yr", "3Yr", "5Yr", "10Yr", "Net Expense Ratio",
+        "Bench QTD", "Bench 1Yr", "Bench 3Yr", "Bench 5Yr", "Bench 10Yr"
+    ]
     for itm in perf_data:
         for f in fields:
             itm.setdefault(f, None)
@@ -538,17 +541,19 @@ def step7_extract_returns(pdf):
         item["10Yr"]              = clean[5]
         item["Net Expense Ratio"] = clean[-2]
 
-        # e) Pull benchmark QTD, 3Yr, and 5Yr from the very next line (or one more down)
+        # e) Pull benchmark QTD, 1Yr, 3Yr, 5Yr, and 10Yr from the very next line(s)
         bench_raw = []
         if idx + 1 < len(lines):
             bench_raw = num_rx.findall(lines[idx + 1])
-        if len(bench_raw) < 1 and idx + 2 < len(lines):
+        if len(bench_raw) < 5 and idx + 2 < len(lines):
             bench_raw = num_rx.findall(lines[idx + 2])
         bench_clean = [n.strip("()%").rstrip("%") for n in bench_raw]
 
-        item["Bench QTD"] = bench_clean[0] if bench_clean else None
+        item["Bench QTD"]  = bench_clean[0] if len(bench_clean) > 0 else None
+        item["Bench 1Yr"] = bench_clean[1] if len(bench_clean) > 1 else None
         item["Bench 3Yr"] = bench_clean[3] if len(bench_clean) > 3 else None
         item["Bench 5Yr"] = bench_clean[4] if len(bench_clean) > 4 else None
+        item["Bench 10Yr"] = bench_clean[5] if len(bench_clean) > 5 else None
 
         matched += 1
 
@@ -566,6 +571,7 @@ def step7_extract_returns(pdf):
         df[["Fund Scorecard Name", "Ticker"] + fields],
         use_container_width=True
     )
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
