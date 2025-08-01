@@ -1593,12 +1593,12 @@ def step17_export_to_ppt():
 
         def is_match(table):
             headers = [cell.text.strip() for cell in table.rows[0].cells]
-            if len(headers) != len(df_table3.columns):
-                return False
+            # First header must be exact match
             if headers[0] != df_table3.columns[0]:
                 return False
-            for i in range(1, len(headers)):
-                if headers[i] != df_table3.columns[i]:
+            # Other headers must match pattern "20__"
+            for h in headers[1:]:
+                if not (h.startswith("20") and (len(h) == 4 or h[2:] == "__")):
                     return False
             return True
 
