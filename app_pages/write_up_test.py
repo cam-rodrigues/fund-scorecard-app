@@ -1636,6 +1636,61 @@ def step17_export_to_ppt():
             # Fill second table with Slide 3 Table 2 data (by position)
             fill_table_with_investment_manager_white(tables[1], df_slide3_table2)
 
+
+    # --- Slide 4 ---
+    slide4 = prs.slides[3]
+    
+    category = fs_rec.get("Category", "N/A")
+    placeholder_text = "[Category] - Qualitative Factors"
+    replacement_text = f"{category} - Qualitative Factors"
+    
+    # Reuse the replace_placeholder_with_style function from before
+    def replace_placeholder_with_style(slide, placeholder, replacement):
+        replaced = False
+        for shape in slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            for paragraph in shape.text_frame.paragraphs:
+                full_text = "".join(run.text for run in paragraph.runs)
+                if placeholder in full_text:
+                    first_run = paragraph.runs[0] if paragraph.runs else None
+                    for run in paragraph.runs:
+                        run.text = ""
+                    if first_run:
+                        first_run.text = replacement
+                    else:
+                        paragraph.runs[0].text = replacement
+                    replaced = True
+                    break
+        return replaced
+    
+    if not replace_placeholder_with_style(slide4, placeholder_text, replacement_text):
+        st.warning(f"Could not find the placeholder '{placeholder_text}' on Slide 4.")
+    
+    # Get all tables on Slide 4 (expecting 3)
+    tables = [shape.table for shape in slide4.shapes if shape.has_table]
+    
+    if len(tables) < 3:
+        st.warning(f"Expected 3 tables on Slide 4, found {len(tables)}.")
+    else:
+        # Get the Slide 4 tables data from session state
+        df_slide4_table1 = st.session_state.get("slide4", None)               # Manager Tenure table
+        df_slide4_table2 = st.session_state.get("slide4_table2_data", None)   # Assets and Market Cap table
+    
+        # Fill only the first two tables
+        if df_slide4_table1 is not None:
+            fill_table_with_investment_manager_white(tables[0], df_slide4_table1)
+        else:
+            st.warning("Slide 4 Table 1 data not found in session state.")
+    
+        if df_slide4_table2 is not None:
+            fill_table_with_investment_manager_white(tables[1], df_slide4_table2)
+        else:
+            st.warning("Slide 4 Table 2 data not found in session state.")
+    
+        # Leave the third table empty (do not fill)
+
+
     # --- Save and download ---
     output = BytesIO()
     prs.save(output)
