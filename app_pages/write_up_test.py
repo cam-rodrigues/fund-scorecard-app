@@ -1321,7 +1321,7 @@ def step17_export_to_ppt():
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
 
-    template_path = "assets/writeup_template.pptx"
+    template_path = "assets/writeup_templates.pptx"
     try:
         prs = Presentation(template_path)
     except Exception as e:
@@ -1385,8 +1385,8 @@ def step17_export_to_ppt():
         st.error("❌ Could not find a table on Slide 1 with matching headers. Please check your template.")
         return
 
-    # --- Fill the [Fund Name] text box (unchanged) ---
-    textbox_filled = False
+    # --- Fill the [Fund Name] text box ONLY replacing the placeholder ---
+    fund_name_filled = False
     for shape in slide1.shapes:
         if shape.has_text_frame:
             for paragraph in shape.text_frame.paragraphs:
@@ -1397,12 +1397,11 @@ def step17_export_to_ppt():
                         run.font.size = Pt(12)
                         run.font.bold = True
                         run.font.underline = True
-                    textbox_filled = True
-
-    if not textbox_filled:
+                    fund_name_filled = True
+    if not fund_name_filled:
         st.warning("Could not find the [Fund Name] textbox to fill. Please check your template.")
 
-    # --- Robust: Fill bullet points into placeholder with [Bullet Point 1] ---
+    # --- Fill the bullet points box (target placeholder with [Bullet Point 1]) ---
     bullet_filled = False
     bullet_points = st.session_state.get("bullet_points", None)
     if bullet_points is None:
@@ -1414,9 +1413,8 @@ def step17_export_to_ppt():
     for shape in slide1.shapes:
         if not shape.has_text_frame:
             continue
-        ptext = "\n".join([p.text for p in shape.text_frame.paragraphs])
-        if "[Bullet Point 1]" in ptext:
-            # Clear all placeholder paragraphs
+        # Check if this box is the bullets placeholder (look for "[Bullet Point 1]")
+        if any("[Bullet Point 1]" in p.text for p in shape.text_frame.paragraphs):
             shape.text_frame.clear()
             for point in bullet_points:
                 p = shape.text_frame.add_paragraph()
@@ -1424,7 +1422,7 @@ def step17_export_to_ppt():
                 p.level = 0
                 p.font.name = "Cambria"
                 p.font.size = Pt(11)
-                p.font.color.rgb = RGBColor(0, 0, 0)  # Text black, bullet keeps template color
+                p.font.color.rgb = RGBColor(0, 0, 0)
                 p.font.bold = False
                 p.font.underline = False
                 p.font.italic = False
@@ -1437,7 +1435,7 @@ def step17_export_to_ppt():
     # Save and download
     output = BytesIO()
     prs.save(output)
-    st.success("Slide 1 table, Fund Name, and bullet points (in the correct placeholder) filled!")
+    st.success("Slide 1 table, Fund Name, and bullet points (in correct placeholders) filled!")
     st.download_button(
         label="Download Writeup PowerPoint",
         data=output.getvalue(),
