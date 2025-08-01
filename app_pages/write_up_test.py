@@ -1074,46 +1074,73 @@ def step15_display_selected_fund():
     st.session_state.selected_fund = selected_fund
 
     st.write(f"Details for: {selected_fund}")
-
-    # --- Step 6: Fund Factsheets Section (match by selected_fund) ---
-    factsheets = st.session_state.get("fund_factsheets_data", [])
-    factsheet_rec = next((row for row in factsheets if row["Matched Fund Name"] == selected_fund), None)
-    if factsheet_rec:
+    with st.expander("Details", expanded=True):
+        # --- Step 6: Fund Factsheet Info ---
+        factsheets = st.session_state.get("fund_factsheets_data", [])
+        factsheet_rec = next((row for row in factsheets if row["Matched Fund Name"] == selected_fund), None)
+    
+        # --- Step 12: Fund Facts ---
+        fund_facts_table = st.session_state.get("step12_fund_facts_table", [])
+        facts_rec = next((row for row in fund_facts_table if row["Fund Name"] == selected_fund), None)
+    
+        # --- Build HTML for both cards ---
+        left_box = ""
+        if factsheet_rec:
+            left_box = f"""
+            <div style='
+                background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
+                color: #244369;
+                border-radius: 1.2rem;
+                box-shadow: 0 2px 12px rgba(44,85,130,0.09), 0 1px 4px rgba(36,67,105,0.07);
+                padding: 1.2rem 1.4rem 1.2rem 1.4rem;
+                min-width: 260px;
+                margin: 0.3rem 1.5rem 0.3rem 0;
+                border: 1.2px solid #b5d0eb;
+                display: inline-block;
+                vertical-align: top;'>
+                <div style='font-weight:700; color:#1856b8; margin-bottom:0.7rem;'>Factsheet Info</div>
+                <div><b>Category:</b> {factsheet_rec.get("Category", "—")}</div>
+                <div><b>Benchmark:</b> {factsheet_rec.get("Benchmark", "—")}</div>
+                <div><b>Net Assets:</b> {factsheet_rec.get("Net Assets", "—")}</div>
+                <div><b>Manager Name:</b> {factsheet_rec.get("Manager Name", "—")}</div>
+                <div><b>Average Market Cap:</b> {factsheet_rec.get("Avg. Market Cap", "—")}</div>
+                <div><b>Expense Ratio:</b> {factsheet_rec.get("Expense Ratio", "—")}</div>
+            </div>
+            """
+        else:
+            left_box = "<div style='display:inline-block; min-width:260px; color:#666;'>No factsheet info found.</div>"
+    
+        right_box = ""
+        if facts_rec:
+            right_box = f"""
+            <div style='
+                background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
+                color: #244369;
+                border-radius: 1.2rem;
+                box-shadow: 0 2px 12px rgba(44,85,130,0.09), 0 1px 4px rgba(36,67,105,0.07);
+                padding: 1.2rem 1.4rem 1.2rem 1.4rem;
+                min-width: 260px;
+                margin: 0.3rem 0 0.3rem 0;
+                border: 1.2px solid #b5d0eb;
+                display: inline-block;
+                vertical-align: top;'>
+                <div style='font-weight:700; color:#1856b8; margin-bottom:0.7rem;'>Fund Facts</div>
+                <div><b>Manager Tenure:</b> {facts_rec.get("Manager Tenure Yrs.", "—")}</div>
+                <div><b>Expense Ratio:</b> {facts_rec.get("Expense Ratio", "—")}</div>
+                <div><b>Expense Ratio Rank:</b> {facts_rec.get("Expense Ratio Rank", "—")}</div>
+                <div><b>Total Number of Holdings:</b> {facts_rec.get("Total Number of Holdings", "—")}</div>
+                <div><b>Turnover Ratio:</b> {facts_rec.get("Turnover Ratio", "—")}</div>
+            </div>
+            """
+        else:
+            right_box = "<div style='display:inline-block; min-width:260px; color:#666;'>No Fund Facts available.</div>"
+    
+        # --- Show cards side-by-side ---
         st.markdown(
-            f"""
-            <ul style="list-style: disc; margin-left:1.2em;">
-                <li><b>Category:</b> {factsheet_rec.get("Category", "—")}</li>
-                <li><b>Benchmark:</b> {factsheet_rec.get("Benchmark", "—")}</li>
-                <li><b>Net Assets:</b> {factsheet_rec.get("Net Assets", "—")}</li>
-                <li><b>Manager Name:</b> {factsheet_rec.get("Manager Name", "—")}</li>
-                <li><b>Average Market Cap:</b> {factsheet_rec.get("Avg. Market Cap", "—")}</li>
-                <li><b>Expense Ratio:</b> {factsheet_rec.get("Expense Ratio", "—")}</li>
-            </ul>
-            """,
+            f"<div style='display:flex; flex-wrap:wrap;'>{left_box}{right_box}</div>",
             unsafe_allow_html=True
         )
-    else:
-        st.info("No factsheet info found for this fund.")
 
-    # --- Step 12: Fund Facts (for selected_fund) ---
-    fund_facts_table = st.session_state.get("step12_fund_facts_table", [])
-    facts_rec = next((row for row in fund_facts_table if row["Fund Name"] == selected_fund), None)
-
-    if facts_rec:
-        st.markdown(
-            f"""
-            <ul style="list-style: disc; margin-left:1.2em;">
-                <li><b>Manager Tenure:</b> {facts_rec.get("Manager Tenure Yrs.", "—")}</li>
-                <li><b>Expense Ratio:</b> {facts_rec.get("Expense Ratio", "—")}</li>
-                <li><b>Expense Ratio Rank:</b> {facts_rec.get("Expense Ratio Rank", "—")}</li>
-                <li><b>Total Number of Holdings:</b> {facts_rec.get("Total Number of Holdings", "—")}</li>
-                <li><b>Turnover Ratio:</b> {facts_rec.get("Turnover Ratio", "—")}</li>
-            </ul>
-            """,
-            unsafe_allow_html=True
-        )
-    else:
-        st.info("No Fund Facts available for this fund.")
 
     # --- Slide 1 Table: IPS Results ---
     ips_icon_table = st.session_state.get("ips_icon_table")
