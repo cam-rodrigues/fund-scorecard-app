@@ -1703,10 +1703,10 @@ def run():
    #──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     
     with pdfplumber.open(uploaded) as pdf:
+        
         # Step 1
-        with st.expander("Step 1: Details", expanded=False):
-            first = pdf.pages[0].extract_text() or ""
-            process_page1(first)
+        first = pdf.pages[0].extract_text() or ""
+        process_page1(first)
 
         # Step 2
         with st.expander("Step 2: Table of Contents", expanded=False):
