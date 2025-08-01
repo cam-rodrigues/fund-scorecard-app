@@ -1311,12 +1311,9 @@ def step17_export_to_ppt():
     from pptx import Presentation
     from pptx.util import Pt
     from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     from io import BytesIO
     import pandas as pd
-    from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
-    from pptx.dml.color import RGBColor
-    from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
-
 
     st.subheader("Step 17: Export to PowerPoint")
 
@@ -1332,7 +1329,7 @@ def step17_export_to_ppt():
         st.error(f"Could not load PowerPoint template: {e}")
         return
 
-    # === Fill Table (unchanged) ===
+    # --- Prepare data for Slide 1 Table ---
     ips_icon_table = st.session_state.get("ips_icon_table")
     row = None
     if ips_icon_table is not None and not ips_icon_table.empty:
@@ -1348,6 +1345,7 @@ def step17_export_to_ppt():
         **{display_columns.get(k, k): v for k, v in row.items() if k.startswith("IPS Investment Criteria")},
         "IPS Status": row.get("IPS Watch Status", "")
     }
+
     facts = st.session_state.get("fund_factsheets_data", [])
     fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected), {})
     table_data["Category"] = fs_rec.get("Category", "")
@@ -1357,19 +1355,16 @@ def step17_export_to_ppt():
     headers = ["Category", "Time Period", "Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
     df_slide1 = pd.DataFrame([table_data], columns=headers)
 
+    # --- Functions to fill table and text ---
     def get_table_header(table):
         return tuple(cell.text.strip() for cell in table.rows[0].cells)
 
     def fill_table(table, df):
-        from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
-        from pptx.dml.color import RGBColor
-    
         badge_colors = {
             "NW": RGBColor(0x00, 0x80, 0x00),   # Green
             "IW": RGBColor(0xFF, 0xA5, 0x00),   # Orange
             "FW": RGBColor(0xFF, 0x00, 0x00),   # Red
         }
-    
         n_rows = min(len(df), len(table.rows) - 1)
         for i in range(n_rows):
             for j, col in enumerate(df.columns):
@@ -1377,7 +1372,8 @@ def step17_export_to_ppt():
                 cell = table.cell(i + 1, j)
                 text_val = str(val) if val is not None else ""
                 cell.text = text_val
-    
+
+                # Center align text vertically and horizontally
                 cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
                 for paragraph in cell.text_frame.paragraphs:
                     paragraph.alignment = PP_ALIGN.CENTER
@@ -1385,12 +1381,13 @@ def step17_export_to_ppt():
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
                         if col == "IPS Status":
-                            run.font.color.rgb = RGBColor(255, 255, 255)
+                            run.font.color.rgb = RGBColor(255, 255, 255)  # White text for badges
                             run.font.bold = True
                         else:
-                            run.font.color.rgb = RGBColor(0, 0, 0)
+                            run.font.color.rgb = RGBColor(0, 0, 0)  # Black text otherwise
                             run.font.bold = False
-    
+
+                # Color cell background for IPS Status badges
                 if col == "IPS Status":
                     color = badge_colors.get(text_val)
                     if color:
@@ -1398,75 +1395,76 @@ def step17_export_to_ppt():
                         fill.solid()
                         fill.fore_color.rgb = color
                     else:
-                        cell.fill.background()  # reset if no badge color
+                        cell.fill.background()  # Reset if no badge color
                 else:
                     cell.fill.background()
 
+    def fill_text_placeholder(slide, placeholder_text, replacement_text, font_name="Cambria",
+                              font_size=12, bold=False, underline=False):
+        """Replace placeholder text in any shape's paragraphs and style the runs."""
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                for paragraph in shape.text_frame.paragraphs:
+                    if placeholder_text in paragraph.text:
+                        paragraph.text = paragraph.text.replace(placeholder_text, replacement_text)
+                        for run in paragraph.runs:
+                            run.font.name = font_name
+                            run.font.size = Pt(font_size)
+                            run.font.bold = bold
+                            run.font.underline = underline
+                        return True
+        return False
 
+    def fill_bullet_points(slide, bullet_placeholder="[Bullet Point 1]", bullet_points=None):
+        if bullet_points is None:
+            bullet_points = [
+                "Performance exceeded the benchmark in the latest quarter.",
+                "Fund is not on watch.",
+                "No action required."
+            ]
+        for shape in slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            if any(bullet_placeholder in p.text for p in shape.text_frame.paragraphs):
+                shape.text_frame.clear()
+                for point in bullet_points:
+                    p = shape.text_frame.add_paragraph()
+                    p.text = point
+                    p.level = 0
+                    p.font.name = "Cambria"
+                    p.font.size = Pt(11)
+                    p.font.color.rgb = RGBColor(0, 0, 0)  # Black text
+                    p.font.bold = False
+                    p.font.underline = False
+                    p.font.italic = False
+                return True
+        return False
+
+    # --- Fill Slide 1 ---
     slide1 = prs.slides[0]
+    # Fund Name placeholder
+    fund_name_filled = fill_text_placeholder(slide1, "[Fund Name]", selected,
+                                            font_size=12, bold=True, underline=True)
+    if not fund_name_filled:
+        st.warning("Could not find the [Fund Name] placeholder on Slide 1.")
 
-    # --- Fill the table (unchanged) ---
+    # Table fill
     table_filled = False
     for shape in slide1.shapes:
         if shape.has_table:
             table = shape.table
-            header = get_table_header(table)
-            if header == tuple(df_slide1.columns):
+            if get_table_header(table) == tuple(df_slide1.columns):
                 fill_table(table, df_slide1)
                 table_filled = True
                 break
-
     if not table_filled:
-        st.error("❌ Could not find a table on Slide 1 with matching headers. Please check your template.")
-        return
+        st.error("Could not find matching table on Slide 1 to fill.")
 
-    # --- Fill the [Fund Name] text box ONLY replacing the placeholder ---
-    fund_name_filled = False
-    for shape in slide1.shapes:
-        if shape.has_text_frame:
-            for paragraph in shape.text_frame.paragraphs:
-                if "[Fund Name]" in paragraph.text:
-                    paragraph.text = paragraph.text.replace("[Fund Name]", selected)
-                    for run in paragraph.runs:
-                        run.font.name = "Cambria"
-                        run.font.size = Pt(12)
-                        run.font.bold = True
-                        run.font.underline = True
-                    fund_name_filled = True
-    if not fund_name_filled:
-        st.warning("Could not find the [Fund Name] textbox to fill. Please check your template.")
-
-    # --- Fill the bullet points box (target placeholder with [Bullet Point 1]) ---
-    bullet_filled = False
-    bullet_points = st.session_state.get("bullet_points", None)
-    if bullet_points is None:
-        bullet_points = [
-            "Performance exceeded the benchmark in the latest quarter.",
-            "Fund is not on watch.",
-            "No action required."
-        ]
-    for shape in slide1.shapes:
-        if not shape.has_text_frame:
-            continue
-        # Check if this box is the bullets placeholder (look for "[Bullet Point 1]")
-        if any("[Bullet Point 1]" in p.text for p in shape.text_frame.paragraphs):
-            shape.text_frame.clear()
-            for point in bullet_points:
-                p = shape.text_frame.add_paragraph()
-                p.text = point
-                p.level = 0
-                p.font.name = "Cambria"
-                p.font.size = Pt(11)
-                p.font.color.rgb = RGBColor(0, 0, 0)
-                p.font.bold = False
-                p.font.underline = False
-                p.font.italic = False
-            bullet_filled = True
-            break
-
-    if not bullet_filled:
-        st.warning("Could not find a bullet point placeholder (with [Bullet Point 1]). Please check your template.")
-
+    # Bullet points fill
+    bullets = st.session_state.get("bullet_points", None)
+    bullets_filled = fill_bullet_points(slide1, "[Bullet Point 1]", bullets)
+    if not bullets_filled:
+        st.warning("Could not find bullet points placeholder on Slide 1.")
 
     # --- Fill Slide 2 category heading ---
     slide2 = prs.slides[1]
@@ -1476,12 +1474,10 @@ def step17_export_to_ppt():
     if not category_filled:
         st.warning("Could not find [Category] placeholder on Slide 2.")
 
-
-    
-    # Save and download
+    # --- Save and provide download button ---
     output = BytesIO()
     prs.save(output)
-    st.success("Slide 1 table, Fund Name, and bullet points (in correct placeholders) filled!")
+    st.success("Writeup PowerPoint generated successfully!")
     st.download_button(
         label="Download Writeup PowerPoint",
         data=output.getvalue(),
