@@ -1100,6 +1100,10 @@ def step15_display_selected_fund():
         "Investment Manager": inv_mgr,
         "Net Expense Ratio":  net_exp
     }])
+
+    # Save this dataframe for Step 17
+    st.session_state["slide2_table1_data"] = df_slide2
+    
     st.dataframe(df_slide2, use_container_width=True)
 
     # --- Slide 2 Table 2 ---
