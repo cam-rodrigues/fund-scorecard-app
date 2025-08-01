@@ -1079,11 +1079,22 @@ def step15_display_selected_fund():
         factsheet_rec = next((row for row in factsheets if row["Matched Fund Name"] == selected_fund), None)
     
         fund_facts_table = st.session_state.get("step12_fund_facts_table", [])
-        facts_rec = next((row for row in fund_facts_table if row["Fund Name"] == selected_fund), None)
+    
+        # Try exact Fund Name match
+        facts_rec = next((row for row in fund_facts_table if row.get("Fund Name") == selected_fund), None)
+        # Try ticker match if not found
+        if not facts_rec and factsheet_rec:
+            factsheet_ticker = factsheet_rec.get("Matched Ticker")
+            facts_rec = next((row for row in fund_facts_table if row.get("Ticker") == factsheet_ticker), None)
+        # Try fuzzy match if still not found
+        if not facts_rec:
+            facts_rec = next(
+                (row for row in fund_facts_table if selected_fund.lower() in row.get("Fund Name", "").lower()),
+                None
+            )
     
         left_box = (
-            f"""
-            <div style='
+            f"""<div style='
                 background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
                 color: #244369;
                 border-radius: 1.2rem;
@@ -1101,13 +1112,12 @@ def step15_display_selected_fund():
                 <div><b>Manager Name:</b> {factsheet_rec.get("Manager Name", "—")}</div>
                 <div><b>Average Market Cap:</b> {factsheet_rec.get("Avg. Market Cap", "—")}</div>
                 <div><b>Expense Ratio:</b> {factsheet_rec.get("Expense Ratio", "—")}</div>
-            </div>
-            """ if factsheet_rec else "<div style='display:inline-block; min-width:260px; color:#666;'>No factsheet info found.</div>"
+            </div>"""
+            if factsheet_rec else "<div style='display:inline-block; min-width:260px; color:#666;'>No factsheet info found.</div>"
         )
     
         right_box = (
-            f"""
-            <div style='
+            f"""<div style='
                 background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
                 color: #244369;
                 border-radius: 1.2rem;
@@ -1124,17 +1134,14 @@ def step15_display_selected_fund():
                 <div><b>Expense Ratio Rank:</b> {facts_rec.get("Expense Ratio Rank", "—")}</div>
                 <div><b>Total Number of Holdings:</b> {facts_rec.get("Total Number of Holdings", "—")}</div>
                 <div><b>Turnover Ratio:</b> {facts_rec.get("Turnover Ratio", "—")}</div>
-            </div>
-            """ if facts_rec else "<div style='display:inline-block; min-width:260px; color:#666;'>No Fund Facts available.</div>"
+            </div>"""
+            if facts_rec else "<div style='display:inline-block; min-width:260px; color:#666;'>No Fund Facts available.</div>"
         )
     
-        # Display both cards side by side inside a single markdown call:
         st.markdown(
             f"<div style='display:flex; flex-wrap:wrap;'>{left_box}{right_box}</div>",
             unsafe_allow_html=True
         )
-
-
 
     # --- Slide 1 Table: IPS Results ---
     ips_icon_table = st.session_state.get("ips_icon_table")
