@@ -207,7 +207,6 @@ def main():
             "Fund Type": prefill_fund_type,            # editable
         })
 
-        st.markdown('<b>Edit Fund Type for Screening:</b>', unsafe_allow_html=True)
         edited_types = st.data_editor(
             df_types,
             column_config={
