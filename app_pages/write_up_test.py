@@ -1144,7 +1144,19 @@ def step15_display_selected_fund():
 
     
     st.markdown(
-        f"<div style='display:flex; flex-wrap:wrap;'>{left_box}{right_box}</div>",
+        f"""
+        <div style='
+            width:100%;
+            display:flex;
+            flex-wrap:wrap;
+            justify-content:center;
+            align-items:flex-start;
+            gap:24px;
+            margin: 0.6rem 0 2rem 0;
+        '>
+            {left_box}{right_box}
+        </div>
+        """,
         unsafe_allow_html=True
     )
 
