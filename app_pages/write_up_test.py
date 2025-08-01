@@ -1372,7 +1372,6 @@ def step17_export_to_ppt():
                 text_val = str(val) if val is not None else ""
                 cell.text = text_val
 
-                # Center align text vertically and horizontally
                 cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
                 for paragraph in cell.text_frame.paragraphs:
                     paragraph.alignment = PP_ALIGN.CENTER
@@ -1386,7 +1385,6 @@ def step17_export_to_ppt():
                             run.font.color.rgb = RGBColor(0, 0, 0)  # Black text otherwise
                             run.font.bold = False
 
-                # Color cell background for IPS Status badges
                 if col == "IPS Status":
                     color = badge_colors.get(text_val)
                     if color:
@@ -1394,15 +1392,11 @@ def step17_export_to_ppt():
                         fill.solid()
                         fill.fore_color.rgb = color
                     else:
-                        cell.fill.background()  # Reset if no badge color
+                        cell.fill.background()
                 else:
                     cell.fill.background()
 
     def fill_text_placeholder_preserving_format(slide, placeholder_text, replacement_text):
-        """
-        Replace placeholder_text inside paragraphs on slide, preserving original font/size/color styles.
-        Returns True if replaced at least once.
-        """
         replaced = False
         for shape in slide.shapes:
             if not shape.has_text_frame:
@@ -1444,11 +1438,39 @@ def step17_export_to_ppt():
                     p.level = 0
                     p.font.name = "Cambria"
                     p.font.size = Pt(11)
-                    p.font.color.rgb = RGBColor(0, 0, 0)  # Black text
+                    p.font.color.rgb = RGBColor(0, 0, 0)
                     p.font.bold = False
                     p.font.underline = False
                     p.font.italic = False
                 return True
+        return False
+
+    def fill_table_with_formatting(table, df_table):
+        n_rows = min(len(df_table), len(table.rows) - 1)
+        for i in range(n_rows):
+            for j, col in enumerate(df_table.columns):
+                val = df_table.iloc[i, j]
+                cell = table.cell(i + 1, j)
+                text_val = str(val) if val is not None else ""
+                cell.text = text_val
+
+                cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
+                for paragraph in cell.text_frame.paragraphs:
+                    paragraph.alignment = PP_ALIGN.CENTER
+                    for run in paragraph.runs:
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(11)
+                        run.font.color.rgb = RGBColor(0, 0, 0)
+                        run.font.bold = False
+
+    def fill_slide2_table1(prs, df_table1):
+        slide2 = prs.slides[1]
+        for shape in slide2.shapes:
+            if shape.has_table:
+                table = shape.table
+                if get_table_header(table) == tuple(df_table1.columns):
+                    fill_table_with_formatting(table, df_table1)
+                    return True
         return False
 
     # --- Fill Slide 1 ---
@@ -1481,6 +1503,15 @@ def step17_export_to_ppt():
     if not category_filled:
         st.warning("Could not find [Category] placeholder on Slide 2.")
 
+    # --- Fill Slide 2 Table 1 ---
+    df_slide2_table1 = st.session_state.get("slide2_table1_data")
+    if df_slide2_table1 is None:
+        st.warning("Slide 2 Table 1 data not found in session state.")
+    else:
+        table1_filled = fill_slide2_table1(prs, df_slide2_table1)
+        if not table1_filled:
+            st.warning("Could not find matching table for Slide 2 Table 1 to fill.")
+
     # --- Save and provide download button ---
     output = BytesIO()
     prs.save(output)
@@ -1491,6 +1522,7 @@ def step17_export_to_ppt():
         file_name=f"{selected} Writeup.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
