@@ -1107,13 +1107,11 @@ def step15_display_selected_fund():
             font-size: 1rem;
             display: inline-block;
             vertical-align: top;'>
-            <div style='font-weight:700; color:#1856b8; margin-bottom:0.6rem; font-size:1.08rem;'>Factsheet Info</div>
             <div><b>Category:</b> {factsheet_rec.get("Category", "—")}</div>
             <div><b>Benchmark:</b> {factsheet_rec.get("Benchmark", "—")}</div>
             <div><b>Net Assets:</b> {factsheet_rec.get("Net Assets", "—")}</div>
             <div><b>Manager Name:</b> {factsheet_rec.get("Manager Name", "—")}</div>
             <div><b>Average Market Cap:</b> {factsheet_rec.get("Avg. Market Cap", "—")}</div>
-            <div><b>Expense Ratio:</b> {factsheet_rec.get("Expense Ratio", "—")}</div>
         </div>"""
         if factsheet_rec else "<div style='display:inline-block; min-width:220px; color:#666;'>No factsheet info found.</div>"
     )
@@ -1132,7 +1130,6 @@ def step15_display_selected_fund():
             font-size: 1rem;
             display: inline-block;
             vertical-align: top;'>
-            <div style='font-weight:700; color:#1856b8; margin-bottom:0.6rem; font-size:1.08rem;'>Fund Facts</div>
             <div><b>Manager Tenure:</b> {facts_rec.get("Manager Tenure Yrs.", "—")}</div>
             <div><b>Expense Ratio:</b> {facts_rec.get("Expense Ratio", "—")}</div>
             <div><b>Expense Ratio Rank:</b> {facts_rec.get("Expense Ratio Rank", "—")}</div>
