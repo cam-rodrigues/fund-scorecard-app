@@ -1093,25 +1093,18 @@ def step15_display_selected_fund():
             None
         )
     
-    card_style = """
-        background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
-        color: #244369;
-        border-radius: 1.2rem;
-        box-shadow: 0 2px 12px rgba(44,85,130,0.09), 0 1px 4px rgba(36,67,105,0.07);
-        padding: 1.2rem 1.4rem;
-        min-width: 180px;
-        max-width: 330px;
-        margin: 0;
-        border: 1.2px solid #b5d0eb;
-        flex: 1 1 220px;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-    """
-    
-    factsheet_html = (
-        f"""
-        <div style="{card_style} margin-right:20px;">
+    left_box = (
+        f"""<div style='
+            background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
+            color: #244369;
+            border-radius: 1.2rem;
+            box-shadow: 0 2px 12px rgba(44,85,130,0.09), 0 1px 4px rgba(36,67,105,0.07);
+            padding: 1.2rem 1.4rem 1.2rem 1.4rem;
+            min-width: 260px;
+            margin: 0.3rem 1.5rem 0.3rem 0;
+            border: 1.2px solid #b5d0eb;
+            display: inline-block;
+            vertical-align: top;'>
             <div style='font-weight:700; color:#1856b8; margin-bottom:0.7rem;'>Factsheet Info</div>
             <div><b>Category:</b> {factsheet_rec.get("Category", "—")}</div>
             <div><b>Benchmark:</b> {factsheet_rec.get("Benchmark", "—")}</div>
@@ -1119,29 +1112,34 @@ def step15_display_selected_fund():
             <div><b>Manager Name:</b> {factsheet_rec.get("Manager Name", "—")}</div>
             <div><b>Average Market Cap:</b> {factsheet_rec.get("Avg. Market Cap", "—")}</div>
             <div><b>Expense Ratio:</b> {factsheet_rec.get("Expense Ratio", "—")}</div>
-        </div>
-        """ if factsheet_rec else "<div style='min-width:180px; color:#666;'>No factsheet info found.</div>"
+        </div>"""
+        if factsheet_rec else "<div style='display:inline-block; min-width:260px; color:#666;'>No factsheet info found.</div>"
     )
     
-    fundfacts_html = (
-        f"""
-        <div style="{card_style}">
+    right_box = (
+        f"""<div style='
+            background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
+            color: #244369;
+            border-radius: 1.2rem;
+            box-shadow: 0 2px 12px rgba(44,85,130,0.09), 0 1px 4px rgba(36,67,105,0.07);
+            padding: 1.2rem 1.4rem 1.2rem 1.4rem;
+            min-width: 260px;
+            margin: 0.3rem 0 0.3rem 0;
+            border: 1.2px solid #b5d0eb;
+            display: inline-block;
+            vertical-align: top;'>
             <div style='font-weight:700; color:#1856b8; margin-bottom:0.7rem;'>Fund Facts</div>
             <div><b>Manager Tenure:</b> {facts_rec.get("Manager Tenure Yrs.", "—")}</div>
             <div><b>Expense Ratio:</b> {facts_rec.get("Expense Ratio", "—")}</div>
             <div><b>Expense Ratio Rank:</b> {facts_rec.get("Expense Ratio Rank", "—")}</div>
             <div><b>Total Number of Holdings:</b> {facts_rec.get("Total Number of Holdings", "—")}</div>
             <div><b>Turnover Ratio:</b> {facts_rec.get("Turnover Ratio", "—")}</div>
-        </div>
-        """ if facts_rec else "<div style='min-width:180px; color:#666;'>No Fund Facts available.</div>"
+        </div>"""
+        if facts_rec else "<div style='display:inline-block; min-width:260px; color:#666;'>No Fund Facts available.</div>"
     )
     
     st.markdown(
-        f"""
-        <div style='display: flex; flex-wrap: wrap; gap: 24px; justify-content: flex-start; align-items: flex-start;'>
-            {factsheet_html}{fundfacts_html}
-        </div>
-        """,
+        f"<div style='display:flex; flex-wrap:wrap;'>{left_box}{right_box}</div>",
         unsafe_allow_html=True
     )
 
