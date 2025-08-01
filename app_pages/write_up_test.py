@@ -387,6 +387,8 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     st.session_state["fund_performance_data"] = perf_data
     st.session_state["tickers"] = tickers  # Keep ticker mapping for legacy steps
 
+    st.session_state["step3_done"] = True
+
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Step 6: Fund Factsheets ===
 def step6_process_factsheets(pdf, fund_names):
@@ -1708,10 +1710,13 @@ def run():
         first = pdf.pages[0].extract_text() or ""
         process_page1(first)
 
-        # Step 2
-        with st.expander("Step 2: Table of Contents", expanded=False):
-            toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
-            process_toc(toc_text)
+        # Show Step 2 only if Step 3 NOT done yet
+        if not st.session_state.get("step3_done", False):
+            with st.expander("Table of Contents", expanded=False):
+                toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
+                process_toc(toc_text)
+        else:
+            st.info("Table of Contents hidden because Screening is completed.")
 
         # --- COMBINED STEPS 3, 4, 5 ---
         with st.expander("Step 3: Scorecard + IPS + Fund Type", expanded=True):
