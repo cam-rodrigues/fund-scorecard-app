@@ -131,7 +131,7 @@ def process_page1(text):
 #Info Card
 def show_report_summary():
     """
-    Displays a blue, raised summary card with Report Date, Total Options, Prepared For, and Prepared By.
+    Displays a pale blue, raised summary card with Report Date, Total Options, Prepared For, and Prepared By.
     """
     report_date    = st.session_state.get('report_date', 'N/A')
     total_options  = st.session_state.get('total_options', 'N/A')
@@ -140,18 +140,18 @@ def show_report_summary():
 
     st.markdown(f"""
         <div style="
-            background: linear-gradient(120deg, #2970E6 70%, #2356B8 100%);
-            color: #fff;
+            background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
+            color: #244369;
             border-radius: 1.5rem;
-            box-shadow: 0 4px 24px rgba(41,112,230,0.14), 0 2px 8px rgba(40,60,120,0.10);
-            padding: 1.8rem 2.5rem 1.2rem 2.5rem;
+            box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
+            padding: 1.7rem 2.3rem 1.2rem 2.3rem;
             margin-bottom: 2rem;
             font-size: 1.08rem;
-            border: 1.5px solid #1856b8;">
-            <span style="font-weight:700; font-size:1.25rem; letter-spacing:-.01em; color:#fff;">
+            border: 1.2px solid #b5d0eb;">
+            <span style="font-weight:700; font-size:1.25rem; letter-spacing:-.01em; color:#1856b8;">
                 Report Summary
             </span>
-            <div style="margin-top:1.1rem;">
+            <div style="margin-top:1.1rem; color:#244369;">
                 <b>Report Date:</b> {report_date} <br>
                 <b>Total Options:</b> {total_options} <br>
                 <b>Prepared For:</b> {prepared_for} <br>
@@ -159,6 +159,7 @@ def show_report_summary():
             </div>
         </div>
     """, unsafe_allow_html=True)
+
 
 
 
