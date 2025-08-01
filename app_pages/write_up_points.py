@@ -1051,45 +1051,13 @@ def step15_display_selected_fund():
         st.info("Run Steps 1–14 to populate data before viewing fund details.")
         return
 
-    # Select a fund
     fund_names = [f["Matched Fund Name"] for f in facts]
     selected_fund = st.selectbox("Select a fund to view details:", fund_names)
-    
-    # Save the selected fund in session state
     st.session_state.selected_fund = selected_fund
 
     st.write(f"Details for: {selected_fund}")
 
-    # --- Step 1: Page 1 Metadata ---
-    st.markdown("**Step 1: Page 1 Metadata**")
-    st.write(f"- Report Date:   {st.session_state.get('report_date','N/A')}")
-    st.write(f"- Total Options: {st.session_state.get('total_options','N/A')}")
-    st.write(f"- Prepared For:  {st.session_state.get('prepared_for','N/A')}")
-    st.write(f"- Prepared By:   {st.session_state.get('prepared_by','N/A')}")
-
-    # --- Step 2: Table of Contents Pages ---
-    st.markdown("**Step 2: Table of Contents**")
-    for key,label in [
-        ("performance_page","Fund Performance Current vs Proposed"),
-        ("calendar_year_page","Fund Performance Calendar Year"),
-        ("r3yr_page","MPT 3Yr Risk Analysis"),
-        ("r5yr_page","MPT 5Yr Risk Analysis"),
-        ("scorecard_page","Fund Scorecard"),
-        ("factsheets_page","Fund Factsheets")
-    ]:
-        st.write(f"- {label}: {st.session_state.get(key,'N/A')}")
-
-    # --- Step 3: Scorecard Metrics ---
-    st.markdown("**Step 3: Scorecard Metrics**")
-    blocks = st.session_state.get("fund_blocks", [])
-    block = next((b for b in blocks if b["Fund Name"] == selected_fund), None)
-    if block:
-        for m in block["Metrics"]:
-            st.write(f"- {m['Metric']}: {m['Info']}")
-    else:
-        st.write("_No scorecard data found._")
-
-    # --- Slide 1 Table: IPS Results (Fixed!) ---
+    # --- Slide 1 Table: IPS Results ---
     ips_icon_table = st.session_state.get("ips_icon_table")
     facts = st.session_state.get("fund_factsheets_data", [])
     fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected_fund), None)
@@ -1259,7 +1227,6 @@ def step15_display_selected_fund():
         "Average Market Capitalization":  avg_cap
     }])
     st.dataframe(df_slide4_2, use_container_width=True)
-
 
 
 
