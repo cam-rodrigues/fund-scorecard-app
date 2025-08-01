@@ -308,7 +308,101 @@ def extract_field(text: str, label: str, stop_at: str = None) -> str:
         return ""
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    
+def step4_ips_screen_with_yahoo():
+    # Assumes tickers are already stored in session state from previous step
+    fund_blocks = st.session_state["fund_blocks"]
+    tickers = st.session_state.get("tickers", {})
 
+    # Yahoo Finance detection (use cache to avoid re-querying)
+    @st.cache_data(show_spinner=False)
+    def get_fund_types(ticker_map):
+        types = {}
+        for name, tk in ticker_map.items():
+            if tk:
+                types[name] = infer_fund_type_guess(tk)
+            else:
+                # Fallback: use "index" in name
+                types[name] = "Passive" if "index" in name.lower() else "Active"
+        return types
+
+    fund_types = get_fund_types(tickers)
+
+    # Mappings for scorecard metrics to IPS metrics
+    metrics_order = [
+        "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
+        "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Expense Ratio Rank",
+        "Sharpe Ratio Rank (3Yr)", "Sharpe Ratio Rank (5Yr)", "R-Squared (3Yr)",
+        "R-Squared (5Yr)", "Sortino Ratio Rank (3Yr)", "Sortino Ratio Rank (5Yr)",
+        "Tracking Error Rank (3Yr)", "Tracking Error Rank (5Yr)"
+    ]
+    active_map  = [0,1,3,6,10,2,4,7,11,5,None]
+    passive_map = [0,8,3,6,12,9,4,7,13,5,None]
+    ips_labels = [str(i+1) for i in range(11)]  # For display
+
+    st.subheader("Step 4: IPS Investment Criteria Screening (Yahoo Finance fund type)")
+
+    rows = []
+    for b in fund_blocks:
+        fund_name = b["Fund Name"]
+        fund_type = fund_types.get(fund_name, "Passive" if "index" in fund_name.lower() else "Active")
+        metrics = b["Metrics"]
+        # Build ordered statuses for all 14 scorecard metrics
+        scorecard_status = []
+        for label in metrics_order:
+            val = next((m["Info"] if "Pass" in m["Info"] else m["Info"] for m in metrics if m["Metric"] == label), "")
+            if any(x in val for x in ("Pass", "✔", "✓")):
+                scorecard_status.append("Pass")
+            elif "Review" in val or "Fail" in val or "✗" in val or "❌" in val:
+                scorecard_status.append("Review")
+            else:
+                # fallback for legacy or unexpected value
+                raw_status = next((m["Status"] for m in metrics if m["Metric"] == label), "Review")
+                scorecard_status.append(raw_status)
+
+        idx_map = passive_map if fund_type == "Passive" else active_map
+        ips_status = [scorecard_status[m_idx] if m_idx is not None else "Pass" for m_idx in idx_map]
+
+        review_fail = sum(1 for status in ips_status if status in ["Review", "Fail"])
+        if review_fail >= 6:
+            overall = "Formal Watch (FW)"
+        elif review_fail == 5:
+            overall = "Informal Watch (IW)"
+        else:
+            overall = "Passed IPS Screen"
+
+        # Build table row, columns 1–11
+        row = {
+            "Fund Name": fund_name,
+            "Ticker": st.session_state["tickers"].get(fund_name, ""),
+            "Fund Type": fund_type
+        }
+        for i, stat in enumerate(ips_status):
+            row[str(i+1)] = "✔️" if stat == "Pass" else "❌"
+        row["IPS Status"] = overall
+        rows.append(row)
+
+    df = pd.DataFrame(rows)
+    # Display: style Pass/Fail and Status columns
+    def color_icon(val):
+        if val == "✔️":
+            return "background-color: #d6f5df; color: #217a3e; font-weight: bold"
+        elif val == "❌":
+            return "background-color: #f8d7da; color: #c30000; font-weight: bold"
+        return ""
+    def color_status(val):
+        if "Passed" in val:
+            return "background-color: #d6f5df; color: #217a3e; font-weight: bold"
+        if "Informal" in val:
+            return "background-color: #fff3cd; color: #b87333; font-weight: bold"
+        if "Formal" in val:
+            return "background-color: #f8d7da; color: #c30000; font-weight: bold"
+        return ""
+
+    styled = df.style.applymap(color_icon, subset=[str(i) for i in range(1, 12)]).applymap(color_status, subset=["IPS Status"])
+    st.dataframe(styled, use_container_width=True, hide_index=True)
+
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Step 6: Fund Factsheets ===
 def step6_process_factsheets(pdf, fund_names):
     st.subheader("Step 6: Fund Factsheets Section")
@@ -1944,7 +2038,12 @@ def run():
                 step5_process_performance(pdf, pp, names)
             else:
                 st.error("Missing performance page or fund blocks")
+                
+        # Step 5.5
+        with st.expander("Step 5.5: Yahoo IPS Screening", expanded=False):
+            step4_ips_screen_with_yahoo()
 
+        
         # Step 6
         with st.expander("Step 6: Fund Factsheets", expanded=True):
             names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
