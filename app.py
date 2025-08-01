@@ -144,7 +144,7 @@ nav_button("Company Lookup", "company_lookup.py")
 st.sidebar.markdown('<div class="sidebar-section">MPI Tools</div>', unsafe_allow_html=True)
 with st.sidebar.expander("MPI Tools", expanded=False):
     nav_button("Fund Scorecard", "fund_scorecard.py")
-    nav_button("Metrics", "fund_scorecard_metrics.py")
+    nav_button("Scorecard Metrics", "fund_scorecard_metrics.py")
     nav_button("IPS Screening", "ips_screening.py")
 
 st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', unsafe_allow_html=True)
