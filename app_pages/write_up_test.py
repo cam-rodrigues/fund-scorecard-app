@@ -1309,11 +1309,14 @@ def step16_bullet_points():
         st.error(f"❌ Performance data for '{selected_fund}' not found.")
         return
 
+    bullets = []
+
     # Bullet 1: Performance vs. Benchmark, using template
     template = st.session_state.get("bullet_point_templates", [""])[0]
     b1 = template
     for fld, val in item.items():
         b1 = b1.replace(f"[{fld}]", str(val))
+    bullets.append(b1)
     st.markdown(f"- {b1}")
 
     # Get IPS status from icon table (guaranteed to match Slide 1 Table)
@@ -1325,7 +1328,9 @@ def step16_bullet_points():
 
     # Bullet 2: Watch status and return comparison
     if ips_status == "NW":
-        st.markdown("- This fund is **not on watch**.")
+        b2 = "- This fund is **not on watch**."
+        bullets.append(b2)
+        st.markdown(b2)
     else:
         status_label = (
             "Formal Watch" if ips_status == "FW" else
@@ -1355,16 +1360,24 @@ def step16_bullet_points():
         except:
             pos5 = "bottom"
 
-        st.markdown(
+        b2 = (
             f"- The fund is now on **{status_label}**. Its 3‑year return trails the benchmark by "
             f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its 5‑year return trails by "
             f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half of peers "
             f"and its 5‑Yr Sharpe ranks in the {pos5} half."
         )
+        bullets.append(b2)
+        st.markdown(b2)
 
     # Bullet 3: Action for Formal Watch only
     if ips_status == "FW":
-        st.markdown("- **Action:** Consider replacing this fund.")
+        b3 = "- **Action:** Consider replacing this fund."
+        bullets.append(b3)
+        st.markdown(b3)
+
+    # Save bullets for Step 17
+    st.session_state["bullet_points"] = bullets
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 def step17_export_to_ppt():
@@ -1444,10 +1457,8 @@ def step17_export_to_ppt():
     # Fill bullet points placeholder with a list of bullet strings
     def fill_bullet_points(slide, placeholder="[Bullet Point 1]", bullets=None):
         import streamlit as st
-        # If bullets not explicitly passed, try to get from Step 16 session state
         if bullets is None:
             bullets = st.session_state.get("bullet_points", None)
-        # Fallback default bullets if none found
         if not bullets:
             bullets = ["Performance exceeded benchmark.", "No watch status.", "No action required."]
         for shape in slide.shapes:
@@ -1465,6 +1476,7 @@ def step17_export_to_ppt():
                         p.font.color.rgb = RGBColor(0, 0, 0)
                     return True
         return False
+
 
     # Get actual category for placeholder replacement
     facts = st.session_state.get("fund_factsheets_data", [])
