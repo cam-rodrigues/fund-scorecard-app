@@ -147,6 +147,7 @@ def step3_process_scorecard(pdf, start_page, declared_total):
     else:
         st.error(f"❌ Expected {declared_total}, found {count}.")
 
+
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 4: IPS Screening ===
@@ -162,79 +163,64 @@ def step4_ips_screen():
         "Excess Performance (5Yr)",
         "R-Squared (5Yr)",
         "Peer Return Rank (5Yr)",
-        "Sharpe Ratio Rank (5Yr)",
-        "Sortino Ratio Rank (5Yr)",
-        "Tracking Error Rank (5Yr)",
-        "Expense Ratio Rank"
+        "Sharpe Ratio Rank (5Yr)"
     ]
     st.subheader("Step 4: IPS Investment Criteria Screening")
 
+    rows = []
     for b in st.session_state["fund_blocks"]:
         name = b["Fund Name"]
-        is_passive = "bitcoin" in name.lower()
-        statuses, reasons = {}, {}
+        is_passive = "index" in name.lower()
+        statuses = {}
 
         # Manager Tenure ≥3
         info = next((m["Info"] for m in b["Metrics"] if m["Metric"]=="Manager Tenure"), "")
         yrs = float(re.search(r"(\d+\.?\d*)", info).group(1)) if re.search(r"(\d+\.?\d*)", info) else 0
-        ok = yrs>=3
-        statuses["Manager Tenure"] = ok
-        reasons["Manager Tenure"] = f"{yrs} yrs {'≥3' if ok else '<3'}"
+        statuses["Manager Tenure"] = yrs >= 3
 
-        # map each IPS metric
-        for metric in IPS[1:]:  # skip tenure
-            m = next((x for x in b["Metrics"] if x["Metric"].startswith(metric.split()[0])), None)
-            info = m["Info"] if m else ""
-            if "Excess Performance" in metric:
-                val_m = re.search(r"([-+]?\d*\.\d+)%", info)
-                val = float(val_m.group(1)) if val_m else 0
-                ok = (val>0) if "3Yr" in metric else (val>0)
-                statuses[metric] = ok
-                reasons[metric] = f"{val}%"
-            elif "R-Squared" in metric:
-                pct_m = re.search(r"(\d+\.\d+)%", info)
-                pct = float(pct_m.group(1)) if pct_m else 0
-                ok = (pct>=95) if is_passive else True
-                statuses[metric] = ok
-                reasons[metric] = f"{pct}%"
-            elif "Peer Return" in metric or "Sharpe Ratio" in metric:
-                rank_m = re.search(r"(\d+)", info)
-                rank = int(rank_m.group(1)) if rank_m else 999
-                ok = rank<=50
-                statuses[metric] = ok
-                reasons[metric] = f"Rank {rank}"
-            elif "Sortino Ratio" in metric or "Tracking Error" in metric:
-                rank_m = re.search(r"(\d+)", info)
-                rank = int(rank_m.group(1)) if rank_m else 999
-                if "Sortino" in metric and not is_passive:
-                    ok = rank<=50
-                elif "Tracking Error" in metric and is_passive:
-                    ok = rank<90
-                else:
-                    ok = True
-                statuses[metric] = ok
-                reasons[metric] = f"Rank {rank}"
-            elif "Expense Ratio" in metric:
-                rank_m = re.search(r"(\d+)", info)
-                rank = int(rank_m.group(1)) if rank_m else 999
-                ok = rank<=50
-                statuses[metric] = ok
-                reasons[metric] = f"Rank {rank}"
+        for crit in IPS[1:]:
+            raw = next((m["Info"] for m in b["Metrics"] if m["Metric"].startswith(crit.split()[0])), "")
+            if "Excess Performance" in crit:
+                pct = float(re.search(r"([-+]?\d*\.\d+)%", raw).group(1)) if re.search(r"([-+]?\d*\.\d+)%", raw) else 0
+                statuses[crit] = pct > 0
+            elif "R-Squared" in crit:
+                statuses[crit] = True  # placeholder, adjust logic if needed
+            else:
+                rk = int(re.search(r"(\d+)", raw).group(1)) if re.search(r"(\d+)", raw) else 999
+                statuses[crit] = rk <= 50
 
-        # count fails
-        fails = sum(not v for v in statuses.values())
-        if fails<=4:
-            overall="Passed IPS Screen"
-        elif fails==5:
-            overall="Informal Watch (IW)"
-        else:
-            overall="Formal Watch (FW)"
+        fails = sum(not statuses[c] for c in IPS)
+        if   fails <= 4:  overall = "Passed IPS Screen"
+        elif fails == 5:  overall = "Informal Watch (IW)"
+        else:             overall = "Formal Watch (FW)"
 
-        st.markdown(f"### {name} ({'Passive' if is_passive else 'Active'})")
-        st.write(f"**Overall:** {overall} ({fails} fails)")
-        for m in IPS:
-            sym = "✅" if statuses.get(m,False) else "❌"
-            st.write(f"- {sym} **{m}**: {reasons.get(m,'—')}")
+        # Map statuses to numbers for table columns
+        row = {"Fund Name": name}
+        for idx, crit in enumerate(IPS, start=1):
+            row[str(idx)] = "✔️" if statuses[crit] else "❌"
+        row["IPS Status"] = overall
+        rows.append(row)
+
+    # DataFrame and style
+    df = pd.DataFrame(rows)
+    def color_icon(val):
+        if val == "✔️":
+            return "background-color: #d6f5df; color: #217a3e; font-weight: bold"
+        elif val == "❌":
+            return "background-color: #f8d7da; color: #c30000; font-weight: bold"
+        return ""
+    def color_status(val):
+        if "Passed" in val:
+            return "background-color: #d6f5df; color: #217a3e; font-weight: bold"
+        if "Informal" in val:
+            return "background-color: #fff3cd; color: #b87333; font-weight: bold"
+        if "Formal" in val:
+            return "background-color: #f8d7da; color: #c30000; font-weight: bold"
+        return ""
+
+    styled = df.style.applymap(color_icon, subset=[str(i) for i in range(1, 12)]).applymap(color_status, subset=["IPS Status"])
+    st.dataframe(styled, use_container_width=True, hide_index=True)
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
