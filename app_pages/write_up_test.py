@@ -1383,7 +1383,7 @@ def step17_export_to_ppt():
         st.error(f"Could not load PowerPoint template: {e}")
         return
 
-    # --- Slide 1 Data Prep ---
+    # Fetch data for filling
     ips_icon_table = st.session_state.get("ips_icon_table")
     row = None
     if ips_icon_table is not None and not ips_icon_table.empty:
@@ -1394,14 +1394,15 @@ def step17_export_to_ppt():
         st.error("❌ No table data found for selected fund.")
         return
 
+    facts = st.session_state.get("fund_factsheets_data", [])
+    fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected), {})
+
+    # --- Prepare Slide 1 Data ---
     display_columns = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
     table_data = {
         **{display_columns.get(k, k): v for k, v in row.items() if k.startswith("IPS Investment Criteria")},
         "IPS Status": row.get("IPS Watch Status", "")
     }
-
-    facts = st.session_state.get("fund_factsheets_data", [])
-    fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected), {})
     table_data["Category"] = fs_rec.get("Category", "")
     table_data["Time Period"] = st.session_state.get("report_date", "")
     table_data["Plan Assets"] = "$"
@@ -1409,7 +1410,6 @@ def step17_export_to_ppt():
     headers = ["Category", "Time Period", "Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
     df_slide1 = pd.DataFrame([table_data], columns=headers)
 
-    # Helper function to fill a table with centered text and font styling
     def fill_table(table, df):
         badge_colors = {
             "NW": RGBColor(0x00, 0x80, 0x00),   # Green
@@ -1423,7 +1423,6 @@ def step17_export_to_ppt():
                 cell = table.cell(i + 1, j)
                 text_val = str(val) if val is not None else ""
                 cell.text = text_val
-
                 cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
                 for paragraph in cell.text_frame.paragraphs:
                     paragraph.alignment = PP_ALIGN.CENTER
@@ -1436,7 +1435,6 @@ def step17_export_to_ppt():
                         else:
                             run.font.color.rgb = RGBColor(0, 0, 0)
                             run.font.bold = False
-
                 if col == "IPS Status":
                     color = badge_colors.get(text_val)
                     if color:
@@ -1505,7 +1503,6 @@ def step17_export_to_ppt():
                 cell = table.cell(i + 1, j)
                 text_val = str(val) if val is not None else ""
                 cell.text = text_val
-
                 cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
                 for paragraph in cell.text_frame.paragraphs:
                     paragraph.alignment = PP_ALIGN.CENTER
@@ -1518,6 +1515,9 @@ def step17_export_to_ppt():
                             run.font.color.rgb = RGBColor(0, 0, 0)
                         # Bold row if specified
                         run.font.bold = (bold_row_idx is not None and i == bold_row_idx)
+
+    def get_table_header(table):
+        return tuple(cell.text.strip() for cell in table.rows[0].cells)
 
     # --- Slide 1 ---
     slide1 = prs.slides[0]
@@ -1571,8 +1571,8 @@ def step17_export_to_ppt():
             if shape.has_table:
                 table = shape.table
                 headers = [cell.text.strip() for cell in table.rows[0].cells]
-                # Replace 2nd header cell with quarter_label if it matches expected header position
                 if len(headers) == len(df_slide2_table2.columns):
+                    # Replace 2nd header cell with quarter_label
                     table.cell(0, 1).text = quarter_label
                     for j in range(len(headers)):
                         cell = table.cell(0, j)
@@ -1599,7 +1599,7 @@ def step17_export_to_ppt():
                 table = shape.table
                 headers = [cell.text.strip() for cell in table.rows[0].cells]
                 if len(headers) == len(df_slide2_table3.columns) and headers[0] == df_slide2_table3.columns[0]:
-                    # Replace headers for years (dynamic)
+                    # Replace headers with dynamic year columns
                     for j, col in enumerate(df_slide2_table3.columns):
                         cell = table.cell(0, j)
                         cell.text = str(col)
@@ -1623,6 +1623,7 @@ def step17_export_to_ppt():
 
     df_slide3_table1 = st.session_state.get("slide3_table1_data")
     df_slide3_table2 = st.session_state.get("slide3_table2_data")
+
     if df_slide3_table1 is None or df_slide3_table2 is None:
         st.warning("Slide 3 table data not found in session state.")
     else:
@@ -1630,16 +1631,10 @@ def step17_export_to_ppt():
         if len(tables) < 2:
             st.warning("Expected two tables on Slide 3, found fewer.")
         else:
-            table1 = tables[0]
-            table2 = tables[1]
-            if tuple(cell.text.strip() for cell in table1.rows[0].cells) == tuple(df_slide3_table1.columns):
-                fill_table_with_investment_manager_white(table1, df_slide3_table1)
-            else:
-                st.warning("Slide 3 Table 1 headers do not match.")
-            if tuple(cell.text.strip() for cell in table2.rows[0].cells) == tuple(df_slide3_table2.columns):
-                fill_table_with_investment_manager_white(table2, df_slide3_table2)
-            else:
-                st.warning("Slide 3 Table 2 headers do not match.")
+            # Fill first table with Slide 3 Table 1 data (by position)
+            fill_table_with_investment_manager_white(tables[0], df_slide3_table1)
+            # Fill second table with Slide 3 Table 2 data (by position)
+            fill_table_with_investment_manager_white(tables[1], df_slide3_table2)
 
     # --- Save and download ---
     output = BytesIO()
@@ -1651,9 +1646,6 @@ def step17_export_to_ppt():
         file_name=f"{selected} Writeup.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
-
-def get_table_header(table):
-    return tuple(cell.text.strip() for cell in table.rows[0].cells)
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
