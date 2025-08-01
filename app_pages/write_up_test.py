@@ -803,7 +803,7 @@ def step11_create_summary(pdf=None):
     import pandas as pd
     import streamlit as st
 
-    st.subheader("Step 11: MPT Statistics Summary")
+    st.subheader("MPT Statistics Summary")
 
     # 1) Load your 3‑Yr and 5‑Yr stats from session state
     mpt3 = st.session_state.get("step9_mpt_stats", [])
@@ -915,7 +915,7 @@ def step13_process_risk_adjusted_returns(pdf):
     import streamlit as st
     import pandas as pd
 
-    st.subheader("Step 13: Risk‑Adjusted Returns")
+    st.subheader("Risk‑Adjusted Returns")
 
     fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
@@ -985,7 +985,7 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
     import streamlit as st
     import pandas as pd
 
-    st.subheader("Step 14: Peer Risk-Adjusted Return Rank")
+    st.subheader("Peer Risk-Adjusted Return Rank")
 
     factsheets = st.session_state.get("fund_factsheets_data", [])
     if not factsheets:
