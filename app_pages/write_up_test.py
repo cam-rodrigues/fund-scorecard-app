@@ -1823,8 +1823,6 @@ def run():
             step8_calendar_returns(pdf)
 
 
-
-
         # ── Data Prep for Bullet Points ───────────────────────────────────────────────
         report_date = st.session_state.get("report_date", "")
         m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
@@ -1870,7 +1868,7 @@ def run():
             step10_risk_analysis_5yr(pdf)
 
         # Step 11: MPT Statistics Summary
-        with st.expander("Step 11: MPT Statistics Summary", expanded=False):
+        with st.expander("MPT Statistics Summary", expanded=False):
             step11_create_summary()
             
         # Step 12: Find Factsheet Sub‑Headings
@@ -1878,19 +1876,16 @@ def run():
             step12_process_fund_facts(pdf)
 
         # Step 13: Risk Adjusted Returns
-        with st.expander("Step 13: Risk-Adjusted Returns", expanded=False):
+        with st.expander("Risk-Adjusted Returns", expanded=False):
             step13_process_risk_adjusted_returns(pdf)
-
-        # Step 14: Peer Risk-Adjusted Return Rank
-        with st.expander("Step 14: Peer Risk-Adjusted Return Rank", expanded=False):
             step14_extract_peer_risk_adjusted_return_rank(pdf)
         
         # Step 15: View Single Fund Details
-        with st.expander("Step 15: Single Fund Details", expanded=False):
+        with st.expander("Single Fund Write Up", expanded=False):
             step15_display_selected_fund()
                     
         # Step 16: Bullet Points
-        with st.expander("Step 16: Bullet Points", expanded=False):
+        with st.expander("Bullet Points", expanded=False):
             step16_bullet_points()
 
         # Step 17: Powerpoint
