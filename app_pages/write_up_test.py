@@ -1819,8 +1819,10 @@ def run():
             step6_process_factsheets(pdf, names)
 
         # Step 7
-        with st.expander("Step 7: Annualized Returns", expanded=False):
+        with st.expander("Returns", expanded=False):
             step7_extract_returns(pdf)
+            step8_calendar_returns(pdf)
+
 
         # ── Data Prep for Bullet Points ───────────────────────────────────────────────
         report_date = st.session_state.get("report_date", "")
@@ -1857,10 +1859,6 @@ def run():
             ]
 
         # ───────────────────────────────────────────────────────────────────────────────
-        
-        # Step 8: Calendar Year Section
-        with st.expander("Step 8: Calendar Year Returns", expanded=False):
-            step8_calendar_returns(pdf)
 
         # Step 9: Match Tickers
         with st.expander("Step 9: Risk Analysis (3Yr)", expanded=False):
