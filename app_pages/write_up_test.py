@@ -607,8 +607,6 @@ def step7_extract_returns(pdf):
 def step8_calendar_returns(pdf):
     import re, streamlit as st, pandas as pd
 
-    st.subheader("Step 8: Calendar Year Returns")
-
     # 1) Figure out section bounds
     cy_page  = st.session_state.get("calendar_year_page")
     end_page = st.session_state.get("r3yr_page", len(pdf.pages) + 1)
@@ -1818,10 +1816,24 @@ def run():
             names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
             step6_process_factsheets(pdf, names)
 
-        # Step 7
+        # Returns
         with st.expander("Returns", expanded=False):
+            # Step 7: Annualized Returns
+            st.markdown("### Annualized Returns")
             step7_extract_returns(pdf)
-            step8_calendar_returns(pdf)
+            
+            # Step 8: Calendar Returns
+            st.markdown("### Calendar Returns")
+            df_fund = step8_calendar_returns(pdf, return_fund_df=True)
+            if df_fund is not None:
+                st.dataframe(df_fund, use_container_width=True)
+            
+            # Step 8: Benchmark Calendar Returns
+            st.markdown("### Benchmark Calendar Returns")
+            df_bench = step8_calendar_returns(pdf, return_bench_df=True)
+            if df_bench is not None:
+                st.dataframe(df_bench, use_container_width=True)
+
 
 
         # ── Data Prep for Bullet Points ───────────────────────────────────────────────
