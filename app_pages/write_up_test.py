@@ -130,9 +130,6 @@ def process_page1(text):
 #────────────────────────────────────────────────────────────────────────────────────
 #Info Card
 def show_report_summary():
-    """
-    Displays a pale blue, raised summary card with Report Date, Total Options, Prepared For, and Prepared By.
-    """
     report_date    = st.session_state.get('report_date', 'N/A')
     total_options  = st.session_state.get('total_options', 'N/A')
     prepared_for   = st.session_state.get('prepared_for', 'N/A')
@@ -144,14 +141,11 @@ def show_report_summary():
             color: #244369;
             border-radius: 1.5rem;
             box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
-            padding: 1.7rem 2.3rem 1.2rem 2.3rem;
+            padding: 1.2rem 2.3rem 1.2rem 2.3rem;
             margin-bottom: 2rem;
             font-size: 1.08rem;
             border: 1.2px solid #b5d0eb;">
-            <span style="font-weight:700; font-size:1.25rem; letter-spacing:-.01em; color:#1856b8;">
-                Report Summary
-            </span>
-            <div style="margin-top:1.1rem; color:#244369;">
+            <div style="color:#244369;">
                 <b>Report Date:</b> {report_date} <br>
                 <b>Total Options:</b> {total_options} <br>
                 <b>Prepared For:</b> {prepared_for} <br>
@@ -159,8 +153,6 @@ def show_report_summary():
             </div>
         </div>
     """, unsafe_allow_html=True)
-
-
 
 
 # === Step 2: Table of Contents Extraction ===
