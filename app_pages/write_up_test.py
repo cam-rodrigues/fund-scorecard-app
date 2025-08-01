@@ -679,8 +679,6 @@ def step9_risk_analysis_3yr(pdf):
     import re, streamlit as st, pandas as pd
     from rapidfuzz import fuzz
 
-    st.subheader("Step 9: Risk Analysis (3Yr) – MPT Statistics")
-
     # 1) Get your fund→ticker map
     fund_map = st.session_state.get("tickers", {})
     if not fund_map:
@@ -728,17 +726,12 @@ def step9_risk_analysis_3yr(pdf):
 
     # 5) Display final table only
     st.session_state["step9_mpt_stats"] = results
-    df = pd.DataFrame(results)
-    st.dataframe(df, use_container_width=True)
-
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 # === Step 10: Risk Analysis (5Yr) – Match & Extract MPT Statistics ===
 def step10_risk_analysis_5yr(pdf):
     import re, streamlit as st, pandas as pd
-
-    st.subheader("Step 10: Risk Analysis (5Yr) – MPT Statistics")
 
     # 1) Your fund→ticker map from Step 5
     fund_map = st.session_state.get("tickers", {})
@@ -804,9 +797,6 @@ def step10_risk_analysis_5yr(pdf):
 
     # 5) Save & display only the consolidated table
     st.session_state["step10_mpt_stats"] = results
-    df = pd.DataFrame(results)
-    st.dataframe(df, use_container_width=True)
-
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
