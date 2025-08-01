@@ -2,18 +2,17 @@ import streamlit as st
 import pdfplumber
 import re
 import pandas as pd
-
-# --- Add yfinance for fund type guessing ---
 import yfinance as yf
 
 def infer_fund_type_guess(ticker):
     """Infer 'Active' or 'Passive' based on Yahoo Finance info (name and summary)."""
     try:
-        if not ticker: return ""
+        if not ticker:
+            return ""
         info = yf.Ticker(ticker).info
         name = (info.get("longName") or info.get("shortName") or "").lower()
         summary = (info.get("longBusinessSummary") or "").lower()
-        # Simple rules
+        # Passive if index-related, otherwise Active
         if "index" in name or "index" in summary:
             return "Passive"
         if "track" in summary and "index" in summary:
@@ -64,7 +63,8 @@ def extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page=None
     mapping = {}
     for ln in all_lines:
         m = re.match(r"(.+?)\s+([A-Z]{1,5})$", ln.strip())
-        if not m: continue
+        if not m:
+            continue
         raw_name, ticker = m.groups()
         norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
         mapping[norm] = ticker
@@ -79,7 +79,8 @@ def extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page=None
         all_tks = re.findall(r'\b([A-Z]{1,5})\b', perf_text)
         seen = []
         for tk in all_tks:
-            if tk not in seen: seen.append(tk)
+            if tk not in seen:
+                seen.append(tk)
         tickers = {name: (seen[i] if i < len(seen) else "") for i, name in enumerate(fund_names)}
     return {k: (v if v else "") for k, v in tickers.items()}
 
@@ -123,9 +124,12 @@ def scorecard_to_ips(fund_blocks, fund_types, tickers):
     return pd.DataFrame(ips_results), pd.DataFrame(raw_results)
 
 def watch_status_color(val):
-    if val == "FW": return "background-color:#f8d7da; color:#c30000; font-weight:600;"
-    if val == "IW": return "background-color:#fff3cd; color:#B87333; font-weight:600;"
-    if val == "NW": return "background-color:#d6f5df; color:#217a3e; font-weight:600;"
+    if val == "FW":
+        return "background-color:#f8d7da; color:#c30000; font-weight:600;"
+    if val == "IW":
+        return "background-color:#fff3cd; color:#B87333; font-weight:600;"
+    if val == "NW":
+        return "background-color:#d6f5df; color:#217a3e; font-weight:600;"
     return ""
 
 def main():
@@ -164,20 +168,35 @@ def main():
         fund_type_defaults = ["Passive" if "index" in n.lower() else "Active" for n in fund_names]
 
         # --- FUND TYPE GUESS ADDED ---
-        fund_type_guesses = [
-            infer_fund_type_guess(tickers[name]) if tickers.get(name) else "" 
-            for name in fund_names
-        ]
+        fund_type_guesses = []
+        for name in fund_names:
+            guess = ""
+            if tickers.get(name):
+                guess = infer_fund_type_guess(tickers[name])
+            # If it's not Passive, call it Active
+            if guess == "Passive":
+                fund_type_guesses.append("Passive")
+            else:
+                fund_type_guesses.append("Active")
 
         df_types = pd.DataFrame({
             "Fund Name": fund_names,
             "Ticker": [tickers[name] for name in fund_names],
             "Fund Type (Default)": fund_type_defaults,
-            "Fund Type Guess": fund_type_guesses,   # new column (readonly)
-            "Fund Type": fund_type_defaults,        # editable
+            "Fund Type Guess": fund_type_guesses,
+            "Fund Type": fund_type_defaults,
         })
 
         st.markdown('<div class="app-card" style="padding:1.1rem 1.1rem 0.6rem 1.1rem; margin-bottom:1rem;">', unsafe_allow_html=True)
+
+        # --- EXPLANATION ---
+        st.markdown(
+            "<div style='font-size:0.96em; color:#374151; margin-bottom:0.25em;'>"
+            "<b>Fund Type Guess:</b> This column is based on Yahoo Finance data. If the fund name or description mentions 'index' or tracking an index, it's classified as Passive. Otherwise, it's marked Active. This guess is for convenience only—always confirm with the official fund documentation."
+            "</div>",
+            unsafe_allow_html=True
+        )
+
         st.markdown('<b>Edit Fund Type for Screening:</b>', unsafe_allow_html=True)
         edited_types = st.data_editor(
             df_types,
