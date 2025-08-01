@@ -855,8 +855,6 @@ def step12_process_fund_facts(pdf):
     import streamlit as st
     import pandas as pd
 
-    st.subheader("Step 12: Fund Facts")
-
     fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
     if not fs_start or not factsheets:
@@ -910,8 +908,6 @@ def step12_process_fund_facts(pdf):
 
     # save & show
     st.session_state["step12_fund_facts_table"] = records
-    df = pd.DataFrame(records)
-    st.dataframe(df, use_container_width=True)
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
