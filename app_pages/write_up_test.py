@@ -1469,11 +1469,15 @@ def step17_export_to_ppt():
                     shape.text_frame.clear()
                     for b in bullets:
                         p = shape.text_frame.add_paragraph()
-                        p.text = b
+                        # Remove markdown asterisks if any
+                        clean_text = b.replace("**", "")
+                        p.text = clean_text
                         p.level = 0
                         p.font.name = "Cambria"
                         p.font.size = Pt(11)
                         p.font.color.rgb = RGBColor(0, 0, 0)
+                        # Bold the entire paragraph if you want
+                        p.font.bold = True  # <-- makes the whole bullet bold
                     return True
         return False
 
