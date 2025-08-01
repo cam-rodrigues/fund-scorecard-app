@@ -1383,7 +1383,7 @@ def step17_export_to_ppt():
         st.error(f"Could not load PowerPoint template: {e}")
         return
 
-    # Slide 1 Data Prep
+    # --- Slide 1 Data Prep ---
     ips_icon_table = st.session_state.get("ips_icon_table")
     row = None
     if ips_icon_table is not None and not ips_icon_table.empty:
@@ -1409,10 +1409,7 @@ def step17_export_to_ppt():
     headers = ["Category", "Time Period", "Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
     df_slide1 = pd.DataFrame([table_data], columns=headers)
 
-    # Helper functions
-    def get_table_header(table):
-        return tuple(cell.text.strip() for cell in table.rows[0].cells)
-
+    # Helper function to fill a table with centered text and font styling
     def fill_table(table, df):
         badge_colors = {
             "NW": RGBColor(0x00, 0x80, 0x00),   # Green
@@ -1434,10 +1431,10 @@ def step17_export_to_ppt():
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
                         if col == "IPS Status":
-                            run.font.color.rgb = RGBColor(255, 255, 255)  # White text for badges
+                            run.font.color.rgb = RGBColor(255, 255, 255)
                             run.font.bold = True
                         else:
-                            run.font.color.rgb = RGBColor(0, 0, 0)  # Black text otherwise
+                            run.font.color.rgb = RGBColor(0, 0, 0)
                             run.font.bold = False
 
                 if col == "IPS Status":
@@ -1500,7 +1497,7 @@ def step17_export_to_ppt():
                 return True
         return False
 
-    def fill_table_with_investment_manager_white(table, df_table):
+    def fill_table_with_investment_manager_white(table, df_table, bold_row_idx=None):
         n_rows = min(len(df_table), len(table.rows) - 1)
         for i in range(n_rows):
             for j, col in enumerate(df_table.columns):
@@ -1515,133 +1512,16 @@ def step17_export_to_ppt():
                     for run in paragraph.runs:
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
-                        # Investment Manager column white font
-                        if j == 0:
+                        if j == 0:  # Investment Manager column white font
                             run.font.color.rgb = RGBColor(255, 255, 255)
                         else:
                             run.font.color.rgb = RGBColor(0, 0, 0)
-                        run.font.bold = False
+                        # Bold row if specified
+                        run.font.bold = (bold_row_idx is not None and i == bold_row_idx)
 
-    def fill_slide2_table1(prs, df_table1):
-        slide2 = prs.slides[1]
-        for shape in slide2.shapes:
-            if shape.has_table:
-                table = shape.table
-                if get_table_header(table) == tuple(df_table1.columns):
-                    fill_table_with_investment_manager_white(table, df_table1)
-                    return True
-        return False
-
-    def fill_slide2_table2(prs, df_table2, quarter_label):
-        slide2 = prs.slides[1]
-
-        def is_match(table):
-            headers = [cell.text.strip() for cell in table.rows[0].cells]
-            if len(headers) != len(df_table2.columns):
-                return False
-            if headers[0] != df_table2.columns[0]:
-                return False
-            for i in range(2, len(headers)):
-                if headers[i] != df_table2.columns[i]:
-                    return False
-            return True
-
-        for shape in slide2.shapes:
-            if shape.has_table:
-                table = shape.table
-                if is_match(table):
-                    # Replace 2nd header cell with quarter_label
-                    table.cell(0, 1).text = quarter_label
-
-                    # Header formatting
-                    for j in range(len(df_table2.columns)):
-                        cell = table.cell(0, j)
-                        for paragraph in cell.text_frame.paragraphs:
-                            paragraph.alignment = PP_ALIGN.CENTER
-                            for run in paragraph.runs:
-                                run.font.name = "Cambria"
-                                run.font.size = Pt(11)
-                                run.font.color.rgb = RGBColor(255, 255, 255)
-                                run.font.bold = True
-
-                    n_rows = min(len(df_table2), len(table.rows) - 1)
-                    for i in range(n_rows):
-                        for j, col in enumerate(df_table2.columns):
-                            val = df_table2.iloc[i, j]
-                            cell = table.cell(i + 1, j)
-                            text_val = str(val) if val is not None else ""
-                            cell.text = text_val
-
-                            cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
-                            for paragraph in cell.text_frame.paragraphs:
-                                paragraph.alignment = PP_ALIGN.CENTER
-                                for run in paragraph.runs:
-                                    run.font.name = "Cambria"
-                                    run.font.size = Pt(11)
-                                    if j == 0:
-                                        run.font.color.rgb = RGBColor(255, 255, 255)
-                                    else:
-                                        run.font.color.rgb = RGBColor(0, 0, 0)
-
-                                    # Benchmark row bold (second row)
-                                    run.font.bold = True if i == 1 else False
-                    return True
-        return False
-
-    def fill_slide2_table3(prs, df_table3):
-        slide2 = prs.slides[1]
-
-        def is_match(table):
-            headers = [cell.text.strip() for cell in table.rows[0].cells]
-            # First header must be exact match
-            if headers[0] != df_table3.columns[0]:
-                return False
-            # Other headers must match pattern "20__"
-            for h in headers[1:]:
-                if not (h.startswith("20") and (len(h) == 4 or h[2:] == "__")):
-                    return False
-            return True
-
-        for shape in slide2.shapes:
-            if shape.has_table:
-                table = shape.table
-                if is_match(table):
-                    # Set headers with years, white bold font
-                    for j, col in enumerate(df_table3.columns):
-                        cell = table.cell(0, j)
-                        cell.text = str(col)
-                        for paragraph in cell.text_frame.paragraphs:
-                            paragraph.alignment = PP_ALIGN.CENTER
-                            for run in paragraph.runs:
-                                run.font.name = "Cambria"
-                                run.font.size = Pt(11)
-                                run.font.color.rgb = RGBColor(255, 255, 255)
-                                run.font.bold = True
-
-                    n_rows = min(len(df_table3), len(table.rows) - 1)
-                    for i in range(n_rows):
-                        for j, col in enumerate(df_table3.columns):
-                            val = df_table3.iloc[i, j]
-                            cell = table.cell(i + 1, j)
-                            cell.text = str(val) if val is not None else ""
-                            cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
-                            for paragraph in cell.text_frame.paragraphs:
-                                paragraph.alignment = PP_ALIGN.CENTER
-                                for run in paragraph.runs:
-                                    run.font.name = "Cambria"
-                                    run.font.size = Pt(11)
-                                    if j == 0:
-                                        run.font.color.rgb = RGBColor(255, 255, 255)
-                                    else:
-                                        run.font.color.rgb = RGBColor(0, 0, 0)
-                                    run.font.bold = True if i == 1 else False
-                    return True
-        return False
-
-    # Fill Slide 1
+    # --- Slide 1 ---
     slide1 = prs.slides[0]
-    fund_name_filled = fill_text_placeholder_preserving_format(slide1, "[Fund Name]", selected)
-    if not fund_name_filled:
+    if not fill_text_placeholder_preserving_format(slide1, "[Fund Name]", selected):
         st.warning("Could not find the [Fund Name] placeholder on Slide 1.")
 
     table_filled = False
@@ -1656,23 +1536,28 @@ def step17_export_to_ppt():
         st.error("Could not find matching table on Slide 1 to fill.")
 
     bullets = st.session_state.get("bullet_points", None)
-    bullets_filled = fill_bullet_points(slide1, "[Bullet Point 1]", bullets)
-    if not bullets_filled:
+    if not fill_bullet_points(slide1, "[Bullet Point 1]", bullets):
         st.warning("Could not find bullet points placeholder on Slide 1.")
 
-    # Fill Slide 2 Category
+    # --- Slide 2 ---
     slide2 = prs.slides[1]
     category = fs_rec.get("Category", "N/A")
-    category_filled = fill_text_placeholder_preserving_format(slide2, "[Category]", category)
-    if not category_filled:
+    if not fill_text_placeholder_preserving_format(slide2, "[Category]", category):
         st.warning("Could not find [Category] placeholder on Slide 2.")
 
-    # Fill Slide 2 Tables 1, 2, 3
     df_slide2_table1 = st.session_state.get("slide2_table1_data")
     if df_slide2_table1 is None:
         st.warning("Slide 2 Table 1 data not found in session state.")
     else:
-        if not fill_slide2_table1(prs, df_slide2_table1):
+        table1_filled = False
+        for shape in slide2.shapes:
+            if shape.has_table:
+                table = shape.table
+                if get_table_header(table) == tuple(df_slide2_table1.columns):
+                    fill_table_with_investment_manager_white(table, df_slide2_table1)
+                    table1_filled = True
+                    break
+        if not table1_filled:
             st.warning("Could not find matching table for Slide 2 Table 1 to fill.")
 
     df_slide2_table2 = st.session_state.get("slide2_table2_data")
@@ -1681,17 +1566,82 @@ def step17_export_to_ppt():
     if df_slide2_table2 is None:
         st.warning("Slide 2 Table 2 data not found in session state.")
     else:
-        if not fill_slide2_table2(prs, df_slide2_table2, quarter_label):
+        table2_filled = False
+        for shape in slide2.shapes:
+            if shape.has_table:
+                table = shape.table
+                headers = [cell.text.strip() for cell in table.rows[0].cells]
+                # Replace 2nd header cell with quarter_label if it matches expected header position
+                if len(headers) == len(df_slide2_table2.columns):
+                    table.cell(0, 1).text = quarter_label
+                    for j in range(len(headers)):
+                        cell = table.cell(0, j)
+                        for paragraph in cell.text_frame.paragraphs:
+                            paragraph.alignment = PP_ALIGN.CENTER
+                            for run in paragraph.runs:
+                                run.font.name = "Cambria"
+                                run.font.size = Pt(11)
+                                run.font.color.rgb = RGBColor(255, 255, 255)
+                                run.font.bold = True
+                    fill_table_with_investment_manager_white(table, df_slide2_table2, bold_row_idx=1)
+                    table2_filled = True
+                    break
+        if not table2_filled:
             st.warning("Could not find matching table for Slide 2 Table 2 to fill.")
 
     df_slide2_table3 = st.session_state.get("slide2_table3_data")
     if df_slide2_table3 is None:
         st.warning("Slide 2 Table 3 data not found in session state.")
     else:
-        if not fill_slide2_table3(prs, df_slide2_table3):
+        table3_filled = False
+        for shape in slide2.shapes:
+            if shape.has_table:
+                table = shape.table
+                headers = [cell.text.strip() for cell in table.rows[0].cells]
+                if len(headers) == len(df_slide2_table3.columns) and headers[0] == df_slide2_table3.columns[0]:
+                    # Replace headers for years (dynamic)
+                    for j, col in enumerate(df_slide2_table3.columns):
+                        cell = table.cell(0, j)
+                        cell.text = str(col)
+                        for paragraph in cell.text_frame.paragraphs:
+                            paragraph.alignment = PP_ALIGN.CENTER
+                            for run in paragraph.runs:
+                                run.font.name = "Cambria"
+                                run.font.size = Pt(11)
+                                run.font.color.rgb = RGBColor(255, 255, 255)
+                                run.font.bold = True
+                    fill_table_with_investment_manager_white(table, df_slide2_table3, bold_row_idx=1)
+                    table3_filled = True
+                    break
+        if not table3_filled:
             st.warning("Could not find matching table for Slide 2 Table 3 to fill.")
 
-    # Save & download
+    # --- Slide 3 ---
+    slide3 = prs.slides[2]
+    if not fill_text_placeholder_preserving_format(slide3, "[Category]", category):
+        st.warning("Could not find [Category] placeholder on Slide 3.")
+
+    df_slide3_table1 = st.session_state.get("slide3_table1_data")
+    df_slide3_table2 = st.session_state.get("slide3_table2_data")
+    if df_slide3_table1 is None or df_slide3_table2 is None:
+        st.warning("Slide 3 table data not found in session state.")
+    else:
+        tables = [shape.table for shape in slide3.shapes if shape.has_table]
+        if len(tables) < 2:
+            st.warning("Expected two tables on Slide 3, found fewer.")
+        else:
+            table1 = tables[0]
+            table2 = tables[1]
+            if tuple(cell.text.strip() for cell in table1.rows[0].cells) == tuple(df_slide3_table1.columns):
+                fill_table_with_investment_manager_white(table1, df_slide3_table1)
+            else:
+                st.warning("Slide 3 Table 1 headers do not match.")
+            if tuple(cell.text.strip() for cell in table2.rows[0].cells) == tuple(df_slide3_table2.columns):
+                fill_table_with_investment_manager_white(table2, df_slide3_table2)
+            else:
+                st.warning("Slide 3 Table 2 headers do not match.")
+
+    # --- Save and download ---
     output = BytesIO()
     prs.save(output)
     st.success("Writeup PowerPoint generated successfully!")
@@ -1701,6 +1651,10 @@ def step17_export_to_ppt():
         file_name=f"{selected} Writeup.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
+
+def get_table_header(table):
+    return tuple(cell.text.strip() for cell in table.rows[0].cells)
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
