@@ -3,36 +3,52 @@ import pdfplumber
 import re
 import pandas as pd
 
-# ----- Hide Streamlit default menu, footer -----
+# ----- Hide Streamlit branding, menu, footer -----
 st.markdown("""
     <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    .block-container {padding-top: 2rem; padding-bottom: 2rem;}
+    #MainMenu, header, footer {visibility: hidden;}
+    .block-container {padding-top: 2.2rem; padding-bottom: 2rem; max-width: 980px;}
     .app-card {
-        background: #f8f9fa;
-        border-radius: 1.5rem;
-        box-shadow: 0 2px 16px rgba(60,60,60,0.06);
-        padding: 2rem 2.5rem 2rem 2.5rem;
+        background: #f5f7fa;
+        border-radius: 1.2rem;
+        box-shadow: 0 2px 14px rgba(90,110,160,0.07);
+        padding: 2.1rem 2.5rem 2.1rem 2.5rem;
         margin-bottom: 2rem;
     }
-    .big-title {
-        font-size: 2.2rem !important;
+    .main-title {
+        font-size: 2.1rem !important;
         font-weight: 700;
-        letter-spacing: -0.03em;
-        margin-bottom: 0.3em;
+        letter-spacing: -0.02em;
+        color: #1c2336;
+        margin-bottom: 0.2em;
     }
     .subtle {
         color: #4B5563;
-        font-size: 1.08rem;
-        margin-bottom: 1.8em;
+        font-size: 1.07rem;
+        margin-bottom: 2em;
     }
     .label-clean {
-        font-weight: 600;
-        color: #374151;
-        font-size: 1.08em;
-        margin-top: 0.7em;
+        font-weight: 500;
+        color: #435070;
+        font-size: 1.05em;
+        margin-top: 0.6em;
+    }
+    .css-1kyxreq {padding-bottom: 0px !important;} /* tighter table */
+    .stDataFrame th, .stDataFrame td {padding: 0.32em 0.62em !important;}
+    .stButton>button {
+        border-radius: 6px !important;
+        border: 1px solid #bbb !important;
+        color: #1C2336 !important;
+        font-size: 1.02rem !important;
+        background: #F2F4F8 !important;
+        padding: 0.44em 1.5em !important;
+        margin-top: 0.6em;
+        margin-bottom: 0.1em;
+    }
+    .stDataFrame {background: white;}
+    .card-divider {
+        border-bottom: 1px solid #E3E8EF;
+        margin: 1.2rem 0 1.3rem 0;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -44,7 +60,6 @@ def extract_scorecard_blocks(pdf, scorecard_page):
         txt = p.extract_text() or ""
         pages.append(txt)
     lines = "\n".join(pages).splitlines()
-
     metric_labels = [
         "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
         "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Expense Ratio Rank",
@@ -52,7 +67,6 @@ def extract_scorecard_blocks(pdf, scorecard_page):
         "R-Squared (5Yr)", "Sortino Ratio Rank (3Yr)", "Sortino Ratio Rank (5Yr)",
         "Tracking Error Rank (3Yr)", "Tracking Error Rank (5Yr)"
     ]
-
     fund_blocks = []
     fund_name = None
     metrics = []
@@ -105,18 +119,18 @@ def scorecard_to_ips(fund_blocks, fund_types):
             else:
                 ips_status.append("Pass")
         review_fail = sum(1 for status in ips_status if status in ["Review","Fail"])
-        # --- Add icons to Watch Status ---
+        # Clean watch status, no emojis
         if review_fail >= 6:
-            watch_status = "❌ Formal Watch"
+            watch_status = "Formal Watch"
         elif review_fail >= 5:
-            watch_status = "⚠️ Informal Watch"
+            watch_status = "Informal Watch"
         else:
-            watch_status = "✅ No Watch"
+            watch_status = "Pass"
         def iconify(status):
             if status == "Pass":
-                return "✅"
+                return "✔"
             elif status in ("Review", "Fail"):
-                return "❌"
+                return "✗"
             return ""
         row = {
             "Fund Name": fund_name,
@@ -138,16 +152,14 @@ def scorecard_to_ips(fund_blocks, fund_types):
 # --- App Body ---
 def main():
     st.markdown('<div class="app-card">', unsafe_allow_html=True)
-    st.markdown('<div class="big-title">Fidsync Fund IPS Screener</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-title">Fidsync IPS Screening</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="subtle">Upload your MPI PDF and screen funds for Investment Policy compliance in one click. '
-        'You can set fund type (Active/Passive) directly in the table. Export your IPS results instantly.<br><br>'
-        '<span style="color:#00B386;font-weight:600">✅ Pass</span> &nbsp;&nbsp;'
-        '<span style="color:#F59E42;font-weight:600">⚠️ Informal Watch</span> &nbsp;&nbsp;'
-        '<span style="color:#E1463A;font-weight:600">❌ Fail/Formal Watch</span></div>', 
-        unsafe_allow_html=True
+        '<div class="subtle">'
+        'Upload your MPI PDF to screen funds against IPS criteria. '
+        'Edit "Fund Type" for each fund directly in the table before export.<br>'
+        '✔ = Pass &nbsp;&nbsp;|&nbsp;&nbsp;✗ = Review/Fail'
+        '</div>', unsafe_allow_html=True
     )
-
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf", label_visibility="visible")
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -167,7 +179,6 @@ def main():
             st.error("Could not extract fund scorecard blocks. Check the PDF and page number.")
             st.stop()
 
-        # --- Prepare initial Fund Type mapping DataFrame for st.data_editor
         fund_type_defaults = [
             "Passive" if "index" in fund["Fund Name"].lower() else "Active"
             for fund in fund_blocks
@@ -177,7 +188,7 @@ def main():
             "Fund Type": fund_type_defaults
         })
 
-        st.markdown('<div class="app-card" style="padding:1.5rem 1.5rem 0.8rem 1.5rem; margin-bottom:1.2rem;">', unsafe_allow_html=True)
+        st.markdown('<div class="app-card" style="padding:1.4rem 1.6rem 0.8rem 1.6rem; margin-bottom:1.2rem;">', unsafe_allow_html=True)
         st.markdown('<b>Edit Fund Type for Screening:</b>', unsafe_allow_html=True)
         edited_types = st.data_editor(
             df_types,
@@ -194,39 +205,37 @@ def main():
         )
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- Build Fund Type mapping for logic
         fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
 
         df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types)
 
-        st.markdown('<div class="app-card" style="padding:1.5rem 1.5rem 1.3rem 1.5rem; margin-bottom:0.5rem;">', unsafe_allow_html=True)
-        st.subheader("IPS Investment Criteria Results", divider="rainbow")
+        st.markdown('<div class="app-card" style="padding:1.3rem 1.5rem 1.2rem 1.5rem; margin-bottom:0.5rem;">', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:1.15rem;font-weight:600;margin-bottom:0.35em;">IPS Investment Criteria Results</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-divider"></div>', unsafe_allow_html=True)
         st.dataframe(
             df_icon,
             use_container_width=True,
             hide_index=True
-            # <-- No height argument!
         )
-
         st.download_button(
-            "⬇️ Download IPS Screening Table as CSV",
+            "Download IPS Screening Table (CSV)",
             data=df_raw.to_csv(index=False),
             file_name="ips_screening_table.csv",
             mime="text/csv",
-            help="Download the full screening table with Pass/Review/Fail text for compliance records."
+            help="Download the IPS compliance table for records."
         )
         st.markdown('</div>', unsafe_allow_html=True)
 
-
         st.markdown(
-            '<div style="text-align:center; color:#A3A3A3; margin-top:1em; font-size:0.96em;">'
-            'Questions or feedback? Contact your administrator or <a href="mailto:support@fidsync.com" style="color:#F59E42;">Fidsync</a>.'
+            '<div style="text-align:center; color:#9CA3AF; margin-top:2em; font-size:0.96em;">'
+            'For technical support, contact your administrator or Fidsync.<br>'
             '</div>',
             unsafe_allow_html=True
         )
 
 if __name__ == "__main__":
     main()
+
 
 
 def run():
