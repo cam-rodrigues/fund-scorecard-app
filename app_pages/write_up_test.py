@@ -1099,15 +1099,15 @@ def step15_display_selected_fund():
             color: #244369;
             border-radius: 1.2rem;
             box-shadow: 0 2px 12px rgba(44,85,130,0.09), 0 1px 4px rgba(36,67,105,0.07);
-            padding: 0.6rem 0.9rem;
-            min-width: 150px;
-            max-width: 210px;
-            margin: 0.3rem 1rem 0.3rem 0;
+            padding: 1.2rem 2.2rem 1.2rem 2.2rem;
+            min-width: 330px;
+            max-width: 400px;
+            margin: 0.3rem 1.5rem 0.3rem 0;
             border: 1.2px solid #b5d0eb;
-            font-size: 0.97rem;
+            font-size: 1.05rem;
             display: inline-block;
             vertical-align: top;'>
-            <div style='font-weight:700; color:#1856b8; margin-bottom:0.5rem; font-size:1.09rem;'>Factsheet Info</div>
+            <div style='font-weight:700; color:#1856b8; margin-bottom:0.7rem; font-size:1.15rem;'>Factsheet Info</div>
             <div><b>Category:</b> {factsheet_rec.get("Category", "—")}</div>
             <div><b>Benchmark:</b> {factsheet_rec.get("Benchmark", "—")}</div>
             <div><b>Net Assets:</b> {factsheet_rec.get("Net Assets", "—")}</div>
@@ -1115,7 +1115,7 @@ def step15_display_selected_fund():
             <div><b>Average Market Cap:</b> {factsheet_rec.get("Avg. Market Cap", "—")}</div>
             <div><b>Expense Ratio:</b> {factsheet_rec.get("Expense Ratio", "—")}</div>
         </div>"""
-        if factsheet_rec else "<div style='display:inline-block; min-width:140px; color:#666;'>No factsheet info found.</div>"
+        if factsheet_rec else "<div style='display:inline-block; min-width:330px; color:#666;'>No factsheet info found.</div>"
     )
     
     right_box = (
@@ -1124,23 +1124,24 @@ def step15_display_selected_fund():
             color: #244369;
             border-radius: 1.2rem;
             box-shadow: 0 2px 12px rgba(44,85,130,0.09), 0 1px 4px rgba(36,67,105,0.07);
-            padding: 0.6rem 0.9rem;
-            min-width: 150px;
-            max-width: 210px;
+            padding: 1.2rem 2.2rem 1.2rem 2.2rem;
+            min-width: 330px;
+            max-width: 400px;
             margin: 0.3rem 0 0.3rem 0;
             border: 1.2px solid #b5d0eb;
-            font-size: 0.97rem;
+            font-size: 1.05rem;
             display: inline-block;
             vertical-align: top;'>
-            <div style='font-weight:700; color:#1856b8; margin-bottom:0.5rem; font-size:1.09rem;'>Fund Facts</div>
+            <div style='font-weight:700; color:#1856b8; margin-bottom:0.7rem; font-size:1.15rem;'>Fund Facts</div>
             <div><b>Manager Tenure:</b> {facts_rec.get("Manager Tenure Yrs.", "—")}</div>
             <div><b>Expense Ratio:</b> {facts_rec.get("Expense Ratio", "—")}</div>
             <div><b>Expense Ratio Rank:</b> {facts_rec.get("Expense Ratio Rank", "—")}</div>
             <div><b>Total Number of Holdings:</b> {facts_rec.get("Total Number of Holdings", "—")}</div>
             <div><b>Turnover Ratio:</b> {facts_rec.get("Turnover Ratio", "—")}</div>
         </div>"""
-        if facts_rec else "<div style='display:inline-block; min-width:140px; color:#666;'>No Fund Facts available.</div>"
+        if facts_rec else "<div style='display:inline-block; min-width:330px; color:#666;'>No Fund Facts available.</div>"
     )
+
 
     
     st.markdown(
