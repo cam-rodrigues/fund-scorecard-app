@@ -203,7 +203,7 @@ def main():
             column_config={
                 "Fund Type": st.column_config.SelectboxColumn("Fund Type", options=["Active", "Passive"]),
             },
-            disabled=["Fund Name", "Ticker", "Fund Type (Default)", "Fund Type Guess"],
+            disabled=["Fund Name", "Ticker", "Fund Type Guess"],
             hide_index=True,
             key="data_editor_fundtype",
             use_container_width=True,
