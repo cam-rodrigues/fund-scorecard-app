@@ -133,8 +133,8 @@ def watch_status_color(val):
     return ""
 
 def main():
-    st.markdown('<div class="app-card">', unsafe_allow_html=True)
-    st.markdown('<div class="big-title">Fidsync Fund IPS Screener</div>', unsafe_allow_html=True)
+    st.set_page_config(page_title="IPS Screening")
+    st.title("IPS Screening")
     st.markdown(
         '<div class="watch-key">'
         '<span style="background:#d6f5df; color:#217a3e; padding:0.07em 0.55em; border-radius:2px;">NW</span> '
