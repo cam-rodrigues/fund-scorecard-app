@@ -165,37 +165,44 @@ def main():
             st.error("Could not extract fund scorecard blocks. Check the PDF and page number.")
             st.stop()
         tickers = extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page)
-        fund_type_defaults = ["Passive" if "index" in n.lower() else "Active" for n in fund_names]
 
-        # --- FUND TYPE GUESS ADDED ---
+        # --- Fund Type Guess logic (Yahoo guess: always Passive if index detected, else Active) ---
         fund_type_guesses = []
         for name in fund_names:
             guess = ""
             if tickers.get(name):
                 guess = infer_fund_type_guess(tickers[name])
-            # If it's not Passive, call it Active
             if guess == "Passive":
                 fund_type_guesses.append("Passive")
             else:
                 fund_type_guesses.append("Active")
 
-        df_types = pd.DataFrame({
-            "Fund Name": fund_names,
-            "Ticker": [tickers[name] for name in fund_names],
-            "Fund Type (Default)": fund_type_defaults,
-            "Fund Type Guess": fund_type_guesses,
-            "Fund Type": fund_type_defaults,
-        })
+        # --- Default logic (index in name → Passive, else Active) ---
+        fund_type_defaults = ["Passive" if "index" in n.lower() else "Active" for n in fund_names]
 
         st.markdown('<div class="app-card" style="padding:1.1rem 1.1rem 0.6rem 1.1rem; margin-bottom:1rem;">', unsafe_allow_html=True)
-
-        # --- EXPLANATION ---
         st.markdown(
             "<div style='font-size:0.96em; color:#374151; margin-bottom:0.25em;'>"
-            "<b>Fund Type Guess:</b> This column is based on Yahoo Finance data. If the fund name or description mentions 'index' or tracking an index, it's classified as Passive. Otherwise, it's marked Active. This guess is for convenience only—always confirm with the official fund documentation."
+            "<b>Fund Type Guess:</b> This column is based on Yahoo Finance data. If the fund name or description mentions 'index' or tracking an index, it's classified as Passive. Otherwise, it's marked Active. This guess is for convenience only—always confirm with the official fund documentation. The editable Fund Type column below lets you override or accept this guess."
             "</div>",
             unsafe_allow_html=True
         )
+
+        # --- Checkbox for logic choice ---
+        use_guess = st.checkbox(
+            "Prefill Fund Type with Yahoo Finance guess instead of default (index = Passive, else Active)",
+            value=True
+        )
+
+        # --- Decide which to use for editable Fund Type column ---
+        prefill_fund_type = fund_type_guesses if use_guess else fund_type_defaults
+
+        df_types = pd.DataFrame({
+            "Fund Name": fund_names,
+            "Ticker": [tickers[name] for name in fund_names],
+            "Fund Type Guess": fund_type_guesses,      # read-only
+            "Fund Type": prefill_fund_type,            # editable
+        })
 
         st.markdown('<b>Edit Fund Type for Screening:</b>', unsafe_allow_html=True)
         edited_types = st.data_editor(
@@ -203,7 +210,7 @@ def main():
             column_config={
                 "Fund Type": st.column_config.SelectboxColumn("Fund Type", options=["Active", "Passive"]),
             },
-            disabled=["Fund Name", "Ticker", "Fund Type Guess"],
+            disabled=["Fund Name", "Ticker", "Fund Type Guess"],  # Only Fund Type is editable!
             hide_index=True,
             key="data_editor_fundtype",
             use_container_width=True,
