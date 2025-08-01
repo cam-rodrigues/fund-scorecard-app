@@ -1126,6 +1126,10 @@ def step15_display_selected_fund():
         "10 Year":            ten
     }
     df_slide2_2 = pd.DataFrame([row])
+
+    # Save for Step 17 to use
+    st.session_state["slide2_table2_data"] = df_slide2_2
+
     st.dataframe(df_slide2_2, use_container_width=True)
 
     # --- Slide 2 Table 3 ---
@@ -1155,6 +1159,10 @@ def step15_display_selected_fund():
         row_benchmark[year] = bench_rec.get(year, "")
     rows.append(row_benchmark)
     df_slide2_3 = pd.DataFrame(rows, columns=["Investment Manager"] + year_cols)
+
+    # Save for Step 17 to use
+    st.session_state["slide2_table3_data"] = df_slide2_3
+    
     st.dataframe(df_slide2_3, use_container_width=True)
 
     # --- Slide 3 Table 1 ---
@@ -1177,6 +1185,10 @@ def step15_display_selected_fund():
         "5 Year Downside Capture":   stats5.get("5 Year Downside Capture", "")
     }
     df_slide3_1 = pd.DataFrame([row])
+
+    # Save for Step 17 to use
+    st.session_state["slide3_table1_data"] = df_slide3_1
+    
     st.dataframe(df_slide3_1, use_container_width=True)
 
     # --- Slide 3 Table 2 ---
@@ -1201,6 +1213,10 @@ def step15_display_selected_fund():
         "5 Year Information Ratio / Peer Ranking %": frac("Information Ratio", "5Yr"),
     }
     df_slide3_2 = pd.DataFrame([row])
+        
+    # Save for Step 17 to use
+    st.session_state["slide3_table2_data"] = df_slide3_2
+    
     st.dataframe(df_slide3_2, use_container_width=True)
 
     # --- Slide 4 Table 1 ---
@@ -1218,7 +1234,9 @@ def step15_display_selected_fund():
         "Manager Tenure":     tenure
     }])
     st.dataframe(df_slide4, use_container_width=True)
-
+    # Save for Step 17 to use
+    st.session_state["slide4_table1_data"] = df_slide4_1
+    
     # --- Slide 4 Table 2 ---
     st.markdown("**Slide 4 Table 2**")
     facts = st.session_state.get("fund_factsheets_data", [])
@@ -1234,6 +1252,8 @@ def step15_display_selected_fund():
         "Average Market Capitalization":  avg_cap
     }])
     st.dataframe(df_slide4_2, use_container_width=True)
+        # Save for Step 17 to use
+    st.session_state["slide4_table2_data"] = df_slide4_2
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -1309,6 +1329,8 @@ def step16_bullet_points():
     # Bullet 3: Action for Formal Watch only
     if ips_status == "FW":
         st.markdown("- **Action:** Consider replacing this fund.")
+
+#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 def step17_export_to_ppt():
     import streamlit as st
