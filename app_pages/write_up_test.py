@@ -1443,7 +1443,12 @@ def step17_export_to_ppt():
 
     # Fill bullet points placeholder with a list of bullet strings
     def fill_bullet_points(slide, placeholder="[Bullet Point 1]", bullets=None):
+        import streamlit as st
+        # If bullets not explicitly passed, try to get from Step 16 session state
         if bullets is None:
+            bullets = st.session_state.get("bullet_points", None)
+        # Fallback default bullets if none found
+        if not bullets:
             bullets = ["Performance exceeded benchmark.", "No watch status.", "No action required."]
         for shape in slide.shapes:
             if not shape.has_text_frame:
