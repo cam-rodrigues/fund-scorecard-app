@@ -404,9 +404,10 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     st.session_state["tickers"] = tickers  # Keep ticker mapping for legacy steps
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-# === Step 6: Fund Factsheets ===
-def step6_process_factsheets(pdf, fund_names):
-    st.subheader("Step 6: Fund Factsheets Section")
+#Step 6
+def step6_process_factsheets(pdf, fund_names, suppress_output=True):
+    # If you ever want UI, set suppress_output=False when calling
+
     factsheet_start = st.session_state.get("factsheets_page")
     total_declared = st.session_state.get("total_options")
     performance_data = [
@@ -415,11 +416,11 @@ def step6_process_factsheets(pdf, fund_names):
     ]
 
     if not factsheet_start:
-        st.error("❌ 'Fund Factsheets' page number not found in TOC.")
+        if not suppress_output:
+            st.error("❌ 'Fund Factsheets' page number not found in TOC.")
         return
 
     matched_factsheets = []
-    # Iterate pages from factsheet_start to end
     for i in range(factsheet_start - 1, len(pdf.pages)):
         page = pdf.pages[i]
         words = page.extract_words(use_text_flow=True)
@@ -477,15 +478,16 @@ def step6_process_factsheets(pdf, fund_names):
     df_facts = pd.DataFrame(matched_factsheets)
     st.session_state['fund_factsheets_data'] = matched_factsheets
 
-    display_df = df_facts[[
-        "Matched Fund Name", "Matched Ticker", "Benchmark", "Category",
-        "Net Assets", "Manager Name", "Avg. Market Cap", "Expense Ratio", "Matched"
-    ]].rename(columns={"Matched Fund Name": "Fund Name", "Matched Ticker": "Ticker"})
+    # Hide UI output unless suppress_output is False
+    if not suppress_output:
+        display_df = df_facts[[
+            "Matched Fund Name", "Matched Ticker", "Benchmark", "Category",
+            "Net Assets", "Manager Name", "Avg. Market Cap", "Expense Ratio", "Matched"
+        ]].rename(columns={"Matched Fund Name": "Fund Name", "Matched Ticker": "Ticker"})
 
-    st.dataframe(display_df, use_container_width=True)
+        st.dataframe(display_df, use_container_width=True)
 
-    matched_count = sum(1 for r in matched_factsheets if r["Matched"] == "✅")
-    if not st.session_state.get("suppress_matching_confirmation", False):
+        matched_count = sum(1 for r in matched_factsheets if r["Matched"] == "✅")
         st.write(f"Matched {matched_count} of {len(matched_factsheets)} factsheet pages.")
         if matched_count == total_declared:
             st.success(f"All {matched_count} funds matched the declared Total Options from Page 1.")
