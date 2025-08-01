@@ -1321,14 +1321,14 @@ def step17_export_to_ppt():
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
 
-    template_path = "assets/writeup_templates.pptx"
+    template_path = "assets/writeup_template.pptx"
     try:
         prs = Presentation(template_path)
     except Exception as e:
         st.error(f"Could not load PowerPoint template: {e}")
         return
 
-    # === Table (same as before) ===
+    # === Fill Table (unchanged) ===
     ips_icon_table = st.session_state.get("ips_icon_table")
     row = None
     if ips_icon_table is not None and not ips_icon_table.empty:
@@ -1370,7 +1370,7 @@ def step17_export_to_ppt():
 
     slide1 = prs.slides[0]
 
-    # --- Fill the table ---
+    # --- Fill the table (unchanged) ---
     table_filled = False
     for shape in slide1.shapes:
         if shape.has_table:
@@ -1385,7 +1385,7 @@ def step17_export_to_ppt():
         st.error("❌ Could not find a table on Slide 1 with matching headers. Please check your template.")
         return
 
-    # --- Fill the [Fund Name] text box (as before) ---
+    # --- Fill the [Fund Name] text box (unchanged) ---
     textbox_filled = False
     for shape in slide1.shapes:
         if shape.has_text_frame:
@@ -1402,50 +1402,49 @@ def step17_export_to_ppt():
     if not textbox_filled:
         st.warning("Could not find the [Fund Name] textbox to fill. Please check your template.")
 
-    # --- Fill bullet points in the 2nd text box only ---
+    # --- Robust: Fill bullet points into placeholder with [Bullet Point 1] ---
     bullet_filled = False
-    # 1. Collect all text boxes with text_frame
-    text_boxes = [shape for shape in slide1.shapes if shape.has_text_frame]
-    # 2. Sort by their top coordinate (y position) to guarantee order (top to bottom)
-    text_boxes = sorted(text_boxes, key=lambda shape: shape.top)
-    # 3. Use the *second* text box (index 1) for bullet points
-    if len(text_boxes) >= 2:
-        bullet_box = text_boxes[1]
-        # Prepare bullet points (from session or fallback)
-        bullet_points = st.session_state.get("bullet_points", None)
-        if bullet_points is None:
-            bullet_points = [
-                "Performance exceeded the benchmark in the latest quarter.",
-                "Fund is not on watch.",
-                "No action required."
-            ]
-        # Clear all current paragraphs
-        bullet_box.text_frame.clear()
-        # Add bullet points, with template bullet color and font black
-        for point in bullet_points:
-            p = bullet_box.text_frame.add_paragraph()
-            p.text = point
-            p.level = 0
-            p.font.name = "Cambria"
-            p.font.size = Pt(11)
-            p.font.color.rgb = RGBColor(0, 0, 0)  # Text stays black
-            p.font.bold = False
-            p.font.underline = False
-            p.font.italic = False
-        bullet_filled = True
-    else:
-        st.warning("❌ Could not find a second text box for bullet points. Please check your template layout.")
+    bullet_points = st.session_state.get("bullet_points", None)
+    if bullet_points is None:
+        bullet_points = [
+            "Performance exceeded the benchmark in the latest quarter.",
+            "Fund is not on watch.",
+            "No action required."
+        ]
+    for shape in slide1.shapes:
+        if not shape.has_text_frame:
+            continue
+        ptext = "\n".join([p.text for p in shape.text_frame.paragraphs])
+        if "[Bullet Point 1]" in ptext:
+            # Clear all placeholder paragraphs
+            shape.text_frame.clear()
+            for point in bullet_points:
+                p = shape.text_frame.add_paragraph()
+                p.text = point
+                p.level = 0
+                p.font.name = "Cambria"
+                p.font.size = Pt(11)
+                p.font.color.rgb = RGBColor(0, 0, 0)  # Text black, bullet keeps template color
+                p.font.bold = False
+                p.font.underline = False
+                p.font.italic = False
+            bullet_filled = True
+            break
+
+    if not bullet_filled:
+        st.warning("Could not find a bullet point placeholder (with [Bullet Point 1]). Please check your template.")
 
     # Save and download
     output = BytesIO()
     prs.save(output)
-    st.success("Slide 1 table, Fund Name, and bullet points filled (bullets placed in second textbox)!")
+    st.success("Slide 1 table, Fund Name, and bullet points (in the correct placeholder) filled!")
     st.download_button(
         label="Download Writeup PowerPoint",
         data=output.getvalue(),
         file_name=f"{selected} Writeup.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
