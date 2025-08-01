@@ -97,7 +97,6 @@ def process_page1(text):
     report_date = extract_report_date(text)
     if report_date:
         st.session_state['report_date'] = report_date
-        st.success(f"Report Date: {report_date}")
     else:
         st.error("Could not detect report date on page 1.")
 
@@ -113,10 +112,21 @@ def process_page1(text):
         pb = "Procyon Partners, LLC"
     st.session_state['prepared_by'] = pb
 
-    st.subheader("Page 1 Metadata")
-    st.write(f"- Total Options: {st.session_state['total_options']}")
-    st.write(f"- Prepared For: {st.session_state['prepared_for']}")
-    st.write(f"- Prepared By: {pb}")
+    # Replace old display with this:
+    metadata_items = {
+        "Time Period": st.session_state.get("report_date", "N/A"),
+        "Total Options": st.session_state.get("total_options", "N/A"),
+        "Prepared For": st.session_state.get("prepared_for", "N/A"),
+        "Prepared By": pb or "N/A",
+    }
+
+    st.markdown(
+        "<div style='border: 1px solid #ddd; padding: 1em; border-radius: 0.5em; background-color: #f9f9f9;'>"
+        + "".join(f"<p><strong>{k}:</strong> {v}</p>" for k, v in metadata_items.items())
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+
 
 
 # === Step 2: Table of Contents Extraction ===
