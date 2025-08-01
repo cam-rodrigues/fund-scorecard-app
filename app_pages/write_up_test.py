@@ -1386,8 +1386,8 @@ def step17_export_to_ppt():
     def get_table_header(table):
         return tuple(cell.text.strip() for cell in table.rows[0].cells)
 
-    # Fill table with white font for 1st column and bold row for benchmarks
-    def fill_table_with_styles(table, df_table, bold_row_idx=None):
+    # Fill table with styles; add option to choose first col font color white or black
+    def fill_table_with_styles(table, df_table, bold_row_idx=None, first_col_white=True):
         n_rows = min(len(df_table), len(table.rows) - 1)
         n_cols = min(len(df_table.columns), len(table.columns))
         for i in range(n_rows):
@@ -1401,9 +1401,11 @@ def step17_export_to_ppt():
                     for run in para.runs:
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
-                        # White font in first col
-                        run.font.color.rgb = RGBColor(255, 255, 255) if j == 0 else RGBColor(0, 0, 0)
-                        # Bold benchmark row
+                        # Conditionally set font color for first column
+                        if j == 0:
+                            run.font.color.rgb = RGBColor(255, 255, 255) if first_col_white else RGBColor(0, 0, 0)
+                        else:
+                            run.font.color.rgb = RGBColor(0, 0, 0)
                         run.font.bold = (bold_row_idx is not None and i == bold_row_idx)
 
     # Replace placeholder text in slide, preserving formatting as best as possible
@@ -1495,7 +1497,8 @@ def step17_export_to_ppt():
             if shape.has_table:
                 table = shape.table
                 if len(table.columns) == len(df_slide1.columns):
-                    fill_table_with_styles(table, df_slide1)
+                    # Use first_col_white=False here to set first column font black for Slide 1 table
+                    fill_table_with_styles(table, df_slide1, first_col_white=False)
                     filled = True
                     break
         if not filled:
@@ -1521,7 +1524,7 @@ def step17_export_to_ppt():
             if shape.has_table:
                 table = shape.table
                 if len(table.columns) == len(df_slide2_table1.columns):
-                    fill_table_with_styles(table, df_slide2_table1)
+                    fill_table_with_styles(table, df_slide2_table1)  # default: first_col_white=True
                     filled = True
                     break
         if not filled:
@@ -1548,7 +1551,7 @@ def step17_export_to_ppt():
                                 run.font.size = Pt(11)
                                 run.font.color.rgb = RGBColor(255, 255, 255)
                                 run.font.bold = True
-                    fill_table_with_styles(table, df_slide2_table2, bold_row_idx=1)  # bold benchmark row
+                    fill_table_with_styles(table, df_slide2_table2, bold_row_idx=1)  # bold benchmark row, first_col_white=True
                     filled = True
                     break
         if not filled:
@@ -1562,7 +1565,6 @@ def step17_export_to_ppt():
         for shape in slide2.shapes:
             if shape.has_table:
                 table = shape.table
-                # Just match by number of columns and first header cell text
                 if len(table.columns) == len(df_slide2_table3.columns):
                     # Replace header cells with df column names & style font/color
                     for c, col in enumerate(df_slide2_table3.columns):
@@ -1575,7 +1577,7 @@ def step17_export_to_ppt():
                                 run.font.size = Pt(11)
                                 run.font.color.rgb = RGBColor(255, 255, 255)
                                 run.font.bold = True
-                    fill_table_with_styles(table, df_slide2_table3, bold_row_idx=1)  # bold benchmark row
+                    fill_table_with_styles(table, df_slide2_table3, bold_row_idx=1)  # bold benchmark row, first_col_white=True
                     filled = True
                     break
         if not filled:
@@ -1594,18 +1596,16 @@ def step17_export_to_ppt():
             st.warning("Expected two tables on Slide 3, found fewer.")
         else:
             if len(df_slide3_table1.columns) == len(tables[0].columns):
-                fill_table_with_styles(tables[0], df_slide3_table1)
+                fill_table_with_styles(tables[0], df_slide3_table1)  # first_col_white=True default
             else:
                 st.warning("Slide 3 Table 1 headers do not match.")
             if len(df_slide3_table2.columns) == len(tables[1].columns):
-                fill_table_with_styles(tables[1], df_slide3_table2)
+                fill_table_with_styles(tables[1], df_slide3_table2)  # first_col_white=True default
             else:
                 st.warning("Slide 3 Table 2 headers do not match.")
 
     # --- Fill Slide 4 ---
     slide4 = prs.slides[3]
-    # The heading on Slide 4 contains "[Category] - Qualitative Factors"
-    # Replace the placeholder with actual category plus suffix, preserving font & size & color
     qualitative_placeholder = f"[Category]– Qualitative Factors"
     qualitative_replacement = f"{category} - Qualitative Factors"
     if not fill_text_placeholder_preserving_format(slide4, qualitative_placeholder, qualitative_replacement):
@@ -1617,7 +1617,7 @@ def step17_export_to_ppt():
             if shape.has_table:
                 table = shape.table
                 if len(table.columns) == len(df_slide4_table1.columns):
-                    fill_table_with_styles(table, df_slide4_table1)
+                    fill_table_with_styles(table, df_slide4_table1)  # first_col_white=True default
                     filled = True
                     break
         if not filled:
@@ -1629,7 +1629,7 @@ def step17_export_to_ppt():
             if shape.has_table:
                 table = shape.table
                 if len(table.columns) == len(df_slide4_table2.columns):
-                    fill_table_with_styles(table, df_slide4_table2)
+                    fill_table_with_styles(table, df_slide4_table2)  # first_col_white=True default
                     filled = True
                     break
         if not filled:
@@ -1645,6 +1645,7 @@ def step17_export_to_ppt():
         file_name=f"{selected} Writeup.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Main App ===
