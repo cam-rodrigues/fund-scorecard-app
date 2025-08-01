@@ -8,28 +8,7 @@ from pptx import Presentation
 from pptx.util import Inches
 from io import BytesIO
 import yfinance as yf
-import yfinance as yf
 
-def infer_fund_type_guess(ticker):
-    """Infer 'Active' or 'Passive' based on Yahoo Finance info (name and summary)."""
-    try:
-        if not ticker:
-            return ""
-        info = yf.Ticker(ticker).info
-        name = (info.get("longName") or info.get("shortName") or "").lower()
-        summary = (info.get("longBusinessSummary") or "").lower()
-        # Passive if index-related, otherwise Active
-        if "index" in name or "index" in summary:
-            return "Passive"
-        if "track" in summary and "index" in summary:
-            return "Passive"
-        if "actively managed" in summary or "actively-managed" in summary:
-            return "Active"
-        if "outperform" in summary or "manager selects" in summary:
-            return "Active"
-        return ""
-    except Exception:
-        return ""
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Utility: Extract & Label Report Date ===
@@ -109,7 +88,11 @@ def process_toc(text):
     st.session_state['r5yr_page'] = r5yr_page
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-#Steps 3,4,5
+import streamlit as st
+import re
+import pdfplumber
+import pandas as pd
+import yfinance as yf
 
 def infer_fund_type_guess(ticker):
     """Infer 'Active' or 'Passive' based on Yahoo Finance info (name and summary)."""
@@ -119,7 +102,6 @@ def infer_fund_type_guess(ticker):
         info = yf.Ticker(ticker).info
         name = (info.get("longName") or info.get("shortName") or "").lower()
         summary = (info.get("longBusinessSummary") or "").lower()
-        # Passive if index-related, otherwise Active
         if "index" in name or "index" in summary:
             return "Passive"
         if "track" in summary and "index" in summary:
@@ -132,9 +114,7 @@ def infer_fund_type_guess(ticker):
     except Exception:
         return ""
 
-def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheets_page, declared_total):
-    # --- 1. Extract Fund Scorecard blocks (fund names, metrics) ---
-    # (You can merge/improve this with your own `step3_process_scorecard` logic)
+def extract_scorecard_blocks(pdf, scorecard_page):
     metric_labels = [
         "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
         "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Expense Ratio Rank",
@@ -160,10 +140,9 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
                     metrics.append({"Metric": metric_name, "Status": status, "Info": info.strip()})
     if fund_name and metrics:
         fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
+    return fund_blocks
 
-    st.session_state["fund_blocks"] = fund_blocks
-
-    # --- 2. Extract Tickers (your robust logic with fallback) ---
+def extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page=None):
     end_page = factsheets_page-1 if factsheets_page else len(pdf.pages)
     all_lines, perf_text = [], ""
     for p in pdf.pages[performance_page-1:end_page]:
@@ -178,7 +157,6 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
         raw_name, ticker = m.groups()
         norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
         mapping[norm] = ticker
-    fund_names = [b["Fund Name"] for b in fund_blocks]
     tickers = {}
     for name in fund_names:
         norm_expected = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
@@ -193,9 +171,67 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
             if tk not in seen:
                 seen.append(tk)
         tickers = {name: (seen[i] if i < len(seen) else "") for i, name in enumerate(fund_names)}
-    st.session_state["tickers"] = tickers
+    return {k: (v if v else "") for k, v in tickers.items()}
 
-    # --- 3. Yahoo Finance Fund Type Guess ---
+def scorecard_to_ips(fund_blocks, fund_types, tickers):
+    # Maps for converting scorecard to IPS criteria (from your logic)
+    metrics_order = [
+        "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
+        "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Expense Ratio Rank",
+        "Sharpe Ratio Rank (3Yr)", "Sharpe Ratio Rank (5Yr)", "R-Squared (3Yr)",
+        "R-Squared (5Yr)", "Sortino Ratio Rank (3Yr)", "Sortino Ratio Rank (5Yr)",
+        "Tracking Error Rank (3Yr)", "Tracking Error Rank (5Yr)",
+    ]
+    active_map  = [0,1,3,6,10,2,4,7,11,5,None]
+    passive_map = [0,8,3,6,12,9,4,7,13,5,None]
+    ips_labels = [f"IPS Investment Criteria {i+1}" for i in range(11)]
+    ips_results, raw_results = [], []
+    for fund in fund_blocks:
+        fund_name = fund["Fund Name"]
+        fund_type = fund_types.get(fund_name, "Passive" if "index" in fund_name.lower() else "Active")
+        metrics = fund["Metrics"]
+        scorecard_status = [next((m["Status"] for m in metrics if m["Metric"] == label), None) for label in metrics_order]
+        idx_map = passive_map if fund_type == "Passive" else active_map
+        ips_status = [scorecard_status[m_idx] if m_idx is not None else "Pass" for m_idx in idx_map]
+        review_fail = sum(1 for status in ips_status if status in ["Review","Fail"])
+        watch_status = "FW" if review_fail >= 6 else "IW" if review_fail >= 5 else "NW"
+        def iconify(status): return "✔" if status == "Pass" else "✗" if status in ("Review", "Fail") else ""
+        row = {
+            "Fund Name": fund_name,
+            "Ticker": tickers.get(fund_name, ""),
+            "Fund Type": fund_type,
+            **{ips_labels[i]: iconify(ips_status[i]) for i in range(11)},
+            "IPS Watch Status": watch_status,
+        }
+        ips_results.append(row)
+        raw_results.append({
+            "Fund Name": fund_name,
+            "Ticker": tickers.get(fund_name, ""),
+            "Fund Type": fund_type,
+            **{ips_labels[i]: ips_status[i] for i in range(11)},
+            "IPS Watch Status": watch_status,
+        })
+    return pd.DataFrame(ips_results), pd.DataFrame(raw_results)
+
+def watch_status_color(val):
+    if val == "FW":
+        return "background-color:#f8d7da; color:#c30000; font-weight:600;"
+    if val == "IW":
+        return "background-color:#fff3cd; color:#B87333; font-weight:600;"
+    if val == "NW":
+        return "background-color:#d6f5df; color:#217a3e; font-weight:600;"
+    return ""
+
+def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheets_page, total_options):
+    # 1. Extract scorecard blocks
+    fund_blocks = extract_scorecard_blocks(pdf, scorecard_page)
+    fund_names = [fund["Fund Name"] for fund in fund_blocks]
+    if not fund_blocks:
+        st.error("Could not extract fund scorecard blocks. Check the PDF and page number.")
+        return
+    # 2. Extract tickers
+    tickers = extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page)
+    # 3. Guess fund type using Yahoo (overridable)
     fund_type_guesses = []
     for name in fund_names:
         guess = ""
@@ -228,26 +264,37 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
         use_container_width=True,
     )
     fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
-    st.session_state["fund_type_map"] = fund_types
-
-    # --- 4. Show one clean Scorecard Table with Pass/Fail for metrics 1–14 ---
-    table_data = []
-    for block in fund_blocks:
-        row = {"Fund Name": block["Fund Name"]}
-        for m in block["Metrics"]:
-            row[m["Metric"]] = m["Status"]
-        table_data.append(row)
-    df_table = pd.DataFrame(table_data)
-    st.markdown("### Fund Scorecard: Metrics Pass/Review/Fail")
-    st.dataframe(df_table, use_container_width=True)
-
-    # --- 5. (OPTIONAL) Preview: Which are Active/Passive (per current choices)? ---
-    df_types_preview = pd.DataFrame({
-        "Fund Name": fund_names,
-        "Ticker": [tickers[name] for name in fund_names],
-        "Fund Type (Final)": [fund_types[name] for name in fund_names]
-    })
-    st.dataframe(df_types_preview, use_container_width=True)
+    # 4. Convert to IPS screening
+    df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
+    # 5. Show table (short labels)
+    if not df_icon.empty:
+        display_columns = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
+        display_df = df_icon.rename(columns=display_columns)
+        st.markdown(
+            '<div class="watch-key" style="margin-bottom: 1em;">'
+            '<span style="background:#d6f5df; color:#217a3e; padding:0.07em 0.55em; border-radius:2px;">NW</span> '
+            '(No Watch) &nbsp;'
+            '<span style="background:#fff3cd; color:#B87333; padding:0.07em 0.55em; border-radius:2px;">IW</span> '
+            '(Informal Watch) &nbsp;'
+            '<span style="background:#f8d7da; color:#c30000; padding:0.07em 0.55em; border-radius:2px;">FW</span> '
+            '(Formal Watch)</div>', unsafe_allow_html=True
+        )
+        styled = display_df.style.applymap(watch_status_color, subset=["IPS Watch Status"])
+        st.dataframe(styled, use_container_width=True, hide_index=True)
+        st.download_button(
+            "Download CSV",
+            data=df_raw.to_csv(index=False),
+            file_name="ips_screening_table.csv",
+            mime="text/csv",
+        )
+    else:
+        st.info("No IPS screening data available.")
+    # 6. Save to session state for downstream steps
+    st.session_state["fund_blocks"] = fund_blocks
+    st.session_state["fund_types"] = fund_types
+    st.session_state["fund_tickers"] = tickers
+    st.session_state["ips_icon_table"] = df_icon
+    st.session_state["ips_raw_table"] = df_raw
 
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -1870,11 +1917,12 @@ def run():
             sp = st.session_state.get('scorecard_page')
             tot = st.session_state.get('total_options')
             pp = st.session_state.get('performance_page')
-            factsheets_page = st.session_state.get('factsheets_page')  # or None
+            factsheets_page = st.session_state.get('factsheets_page')
             if sp and tot is not None and pp:
                 step3_5_6_scorecard_and_ips(pdf, sp, pp, factsheets_page, tot)
             else:
                 st.error("Missing scorecard, performance page, or total options")
+
         
         # Step 6
         with st.expander("Step 6: Fund Factsheets", expanded=True):
