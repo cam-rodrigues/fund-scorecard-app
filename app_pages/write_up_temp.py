@@ -34,6 +34,10 @@ st.markdown("""
         font-size: 1.08em;
         margin-top: 0.7em;
     }
+    .watch-nw {color:#128c39;font-weight:700;}
+    .watch-iw {color:#F59E42;font-weight:700;}
+    .watch-fw {color:#E1463A;font-weight:700;}
+    .watch-key {font-size:0.98em; color:#6B7280; margin-bottom:0.7em;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -105,18 +109,19 @@ def scorecard_to_ips(fund_blocks, fund_types):
             else:
                 ips_status.append("Pass")
         review_fail = sum(1 for status in ips_status if status in ["Review","Fail"])
-        # --- Add icons to Watch Status ---
+
+        # --- Color-only watch status (no emojis) ---
         if review_fail >= 6:
-            watch_status = "❌ FW"
+            watch_status = '<span class="watch-fw">FW</span>'
         elif review_fail >= 5:
-            watch_status = "⚠️ IW"
+            watch_status = '<span class="watch-iw">IW</span>'
         else:
-            watch_status = "✅ NW"
+            watch_status = '<span class="watch-nw">NW</span>'
         def iconify(status):
             if status == "Pass":
-                return "✅"
+                return "✔"
             elif status in ("Review", "Fail"):
-                return "❌"
+                return "✗"
             return ""
         row = {
             "Fund Name": fund_name,
@@ -129,22 +134,23 @@ def scorecard_to_ips(fund_blocks, fund_types):
             "Fund Name": fund_name,
             "Fund Type": fund_type,
             **{ips_labels[i]: ips_status[i] for i in range(11)},
-            "IPS Watch Status": watch_status,
+            "IPS Watch Status": re.sub('<.*?>','',watch_status),  # strip HTML for CSV
         })
     df_icon = pd.DataFrame(ips_results)
     df_raw  = pd.DataFrame(raw_results)
     return df_icon, df_raw
 
-# --- App Body ---
 def main():
     st.markdown('<div class="app-card">', unsafe_allow_html=True)
     st.markdown('<div class="big-title">Fidsync Fund IPS Screener</div>', unsafe_allow_html=True)
     st.markdown(
         '<div class="subtle">Upload your MPI PDF and screen funds for Investment Policy compliance in one click. '
         'You can set fund type (Active/Passive) directly in the table. Export your IPS results instantly.<br><br>'
-        '<span style="color:#00B386;font-weight:600">✅ NW</span> &nbsp;&nbsp;'
-        '<span style="color:#F59E42;font-weight:600">⚠️ IW</span> &nbsp;&nbsp;'
-        '<span style="color:#E1463A;font-weight:600">❌ FW</span></div>', 
+        '<span class="watch-key">'
+        '<span class="watch-nw">NW</span> (No Watch) &nbsp;&nbsp;'
+        '<span class="watch-iw">IW</span> (Informal Watch) &nbsp;&nbsp;'
+        '<span class="watch-fw">FW</span> (Formal Watch)'
+        '</span></div>',
         unsafe_allow_html=True
     )
 
@@ -167,7 +173,6 @@ def main():
             st.error("Could not extract fund scorecard blocks. Check the PDF and page number.")
             st.stop()
 
-        # --- Prepare initial Fund Type mapping DataFrame for st.data_editor
         fund_type_defaults = [
             "Passive" if "index" in fund["Fund Name"].lower() else "Active"
             for fund in fund_blocks
@@ -194,22 +199,28 @@ def main():
         )
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- Build Fund Type mapping for logic
         fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
 
         df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types)
 
         st.markdown('<div class="app-card" style="padding:1.5rem 1.5rem 1.3rem 1.5rem; margin-bottom:0.5rem;">', unsafe_allow_html=True)
-        st.subheader("IPS Investment Criteria Results", divider="rainbow")
-        st.dataframe(
-            df_icon,
-            use_container_width=True,
-            hide_index=True
-            # <-- No height argument!
+        st.subheader("IPS Investment Criteria Results")
+        st.markdown(
+            '<div class="watch-key" style="margin-bottom:0.2em;">'
+            '<span class="watch-nw">NW</span> (No Watch) &nbsp;&nbsp;'
+            '<span class="watch-iw">IW</span> (Informal Watch) &nbsp;&nbsp;'
+            '<span class="watch-fw">FW</span> (Formal Watch)'
+            '</div>', unsafe_allow_html=True
         )
+        # Render HTML inside Watch Status using unsafe_allow_html
+        import streamlit.components.v1 as components
+        html = df_icon.to_html(escape=False, index=False)
+        components.html(f"""
+        <div style="overflow-x:auto">{html}</div>
+        """, height=min(440, 52 + 42*len(df_icon)), scrolling=True)
 
         st.download_button(
-            "⬇Download IPS Screening Table as CSV",
+            "Download IPS Screening Table as CSV",
             data=df_raw.to_csv(index=False),
             file_name="ips_screening_table.csv",
             mime="text/csv",
@@ -217,10 +228,8 @@ def main():
         )
         st.markdown('</div>', unsafe_allow_html=True)
 
-
 if __name__ == "__main__":
     main()
-
 
 def run():
     main()
