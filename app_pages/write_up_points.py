@@ -9,6 +9,72 @@ from pptx.util import Inches
 from io import BytesIO
 import yfinance as yf
 
+def extract_performance_table(pdf, performance_page, fund_names, end_page=None):
+    import re
+    from rapidfuzz import fuzz
+
+    # Decide where to stop in the PDF
+    end = end_page if end_page is not None else len(pdf.pages) + 1
+
+    # 1. Get all lines from the section
+    lines = []
+    for pnum in range(performance_page - 1, end - 1):
+        txt = pdf.pages[pnum].extract_text() or ""
+        lines += [ln.strip() for ln in txt.splitlines() if ln.strip()]
+
+    # 2. Prepare regex
+    num_rx = re.compile(r"\(?-?\d+\.\d+%?\)?")
+
+    # 3. For each fund, try to pull numbers
+    perf_data = []
+    for name in fund_names:
+        item = {"Fund Scorecard Name": name}
+        tk = ""  # You’ll fill in ticker later from st.session_state["tickers"] or similar
+        # a) Exact-ticker match: you’ll want to match this if you have tickers already
+        idx = next(
+            (i for i, ln in enumerate(lines)
+             if name in ln),
+            None
+        )
+        # b) Fuzzy-name fallback if not found
+        if idx is None:
+            scores = [(i, fuzz.token_sort_ratio(name.lower(), ln.lower()))
+                      for i, ln in enumerate(lines)]
+            best_i, best_score = max(scores, key=lambda x: x[1])
+            if best_score > 60:
+                idx = best_i
+            else:
+                continue  # Can't find a match
+
+        # c) Pull fund numbers from line above (and two above if needed)
+        raw = num_rx.findall(lines[idx - 1]) if idx >= 1 else []
+        if len(raw) < 8 and idx >= 2:
+            raw = num_rx.findall(lines[idx - 2]) + raw
+        clean = [n.strip("()%").rstrip("%") for n in raw]
+        clean += [None] * (8 - len(clean))  # pad
+
+        # d) Map to columns
+        item["QTD"] = clean[0]
+        item["1Yr"] = clean[2]
+        item["3Yr"] = clean[3]
+        item["5Yr"] = clean[4]
+        item["10Yr"] = clean[5]
+        item["Net Expense Ratio"] = clean[-2]
+
+        # e) Pull benchmark QTD, 3Yr, 5Yr from next lines
+        bench_raw = []
+        if idx + 1 < len(lines):
+            bench_raw = num_rx.findall(lines[idx + 1])
+        if len(bench_raw) < 1 and idx + 2 < len(lines):
+            bench_raw = num_rx.findall(lines[idx + 2])
+        bench_clean = [n.strip("()%").rstrip("%") for n in bench_raw]
+        item["Bench QTD"] = bench_clean[0] if bench_clean else None
+        item["Bench 3Yr"] = bench_clean[3] if len(bench_clean) > 3 else None
+        item["Bench 5Yr"] = bench_clean[4] if len(bench_clean) > 4 else None
+
+        perf_data.append(item)
+    return perf_data
+
 
 #─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # === Utility: Extract & Label Report Date ===
