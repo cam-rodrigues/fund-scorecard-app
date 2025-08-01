@@ -1093,77 +1093,30 @@ def step15_display_selected_fund():
     else:
         st.write("_No scorecard data found._")
 
-    # === Slide 1 Table ===
-    st.markdown("**Slide 1 Table**")
+# Slide 1 Table: Use real IPS results from the main screening table (step3/4/5)
+ips_icon_table = st.session_state.get("ips_icon_table")
+if ips_icon_table is not None and not ips_icon_table.empty:
+    # Find the row for the selected fund (match by Fund Name)
+    row = ips_icon_table[ips_icon_table["Fund Name"] == selected_fund]
+    if not row.empty:
+        row_dict = row.iloc[0].to_dict()
+        # Display as DataFrame (relabel columns for display)
+        display_columns = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
+        row_df = pd.DataFrame([{**{"Category": fs_rec.get("Category", "")}, **{display_columns.get(k, k): v for k, v in row_dict.items() if k.startswith("IPS Investment Criteria")}, "IPS Status": row_dict.get("IPS Watch Status", "")}])
+        # Style
+        def color_bool(v): return "background-color: green" if v == "✔" else ("background-color: red" if v == "✗" else "")
+        def style_status(v):
+            if v == "NW": return "background-color: green; color: white"
+            if v == "IW": return "background-color: orange; color: white"
+            if v == "FW": return "background-color: red; color: white"
+            return ""
+        styled = row_df.style.applymap(color_bool, subset=[str(i) for i in range(1, 12)]).applymap(style_status, subset=["IPS Status"])
+        st.dataframe(styled, use_container_width=True)
+    else:
+        st.warning("No IPS screening result found for selected fund.")
+else:
+    st.warning("IPS screening table not found. Run earlier steps first.")
 
-    # 1) Category from factsheet
-    fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected_fund), {})
-    category = fs_rec.get("Category","")
-
-    # 2) Build first 11 IPS criteria
-    IPS = [
-      "Manager Tenure","Excess Performance (3Yr)","R‑Squared (3Yr)",
-      "Peer Return Rank (3Yr)","Sharpe Ratio Rank (3Yr)","Sortino Ratio Rank (3Yr)",
-      "Tracking Error Rank (3Yr)","Excess Performance (5Yr)","R‑Squared (5Yr)",
-      "Peer Return Rank (5Yr)","Sharpe Ratio Rank (5Yr)"
-    ]
-
-    # 3) Compute pass/fail statuses for this fund
-    statuses = {}
-    # Manager Tenure ≥3
-    info = next((m["Info"] for m in block["Metrics"] if m["Metric"]=="Manager Tenure"),"")
-    yrs  = float(re.search(r"(\d+\.?\d*)",info).group(1)) if re.search(r"(\d+\.?\d*)",info) else 0
-    statuses["Manager Tenure"] = (yrs >= 3)
-    # Other criteria
-    for crit in IPS[1:]:
-        raw = next((m["Info"] for m in block["Metrics"] if m["Metric"].startswith(crit.split()[0])),"")
-        if "Excess Performance" in crit:
-            pct = float(re.search(r"([-+]?\d*\.\d+)%",raw).group(1)) if re.search(r"([-+]?\d*\.\d+)%",raw) else 0
-            statuses[crit] = (pct > 0)
-        elif "R‑Squared" in crit:
-            statuses[crit] = True
-        else:
-            rk = int(re.search(r"(\d+)",raw).group(1)) if re.search(r"(\d+)",raw) else 999
-            statuses[crit] = (rk <= 50)
-
-    # 4) Determine overall IPS Status
-    fails = sum(not statuses[c] for c in IPS)
-    if   fails <= 4:  overall = "Passed IPS Screen"
-    elif fails == 5:  overall = "Informal Watch (IW)"
-    else:             overall = "Formal Watch (FW)"
-
-    # … after you compute `overall = "Passed IPS Screen" …` etc.
-    # Save it so our bullets can look it up:
-    if "ips_status_map" not in st.session_state:
-        st.session_state["ips_status_map"] = {}
-    st.session_state["ips_status_map"][selected_fund] = overall
-
-
-    # 5) Build the DataFrame row
-    report_date = st.session_state.get("report_date","")
-    row = {
-      "Category":    category,
-      "Time Period": report_date,
-      "Plan Assets": "$"
-    }
-    for idx, crit in enumerate(IPS, start=1):
-        row[str(idx)] = statuses[crit]
-    row["IPS Status"] = overall
-
-    df_slide1 = pd.DataFrame([row])
-
-    # 6) Style it
-    def color_bool(v): return "background-color: green" if v else "background-color: red"
-    def style_status(v):
-        if v=="Passed IPS Screen":    return "background-color: green; color: white"
-        if "Informal Watch" in v:      return "background-color: orange; color: white"
-        if "Formal Watch"   in v:      return "background-color: red;   color: white"
-        return ""
-    styled = df_slide1.style \
-        .applymap(color_bool,   subset=[str(i) for i in range(1,len(IPS)+1)]) \
-        .applymap(style_status, subset=["IPS Status"])
-
-    st.dataframe(styled, use_container_width=True)
 
     # === Slide 2 Table 1 ===
     st.markdown("**Slide 2 Table 1**")
