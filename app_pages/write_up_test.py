@@ -1874,7 +1874,7 @@ def run():
             step12_process_fund_facts(pdf)
 
         # Step 13: Risk Adjusted Returns
-        with st.expander("Risk", expanded=False):
+        with st.expander("Risk-Adjusted Returns", expanded=False):
             step13_process_risk_adjusted_returns(pdf)
             step14_extract_peer_risk_adjusted_return_rank(pdf)
         
