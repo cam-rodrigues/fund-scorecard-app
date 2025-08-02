@@ -1891,7 +1891,7 @@ def run():
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
-    
+
     with pdfplumber.open(uploaded) as pdf:
         # Step 1
         first = pdf.pages[0].extract_text() or ""
@@ -1903,103 +1903,81 @@ def run():
             toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
             process_toc(toc_text)
 
-        # --- COMBINED STEPS 3, 4, 5 ---
-        with st.expander("IPS Investment Screening", expanded=True):
-            sp = st.session_state.get('scorecard_page')
-            tot = st.session_state.get('total_options')
-            pp = st.session_state.get('performance_page')
-            factsheets_page = st.session_state.get('factsheets_page')
-            if sp and tot is not None and pp:
-                step3_5_6_scorecard_and_ips(pdf, sp, pp, factsheets_page, tot)
-            else:
-                st.error("Missing scorecard, performance page, or total options")
+        # Combined core details grouped together
+        with st.expander("All Fund Details", expanded=True):
+            # IPS Investment Screening
+            with st.expander("IPS Investment Screening", expanded=True):
+                sp = st.session_state.get('scorecard_page')
+                tot = st.session_state.get('total_options')
+                pp = st.session_state.get('performance_page')
+                factsheets_page = st.session_state.get('factsheets_page')
+                if sp and tot is not None and pp:
+                    step3_5_6_scorecard_and_ips(pdf, sp, pp, factsheets_page, tot)
+                else:
+                    st.error("Missing scorecard, performance page, or total options")
 
-        
-        # Step 6
+            # Returns (annualized + calendar)
+            with st.expander("Returns", expanded=False):
+                step7_extract_returns(pdf)
+                step8_calendar_returns(pdf)
+
+            # MPT Statistics Summary (includes Risk Analysis 3Yr & 5Yr)
+            with st.expander("MPT Statistics Summary", expanded=False):
+                # Risk Analysis 3Yr & 5Yr are prerequisites for the summary
+                step9_risk_analysis_3yr(pdf)
+                step10_risk_analysis_5yr(pdf)
+                step11_create_summary()
+
+            # Risk-Adjusted Returns (and peer rank)
+            with st.expander("Risk-Adjusted Returns", expanded=False):
+                step13_process_risk_adjusted_returns(pdf)
+                step14_extract_peer_risk_adjusted_return_rank(pdf)
+
+        # Step 6: Fund Factsheets (can stay separate or you can move inside if desired)
         with st.expander("Fund Factsheets", expanded=True):
             names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
             step6_process_factsheets(pdf, names)
 
-        # Returns
-        with st.expander("Returns", expanded=False):
-            # Annualized Returns
-            step7_extract_returns(pdf)
-            
-            # Calendar Returns (Funds and Benchmarks)
-            step8_calendar_returns(pdf)
-
-
-        #─── Data Prep for Bullet Points ──────────────────────────────────────────────────────────────────
+        # Data prep for bullet points
         report_date = st.session_state.get("report_date", "")
         m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
         quarter = m.group(1) if m else ""
-        year    = m.group(2) if m else ""
-        
-        # make sure we have a list to iterate
+        year = m.group(2) if m else ""
+
         for itm in st.session_state.get("fund_performance_data", []):
-            # force numeric defaults
-            qtd       = float(itm.get("QTD") or 0)
+            qtd = float(itm.get("QTD") or 0)
             bench_qtd = float(itm.get("Bench QTD") or 0)
-        
-            # direction, quarter/year
             itm["Perf Direction"] = "overperformed" if qtd >= bench_qtd else "underperformed"
-            itm["Quarter"]        = quarter
-            itm["Year"]           = year
-        
-            # basis‑points difference
+            itm["Quarter"] = quarter
+            itm["Year"] = year
             diff_bps = round((qtd - bench_qtd) * 100, 1)
             itm["QTD_bps_diff"] = str(diff_bps)
-        
-            # percent strings
-            fund_pct  = f"{qtd:.2f}%"
+            fund_pct = f"{qtd:.2f}%"
             bench_pct = f"{bench_qtd:.2f}%"
             itm["QTD_pct_diff"] = f"{(qtd - bench_qtd):.2f}%"
-            itm["QTD_vs"]       = f"{fund_pct} vs. {bench_pct}"
-        
-        # Initialize your template exactly once
+            itm["QTD_vs"] = f"{fund_pct} vs. {bench_pct}"
+
         if "bullet_point_templates" not in st.session_state:
             st.session_state["bullet_point_templates"] = [
                 "[Fund Scorecard Name] [Perf Direction] its benchmark in Q[Quarter], "
-                "[Year] by [QTD_bps_diff] bps ([QTD_vs])."
+                "[Year] by [QTD_bps_diff] bps ([QTD_vs])."
             ]
 
-        #──────────────────────────────────────────────────────────────────────────────────
-
-        # Step 9: Match Tickers
-        with st.expander("Risk Analysis (3Yr)", expanded=False):
-            step9_risk_analysis_3yr(pdf)
-
-        # Step 10: Match Tickers
-        with st.expander("Risk Analysis (5Yr)", expanded=False):
-            step10_risk_analysis_5yr(pdf)
-
-        # Step 11: MPT Statistics Summary
-        with st.expander("MPT Statistics Summary", expanded=False):
-            step11_create_summary()
-            
-        # Step 12: Find Factsheet Sub‑Headings
-        with st.expander("Fund Facts ", expanded=False):
-            step12_process_fund_facts(pdf)
-
-        # Step 13: Risk Adjusted Returns
-        with st.expander("Risk-Adjusted Returns", expanded=False):
-            step13_process_risk_adjusted_returns(pdf)
-            step14_extract_peer_risk_adjusted_return_rank(pdf)
-
-        #Step 14.5: IPS Fail Table
+        # Step 14.5: IPS Fail Table (outside or inside as needed)
         step14_5_ips_fail_table()
 
-        # Step 15: View Single Fund Details
+        # Step 15: Single Fund Write Up
         with st.expander("Single Fund Write Up", expanded=False):
             step15_display_selected_fund()
-                    
+
         # Step 16: Bullet Points
         with st.expander("Bullet Points", expanded=False):
             step16_bullet_points()
 
-        # Step 17: Powerpoint
+        # Step 17: PowerPoint
         with st.expander("Powerpoint", expanded=False):
             step17_export_to_ppt()
+
 
 
 if __name__ == "__main__":
