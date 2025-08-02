@@ -837,13 +837,12 @@ def step7_extract_returns(pdf):
 
     display_section("Regular")
     display_section("Proposed Funds")
-    display_section("Unknown")
-
 
 #───Step 8 Calendar Year Returns (funds + benchmarks──────────────────────────────────────────────────────────────────
 
 def step8_calendar_returns(pdf):
     import re, streamlit as st, pandas as pd
+    from rapidfuzz import fuzz
 
     # 1) Figure out section bounds
     cy_page = st.session_state.get("calendar_year_page")
@@ -883,11 +882,11 @@ def step8_calendar_returns(pdf):
             fund_records.append(rec)
         return fund_records
 
-    # Build for regular and proposed
+    # Build for regular and proposed funds
     regular_fund_records = build_fund_table("Regular", "fund_blocks_Regular_Scorecard", "fund_tickers_Regular_Scorecard")
     proposed_fund_records = build_fund_table("Proposed Funds", "fund_blocks_Proposed_Funds", "fund_tickers_Proposed_Funds")
 
-    # Display funds by section
+    # Display fund returns by section
     if regular_fund_records:
         df_regular = pd.DataFrame(regular_fund_records)
         st.markdown("**Fund Calendar-Year Returns — Regular**")
@@ -908,44 +907,55 @@ def step8_calendar_returns(pdf):
     combined_fund_records = regular_fund_records + proposed_fund_records
     st.session_state["step8_returns"] = combined_fund_records
 
-    # — B) Benchmarks matched back to each fund’s ticker —
+    # — B) Benchmarks matched back to each regular fund’s ticker only —
     facts = st.session_state.get("fund_factsheets_data", []) or []
-    bench_by_section = {"Regular": [], "Proposed Funds": []}
+    bench_records = []
+
+    # Precompute normalized lines for fuzzy matching
+    norm_lines = [(i, ln, re.sub(r'\s+', ' ', ln).strip()) for i, ln in enumerate(all_lines)]
+
     for f in facts:
+        if f.get("Section") != "Regular":
+            continue  # only do regular benchmarks
         bench_name = f.get("Benchmark", "").strip()
         fund_tkr = f.get("Matched Ticker", "")
-        section = f.get("Section", "Regular")
         if not bench_name:
             continue
-        idx = next((i for i, ln in enumerate(all_lines) if bench_name in ln), None)
+
+        # Exact substring match first
+        idx = next((i for i, ln in enumerate(all_lines) if bench_name and bench_name in ln), None)
+
+        # Fuzzy fallback if exact not found
         if idx is None:
-            continue
+            best_score = 0
+            best_i = None
+            norm_bench = re.sub(r'[^A-Za-z0-9 ]+', '', bench_name).strip().lower()
+            for i, ln, cleaned in norm_lines:
+                score = fuzz.token_sort_ratio(norm_bench, re.sub(r'[^A-Za-z0-9 ]+', '', cleaned).strip().lower())
+                if score > best_score:
+                    best_score = score
+                    best_i = i
+            if best_score >= 60 and best_i is not None:
+                idx = best_i
+
+        if idx is None:
+            continue  # couldn't locate benchmark
+
         raw = num_rx.findall(all_lines[idx])
         vals = raw[:len(years)] + [None] * (len(years) - len(raw))
-        rec = {"Name": bench_name, "Ticker": fund_tkr, "Section": section}
+        rec = {"Name": bench_name, "Ticker": fund_tkr}
         rec.update({years[i]: vals[i] for i in range(len(years))})
-        if section in bench_by_section:
-            bench_by_section[section].append(rec)
-        else:
-            bench_by_section["Regular"].append(rec)
+        bench_records.append(rec)
 
-    if bench_by_section["Regular"]:
-        df_bench_reg = pd.DataFrame(bench_by_section["Regular"])
+    if bench_records:
+        df_bench = pd.DataFrame(bench_records)
         st.markdown("**Benchmark Calendar-Year Returns — Regular**")
         cols = ["Name", "Ticker"] + years
-        st.dataframe(df_bench_reg[cols], use_container_width=True)
-        st.session_state["benchmark_calendar_year_returns_regular"] = bench_by_section["Regular"]
+        st.dataframe(df_bench[cols], use_container_width=True)
+        st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
-        st.warning("No regular benchmark returns extracted.")
+        st.warning("No benchmark returns extracted.")
 
-    if bench_by_section["Proposed Funds"]:
-        df_bench_prop = pd.DataFrame(bench_by_section["Proposed Funds"])
-        st.markdown("**Benchmark Calendar-Year Returns — Proposed Funds**")
-        cols = ["Name", "Ticker"] + years
-        st.dataframe(df_bench_prop[cols], use_container_width=True)
-        st.session_state["benchmark_calendar_year_returns_proposed"] = bench_by_section["Proposed Funds"]
-    else:
-        st.info("No proposed benchmark returns found.")
 
 
 #───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
