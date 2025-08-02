@@ -842,6 +842,7 @@ def step7_extract_returns(pdf):
 
 def step8_calendar_returns(pdf):
     import re, streamlit as st, pandas as pd
+    from rapidfuzz import fuzz  # add at top of function if not already imported
 
     # 1) Figure out section bounds
     cy_page  = st.session_state.get("calendar_year_page")
@@ -881,32 +882,71 @@ def step8_calendar_returns(pdf):
         st.dataframe(df_fund[["Name", "Ticker"] + years], use_container_width=True)
         st.session_state["step8_returns"] = fund_records
 
-    # — B) Benchmarks matched back to each fund’s ticker —
-    facts         = st.session_state.get("fund_factsheets_data", [])
+
+    # — B) Benchmarks matched back to each regular fund’s ticker —
+    facts = st.session_state.get("fund_factsheets_data", []) or []
     bench_records = []
+
+    # Preprocess lines for matching: keep original and a normalized version
+    norm_lines = []
+    for i, ln in enumerate(all_lines):
+        cleaned = " ".join(ln.strip().split())
+        norm = re.sub(r'[^A-Za-z0-9 ]+', '', cleaned).lower()
+        norm_lines.append((i, ln, cleaned, norm))
+
+    def normalize_name(text):
+        return re.sub(r'[^A-Za-z0-9 ]+', '', (text or "").strip()).lower()
+
     for f in facts:
-        bench_name = f.get("Benchmark", "").strip()
-        fund_tkr   = f.get("Matched Ticker", "")
-        if not bench_name:
+        if f.get("Section") != "Regular":
+            continue  # only attempt regular benchmarks here
+        bench_name_raw = (f.get("Benchmark") or "").strip()
+        fund_tkr = f.get("Matched Ticker", "")
+        if not bench_name_raw:
             continue
 
-        # find the first line containing the benchmark name
-        idx = next((i for i, ln in enumerate(all_lines) if bench_name in ln), None)
+        bench_name = bench_name_raw  # keep original for display
+        idx = None
+
+        # 1. Exact case-insensitive substring match
+        for i, orig, cleaned, norm in norm_lines:
+            if bench_name.lower() in cleaned.lower():
+                idx = i
+                break
+
+        # 2. Fuzzy fallback if exact not found
         if idx is None:
+            target = normalize_name(bench_name)
+            best_score = 0
+            best_i = None
+            for i, orig, cleaned, norm in norm_lines:
+                score = fuzz.token_set_ratio(target, norm)
+                if score > best_score:
+                    best_score = score
+                    best_i = i
+            if best_score >= 65:  # threshold can be tuned
+                idx = best_i
+
+        if idx is None:
+            # Could not locate benchmark line; skip
             continue
-        raw  = num_rx.findall(all_lines[idx])
+
+        # Extract year values from the located line
+        raw = num_rx.findall(all_lines[idx])
         vals = raw[:len(years)] + [None] * (len(years) - len(raw))
-        rec  = {"Name": bench_name, "Ticker": fund_tkr}
+        rec = {"Name": bench_name, "Ticker": fund_tkr}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         bench_records.append(rec)
 
-    df_bench = pd.DataFrame(bench_records)
-    if not df_bench.empty:
-        st.markdown("**Benchmark Calendar‑Year Returns**")
-        st.dataframe(df_bench[["Name", "Ticker"] + years], use_container_width=True)
+    if bench_records:
+        df_bench = pd.DataFrame(bench_records)
+        st.markdown("**Benchmark Calendar-Year Returns**")
+        cols = ["Name", "Ticker"] + years
+        st.dataframe(df_bench[cols], use_container_width=True)
         st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
         st.warning("No benchmark returns extracted.")
+
 
 #───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
 
