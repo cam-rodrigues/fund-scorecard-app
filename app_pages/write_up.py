@@ -1885,8 +1885,8 @@ def step17_export_to_ppt():
 
 def run():
     import re
-    st.title("Writeup")
-    uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
+    st.title("Writeup Generator")
+    uploaded = st.file_uploader("Upload MPI PDF to Generate Writup PPTX", type="pdf")
     if not uploaded:
         return
 
