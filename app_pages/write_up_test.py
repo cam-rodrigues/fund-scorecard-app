@@ -1596,8 +1596,6 @@ def step17_export_to_ppt():
     from io import BytesIO
     import pandas as pd
 
-    st.subheader("Export to PowerPoint")
-
     selected = st.session_state.get("selected_fund")
     if not selected:
         st.error("❌ No fund selected. Please select a fund in Step 15.")
@@ -1978,7 +1976,7 @@ def run():
             step16_bullet_points()
 
         # PowerPoint
-        with st.expander("Powerpoint", expanded=False):
+        with st.expander("Export to Powerpoint", expanded=False):
             step17_export_to_ppt()
 
 if __name__ == "__main__":
