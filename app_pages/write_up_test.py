@@ -1047,23 +1047,50 @@ def step14_5_ips_fail_table(pdf=None):
     import streamlit as st
     import pandas as pd
 
-    st.subheader("Funds Failing IPS Screening")
-
     df_icon = st.session_state.get("ips_icon_table")
     if df_icon is None or df_icon.empty:
-        st.info("No IPS screening results found. Run previous steps first.")
         return
 
     # Filter for IW or FW
     filtered = df_icon[df_icon["IPS Watch Status"].isin(["IW", "FW"])]
     if filtered.empty:
-        st.success("No funds failed the IPS screening (no IW or FW).")
+        st.markdown("""
+            <div style="
+                background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
+                color: #244369;
+                border-radius: 1.5rem;
+                box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
+                padding: 1.2rem 2.3rem 1.2rem 2.3rem;
+                margin-bottom: 2rem;
+                font-size: 1.08rem;
+                border: 1.2px solid #b5d0eb;
+                text-align: center;">
+                <b>All funds passed IPS screening (no IW or FW).</b>
+            </div>
+        """, unsafe_allow_html=True)
         return
 
     # Display only Fund Name and IPS Watch Status
     display_df = filtered[["Fund Name", "IPS Watch Status"]].reset_index(drop=True)
-    st.dataframe(display_df, use_container_width=True)
 
+    st.markdown("""
+        <div style="
+            background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
+            color: #244369;
+            border-radius: 1.5rem;
+            box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
+            padding: 1.3rem 2.4rem 1.6rem 2.4rem;
+            margin: 1.2rem 0 2.2rem 0;
+            font-size: 1.09rem;
+            border: 1.2px solid #b5d0eb;">
+            <div style="font-weight: 700; color: #1856b8; font-size: 1.21rem; margin-bottom: 0.6rem;">
+                Funds Failing IPS Screening
+            </div>
+    """, unsafe_allow_html=True)
+
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
 
@@ -1879,8 +1906,7 @@ def run():
             step14_extract_peer_risk_adjusted_return_rank(pdf)
 
         #Step 14.5: IPS Fail Table
-        with st.expander("IPS Fails", expanded=False):
-             step14_5_ips_fail_table()
+        step14_5_ips_fail_table()
 
         # Step 15: View Single Fund Details
         with st.expander("Single Fund Write Up", expanded=False):
