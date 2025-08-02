@@ -842,10 +842,9 @@ def step7_extract_returns(pdf):
 
 def step8_calendar_returns(pdf):
     import re, streamlit as st, pandas as pd
-    from rapidfuzz import fuzz
 
     # 1) Figure out section bounds
-    cy_page = st.session_state.get("calendar_year_page")
+    cy_page  = st.session_state.get("calendar_year_page")
     end_page = st.session_state.get("r3yr_page", len(pdf.pages) + 1)
     if cy_page is None:
         st.error("❌ 'Fund Performance: Calendar Year' not found in TOC.")
@@ -853,7 +852,7 @@ def step8_calendar_returns(pdf):
 
     # 2) Pull every line from that section
     all_lines = []
-    for p in pdf.pages[cy_page - 1 : end_page - 1]:
+    for p in pdf.pages[cy_page-1 : end_page-1]:
         all_lines.extend((p.extract_text() or "").splitlines())
 
     # 3) Identify header & years
@@ -864,104 +863,47 @@ def step8_calendar_returns(pdf):
     years = re.findall(r"\b20\d{2}\b", header)
     num_rx = re.compile(r"-?\d+\.\d+%?")
 
-    # Helper to build fund return table for a given section
-    def build_fund_table(section_label, blocks_key, tickers_key):
-        fund_records = []
-        fund_blocks = st.session_state.get(blocks_key, []) or []
-        tickers_map = st.session_state.get(tickers_key, {}) or {}
-        for b in fund_blocks:
-            name = b.get("Fund Name")
-            if not name:
-                continue
-            ticker = (tickers_map.get(name, "") or "").upper()
-            idx = next((i for i, ln in enumerate(all_lines) if ticker and ticker in ln.split()), None)
-            raw = num_rx.findall(all_lines[idx - 1]) if idx not in (None, 0) else []
-            vals = raw[:len(years)] + [None] * (len(years) - len(raw))
-            rec = {"Name": name, "Ticker": ticker, "Section": section_label}
-            rec.update({years[i]: vals[i] for i in range(len(years))})
-            fund_records.append(rec)
-        return fund_records
+    # — A) Funds themselves —
+    fund_map     = st.session_state.get("tickers", {})
+    fund_records = []
+    for name, tk in fund_map.items():
+        ticker = (tk or "").upper()
+        idx    = next((i for i, ln in enumerate(all_lines) if ticker in ln.split()), None)
+        raw    = num_rx.findall(all_lines[idx-1]) if idx not in (None, 0) else []
+        vals   = raw[:len(years)] + [None] * (len(years) - len(raw))
+        rec    = {"Name": name, "Ticker": ticker}
+        rec.update({years[i]: vals[i] for i in range(len(years))})
+        fund_records.append(rec)
 
-    # Build for regular and proposed funds
-    regular_fund_records = build_fund_table("Regular", "fund_blocks_Regular_Scorecard", "fund_tickers_Regular_Scorecard")
-    proposed_fund_records = build_fund_table("Proposed Funds", "fund_blocks_Proposed_Funds", "fund_tickers_Proposed_Funds")
+    df_fund = pd.DataFrame(fund_records)
+    if not df_fund.empty:
+        st.markdown("**Fund Calendar‑Year Returns**")
+        st.dataframe(df_fund[["Name", "Ticker"] + years], use_container_width=True)
+        st.session_state["step8_returns"] = fund_records
 
-    # Display fund returns by section
-    if regular_fund_records:
-        df_regular = pd.DataFrame(regular_fund_records)
-        st.markdown("**Fund Calendar-Year Returns — Regular**")
-        cols = ["Name", "Ticker"] + years
-        st.dataframe(df_regular[cols], use_container_width=True)
-    else:
-        st.info("No regular fund calendar-year returns found.")
-
-    if proposed_fund_records:
-        df_proposed = pd.DataFrame(proposed_fund_records)
-        st.markdown("**Fund Calendar-Year Returns — Proposed Funds**")
-        cols = ["Name", "Ticker"] + years
-        st.dataframe(df_proposed[cols], use_container_width=True)
-    else:
-        st.info("No proposed fund calendar-year returns found.")
-
-    # Save combined for downstream
-    combined_fund_records = regular_fund_records + proposed_fund_records
-    st.session_state["step8_returns"] = combined_fund_records
-
-    # — B) Benchmarks matched back to each regular fund’s ticker, pulling benchmark names from Fund Factsheets —
-    facts = st.session_state.get("fund_factsheets_data", []) or []
+    # — B) Benchmarks matched back to each fund’s ticker —
+    facts         = st.session_state.get("fund_factsheets_data", [])
     bench_records = []
-
-    # Precompute normalized versions of all_lines for fuzzy matching
-    norm_lines = []
-    for i, ln in enumerate(all_lines):
-        cleaned = re.sub(r'\s+', ' ', ln).strip()
-        norm_lines.append((i, cleaned, re.sub(r'[^A-Za-z0-9 ]+', '', cleaned).lower()))
-
-    def normalize(text):
-        return re.sub(r'[^A-Za-z0-9 ]+', '', (text or "").strip()).lower()
-
     for f in facts:
-        if f.get("Section") != "Regular":
-            continue  # only consider regular benchmarks
-        bench_name = (f.get("Benchmark", "") or "").strip()
-        fund_tkr = f.get("Matched Ticker", "")
+        bench_name = f.get("Benchmark", "").strip()
+        fund_tkr   = f.get("Matched Ticker", "")
         if not bench_name:
             continue
 
-        idx = None
-        # Exact case-insensitive substring match
-        for i, ln, _ in norm_lines:
-            if bench_name.lower() in ln.lower():
-                idx = i
-                break
-
-        # Fuzzy fallback if exact not found
+        # find the first line containing the benchmark name
+        idx = next((i for i, ln in enumerate(all_lines) if bench_name in ln), None)
         if idx is None:
-            norm_bench = normalize(bench_name)
-            best_score = 0
-            best_i = None
-            for i, _, norm_ln in norm_lines:
-                score = fuzz.token_set_ratio(norm_bench, norm_ln)
-                if score > best_score:
-                    best_score = score
-                    best_i = i
-            if best_score >= 60:
-                idx = best_i
-
-        if idx is None:
-            continue  # could not locate benchmark line
-
-        raw = num_rx.findall(all_lines[idx])
+            continue
+        raw  = num_rx.findall(all_lines[idx])
         vals = raw[:len(years)] + [None] * (len(years) - len(raw))
-        rec = {"Name": bench_name, "Ticker": fund_tkr}
+        rec  = {"Name": bench_name, "Ticker": fund_tkr}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         bench_records.append(rec)
 
-    if bench_records:
-        df_bench = pd.DataFrame(bench_records)
-        st.markdown("**Benchmark Calendar-Year Returns — Regular**")
-        cols = ["Name", "Ticker"] + years
-        st.dataframe(df_bench[cols], use_container_width=True)
+    df_bench = pd.DataFrame(bench_records)
+    if not df_bench.empty:
+        st.markdown("**Benchmark Calendar‑Year Returns**")
+        st.dataframe(df_bench[["Name", "Ticker"] + years], use_container_width=True)
         st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
         st.warning("No benchmark returns extracted.")
