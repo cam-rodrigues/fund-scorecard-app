@@ -245,8 +245,20 @@ def extract_scorecard_blocks(pdf, scorecard_page):
     return fund_blocks
 
 def extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page=None):
-    from rapidfuzz import fuzz
     import re
+    from rapidfuzz import fuzz
+    import streamlit as st
+
+    def normalize_name(name):
+        # strip the watchlist suffix and punctuation, lowercase
+        cleaned = re.sub(
+            r"has been placed on watchlist for not meeting .*? criteria",
+            "",
+            name,
+            flags=re.IGNORECASE
+        )
+        cleaned = re.sub(r"[^A-Za-z0-9 ]+", "", cleaned)  # remove punctuation
+        return cleaned.strip().lower()
 
     end_page = factsheets_page - 1 if factsheets_page else len(pdf.pages)
     all_lines = []
@@ -255,31 +267,32 @@ def extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page=None
         all_lines.extend([ln.strip() for ln in txt.splitlines() if ln.strip()])
 
     # Step 1: Collect candidate (raw_name, ticker) pairs from lines with uppercase tickers length 2-5
-    candidate_pairs = []  # list of tuples (raw_name_normalized, ticker, raw_name_original)
+    candidate_pairs = []  # list of tuples (normalized_raw_name, ticker, raw_name_original)
     ticker_rx = re.compile(r"\b([A-Z]{2,5})\b")
     for ln in all_lines:
         matches = ticker_rx.findall(ln)
         if not matches:
             continue
-        # For each candidate ticker in the line, assume the text before its last occurrence is the fund name
         for ticker in set(matches):
-            # isolate the portion before the ticker (last occurrence to be safer)
+            # isolate the portion before the last occurrence of ticker
             parts = ln.rsplit(ticker, 1)
             if len(parts) >= 1:
                 raw_name = parts[0].strip()
                 if not raw_name:
                     continue
-                norm_raw = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
+                norm_raw = normalize_name(raw_name)
+                if not norm_raw:
+                    continue
                 candidate_pairs.append((norm_raw, ticker, raw_name))
 
-    # Step 2: For each fund_name, find best candidate fuzzy match
+    # Step 2: For each fund_name, find best candidate fuzzy match (one-to-one)
     assigned = {}
     used_tickers = set()
-    scores = []
+    matches = []
 
     # Precompute normalized expected names
     norm_expected_list = [
-        (name, re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower())
+        (name, normalize_name(name))
         for name in fund_names
     ]
 
@@ -287,31 +300,47 @@ def extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page=None
         best = (None, None, 0)  # (ticker, raw_name_original, score)
         for norm_raw, ticker, raw_name in candidate_pairs:
             if ticker in used_tickers:
-                continue  # enforce one-to-one
+                continue
             score = fuzz.token_sort_ratio(norm_expected, norm_raw)
             if score > best[2]:
                 best = (ticker, raw_name, score)
-        if best[2] >= 70:  # threshold
+        if best[2] >= 70:  # threshold, adjust if needed
             assigned[fund_name] = best[0]
             used_tickers.add(best[0])
-            scores.append((fund_name, best[0], best[2]))
+            matches.append((fund_name, best[0], best[2], best[1]))
+        else:
+            # leave for fallback
+            assigned[fund_name] = ""
 
-    # Step 3: Fallback for unmatched names: try looser matching or grab from the full text
+    # Debug: show what matched (can remove later)
+    st.write("Ticker matching summary:", matches)
+
+    # Step 3: Fallback for unmatched names: try looser heuristic
     for name in fund_names:
-        if name in assigned:
+        if assigned.get(name):
             continue
-        # Try containing uppercase ticker elsewhere (simple heuristic)
-        fallback_ticker = ""
-        for ln in all_lines:
-            if name.lower() in ln.lower():
-                m = re.search(r"\b([A-Z]{2,5})\b", ln)
-                if m:
-                    fallback_ticker = m.group(1)
-                    break
-        assigned[name] = fallback_ticker
+        norm_expected = normalize_name(name)
+        # find any candidate where expected is substring or vice versa
+        for norm_raw, ticker, raw_name in candidate_pairs:
+            if ticker in used_tickers:
+                continue
+            if norm_expected in norm_raw or norm_raw in norm_expected:
+                assigned[name] = ticker
+                used_tickers.add(ticker)
+                matches.append((name, ticker, 50, raw_name))  # lower confidence
+                break
+        # Last resort: grab any uppercase ticker from a line containing the (raw) fund name
+        if not assigned.get(name):
+            for ln in all_lines:
+                if name.lower() in ln.lower():
+                    m = re.search(r"\b([A-Z]{2,5})\b", ln)
+                    if m:
+                        assigned[name] = m.group(1)
+                        break
 
-    # Final cleanup: ensure all values are strings
+    # Final cleanup: ensure non-None strings
     return {k: (v if v else "") for k, v in assigned.items()}
+
 
 
 def scorecard_to_ips(fund_blocks, fund_types, tickers):
