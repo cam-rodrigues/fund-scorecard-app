@@ -842,7 +842,6 @@ def step7_extract_returns(pdf):
 
 def step8_calendar_returns(pdf):
     import re, streamlit as st, pandas as pd
-    from rapidfuzz import fuzz
 
     # 1) Figure out section bounds
     cy_page = st.session_state.get("calendar_year_page")
@@ -907,40 +906,21 @@ def step8_calendar_returns(pdf):
     combined_fund_records = regular_fund_records + proposed_fund_records
     st.session_state["step8_returns"] = combined_fund_records
 
-    # — B) Benchmarks matched back to each regular fund’s ticker only —
+    # — B) Benchmarks matched back to each regular fund’s ticker (original simple logic) —
     facts = st.session_state.get("fund_factsheets_data", []) or []
     bench_records = []
-
-    # Precompute normalized lines for fuzzy matching
-    norm_lines = [(i, ln, re.sub(r'\s+', ' ', ln).strip()) for i, ln in enumerate(all_lines)]
-
     for f in facts:
         if f.get("Section") != "Regular":
-            continue  # only do regular benchmarks
+            continue  # only regular benchmarks
         bench_name = f.get("Benchmark", "").strip()
         fund_tkr = f.get("Matched Ticker", "")
         if not bench_name:
             continue
 
-        # Exact substring match first
+        # find the first line containing the benchmark name
         idx = next((i for i, ln in enumerate(all_lines) if bench_name and bench_name in ln), None)
-
-        # Fuzzy fallback if exact not found
         if idx is None:
-            best_score = 0
-            best_i = None
-            norm_bench = re.sub(r'[^A-Za-z0-9 ]+', '', bench_name).strip().lower()
-            for i, ln, cleaned in norm_lines:
-                score = fuzz.token_sort_ratio(norm_bench, re.sub(r'[^A-Za-z0-9 ]+', '', cleaned).strip().lower())
-                if score > best_score:
-                    best_score = score
-                    best_i = i
-            if best_score >= 60 and best_i is not None:
-                idx = best_i
-
-        if idx is None:
-            continue  # couldn't locate benchmark
-
+            continue
         raw = num_rx.findall(all_lines[idx])
         vals = raw[:len(years)] + [None] * (len(years) - len(raw))
         rec = {"Name": bench_name, "Ticker": fund_tkr}
@@ -955,7 +935,6 @@ def step8_calendar_returns(pdf):
         st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
         st.warning("No benchmark returns extracted.")
-
 
 
 #───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
