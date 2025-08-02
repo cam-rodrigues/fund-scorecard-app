@@ -318,52 +318,67 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     import pandas as pd
     import streamlit as st
 
-    # 1. Extract scorecard blocks
+    # --- 1. Extract scorecard blocks ---
     fund_blocks = extract_scorecard_blocks(pdf, scorecard_page)
     fund_names = [fund["Fund Name"] for fund in fund_blocks]
     if not fund_blocks:
         st.error("Could not extract fund scorecard blocks. Check the PDF and page number.")
         return
 
-    # 2. Extract tickers
+    # --- 2. Extract tickers ---
     tickers = extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page)
 
-    # 3. Prefill Fund Type (override-able)
+    # --- 3. Prefill Fund Type guesses / defaults ---
     fund_type_guesses = []
     for name in fund_names:
         g = infer_fund_type_guess(tickers.get(name, "")) or ""
-        fund_type_guesses.append("Passive" if g == "Passive" else "Active")
+        fund_type_guesses.append("Passive" if g.lower() == "passive" else "Active")
     fund_type_defaults = ["Passive" if "index" in n.lower() else "Active" for n in fund_names]
     use_guess = st.checkbox(
-        "Prefill Fund Type with Yahoo Finance guess instead of default",
+        "Prefill Fund Type with Yahoo Finance guess instead of default (index => Passive, else Active)",
         value=True
     )
     initial_types = fund_type_guesses if use_guess else fund_type_defaults
 
-    df_types = pd.DataFrame({
+    # Prepare base fund types dataframe
+    df_types_base = pd.DataFrame({
         "Fund Name": fund_names,
         "Ticker": [tickers.get(n, "") for n in fund_names],
+        "Fund Type Guess": fund_type_guesses,
         "Fund Type": initial_types,
     })
 
-    st.markdown("### Fund Type Overrides")
-    st.caption("Index funds → Passive, others → Active by default. You can override here:")
-    edited = st.data_editor(
-        df_types,
-        column_config={
-            "Fund Type": st.column_config.SelectboxColumn("Fund Type", options=["Active", "Passive"])
-        },
-        disabled=["Fund Name", "Ticker"],
-        hide_index=True,
-        key="ips_type_editor",
-        use_container_width=True,
-    )
-    fund_types = {r["Fund Name"]: r["Fund Type"] for _, r in edited.iterrows()}
+    # --- Toggleable editor ---
+    if "show_edit_fund_type" not in st.session_state:
+        st.session_state["show_edit_fund_type"] = False
 
-    # 4. Run IPS conversion
+    toggle_label = "Hide Fund Type Editor" if st.session_state["show_edit_fund_type"] else "Edit Fund Type"
+    if st.button(toggle_label, key="toggle_edit_fund_type"):
+        st.session_state["show_edit_fund_type"] = not st.session_state["show_edit_fund_type"]
+
+    # Determine fund_types mapping (either initial or edited)
+    if st.session_state["show_edit_fund_type"]:
+        st.markdown("### Fund Type Overrides")
+        st.caption("Override the inferred fund type here before reapplying IPS logic.")
+        edited_types = st.data_editor(
+            df_types_base,
+            column_config={
+                "Fund Type": st.column_config.SelectboxColumn("Fund Type", options=["Active", "Passive"]),
+            },
+            disabled=["Fund Name", "Ticker", "Fund Type Guess"],
+            hide_index=True,
+            key="data_editor_fundtype_ips",
+            use_container_width=True,
+        )
+        fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
+    else:
+        # Use the prefilled (guess or default) if not editing
+        fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in df_types_base.iterrows()}
+
+    # --- 4. IPS conversion ---
     df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
 
-    # --- IPS Results Table ---
+    # --- IPS Results ---
     st.subheader("IPS Screening Results")
     st.markdown(
         '<div style="display:flex; gap:1rem; margin-bottom:0.5rem;">'
@@ -376,7 +391,7 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     if df_icon.empty:
         st.info("No IPS screening data available.")
     else:
-        # Compact display: number the criteria
+        # Compact numbered criteria
         display_columns = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
         display_df = df_icon.rename(columns=display_columns)
 
@@ -393,11 +408,9 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
             if orig in compact_df.columns:
                 compact_df[str(i)] = compact_df[orig].apply(iconify)
                 compact_df.drop(columns=[orig], inplace=True)
-        # Desired column order
         cols_order = ["Fund Name", "Ticker", "Fund Type"] + [str(i) for i in range(1, 12)] + ["IPS Watch Status"]
         compact_df = compact_df[[c for c in cols_order if c in compact_df.columns]]
 
-        # Style watch status
         def watch_style(val):
             if val == "NW":
                 return "background-color:#d6f5df; color:#217a3e; font-weight:600;"
@@ -410,7 +423,7 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
         styled = compact_df.style.applymap(watch_style, subset=["IPS Watch Status"])
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
-        # Download / raw data
+        # Download section
         with st.expander("Download / Raw IPS Data", expanded=False):
             st.download_button(
                 "Download IPS Icon Table (clean)", data=df_icon.to_csv(index=False),
@@ -421,7 +434,7 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
                 file_name="ips_screening_raw_table.csv", mime="text/csv"
             )
 
-        # --- Summary badges moved to bottom ---
+        # --- Summary badges (moved to bottom) ---
         def summarize_watch(df):
             counts = df["IPS Watch Status"].value_counts().to_dict()
             return {
@@ -441,14 +454,14 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
         with b3:
             st.metric("Formal Watch", summary["Formal Watch"])
 
-    # 6. Save to session state for downstream steps
+    # --- Persist state downstream ---
     st.session_state["fund_blocks"] = fund_blocks
     st.session_state["fund_types"] = fund_types
     st.session_state["fund_tickers"] = tickers
     st.session_state["ips_icon_table"] = df_icon
     st.session_state["ips_raw_table"] = df_raw
 
-    # 7. Extract & save fund performance data for later steps
+    # --- Performance extraction ---
     perf_data = extract_performance_table(
         pdf,
         performance_page,
@@ -460,6 +473,7 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
 
     st.session_state["fund_performance_data"] = perf_data
     st.session_state["tickers"] = tickers  # legacy compatibility
+
 
 #───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
 
