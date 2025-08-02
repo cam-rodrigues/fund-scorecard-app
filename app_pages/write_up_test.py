@@ -1123,8 +1123,6 @@ def step15_display_selected_fund():
         </div>"""
         if facts_rec else "<div style='display:inline-block; min-width:220px; color:#666;'>No Fund Facts available.</div>"
     )
-
-
     
     st.markdown(
         f"""
@@ -1182,7 +1180,7 @@ def step15_display_selected_fund():
         st.warning("IPS screening table not found. Run earlier steps first.")
 
     # --- Slide 2 Table 1 ---
-    st.markdown("**Slide 2 Table 1**")
+    st.markdown("**Net Expense Ratio**")
     perf_data = st.session_state.get("fund_performance_data", [])
     perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == selected_fund), {})
     inv_mgr = f"{selected_fund} ({perf_item.get('Ticker','')})"
@@ -1196,11 +1194,10 @@ def step15_display_selected_fund():
 
     # Save this dataframe for Step 17
     st.session_state["slide2_table1_data"] = df_slide2
-    
     st.dataframe(df_slide2, use_container_width=True)
 
     # --- Slide 2 Table 2 ---
-    st.markdown("**Slide 2 Table 2**")
+    st.markdown("**Returns**")
     date_label = st.session_state.get("report_date", "QTD")
     
     def append_pct(val):
@@ -1247,12 +1244,11 @@ def step15_display_selected_fund():
     
     # Save for Step 17 to use
     st.session_state["slide2_table2_data"] = df_slide2_2
-    
     st.dataframe(df_slide2_2, use_container_width=True)
 
 
     # --- Slide 2 Table 3 ---
-    st.markdown("**Slide 2 Table 3**")
+    st.markdown("**Calender Returns**")
     fund_cy = st.session_state.get("step8_returns", [])
     bench_cy = st.session_state.get("benchmark_calendar_year_returns", [])
     if not fund_cy or not bench_cy:
@@ -1281,11 +1277,10 @@ def step15_display_selected_fund():
 
     # Save for Step 17 to use
     st.session_state["slide2_table3_data"] = df_slide2_3
-    
     st.dataframe(df_slide2_3, use_container_width=True)
 
     # --- Slide 3 Table 1 ---
-    st.markdown("**Slide 3 Table 1**")
+    st.markdown("**MPT Statistics Summary**")
     mpt3 = st.session_state.get("step9_mpt_stats", [])
     stats3 = next((r for r in mpt3 if r["Fund Name"] == selected_fund), {})
     mpt5 = st.session_state.get("step10_mpt_stats", [])
@@ -1307,11 +1302,10 @@ def step15_display_selected_fund():
 
     # Save for Step 17 to use
     st.session_state["slide3_table1_data"] = df_slide3_1
-    
     st.dataframe(df_slide3_1, use_container_width=True)
 
     # --- Slide 3 Table 2 ---
-    st.markdown("**Slide 3 Table 2**")
+    st.markdown("**Risk-Adjusted Returns / Peer Ranking %**")
     risk_table = st.session_state.get("step13_risk_adjusted_table", [])
     peer_table = st.session_state.get("step14_peer_rank_table", [])
     risk_rec = next((r for r in risk_table if r["Fund Name"] == selected_fund), {})
@@ -1335,11 +1329,10 @@ def step15_display_selected_fund():
         
     # Save for Step 17 to use
     st.session_state["slide3_table2_data"] = df_slide3_2
-    
     st.dataframe(df_slide3_2, use_container_width=True)
 
     # --- Slide 4 Table 1 ---
-    st.markdown("**Slide 4 Table 1**")
+    st.markdown("**Manager Tenure**")
     blocks      = st.session_state.get("fund_blocks", [])
     block       = next((b for b in blocks if b["Fund Name"] == selected_fund), {})
     raw_tenure  = next((m["Info"] for m in block.get("Metrics", []) if m["Metric"] == "Manager Tenure"), "")
@@ -1352,14 +1345,13 @@ def step15_display_selected_fund():
         "Investment Manager": inv_mgr,
         "Manager Tenure":     tenure
     }])
-    st.dataframe(df_slide4, use_container_width=True)
+
     # Save for Step 17 to use
     st.session_state["slide4"] = df_slide4
-
     st.dataframe(df_slide4, use_container_width=True)
     
     # --- Slide 4 Table 2 ---
-    st.markdown("**Slide 4 Table 2**")
+    st.markdown("**Assets**")
     facts = st.session_state.get("fund_factsheets_data", [])
     fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected_fund), None)
     perf_data = st.session_state.get("fund_performance_data", [])
@@ -1372,10 +1364,9 @@ def step15_display_selected_fund():
         "Assets Under Management":        assets,
         "Average Market Capitalization":  avg_cap
     }])
-    st.dataframe(df_slide4_2, use_container_width=True)
-        # Save for Step 17 to use
+
+    # Save for Step 17 to use
     st.session_state["slide4_table2_data"] = df_slide4_2
-    
     st.dataframe(df_slide4_2, use_container_width=True)
 
 #───Bullet Points──────────────────────────────────────────────────────────────────
