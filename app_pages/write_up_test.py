@@ -360,14 +360,6 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     # 4. Run IPS conversion
     df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
 
-    # 5. Show summary badges
-    def summarize(df):
-        cnt = df["IPS Watch Status"].value_counts().to_dict()
-        return {
-            "No Watch":       cnt.get("NW",0),
-            "Informal Watch": cnt.get("IW",0),
-            "Formal Watch":   cnt.get("FW",0),
-        }
     sums = summarize(df_icon)
     c1,c2,c3 = st.columns(3, gap="small")
     c1.metric("No Watch",       sums["No Watch"])
@@ -413,15 +405,15 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
             st.download_button("Download Raw Statuses",
                                df_raw.to_csv(index=False), "ips_raw_table.csv","text/csv")
 
-        # 7. Funds on Watch
-        st.subheader("Funds on Watch")
-        fails = df_icon[df_icon["IPS Watch Status"].isin(["IW","FW"])][["Fund Name","IPS Watch Status"]]
-        if fails.empty:
-            st.success("No funds on watch.")
-        else:
-            fails = fails.assign(Watch=fails["IPS Watch Status"].map({"IW":"Informal","FW":"Formal"}))
-            st.table(fails.rename(columns={"Fund Name":"Fund","Watch":"Watch Status"})[["Fund","Watch Status"]])
-
+    # 5. Show summary badges
+    def summarize(df):
+        cnt = df["IPS Watch Status"].value_counts().to_dict()
+        return {
+            "No Watch":       cnt.get("NW",0),
+            "Informal Watch": cnt.get("IW",0),
+            "Formal Watch":   cnt.get("FW",0),
+        }
+        
     # 8. Save session state for downstream
     st.session_state.update({
         "fund_blocks":            fund_blocks,
