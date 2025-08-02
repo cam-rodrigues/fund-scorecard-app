@@ -841,7 +841,9 @@ def step7_extract_returns(pdf):
 #───Step 8 Calendar Year Returns (funds + benchmarks──────────────────────────────────────────────────────────────────
 
 def step8_calendar_returns(pdf):
-    import re, streamlit as st, pandas as pd
+    import re
+    import streamlit as st
+    import pandas as pd
     from rapidfuzz import fuzz
 
     # 1) Figure out section bounds
@@ -853,7 +855,7 @@ def step8_calendar_returns(pdf):
 
     # 2) Pull every line from that section
     all_lines = []
-    for p in pdf.pages[cy_page - 1: end_page - 1]:
+    for p in pdf.pages[cy_page - 1 : end_page - 1]:
         all_lines.extend((p.extract_text() or "").splitlines())
 
     # 3) Identify header & years
@@ -864,58 +866,29 @@ def step8_calendar_returns(pdf):
     years = re.findall(r"\b20\d{2}\b", header)
     num_rx = re.compile(r"-?\d+\.\d+%?")
 
-    # Helper to build fund return table given a fund_blocks key and label
-    def build_fund_table(fund_blocks_key, label):
-        fund_records = []
-        # choose appropriate ticker source
-        if label == "Regular":
-            fund_blocks = st.session_state.get("fund_blocks_Regular_Scorecard", []) or []
-            tickers_map = st.session_state.get("fund_tickers_Regular_Scorecard", {}) or st.session_state.get("tickers", {})
-        else:  # Proposed
-            fund_blocks = st.session_state.get("fund_blocks_Proposed_Funds", []) or []
-            tickers_map = st.session_state.get("fund_tickers_Proposed_Funds", {}) or {}
+    # — A) Funds themselves —
+    fund_map = st.session_state.get("tickers", {}) or {}
+    fund_records = []
+    for name, tk in fund_map.items():
+        ticker = (tk or "").upper().strip()
+        idx = next((i for i, ln in enumerate(all_lines) if ticker and ticker in ln.split()), None)
+        # fallback fuzzy name if ticker line not found
+        if idx is None:
+            scores = [(i, fuzz.token_sort_ratio(name.lower(), ln.lower())) for i, ln in enumerate(all_lines)]
+            best_i, best_score = max(scores, key=lambda x: x[1])
+            if best_score > 60:
+                idx = best_i
+        raw = num_rx.findall(all_lines[idx - 1]) if idx not in (None, 0) else []
+        vals = raw[:len(years)] + [None] * (len(years) - len(raw))
+        rec = {"Name": name, "Ticker": ticker}
+        rec.update({years[i]: vals[i] for i in range(len(years))})
+        fund_records.append(rec)
 
-        for b in fund_blocks:
-            name = b.get("Fund Name")
-            if not name:
-                continue
-            ticker = (tickers_map.get(name, "") or "").upper()
-            idx = next((i for i, ln in enumerate(all_lines) if ticker and ticker in ln.split()), None)
-            vals = [None] * len(years)
-            if idx not in (None, 0):
-                raw = num_rx.findall(all_lines[idx - 1])
-                if len(raw) < len(years) and idx < len(all_lines):
-                    raw += num_rx.findall(all_lines[idx])  # sometimes on same line
-                clean = [n.strip("()%").rstrip("%") for n in raw]
-                vals = clean[:len(years)] + [None] * (len(years) - len(clean[:len(years)]))
-            rec = {"Name": name, "Ticker": ticker, "Section": label}
-            rec.update({years[i]: vals[i] for i in range(len(years))})
-            fund_records.append(rec)
-        return fund_records
-
-    # Build for both Regular and Proposed Funds
-    regular_fund_records = build_fund_table("fund_blocks_Regular_Scorecard", "Regular")
-    proposed_fund_records = build_fund_table("fund_blocks_Proposed_Funds", "Proposed Funds")
-
-    # Combine and display
-    if regular_fund_records:
-        df_regular = pd.DataFrame(regular_fund_records)
-        st.markdown("**Fund Calendar-Year Returns — Regular**")
-        cols = ["Name", "Ticker"] + years
-        st.dataframe(df_regular[cols], use_container_width=True)
-    else:
-        st.info("No regular fund calendar-year returns found.")
-
-    if proposed_fund_records:
-        df_proposed = pd.DataFrame(proposed_fund_records)
-        st.markdown("**Fund Calendar-Year Returns — Proposed Funds**")
-        cols = ["Name", "Ticker"] + years
-        st.dataframe(df_proposed[cols], use_container_width=True)
-    else:
-        st.info("No proposed fund calendar-year returns found.")
-
-    combined_fund_records = regular_fund_records + proposed_fund_records
-    st.session_state["step8_returns"] = combined_fund_records
+    df_fund = pd.DataFrame(fund_records)
+    if not df_fund.empty:
+        st.markdown("**Fund Calendar-Year Returns**")
+        st.dataframe(df_fund[["Name", "Ticker"] + years], use_container_width=True)
+        st.session_state["step8_returns"] = fund_records
 
     # — B) Benchmarks matched back to each fund’s ticker — anchored to fund lines —
     facts = st.session_state.get("fund_factsheets_data", []) or []
@@ -924,7 +897,7 @@ def step8_calendar_returns(pdf):
     if not facts:
         st.warning("No factsheet metadata available to extract benchmarks.")
     else:
-        # Build a map: fund ticker -> benchmark name (from factsheet)
+        # Map fund ticker -> benchmark name
         fund_to_bench = {}
         for f in facts:
             bench_name = (f.get("Benchmark") or "").strip()
@@ -932,22 +905,21 @@ def step8_calendar_returns(pdf):
             if bench_name and fund_tkr:
                 fund_to_bench[fund_tkr] = bench_name
 
-        # Precompute fuzzy-friendly versions
         def norm(s):
-            return re.sub(r"\s+", " ", s.lower().strip())
+            return re.sub(r"\s+", " ", (s or "").lower().strip())
 
-        for rec in fund_records:  # using the fund_records from part A which has Name/Ticker
-            fund_ticker = (rec.get("Ticker") or "").upper()
+        for fund_rec in fund_records:
+            fund_ticker = (fund_rec.get("Ticker") or "").upper()
             bench_name = fund_to_bench.get(fund_ticker, "")
             if not bench_name:
-                continue  # no benchmark listed for this fund
+                continue
 
-            # Find the fund line index first
+            # Locate the fund line as anchor
             fund_idx = next((i for i, ln in enumerate(all_lines)
                              if fund_ticker and fund_ticker in ln.split()), None)
             if fund_idx is None:
-                # fallback: try fuzzy fund name match if ticker didn't appear
-                fund_name = rec.get("Name", "")
+                # fallback fuzzy on fund name
+                fund_name = fund_rec.get("Name", "")
                 scores = [(i, fuzz.token_sort_ratio(fund_name.lower(), ln.lower()))
                           for i, ln in enumerate(all_lines)]
                 best_i, best_score = max(scores, key=lambda x: x[1])
@@ -956,29 +928,26 @@ def step8_calendar_returns(pdf):
                 else:
                     continue  # can't locate fund anchor
 
-            # Search nearby lines (say +/-3) for the benchmark name (fuzzy or substring)
+            # Search nearby lines for benchmark name (substring first, then fuzzy)
             candidate_idx = None
             best_score = 0
             window = range(max(0, fund_idx - 3), min(len(all_lines), fund_idx + 4))
             for i in window:
                 ln = all_lines[i]
-                # direct substring
                 if bench_name.lower() in ln.lower():
                     candidate_idx = i
                     best_score = 100
                     break
-                # fuzzy match
                 score = fuzz.token_sort_ratio(norm(bench_name), norm(ln))
                 if score > best_score:
                     best_score = score
                     candidate_idx = i
 
             if candidate_idx is None or best_score < 40:
-                # give up if even fuzzy is too weak
-                st.warning(f"⚠️ Could not confidently locate benchmark '{bench_name}' near fund '{rec.get('Name')}' (ticker {fund_ticker}). Best score={best_score}.")
+                st.warning(f"⚠️ Could not confidently locate benchmark '{bench_name}' near fund '{fund_rec.get('Name')}' (ticker {fund_ticker}). Best score={best_score}.")
                 continue
 
-            # Extract values from that line (and next if needed)
+            # Extract the year values from that benchmark line (and next line if needed)
             raw = num_rx.findall(all_lines[candidate_idx])
             if len(raw) < len(years) and candidate_idx + 1 < len(all_lines):
                 raw += num_rx.findall(all_lines[candidate_idx + 1])
@@ -987,12 +956,11 @@ def step8_calendar_returns(pdf):
 
             bench_rec = {
                 "Name": bench_name,
-                "Ticker": fund_ticker,  # associate with fund ticker since benchmark lacks its own
+                "Ticker": fund_ticker,  # associate to fund since benchmark may lack its own ticker
             }
             bench_rec.update({years[i]: vals[i] for i in range(len(years))})
             bench_records.append(bench_rec)
 
-    # Display benchmark calendar-year returns (merged, no distinction regular/proposed here)
     if bench_records:
         df_bench = pd.DataFrame(bench_records)
         st.markdown("**Benchmark Calendar-Year Returns**")
@@ -1000,6 +968,7 @@ def step8_calendar_returns(pdf):
         st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
         st.warning("No benchmark returns extracted.")
+
 
 
 #───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
