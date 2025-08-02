@@ -1049,14 +1049,19 @@ def step14_5_ips_fail_table():
 
     df = st.session_state.get("ips_icon_table")
     if df is None or df.empty:
-        return  # Nothing to show
+        return
 
     fail_df = df[df["IPS Watch Status"].isin(["FW", "IW"])][["Fund Name", "IPS Watch Status"]]
     if fail_df.empty:
-        return  # Nothing to show
+        return
 
-    # Build the info card HTML
-    st.markdown("""
+    # Convert to HTML table (minimal styling)
+    table_html = fail_df.rename(columns={
+        "Fund Name": "Fund",
+        "IPS Watch Status": "Watch Status"
+    }).to_html(index=False, border=0, justify="center", classes="ips-fail-table")
+
+    st.markdown(f"""
     <div style='
         background: linear-gradient(120deg, #fdf4f5 80%, #fbe4e6 100%);
         color: #244369;
@@ -1072,18 +1077,34 @@ def step14_5_ips_fail_table():
         <div style='font-size:1rem; margin-bottom:1rem;'>
             The following funds failed one or more IPS criteria and are currently on watch.
         </div>
+        {table_html}
+    </div>
     """, unsafe_allow_html=True)
 
-    # Show table with no index/scroll
-    st.dataframe(
-        fail_df.rename(columns={"Fund Name": "Fund", "IPS Watch Status": "Watch Status"}),
-        use_container_width=False,
-        hide_index=True,
-        height=min(400, 48 + 38 * len(fail_df)),
-        column_order=["Fund", "Watch Status"]
-    )
+    # Optional: add extra CSS for table look
+    st.markdown("""
+    <style>
+    .ips-fail-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 0.7em;
+    }
+    .ips-fail-table th, .ips-fail-table td {
+        border: none;
+        padding: 0.5em 1.1em;
+        text-align: left;
+        font-size: 1.07em;
+    }
+    .ips-fail-table th {
+        background: #c1121f;
+        color: #fff;
+        font-weight: 700;
+    }
+    .ips-fail-table tr:nth-child(even) {background: #fbe4e6;}
+    .ips-fail-table tr:nth-child(odd)  {background: #fff;}
+    </style>
+    """, unsafe_allow_html=True)
 
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
