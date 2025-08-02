@@ -338,14 +338,14 @@ def step3_5_6_scorecard_and_ips(
     def get_regular_tickers():
         return st.session_state.get("fund_tickers_Regular_Scorecard") or st.session_state.get("tickers", {})
 
-    # Helper to process one scorecard section
-    def process_section(section_name, sc_page):
+    # Helper to process one scorecard section; section_key should match desired session key suffix
+    def process_section(section_key, display_name, sc_page):
         if not sc_page:
             return None, None, None, None  # nothing to do
         fund_blocks = extract_scorecard_blocks(pdf, sc_page)
         fund_names = [fund["Fund Name"] for fund in fund_blocks]
         if not fund_blocks:
-            st.error(f"Could not extract fund scorecard blocks for {section_name}. Check the PDF and page number.")
+            st.error(f"Could not extract fund scorecard blocks for {display_name}. Check the PDF and page number.")
             return None, None, None, None
 
         tickers = extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page)
@@ -368,17 +368,17 @@ def step3_5_6_scorecard_and_ips(
             "Fund Type":     inferred_guesses,
         })
 
-        # Editor toggle per section to avoid clashing keys
-        edit_key = f"show_edit_fund_type_{section_name.replace(' ', '_')}"
-        editor_state_key = f"data_editor_fundtype_ips_{section_name.replace(' ', '_')}"
+        # Editor toggle per section to avoid key collision
+        edit_key = f"show_edit_fund_type_{section_key}"
+        editor_state_key = f"data_editor_fundtype_ips_{section_key}"
         if edit_key not in st.session_state:
             st.session_state[edit_key] = False
-        toggle_label = f"Hide Fund Type Editor ({section_name})" if st.session_state[edit_key] else f"Edit Fund Type ({section_name})"
-        if st.button(toggle_label, key=f"toggle_edit_{section_name}"):
+        toggle_label = f"Hide Fund Type Editor ({display_name})" if st.session_state[edit_key] else f"Edit Fund Type ({display_name})"
+        if st.button(toggle_label, key=f"toggle_edit_{section_key}"):
             st.session_state[edit_key] = not st.session_state[edit_key]
 
         if st.session_state[edit_key]:
-            st.markdown(f"### Fund Type Overrides — {section_name}")
+            st.markdown(f"### Fund Type Overrides — {display_name}")
             st.caption("Edit any fund type here; manual edits take precedence over inferred.")
             edited_types = st.data_editor(
                 df_types_base,
@@ -405,23 +405,25 @@ def step3_5_6_scorecard_and_ips(
         df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
 
         # Persist per-section state keys
-        key_base = section_name.replace(" ", "_")
-        st.session_state[f"fund_blocks_{key_base}"] = fund_blocks
-        st.session_state[f"fund_types_{key_base}"] = fund_types
-        st.session_state[f"fund_tickers_{key_base}"] = tickers
-        st.session_state[f"ips_icon_table_{key_base}"] = df_icon
-        st.session_state[f"ips_raw_table_{key_base}"] = df_raw
+        st.session_state[f"fund_blocks_{section_key}"] = fund_blocks
+        st.session_state[f"fund_types_{section_key}"] = fund_types
+        st.session_state[f"fund_tickers_{section_key}"] = tickers
+        st.session_state[f"ips_icon_table_{section_key}"] = df_icon
+        st.session_state[f"ips_raw_table_{section_key}"] = df_raw
 
         return df_icon, df_raw, fund_blocks, fund_types
 
     # --- Extract regular and proposed sections ---
-    regular_icon_df, regular_raw_df, regular_blocks, regular_types = process_section("Regular Scorecard", scorecard_page)
+    regular_icon_df, regular_raw_df, regular_blocks, regular_types = process_section(
+        "Regular_Scorecard", "Regular Fund Scorecard", scorecard_page
+    )
     proposed_page = st.session_state.get("scorecard_proposed_page")
-    proposed_icon_df, proposed_raw_df, proposed_blocks, proposed_types = process_section("Proposed Funds", proposed_page)
+    proposed_icon_df, proposed_raw_df, proposed_blocks, proposed_types = process_section(
+        "Proposed_Funds", "Proposed Funds", proposed_page
+    )
 
     # --- Ensure regular fallback mappings exist ---
     if not st.session_state.get("fund_tickers_Regular_Scorecard"):
-        # legacy fallback
         st.session_state["fund_tickers_Regular_Scorecard"] = st.session_state.get("tickers", {}).copy()
     if not st.session_state.get("fund_types_Regular_Scorecard"):
         st.session_state["fund_types_Regular_Scorecard"] = st.session_state.get("fund_types", {}).copy() if st.session_state.get("fund_types") else {}
@@ -436,8 +438,11 @@ def step3_5_6_scorecard_and_ips(
         '</div>', unsafe_allow_html=True
     )
 
-    def render_compact(df_icon, title):
-        if df_icon is None or df_icon.empty:
+    def render_compact(df_icon, title, section_key):
+        if df_icon is None:
+            st.info(f"No IPS screening section found for {title}.")
+            return
+        if df_icon.empty:
             st.info(f"No IPS screening data available for {title}.")
             return
         st.markdown(f"### {title}")
@@ -492,8 +497,8 @@ def step3_5_6_scorecard_and_ips(
             st.metric(f"{title} - Formal Watch", summary["Formal Watch"])
 
     # Render both tables separately
-    render_compact(regular_icon_df, "Regular Fund Scorecard")
-    render_compact(proposed_icon_df, "Proposed Funds")
+    render_compact(regular_icon_df, "Regular Fund Scorecard", "Regular_Scorecard")
+    render_compact(proposed_icon_df, "Proposed Funds", "Proposed_Funds")
 
     # --- Persist upstream performance & legacy state ---
     if regular_blocks:
