@@ -661,59 +661,6 @@ def step6_process_factsheets(pdf, fund_names, suppress_output=True):
         else:
             st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
-
-    # --- Process both sections ---
-    regular = _process_factsheet_section(pdf, fund_names, "factsheets_page", "Regular")
-    proposed = _process_factsheet_section(pdf, fund_names, "factsheets_proposed_page", "Proposed Funds")
-
-    combined = regular + proposed
-    df_facts = pd.DataFrame(combined)
-    st.session_state["fund_factsheets_data"] = combined
-
-    if not suppress_output:
-        if df_facts.empty:
-            st.info("No factsheet pages matched.")
-        else:
-            display_df = df_facts[[
-                "Section",
-                "Matched Fund Name",
-                "Matched Ticker",
-                "Benchmark",
-                "Category",
-                "Net Assets",
-                "Manager Name",
-                "Avg. Market Cap",
-                "Expense Ratio",
-                "Matched",
-            ]].rename(columns={
-                "Matched Fund Name": "Fund Name",
-                "Matched Ticker": "Ticker",
-            })
-
-            # Split display: regular first, then proposed
-            st.markdown("## Fund Factsheets — Regular")
-            df_regular = display_df[display_df["Section"] == "Regular"].drop(columns=["Section"])
-            if not df_regular.empty:
-                st.dataframe(df_regular, use_container_width=True)
-            else:
-                st.info("No regular factsheet matches found.")
-
-            st.markdown("## Fund Factsheets — Proposed Funds")
-            df_proposed = display_df[display_df["Section"] == "Proposed Funds"].drop(columns=["Section"])
-            if not df_proposed.empty:
-                st.dataframe(df_proposed, use_container_width=True)
-            else:
-                st.info("No proposed factsheet matches found.")
-
-            # Summary counts only from regular (preserves original intent)
-            matched_count = sum(1 for r in regular if r["Matched"] == "✅")
-            total_declared = st.session_state.get("total_options")
-            st.write(f"Matched {matched_count} of {len(regular)} regular factsheet pages.")
-            if matched_count == total_declared:
-                st.success(f"All {matched_count} funds matched the declared Total Options from Page 1.")
-            else:
-                st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
-
 #───Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr / Net Expense Ratio & Bench QTD──────────────────────────────────────────────────────────────────
 
 def step7_extract_returns(pdf):
