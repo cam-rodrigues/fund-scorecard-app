@@ -906,32 +906,29 @@ def step8_calendar_returns(pdf):
     combined_fund_records = regular_fund_records + proposed_fund_records
     st.session_state["step8_returns"] = combined_fund_records
 
-    # — B) Benchmarks matched back to each regular fund’s ticker (original simple logic) —
-    facts = st.session_state.get("fund_factsheets_data", []) or []
+    # — B) Benchmarks matched back to each fund’s ticker —
+    facts         = st.session_state.get("fund_factsheets_data", [])
     bench_records = []
     for f in facts:
-        if f.get("Section") != "Regular":
-            continue  # only regular benchmarks
         bench_name = f.get("Benchmark", "").strip()
-        fund_tkr = f.get("Matched Ticker", "")
+        fund_tkr   = f.get("Matched Ticker", "")
         if not bench_name:
             continue
 
         # find the first line containing the benchmark name
-        idx = next((i for i, ln in enumerate(all_lines) if bench_name and bench_name in ln), None)
+        idx = next((i for i, ln in enumerate(all_lines) if bench_name in ln), None)
         if idx is None:
             continue
-        raw = num_rx.findall(all_lines[idx])
+        raw  = num_rx.findall(all_lines[idx])
         vals = raw[:len(years)] + [None] * (len(years) - len(raw))
-        rec = {"Name": bench_name, "Ticker": fund_tkr}
+        rec  = {"Name": bench_name, "Ticker": fund_tkr}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         bench_records.append(rec)
 
-    if bench_records:
-        df_bench = pd.DataFrame(bench_records)
-        st.markdown("**Benchmark Calendar-Year Returns — Regular**")
-        cols = ["Name", "Ticker"] + years
-        st.dataframe(df_bench[cols], use_container_width=True)
+    df_bench = pd.DataFrame(bench_records)
+    if not df_bench.empty:
+        st.markdown("**Benchmark Calendar‑Year Returns**")
+        st.dataframe(df_bench[["Name", "Ticker"] + years], use_container_width=True)
         st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
         st.warning("No benchmark returns extracted.")
