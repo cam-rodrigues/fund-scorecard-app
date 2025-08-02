@@ -890,14 +890,14 @@ def step8_calendar_returns(pdf):
         st.dataframe(df_fund[["Name", "Ticker"] + years], use_container_width=True)
         st.session_state["step8_returns"] = fund_records
 
-    # — B) Benchmarks matched back to each fund’s ticker — anchored to fund lines —
+    # — B) Benchmarks matched back to each fund’s ticker —
     facts = st.session_state.get("fund_factsheets_data", []) or []
     bench_records = []
 
     if not facts:
         st.warning("No factsheet metadata available to extract benchmarks.")
     else:
-        # Map fund ticker -> benchmark name
+        # Map fund ticker -> benchmark name (from factsheets)
         fund_to_bench = {}
         for f in facts:
             bench_name = (f.get("Benchmark") or "").strip()
@@ -905,70 +905,76 @@ def step8_calendar_returns(pdf):
             if bench_name and fund_tkr:
                 fund_to_bench[fund_tkr] = bench_name
 
+        st.markdown("#### Debug: Fund → Benchmark mapping from Factsheets")
+        st.write(fund_to_bench)
+
         def norm(s):
             return re.sub(r"\s+", " ", (s or "").lower().strip())
 
         for fund_rec in fund_records:
+            fund_name = fund_rec.get("Name", "")
             fund_ticker = (fund_rec.get("Ticker") or "").upper()
             bench_name = fund_to_bench.get(fund_ticker, "")
             if not bench_name:
+                st.warning(f"No benchmark name in factsheets for fund '{fund_name}' ({fund_ticker}).")
                 continue
 
-            # Locate the fund line as anchor
+            # Find anchor line for the fund
             fund_idx = next((i for i, ln in enumerate(all_lines)
                              if fund_ticker and fund_ticker in ln.split()), None)
             if fund_idx is None:
                 # fallback fuzzy on fund name
-                fund_name = fund_rec.get("Name", "")
                 scores = [(i, fuzz.token_sort_ratio(fund_name.lower(), ln.lower()))
                           for i, ln in enumerate(all_lines)]
                 best_i, best_score = max(scores, key=lambda x: x[1])
                 if best_score > 60:
                     fund_idx = best_i
+                    st.info(f"Fuzzy anchored fund '{fund_name}' at line '{all_lines[fund_idx]}' with score {best_score}.")
                 else:
-                    continue  # can't locate fund anchor
+                    st.warning(f"Could not anchor fund '{fund_name}' to search for its benchmark.")
+                    continue
 
-            # Search nearby lines for benchmark name (substring first, then fuzzy)
-            candidate_idx = None
+            # Look in the next few lines for benchmark name (fuzzy)
+            bench_line_idx = None
             best_score = 0
-            window = range(max(0, fund_idx - 3), min(len(all_lines), fund_idx + 4))
-            for i in window:
+            search_window = range(fund_idx + 1, min(len(all_lines), fund_idx + 5))  # look 1–4 lines below
+            for i in search_window:
                 ln = all_lines[i]
-                if bench_name.lower() in ln.lower():
-                    candidate_idx = i
-                    best_score = 100
-                    break
                 score = fuzz.token_sort_ratio(norm(bench_name), norm(ln))
                 if score > best_score:
                     best_score = score
-                    candidate_idx = i
+                    bench_line_idx = i
+                if norm(bench_name) in norm(ln):  # exact substring lightweight
+                    best_score = 100
+                    bench_line_idx = i
+                    break
 
-            if candidate_idx is None or best_score < 40:
-                st.warning(f"⚠️ Could not confidently locate benchmark '{bench_name}' near fund '{fund_rec.get('Name')}' (ticker {fund_ticker}). Best score={best_score}.")
+            if bench_line_idx is None or best_score < 50:
+                # Broaden search globally as a last resort
+                global_scores = [(i, fuzz.token_sort_ratio(norm(bench_name), norm(ln))) for i, ln in enumerate(all_lines)]
+                best_i, global_best = max(global_scores, key=lambda x: x[1])
+                if global_best > best_score:
+                    bench_line_idx = best_i
+                    best_score = global_best
+                    st.info(f"Broadened search matched benchmark '{bench_name}' at line '{all_lines[bench_line_idx]}' with score {best_score} for fund '{fund_name}'.")
+
+            if bench_line_idx is None or best_score < 40:
+                st.warning(f"Could not confidently locate benchmark '{bench_name}' for fund '{fund_name}'. Best score={best_score}.")
                 continue
 
-            # Extract the year values from that benchmark line (and next line if needed)
-            raw = num_rx.findall(all_lines[candidate_idx])
-            if len(raw) < len(years) and candidate_idx + 1 < len(all_lines):
-                raw += num_rx.findall(all_lines[candidate_idx + 1])
+            # Extract year values from the benchmark line (and next if needed)
+            raw = num_rx.findall(all_lines[bench_line_idx])
+            if len(raw) < len(years) and bench_line_idx + 1 < len(all_lines):
+                raw += num_rx.findall(all_lines[bench_line_idx + 1])
             clean = [n.strip("()%").rstrip("%") for n in raw]
             vals = clean[:len(years)] + [None] * (len(years) - len(clean[:len(years)]))
 
             bench_rec = {
                 "Name": bench_name,
-                "Ticker": fund_ticker,  # associate to fund since benchmark may lack its own ticker
+                "Ticker": fund_ticker,  # associate with parent fund
             }
             bench_rec.update({years[i]: vals[i] for i in range(len(years))})
             bench_records.append(bench_rec)
-
-    if bench_records:
-        df_bench = pd.DataFrame(bench_records)
-        st.markdown("**Benchmark Calendar-Year Returns**")
-        st.dataframe(df_bench[["Name", "Ticker"] + years], use_container_width=True)
-        st.session_state["benchmark_calendar_year_returns"] = bench_records
-    else:
-        st.warning("No benchmark returns extracted.")
-
 
 
 #───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
