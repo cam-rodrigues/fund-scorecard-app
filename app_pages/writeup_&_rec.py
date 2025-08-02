@@ -1240,23 +1240,20 @@ def step14_5_ips_fail_table():
 
 #───Step 14.7: Proposal──────────────────────────────────────────────────────────────────
 
-def step14_7_list_proposed_funds(pdf):
+def step14_7_list_proposed_funds_only(pdf):
     import re
     import streamlit as st
-    from rapidfuzz import fuzz
-    import pandas as pd
 
     prop_page = st.session_state.get("scorecard_proposed_page")
     if not prop_page:
         st.error("❌ 'Fund Scorecard: Proposed Funds' page number not found in TOC.")
         return []
 
-    # Grab lines from the proposed funds page (and stop if a new major section appears)
     collected_lines = []
     for pnum in range(prop_page - 1, len(pdf.pages)):
         txt = pdf.pages[pnum].extract_text() or ""
         lines = [ln.strip() for ln in txt.splitlines() if ln.strip()]
-        # Simple boundary: if we see something that clearly isn't in this section, stop (adjust as needed)
+        # stop if a new unrelated major section appears
         if pnum > prop_page - 1 and any(re.search(pat, " ".join(lines), re.IGNORECASE)
                                        for pat in ["Fund Factsheets", "Fund Performance", "IPS Screening"]):
             break
@@ -1266,21 +1263,27 @@ def step14_7_list_proposed_funds(pdf):
         st.warning("No text found on Proposed Funds page.")
         return []
 
-    # Heuristic: proposed fund names are lines that are followed soon by metric labels (we know those exist under each fund)
+    # Identify proposed fund names:
+    # Heuristic: a line that is followed soon by any metric indicator, but exclude
+    # the section title, criteria/threshold headers, and the word "Investment Options".
     metric_indicators = [
         "Manager Tenure", "Excess Performance", "Peer Return Rank", "Expense Ratio Rank",
         "Sharpe Ratio Rank", "R-Squared", "Sortino Ratio Rank", "Tracking Error Rank"
     ]
     metric_indicators_lower = [m.lower() for m in metric_indicators]
+    exclude_patterns = ["criteria", "threshold", "investment options", "fund scorecard: proposed funds"]
 
     proposed_names = []
     for idx, line in enumerate(collected_lines):
-        # look ahead a few lines to see if any metric label appears; if so, treat current line as a fund name
+        low = line.lower()
+        if any(ex in low for ex in exclude_patterns):
+            continue  # skip headers or unwanted lines
+
         lookahead = " ".join(collected_lines[idx + 1 : idx + 6]).lower()
         if any(ind in lookahead for ind in metric_indicators_lower):
             proposed_names.append(line)
 
-    # Dedupe while preserving order
+    # Deduplicate while preserving order
     seen = set()
     deduped = []
     for name in proposed_names:
@@ -1288,34 +1291,17 @@ def step14_7_list_proposed_funds(pdf):
             seen.add(name)
             deduped.append(name)
 
-    # Optionally fuzzy-match to known scorecard funds if available
-    fund_blocks = st.session_state.get("fund_blocks", [])
-    known_funds = [fb.get("Fund Name", "") for fb in fund_blocks] if fund_blocks else []
-    matches = []
-    for raw in deduped:
-        best_match, best_score = None, 0
-        for k in known_funds:
-            score = fuzz.token_sort_ratio(raw.lower(), k.lower())
-            if score > best_score:
-                best_score = score
-                best_match = k
-        matches.append({
-            "Raw Proposed Name": raw,
-            "Matched Scorecard Fund": best_match if best_score >= 70 else "",
-            "Match Score": best_score if best_match else None
-        })
-
-    df = pd.DataFrame(matches)
     st.session_state["proposed_funds_list"] = deduped
-    st.session_state["proposed_funds_matches_df"] = df
 
     st.subheader("Proposed Funds (Step 14.7)")
-    if not df.empty:
-        st.table(df[["Raw Proposed Name", "Matched Scorecard Fund", "Match Score"]])
+    if deduped:
+        for name in deduped:
+            st.write(f"- {name}")
     else:
-        st.write(deduped)
+        st.write("No proposed fund names found.")
 
     return deduped
+
 
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
