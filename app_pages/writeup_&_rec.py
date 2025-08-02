@@ -245,35 +245,74 @@ def extract_scorecard_blocks(pdf, scorecard_page):
     return fund_blocks
 
 def extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page=None):
-    end_page = factsheets_page-1 if factsheets_page else len(pdf.pages)
-    all_lines, perf_text = [], ""
-    for p in pdf.pages[performance_page-1:end_page]:
+    from rapidfuzz import fuzz
+    import re
+
+    end_page = factsheets_page - 1 if factsheets_page else len(pdf.pages)
+    all_lines = []
+    for p in pdf.pages[performance_page - 1:end_page]:
         txt = p.extract_text() or ""
-        perf_text += txt + "\n"
-        all_lines.extend(txt.splitlines())
-    mapping = {}
+        all_lines.extend([ln.strip() for ln in txt.splitlines() if ln.strip()])
+
+    # Step 1: Collect candidate (raw_name, ticker) pairs from lines with uppercase tickers length 2-5
+    candidate_pairs = []  # list of tuples (raw_name_normalized, ticker, raw_name_original)
+    ticker_rx = re.compile(r"\b([A-Z]{2,5})\b")
     for ln in all_lines:
-        m = re.match(r"(.+?)\s+([A-Z]{1,5})$", ln.strip())
-        if not m:
+        matches = ticker_rx.findall(ln)
+        if not matches:
             continue
-        raw_name, ticker = m.groups()
-        norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
-        mapping[norm] = ticker
-    tickers = {}
+        # For each candidate ticker in the line, assume the text before its last occurrence is the fund name
+        for ticker in set(matches):
+            # isolate the portion before the ticker (last occurrence to be safer)
+            parts = ln.rsplit(ticker, 1)
+            if len(parts) >= 1:
+                raw_name = parts[0].strip()
+                if not raw_name:
+                    continue
+                norm_raw = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
+                candidate_pairs.append((norm_raw, ticker, raw_name))
+
+    # Step 2: For each fund_name, find best candidate fuzzy match
+    assigned = {}
+    used_tickers = set()
+    scores = []
+
+    # Precompute normalized expected names
+    norm_expected_list = [
+        (name, re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower())
+        for name in fund_names
+    ]
+
+    for fund_name, norm_expected in norm_expected_list:
+        best = (None, None, 0)  # (ticker, raw_name_original, score)
+        for norm_raw, ticker, raw_name in candidate_pairs:
+            if ticker in used_tickers:
+                continue  # enforce one-to-one
+            score = fuzz.token_sort_ratio(norm_expected, norm_raw)
+            if score > best[2]:
+                best = (ticker, raw_name, score)
+        if best[2] >= 70:  # threshold
+            assigned[fund_name] = best[0]
+            used_tickers.add(best[0])
+            scores.append((fund_name, best[0], best[2]))
+
+    # Step 3: Fallback for unmatched names: try looser matching or grab from the full text
     for name in fund_names:
-        norm_expected = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
-        found = next((t for raw, t in mapping.items() if raw.startswith(norm_expected)), None)
-        tickers[name] = found
-    total = len(fund_names)
-    found_count = sum(1 for t in tickers.values() if t)
-    if found_count < total:
-        all_tks = re.findall(r'\b([A-Z]{1,5})\b', perf_text)
-        seen = []
-        for tk in all_tks:
-            if tk not in seen:
-                seen.append(tk)
-        tickers = {name: (seen[i] if i < len(seen) else "") for i, name in enumerate(fund_names)}
-    return {k: (v if v else "") for k, v in tickers.items()}
+        if name in assigned:
+            continue
+        # Try containing uppercase ticker elsewhere (simple heuristic)
+        fallback_ticker = ""
+        for ln in all_lines:
+            if name.lower() in ln.lower():
+                m = re.search(r"\b([A-Z]{2,5})\b", ln)
+                if m:
+                    fallback_ticker = m.group(1)
+                    break
+        assigned[name] = fallback_ticker
+
+    # Final cleanup: ensure all values are strings
+    return {k: (v if v else "") for k, v in assigned.items()}
+
 
 def scorecard_to_ips(fund_blocks, fund_types, tickers):
     # Maps for converting scorecard to IPS criteria (from your logic)
