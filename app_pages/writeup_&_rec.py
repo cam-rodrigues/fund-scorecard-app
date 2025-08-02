@@ -578,7 +578,20 @@ def step6_process_factsheets(pdf, fund_names, suppress_output=True):
     import streamlit as st
     import pandas as pd
 
-    # Process regular and proposed via helper inlined here for clarity
+    def clean_header_block(text):
+        # collapse internal newlines so label:value pairs are easier to regex
+        return " ".join(line.strip() for line in text.splitlines() if line.strip())
+
+    def extract_label_value(label, text, next_labels=None):
+        # non-greedy grab after label until next label or end
+        if next_labels is None:
+            next_labels = []
+        pattern = rf"{re.escape(label)}\s*(.*?)\s*(?:{'|'.join(re.escape(n) for n in next_labels)}|$)"
+        m = re.search(pattern, text, flags=re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+        return ""
+
     def _process_factsheet_section(pdf, fund_names, page_key, section_label):
         factsheet_start = st.session_state.get(page_key)
         total_declared = st.session_state.get("total_options")
@@ -593,32 +606,34 @@ def step6_process_factsheets(pdf, fund_names, suppress_output=True):
         matched_factsheets = []
         for i in range(factsheet_start - 1, len(pdf.pages)):
             page = pdf.pages[i]
-            full_text = page.extract_text() or ""
-            lines = [ln.strip() for ln in full_text.splitlines() if ln.strip()]
+            raw = page.extract_text() or ""
+            if not raw.strip():
+                continue
+            # Work with a collapsed header/text to avoid line-split issues
+            norm = clean_header_block(raw)
 
-            # Find the line that has both Benchmark: and Expense Ratio:
-            candidate_line = None
-            for ln in lines:
-                if "Benchmark:" in ln and "Expense Ratio:" in ln:
-                    candidate_line = ln
-                    break
-            if not candidate_line:
+            # Require at least Benchmark and Expense Ratio mention somewhere on page
+            if "benchmark:" not in norm.lower() or "expense ratio:" not in norm.lower():
                 continue
 
-            first_line = candidate_line
-
-            # Extract ticker (1–5 uppercase letters)
-            ticker_match = re.search(r"\b([A-Z]{1,5})\b", first_line)
+            # Extract ticker: look for 1–5 uppercase letters adjacent to fund name area
+            ticker_match = re.search(r"\b([A-Z]{1,5})\b", norm)
             ticker = ticker_match.group(1) if ticker_match else ""
 
-            # Fund name before ticker if possible, else cleanup
+            # Extract raw fund name: attempt before ticker, else fallback to removing known labels
             if ticker:
-                fund_name_raw = first_line.split(ticker)[0].strip()
+                parts = norm.split(ticker, 1)
+                fund_name_raw = parts[0].strip()
             else:
-                cleaned = re.sub(r"Benchmark:.*", "", first_line)
-                cleaned = re.sub(r"Expense Ratio:.*", "", cleaned)
-                fund_name_raw = cleaned.strip()
+                # remove known segments to approximate
+                fund_name_raw = re.sub(r"Benchmark:.*", "", norm, flags=re.IGNORECASE)
+                fund_name_raw = re.sub(r"Expense Ratio:.*", "", fund_name_raw, flags=re.IGNORECASE)
+                fund_name_raw = fund_name_raw.strip()
 
+            # Clean up watchlist suffixes if present
+            fund_name_raw = re.sub(r"has been placed on watchlist for not meeting .*? criteria", "", fund_name_raw, flags=re.IGNORECASE).strip()
+
+            # Fuzzy match to performance_data
             best_score = 0
             matched_name = matched_ticker = ""
             for item in performance_data:
@@ -627,22 +642,13 @@ def step6_process_factsheets(pdf, fund_names, suppress_output=True):
                 if score > best_score:
                     best_score, matched_name, matched_ticker = score, item["Fund Scorecard Name"], item["Ticker"]
 
-            def extract_field(label, text, stop=None):
-                try:
-                    start = text.index(label) + len(label)
-                    rest = text[start:]
-                    if stop and stop in rest:
-                        return rest[:rest.index(stop)].strip()
-                    return rest.split()[0]
-                except Exception:
-                    return ""
-
-            benchmark = extract_field("Benchmark:", first_line, "Category:")
-            category = extract_field("Category:", first_line, "Net Assets:")
-            net_assets = extract_field("Net Assets:", first_line, "Manager Name:")
-            manager = extract_field("Manager Name:", first_line, "Avg. Market Cap:")
-            avg_cap = extract_field("Avg. Market Cap:", first_line, "Expense Ratio:")
-            expense = extract_field("Expense Ratio:", first_line)
+            # Extract fields with awareness of label order
+            benchmark = extract_label_value("Benchmark:", norm, next_labels=["Category:", "Expense Ratio:"])
+            category = extract_label_value("Category:", norm, next_labels=["Net Assets:", "Benchmark:"])
+            net_assets = extract_label_value("Net Assets:", norm, next_labels=["Manager Name:", "Category:"])
+            manager = extract_label_value("Manager Name:", norm, next_labels=["Avg. Market Cap:", "Net Assets:"])
+            avg_cap = extract_label_value("Avg. Market Cap:", norm, next_labels=["Expense Ratio:", "Manager Name:"])
+            expense = extract_label_value("Expense Ratio:", norm, next_labels=[])
 
             matched_factsheets.append({
                 "Page #": i + 1,
