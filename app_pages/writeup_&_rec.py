@@ -519,93 +519,146 @@ def step3_5_6_scorecard_and_ips(
 #───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
 
 def step6_process_factsheets(pdf, fund_names, suppress_output=True):
-    # If you ever want UI, set suppress_output=False when calling
+    import re
+    from rapidfuzz import fuzz
+    import streamlit as st
+    import pandas as pd
 
-    factsheet_start = st.session_state.get("factsheets_page")
-    total_declared = st.session_state.get("total_options")
-    performance_data = [
-        {"Fund Scorecard Name": name, "Ticker": ticker}
-        for name, ticker in st.session_state.get("tickers", {}).items()
-    ]
+    # Process regular and proposed via helper inlined here for clarity
+    def _process_factsheet_section(pdf, fund_names, page_key, section_label):
+        factsheet_start = st.session_state.get(page_key)
+        total_declared = st.session_state.get("total_options")
+        performance_data = [
+            {"Fund Scorecard Name": name, "Ticker": ticker}
+            for name, ticker in st.session_state.get("tickers", {}).items()
+        ]
 
-    if not factsheet_start:
-        if not suppress_output:
-            st.error("❌ 'Fund Factsheets' page number not found in TOC.")
-        return
+        if not factsheet_start:
+            return []
 
-    matched_factsheets = []
-    for i in range(factsheet_start - 1, len(pdf.pages)):
-        page = pdf.pages[i]
-        words = page.extract_words(use_text_flow=True)
-        header_words = [w['text'] for w in words if w['top'] < 100]
-        first_line = " ".join(header_words).strip()
+        matched_factsheets = []
+        for i in range(factsheet_start - 1, len(pdf.pages)):
+            page = pdf.pages[i]
+            full_text = page.extract_text() or ""
+            lines = [ln.strip() for ln in full_text.splitlines() if ln.strip()]
 
-        if not first_line or "Benchmark:" not in first_line or "Expense Ratio:" not in first_line:
-            continue
+            # Find the line that has both Benchmark: and Expense Ratio:
+            candidate_line = None
+            for ln in lines:
+                if "Benchmark:" in ln and "Expense Ratio:" in ln:
+                    candidate_line = ln
+                    break
+            if not candidate_line:
+                continue
 
-        ticker_match = re.search(r"\b([A-Z]{5})\b", first_line)
-        ticker = ticker_match.group(1) if ticker_match else ""
-        fund_name_raw = first_line.split(ticker)[0].strip() if ticker else first_line
+            first_line = candidate_line
 
-        best_score = 0
-        matched_name = matched_ticker = ""
-        for item in performance_data:
-            ref = f"{item['Fund Scorecard Name']} {item['Ticker']}".strip()
-            score = fuzz.token_sort_ratio(f"{fund_name_raw} {ticker}".lower(), ref.lower())
-            if score > best_score:
-                best_score, matched_name, matched_ticker = score, item['Fund Scorecard Name'], item['Ticker']
+            # Extract ticker (1–5 uppercase letters)
+            ticker_match = re.search(r"\b([A-Z]{1,5})\b", first_line)
+            ticker = ticker_match.group(1) if ticker_match else ""
 
-        def extract_field(label, text, stop=None):
-            try:
-                start = text.index(label) + len(label)
-                rest = text[start:]
-                if stop and stop in rest:
-                    return rest[:rest.index(stop)].strip()
-                return rest.split()[0]
-            except Exception:
-                return ""
+            # Fund name before ticker if possible, else cleanup
+            if ticker:
+                fund_name_raw = first_line.split(ticker)[0].strip()
+            else:
+                cleaned = re.sub(r"Benchmark:.*", "", first_line)
+                cleaned = re.sub(r"Expense Ratio:.*", "", cleaned)
+                fund_name_raw = cleaned.strip()
 
-        benchmark = extract_field("Benchmark:", first_line, "Category:")
-        category  = extract_field("Category:", first_line, "Net Assets:")
-        net_assets= extract_field("Net Assets:", first_line, "Manager Name:")
-        manager   = extract_field("Manager Name:", first_line, "Avg. Market Cap:")
-        avg_cap   = extract_field("Avg. Market Cap:", first_line, "Expense Ratio:")
-        expense   = extract_field("Expense Ratio:", first_line)
+            best_score = 0
+            matched_name = matched_ticker = ""
+            for item in performance_data:
+                ref = f"{item['Fund Scorecard Name']} {item['Ticker']}".strip()
+                score = fuzz.token_sort_ratio(f"{fund_name_raw} {ticker}".lower(), ref.lower())
+                if score > best_score:
+                    best_score, matched_name, matched_ticker = score, item["Fund Scorecard Name"], item["Ticker"]
 
-        matched_factsheets.append({
-            "Page #": i + 1,
-            "Parsed Fund Name": fund_name_raw,
-            "Parsed Ticker": ticker,
-            "Matched Fund Name": matched_name,
-            "Matched Ticker": matched_ticker,
-            "Benchmark": benchmark,
-            "Category": category,
-            "Net Assets": net_assets,
-            "Manager Name": manager,
-            "Avg. Market Cap": avg_cap,
-            "Expense Ratio": expense,
-            "Match Score": best_score,
-            "Matched": "✅" if best_score > 20 else "❌"
-        })
+            def extract_field(label, text, stop=None):
+                try:
+                    start = text.index(label) + len(label)
+                    rest = text[start:]
+                    if stop and stop in rest:
+                        return rest[:rest.index(stop)].strip()
+                    return rest.split()[0]
+                except Exception:
+                    return ""
 
-    df_facts = pd.DataFrame(matched_factsheets)
-    st.session_state['fund_factsheets_data'] = matched_factsheets
+            benchmark = extract_field("Benchmark:", first_line, "Category:")
+            category = extract_field("Category:", first_line, "Net Assets:")
+            net_assets = extract_field("Net Assets:", first_line, "Manager Name:")
+            manager = extract_field("Manager Name:", first_line, "Avg. Market Cap:")
+            avg_cap = extract_field("Avg. Market Cap:", first_line, "Expense Ratio:")
+            expense = extract_field("Expense Ratio:", first_line)
 
-    # Hide UI output unless suppress_output is False
+            matched_factsheets.append({
+                "Page #": i + 1,
+                "Parsed Fund Name": fund_name_raw,
+                "Parsed Ticker": ticker,
+                "Matched Fund Name": matched_name,
+                "Matched Ticker": matched_ticker,
+                "Benchmark": benchmark,
+                "Category": category,
+                "Net Assets": net_assets,
+                "Manager Name": manager,
+                "Avg. Market Cap": avg_cap,
+                "Expense Ratio": expense,
+                "Match Score": best_score,
+                "Matched": "✅" if best_score > 20 else "❌",
+                "Section": section_label,
+            })
+        return matched_factsheets
+
+    # --- Process both sections ---
+    regular = _process_factsheet_section(pdf, fund_names, "factsheets_page", "Regular")
+    proposed = _process_factsheet_section(pdf, fund_names, "factsheets_proposed_page", "Proposed Funds")
+
+    combined = regular + proposed
+    df_facts = pd.DataFrame(combined)
+    st.session_state["fund_factsheets_data"] = combined
+
     if not suppress_output:
-        display_df = df_facts[[
-            "Matched Fund Name", "Matched Ticker", "Benchmark", "Category",
-            "Net Assets", "Manager Name", "Avg. Market Cap", "Expense Ratio", "Matched"
-        ]].rename(columns={"Matched Fund Name": "Fund Name", "Matched Ticker": "Ticker"})
-
-        st.dataframe(display_df, use_container_width=True)
-
-        matched_count = sum(1 for r in matched_factsheets if r["Matched"] == "✅")
-        st.write(f"Matched {matched_count} of {len(matched_factsheets)} factsheet pages.")
-        if matched_count == total_declared:
-            st.success(f"All {matched_count} funds matched the declared Total Options from Page 1.")
+        if df_facts.empty:
+            st.info("No factsheet pages matched.")
         else:
-            st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
+            display_df = df_facts[[
+                "Section",
+                "Matched Fund Name",
+                "Matched Ticker",
+                "Benchmark",
+                "Category",
+                "Net Assets",
+                "Manager Name",
+                "Avg. Market Cap",
+                "Expense Ratio",
+                "Matched",
+            ]].rename(columns={
+                "Matched Fund Name": "Fund Name",
+                "Matched Ticker": "Ticker",
+            })
+
+            # Split display: regular first, then proposed
+            st.markdown("## Fund Factsheets — Regular")
+            df_regular = display_df[display_df["Section"] == "Regular"].drop(columns=["Section"])
+            if not df_regular.empty:
+                st.dataframe(df_regular, use_container_width=True)
+            else:
+                st.info("No regular factsheet matches found.")
+
+            st.markdown("## Fund Factsheets — Proposed Funds")
+            df_proposed = display_df[display_df["Section"] == "Proposed Funds"].drop(columns=["Section"])
+            if not df_proposed.empty:
+                st.dataframe(df_proposed, use_container_width=True)
+            else:
+                st.info("No proposed factsheet matches found.")
+
+            # Summary counts only from regular (preserves original intent)
+            matched_count = sum(1 for r in regular if r["Matched"] == "✅")
+            total_declared = st.session_state.get("total_options")
+            st.write(f"Matched {matched_count} of {len(regular)} regular factsheet pages.")
+            if matched_count == total_declared:
+                st.success(f"All {matched_count} funds matched the declared Total Options from Page 1.")
+            else:
+                st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
 #───Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr / Net Expense Ratio & Bench QTD──────────────────────────────────────────────────────────────────
 
@@ -617,13 +670,19 @@ def step7_extract_returns(pdf):
 
     # 1) Where to scan
     perf_page = st.session_state.get("performance_page")
-    end_page  = st.session_state.get("calendar_year_page") or (len(pdf.pages) + 1)
+    end_page = st.session_state.get("calendar_year_page") or (len(pdf.pages) + 1)
     perf_data = st.session_state.get("fund_performance_data", [])
     if perf_page is None or not perf_data:
-        st.error("❌ Run Step 5 first to populate performance data.")
+        st.error("❌ Run Step 5 first to populate performance data.")
         return
 
-    # 2) Prep output slots
+    # 2) Determine which funds are proposed vs regular
+    proposed_blocks = st.session_state.get("fund_blocks_Proposed_Funds", []) or []
+    regular_blocks = st.session_state.get("fund_blocks_Regular_Scorecard", []) or []
+    proposed_names = set(b.get("Fund Name") for b in proposed_blocks if b.get("Fund Name"))
+    regular_names = set(b.get("Fund Name") for b in regular_blocks if b.get("Fund Name"))
+
+    # 3) Prep output slots and assign section
     fields = [
         "QTD", "1Yr", "3Yr", "5Yr", "10Yr", "Net Expense Ratio",
         "Bench QTD", "Bench 1Yr", "Bench 3Yr", "Bench 5Yr", "Bench 10Yr"
@@ -631,25 +690,32 @@ def step7_extract_returns(pdf):
     for itm in perf_data:
         for f in fields:
             itm.setdefault(f, None)
+        name = itm.get("Fund Scorecard Name", "")
+        if name in proposed_names:
+            itm["Section"] = "Proposed Funds"
+        elif name in regular_names:
+            itm["Section"] = "Regular"
+        else:
+            itm["Section"] = "Unknown"
 
-    # 3) Gather every nonblank line in the Performance section
+    # 4) Gather every nonblank line in the Performance section
     lines = []
     for pnum in range(perf_page - 1, end_page - 1):
         txt = pdf.pages[pnum].extract_text() or ""
         lines += [ln.strip() for ln in txt.splitlines() if ln.strip()]
 
-    # 4) Regex to pull decimal tokens (with optional % and parentheses)
+    # 5) Regex to pull decimal tokens (with optional % and parentheses)
     num_rx = re.compile(r"\(?-?\d+\.\d+%?\)?")
 
     matched = 0
     for item in perf_data:
-        name = item["Fund Scorecard Name"]
-        tk   = item["Ticker"].upper().strip()
+        name = item.get("Fund Scorecard Name", "")
+        tk = (item.get("Ticker") or "").upper().strip()
 
         # a) Exact-ticker match
         idx = next(
             (i for i, ln in enumerate(lines)
-             if re.search(rf"\b{re.escape(tk)}\b", ln)),
+             if tk and re.search(rf"\b{re.escape(tk)}\b", ln)),
             None
         )
         # b) Fuzzy-name fallback
@@ -672,14 +738,14 @@ def step7_extract_returns(pdf):
             clean += [None] * (8 - len(clean))
 
         # d) Map fund returns & net expense
-        item["QTD"]               = clean[0]
-        item["1Yr"]               = clean[2]
-        item["3Yr"]               = clean[3]
-        item["5Yr"]               = clean[4]
-        item["10Yr"]              = clean[5]
+        item["QTD"] = clean[0]
+        item["1Yr"] = clean[2]
+        item["3Yr"] = clean[3]
+        item["5Yr"] = clean[4]
+        item["10Yr"] = clean[5]
         item["Net Expense Ratio"] = clean[-2]
 
-        # e) Pull benchmark QTD, 1Yr, 3Yr, 5Yr, and 10Yr from the very next line(s)
+        # e) Pull benchmark values from next line(s)
         bench_raw = []
         if idx + 1 < len(lines):
             bench_raw = num_rx.findall(lines[idx + 1])
@@ -687,7 +753,7 @@ def step7_extract_returns(pdf):
             bench_raw = num_rx.findall(lines[idx + 2])
         bench_clean = [n.strip("()%").rstrip("%") for n in bench_raw]
 
-        item["Bench QTD"]  = bench_clean[0] if len(bench_clean) > 0 else None
+        item["Bench QTD"] = bench_clean[0] if len(bench_clean) > 0 else None
         item["Bench 1Yr"] = bench_clean[1] if len(bench_clean) > 1 else None
         item["Bench 3Yr"] = bench_clean[3] if len(bench_clean) > 3 else None
         item["Bench 5Yr"] = bench_clean[4] if len(bench_clean) > 4 else None
@@ -695,20 +761,29 @@ def step7_extract_returns(pdf):
 
         matched += 1
 
-    # 5) Save & display
+    # 6) Save & display
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
-    # Hide the per-fund warnings and overall success message, but still alert if something is off
-    
+
     expected_count = len(perf_data)
     if matched < expected_count:
         st.error(f"❌ Only matched {matched} of {expected_count} funds with return data. Check your PDF or extraction logic.")
-    # (Do NOT display per-fund warnings or success)
 
-    st.dataframe(
-        df[["Fund Scorecard Name", "Ticker"] + fields],
-        use_container_width=True
-    )
+    # Split and display by section
+    def display_section(name):
+        df_section = df[df["Section"] == name]
+        if df_section.empty:
+            st.info(f"No performance data for {name}.")
+            return
+        st.markdown(f"## Performance — {name}")
+        st.dataframe(
+            df_section[["Fund Scorecard Name", "Ticker"] + fields],
+            use_container_width=True
+        )
+
+    display_section("Regular")
+    display_section("Proposed Funds")
+    display_section("Unknown")
 
 
 #───Step 8 Calendar Year Returns (funds + benchmarks──────────────────────────────────────────────────────────────────
