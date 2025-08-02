@@ -11,7 +11,7 @@ from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
 from io import BytesIO
 import yfinance as yf
 
-#────────────────────────────────────────────────────────────────────────────────────
+#───Performance Table──────────────────────────────────────────────────────────────────
 
 def extract_performance_table(pdf, performance_page, fund_names, end_page=None):
     import re
@@ -79,8 +79,8 @@ def extract_performance_table(pdf, performance_page, fund_names, end_page=None):
         perf_data.append(item)
     return perf_data
 
-#────────────────────────────────────────────────────────────────────────────────────
-#Utility
+#───Utility──────────────────────────────────────────────────────────────────
+
 def extract_report_date(text):
     """
     Extracts and formats the report date from a block of text.
@@ -98,8 +98,8 @@ def extract_report_date(text):
         return f"As of {month_name[m]} {d}, {year}"
     return None
 
-#────────────────────────────────────────────────────────────────────────────────────
-#Page 1
+#───Page 1──────────────────────────────────────────────────────────────────
+
 def process_page1(text):
     """
     Extracts 'report_date', 'total_options', 'prepared_for', and 'prepared_by' from text.
@@ -127,8 +127,8 @@ def process_page1(text):
         pb = "Procyon Partners, LLC"
     st.session_state['prepared_by'] = pb
 
-#────────────────────────────────────────────────────────────────────────────────────
-#Info Card
+#───Info Card──────────────────────────────────────────────────────────────────
+
 def show_report_summary():
     report_date    = st.session_state.get('report_date', 'N/A')
     total_options  = st.session_state.get('total_options', 'N/A')
@@ -154,8 +154,8 @@ def show_report_summary():
         </div>
     """, unsafe_allow_html=True)
 
-#────────────────────────────────────────────────────────────────────────────────────
-# === Step 2: Table of Contents Extraction ===
+#───Step 2: Table of Contents Extraction──────────────────────────────────────────────────────────
+
 def process_toc(text):
     perf = re.search(r"Fund Performance[^\d]*(\d{1,3})", text or "")
     sc   = re.search(r"Fund Scorecard\s+(\d{1,3})", text or "")
@@ -179,7 +179,7 @@ def process_toc(text):
     st.session_state['r3yr_page'] = r3yr_page
     st.session_state['r5yr_page'] = r5yr_page
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#───IPS Invesment Screening──────────────────────────────────────────────────────────────────
 import streamlit as st
 import re
 import pdfplumber
@@ -403,8 +403,8 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     st.session_state["fund_performance_data"] = perf_data
     st.session_state["tickers"] = tickers  # Keep ticker mapping for legacy steps
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-#Step 6
+#───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
+
 def step6_process_factsheets(pdf, fund_names, suppress_output=True):
     # If you ever want UI, set suppress_output=False when calling
 
@@ -494,9 +494,8 @@ def step6_process_factsheets(pdf, fund_names, suppress_output=True):
         else:
             st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#───Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr / Net Expense Ratio & Bench QTD──────────────────────────────────────────────────────────────────
 
-# === Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr / Net Expense Ratio & Bench QTD ===
 def step7_extract_returns(pdf):
     import re
     import pandas as pd
@@ -599,9 +598,8 @@ def step7_extract_returns(pdf):
     )
 
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#───Step 8 Calendar Year Returns (funds + benchmarks──────────────────────────────────────────────────────────────────
 
-# === Step 8 Calendar Year Returns (funds + benchmarks) ===
 def step8_calendar_returns(pdf):
     import re, streamlit as st, pandas as pd
 
@@ -670,9 +668,8 @@ def step8_calendar_returns(pdf):
     else:
         st.warning("No benchmark returns extracted.")
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
 
-# === Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching) ===
 def step9_risk_analysis_3yr(pdf):
     import re, streamlit as st, pandas as pd
     from rapidfuzz import fuzz
@@ -725,9 +722,8 @@ def step9_risk_analysis_3yr(pdf):
     # 5) Display final table only
     st.session_state["step9_mpt_stats"] = results
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#───Step 10: Risk Analysis (5Yr) – Match & Extract MPT Statistics──────────────────────────────────────────────────────────────────
 
-# === Step 10: Risk Analysis (5Yr) – Match & Extract MPT Statistics ===
 def step10_risk_analysis_5yr(pdf):
     import re, streamlit as st, pandas as pd
 
@@ -796,14 +792,11 @@ def step10_risk_analysis_5yr(pdf):
     # 5) Save & display only the consolidated table
     st.session_state["step10_mpt_stats"] = results
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#───Step 11: Combined MPT Statistics Summary──────────────────────────────────────────────────────────────────
 
-# === Step 11: Combined MPT Statistics Summary ===
 def step11_create_summary(pdf=None):
     import pandas as pd
     import streamlit as st
-
-    st.subheader("MPT Statistics Summary")
 
     # 1) Load your 3‑Yr and 5‑Yr stats from session state
     mpt3 = st.session_state.get("step9_mpt_stats", [])
@@ -845,9 +838,8 @@ def step11_create_summary(pdf=None):
     st.session_state["step11_summary"] = df.to_dict("records")
     st.dataframe(df)
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#───Step 12: Extract “FUND FACTS” & Its Table Details in One Go──────────────────────────────────────────────────────────────────
 
-# === Step 12: Extract “FUND FACTS” & Its Table Details in One Go ===
 def step12_process_fund_facts(pdf):
     import re
     import streamlit as st
@@ -907,9 +899,8 @@ def step12_process_fund_facts(pdf):
     # save & show
     st.session_state["step12_fund_facts_table"] = records
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#───Step 13: Extract Risk‑Adjusted Returns Metrics──────────────────────────────────────────────────────────────────
 
-# === Step 13: Extract Risk‑Adjusted Returns Metrics ===
 def step13_process_risk_adjusted_returns(pdf):
     import re
     import streamlit as st
@@ -975,15 +966,14 @@ def step13_process_risk_adjusted_returns(pdf):
     df = pd.DataFrame(records)
     st.dataframe(df, use_container_width=True)
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#───Step 14: Peer Risk-Adjusted Return Rank──────────────────────────────────────────────────────────────────
 
-# == Step 14: Peer Risk-Adjusted Return Rank ==
 def step14_extract_peer_risk_adjusted_return_rank(pdf):
     import re
     import streamlit as st
     import pandas as pd
 
-    st.write("Peer Risk-Adjusted Return Rank")
+    st.write("Peer Rank")
 
     factsheets = st.session_state.get("fund_factsheets_data", [])
     if not factsheets:
@@ -1052,14 +1042,13 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
     st.dataframe(df, use_container_width=True)
 
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-#Step 15
+#───Step 15: Single Fund──────────────────────────────────────────────────────────────────
+
 def step15_display_selected_fund():
     import pandas as pd
     import streamlit as st
     import re
 
-    st.subheader("Step 15: Single Fund Details")
     facts = st.session_state.get("fund_factsheets_data", [])
     if not facts:
         st.info("Run Steps 1–14 to populate data before viewing fund details.")
@@ -1389,12 +1378,10 @@ def step15_display_selected_fund():
     
     st.dataframe(df_slide4_2, use_container_width=True)
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#───Bullet Points──────────────────────────────────────────────────────────────────
 
 def step16_bullet_points():
     import streamlit as st
-
-    st.subheader("Step 16: Bullet Points")
 
     selected_fund = st.session_state.get("selected_fund")
     if not selected_fund:
@@ -1477,7 +1464,7 @@ def step16_bullet_points():
     st.session_state["bullet_points"] = bullets
 
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#───Build Powerpoint──────────────────────────────────────────────────────────────────
 def step17_export_to_ppt():
     import streamlit as st
     from pptx import Presentation
@@ -1487,7 +1474,7 @@ def step17_export_to_ppt():
     from io import BytesIO
     import pandas as pd
 
-    st.subheader("Step 17: Export to PowerPoint")
+    st.subheader("Export to PowerPoint")
 
     selected = st.session_state.get("selected_fund")
     if not selected:
@@ -1774,15 +1761,14 @@ def step17_export_to_ppt():
     )
 
 
-#─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-# === Main App ===
+#───Main App──────────────────────────────────────────────────────────────────
+
 def run():
     import re
     st.title("Writeup")
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
-   #──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     
     with pdfplumber.open(uploaded) as pdf:
         # Step 1
@@ -1791,7 +1777,7 @@ def run():
         show_report_summary()
 
         # Step 2
-        with st.expander("Step 2: Table of Contents", expanded=False):
+        with st.expander("Table of Contents", expanded=False):
             toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
             process_toc(toc_text)
 
@@ -1808,7 +1794,7 @@ def run():
 
         
         # Step 6
-        with st.expander("Step 6: Fund Factsheets", expanded=True):
+        with st.expander("Fund Factsheets", expanded=True):
             names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
             step6_process_factsheets(pdf, names)
 
@@ -1821,7 +1807,7 @@ def run():
             step8_calendar_returns(pdf)
 
 
-        # ── Data Prep for Bullet Points ───────────────────────────────────────────────
+        #─── Data Prep for Bullet Points ──────────────────────────────────────────────────────────────────
         report_date = st.session_state.get("report_date", "")
         m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
         quarter = m.group(1) if m else ""
@@ -1855,14 +1841,14 @@ def run():
                 "[Year] by [QTD_bps_diff] bps ([QTD_vs])."
             ]
 
-        # ───────────────────────────────────────────────────────────────────────────────
+        #──────────────────────────────────────────────────────────────────────────────────
 
         # Step 9: Match Tickers
-        with st.expander("Step 9: Risk Analysis (3Yr)", expanded=False):
+        with st.expander("Risk Analysis (3Yr)", expanded=False):
             step9_risk_analysis_3yr(pdf)
 
         # Step 10: Match Tickers
-        with st.expander("Step 10: Risk Analysis (5Yr)", expanded=False):
+        with st.expander("Risk Analysis (5Yr)", expanded=False):
             step10_risk_analysis_5yr(pdf)
 
         # Step 11: MPT Statistics Summary
@@ -1870,7 +1856,7 @@ def run():
             step11_create_summary()
             
         # Step 12: Find Factsheet Sub‑Headings
-        with st.expander("Step 12: Fund Facts ", expanded=False):
+        with st.expander("Fund Facts ", expanded=False):
             step12_process_fund_facts(pdf)
 
         # Step 13: Risk Adjusted Returns
