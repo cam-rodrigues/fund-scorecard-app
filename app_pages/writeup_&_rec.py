@@ -497,8 +497,9 @@ def step3_5_6_scorecard_and_ips(
     # Legacy tickers
     st.session_state["tickers"] = st.session_state.get("fund_tickers_Regular_Scorecard", {})
 
-#───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
-def _process_factsheet_section(pdf, fund_names, page_key, suppress_output, section_label):
+#def _process_factsheet_section(pdf, fund_names, page_key, suppress_output, section_label):
+    import re
+    from rapidfuzz import fuzz
     factsheet_start = st.session_state.get(page_key)
     total_declared = st.session_state.get("total_options")
     performance_data = [
@@ -512,16 +513,32 @@ def _process_factsheet_section(pdf, fund_names, page_key, suppress_output, secti
     matched_factsheets = []
     for i in range(factsheet_start - 1, len(pdf.pages)):
         page = pdf.pages[i]
-        words = page.extract_words(use_text_flow=True)
-        header_words = [w["text"] for w in words if w["top"] < 100]
-        first_line = " ".join(header_words).strip()
+        full_text = page.extract_text() or ""
+        lines = [ln.strip() for ln in full_text.splitlines() if ln.strip()]
 
-        if not first_line or "Benchmark:" not in first_line or "Expense Ratio:" not in first_line:
+        # Find the line that has both Benchmark: and Expense Ratio:
+        candidate_line = None
+        for ln in lines:
+            if "Benchmark:" in ln and "Expense Ratio:" in ln:
+                candidate_line = ln
+                break
+        if not candidate_line:
             continue
 
-        ticker_match = re.search(r"\b([A-Z]{5})\b", first_line)
+        first_line = candidate_line
+
+        # Extract ticker (1–5 uppercase letters) - fallback to nearest uppercase group
+        ticker_match = re.search(r"\b([A-Z]{1,5})\b", first_line)
         ticker = ticker_match.group(1) if ticker_match else ""
-        fund_name_raw = first_line.split(ticker)[0].strip() if ticker else first_line
+
+        # Fund name is everything before the ticker if ticker present, else full line minus known labels
+        if ticker:
+            fund_name_raw = first_line.split(ticker)[0].strip()
+        else:
+            # remove known label fragments to try to isolate name
+            cleaned = re.sub(r"Benchmark:.*", "", first_line)
+            cleaned = re.sub(r"Expense Ratio:.*", "", cleaned)
+            fund_name_raw = cleaned.strip()
 
         best_score = 0
         matched_name = matched_ticker = ""
@@ -566,68 +583,6 @@ def _process_factsheet_section(pdf, fund_names, page_key, suppress_output, secti
         })
 
     return matched_factsheets
-
-
-def step6_process_factsheets(pdf, fund_names, suppress_output=True):
-    # If you ever want UI, set suppress_output=False when calling
-
-    # Process regular factsheets
-    regular = _process_factsheet_section(
-        pdf, fund_names, "factsheets_page", suppress_output, "Regular"
-    )
-    # Process proposed factsheets
-    proposed = _process_factsheet_section(
-        pdf, fund_names, "factsheets_proposed_page", suppress_output, "Proposed Funds"
-    )
-
-    combined = regular + proposed
-    df_facts = pd.DataFrame(combined)
-    st.session_state["fund_factsheets_data"] = combined
-
-    # Hide UI output unless suppress_output is False
-    if not suppress_output:
-        if df_facts.empty:
-            st.info("No factsheet pages matched.")
-        else:
-            display_df = df_facts[[
-                "Section",
-                "Matched Fund Name",
-                "Matched Ticker",
-                "Benchmark",
-                "Category",
-                "Net Assets",
-                "Manager Name",
-                "Avg. Market Cap",
-                "Expense Ratio",
-                "Matched",
-            ]].rename(columns={
-                "Matched Fund Name": "Fund Name",
-                "Matched Ticker": "Ticker",
-            })
-
-            # Split display: regular first, then proposed
-            st.markdown("## Fund Factsheets — Regular")
-            df_regular = display_df[display_df["Section"] == "Regular"].drop(columns=["Section"])
-            if not df_regular.empty:
-                st.dataframe(df_regular, use_container_width=True)
-            else:
-                st.info("No regular factsheet matches found.")
-
-            st.markdown("## Fund Factsheets — Proposed Funds")
-            df_proposed = display_df[display_df["Section"] == "Proposed Funds"].drop(columns=["Section"])
-            if not df_proposed.empty:
-                st.dataframe(df_proposed, use_container_width=True)
-            else:
-                st.info("No proposed factsheet matches found.")
-
-            # Summary counts only from regular (to preserve original logic)
-            matched_count = sum(1 for r in regular if r["Matched"] == "✅")
-            total_declared = st.session_state.get("total_options")
-            st.write(f"Matched {matched_count} of {len(regular)} regular factsheet pages.")
-            if matched_count == total_declared:
-                st.success(f"All {matched_count} funds matched the declared Total Options from Page 1.")
-            else:
-                st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
 #───Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr / Net Expense Ratio & Bench QTD──────────────────────────────────────────────────────────────────
 
