@@ -883,69 +883,46 @@ def step8_calendar_returns(pdf):
         st.session_state["step8_returns"] = fund_records
 
 
-    # — B) Benchmarks matched back to each regular fund’s ticker —
+    # — B) Benchmarks matched back to each fund’s ticker —
     facts = st.session_state.get("fund_factsheets_data", []) or []
     bench_records = []
-
-    # Preprocess lines for matching: keep original and a normalized version
-    norm_lines = []
-    for i, ln in enumerate(all_lines):
-        cleaned = " ".join(ln.strip().split())
-        norm = re.sub(r'[^A-Za-z0-9 ]+', '', cleaned).lower()
-        norm_lines.append((i, ln, cleaned, norm))
-
-    def normalize_name(text):
-        return re.sub(r'[^A-Za-z0-9 ]+', '', (text or "").strip()).lower()
+    from rapidfuzz import fuzz
 
     for f in facts:
-        if f.get("Section") != "Regular":
-            continue  # only attempt regular benchmarks here
-        bench_name_raw = (f.get("Benchmark") or "").strip()
+        # only consider regular factsheets (skip proposed if you want; adjust if needed)
+        if f.get("Section") and f.get("Section") == "Proposed Funds":
+            continue
+
+        bench_name = f.get("Benchmark", "").strip()
         fund_tkr = f.get("Matched Ticker", "")
-        if not bench_name_raw:
+        if not bench_name:
             continue
 
-        bench_name = bench_name_raw  # keep original for display
-        idx = None
+        # fuzzy locate the best line matching the benchmark name
+        best_idx = None
+        best_score = 0
+        for i, ln in enumerate(all_lines):
+            score = fuzz.token_sort_ratio(bench_name.lower(), ln.lower())
+            if score > best_score:
+                best_score, best_idx = score, i
 
-        # 1. Exact case-insensitive substring match
-        for i, orig, cleaned, norm in norm_lines:
-            if bench_name.lower() in cleaned.lower():
-                idx = i
-                break
-
-        # 2. Fuzzy fallback if exact not found
-        if idx is None:
-            target = normalize_name(bench_name)
-            best_score = 0
-            best_i = None
-            for i, orig, cleaned, norm in norm_lines:
-                score = fuzz.token_set_ratio(target, norm)
-                if score > best_score:
-                    best_score = score
-                    best_i = i
-            if best_score >= 65:  # threshold can be tuned
-                idx = best_i
-
-        if idx is None:
-            # Could not locate benchmark line; skip
+        if best_score < 60 or best_idx is None:
+            st.warning(f"⚠️ Benchmark '{bench_name}' for fund ticker {fund_tkr}: no good line match found (best score {best_score}).")
             continue
 
-        # Extract year values from the located line
-        raw = num_rx.findall(all_lines[idx])
-        vals = raw[:len(years)] + [None] * (len(years) - len(raw))
+        # extract the calendar-year returns from that line
+        raw = num_rx.findall(all_lines[best_idx])
+        # sometimes benchmark returns appear on the line immediately following (e.g., wrapping),
+        # so if insufficient years, try next line too
+        if len(raw) < len(years) and best_idx + 1 < len(all_lines):
+            raw += num_rx.findall(all_lines[best_idx + 1])
+        clean = [n.strip("()%").rstrip("%") for n in raw]
+        vals = clean[: len(years)] + [None] * (len(years) - len(clean[: len(years)]))
+
         rec = {"Name": bench_name, "Ticker": fund_tkr}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         bench_records.append(rec)
 
-    if bench_records:
-        df_bench = pd.DataFrame(bench_records)
-        st.markdown("**Benchmark Calendar-Year Returns**")
-        cols = ["Name", "Ticker"] + years
-        st.dataframe(df_bench[cols], use_container_width=True)
-        st.session_state["benchmark_calendar_year_returns"] = bench_records
-    else:
-        st.warning("No benchmark returns extracted.")
 
 
 #───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
