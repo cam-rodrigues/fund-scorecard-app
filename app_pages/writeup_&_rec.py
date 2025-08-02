@@ -338,7 +338,7 @@ def step3_5_6_scorecard_and_ips(
     def get_regular_tickers():
         return st.session_state.get("fund_tickers_Regular_Scorecard") or st.session_state.get("tickers", {})
 
-    # Helper to process one scorecard section; section_key should match desired session key suffix
+    # Helper to process one scorecard section; section_key suffixes used in session_state
     def process_section(section_key, display_name, sc_page):
         if not sc_page:
             return None, None, None, None  # nothing to do
@@ -360,7 +360,6 @@ def step3_5_6_scorecard_and_ips(
                 "Passive" if guess.lower() == "passive" else ("Passive" if "index" in name.lower() else "Active")
             )
 
-        # Base df for potential editing
         df_types_base = pd.DataFrame({
             "Fund Name":     fund_names,
             "Ticker":        [tickers.get(n, "") for n in fund_names],
@@ -368,7 +367,7 @@ def step3_5_6_scorecard_and_ips(
             "Fund Type":     inferred_guesses,
         })
 
-        # Editor toggle per section to avoid key collision
+        # Editor toggle per section to avoid collisions
         edit_key = f"show_edit_fund_type_{section_key}"
         editor_state_key = f"data_editor_fundtype_ips_{section_key}"
         if edit_key not in st.session_state:
@@ -401,10 +400,9 @@ def step3_5_6_scorecard_and_ips(
         else:
             fund_types = {name: inferred_guesses[i] for i, name in enumerate(fund_names)}
 
-        # IPS conversion
         df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
 
-        # Persist per-section state keys
+        # Persist per-section state
         st.session_state[f"fund_blocks_{section_key}"] = fund_blocks
         st.session_state[f"fund_types_{section_key}"] = fund_types
         st.session_state[f"fund_tickers_{section_key}"] = tickers
@@ -496,7 +494,7 @@ def step3_5_6_scorecard_and_ips(
         with b3:
             st.metric(f"{title} - Formal Watch", summary["Formal Watch"])
 
-    # Render both tables separately
+    # Render both
     render_compact(regular_icon_df, "Regular Fund Scorecard", "Regular_Scorecard")
     render_compact(proposed_icon_df, "Proposed Funds", "Proposed_Funds")
 
@@ -512,7 +510,7 @@ def step3_5_6_scorecard_and_ips(
             itm["Ticker"] = get_regular_tickers().get(itm.get("Fund Scorecard Name", ""), "")
         st.session_state["fund_performance_data"] = perf_data
 
-    # Legacy tickers: keep backward compatibility
+    # Legacy tickers for backward compatibility
     st.session_state["tickers"] = get_regular_tickers()
 
 
