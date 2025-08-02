@@ -1845,7 +1845,44 @@ def run():
             pp = st.session_state.get('performance_page')
             factsheets_page = st.session_state.get('factsheets_page')
             if sp and tot is not None and pp:
+                # 🚩 --- Start Fancy Display Here ---
+                st.markdown("""
+                <div style='display:flex; align-items:center; gap:0.6em; margin-bottom:0.5em'>
+                    <span style='font-size:1.9em; color:#1856b8; margin-top:-0.09em;'>🛡️</span>
+                    <span style='font-size:1.37em; font-weight:700; letter-spacing:-0.5px; color:#1856b8;'>IPS Investment Screening</span>
+                </div>
+                """, unsafe_allow_html=True)
+        
+                # Legend
+                st.markdown("""
+                <div style="display:flex; gap:1.3em; margin-bottom:1em;">
+                    <div style="display:flex; align-items:center;">
+                        <span style="display:inline-block; width:1.9em; height:1.15em; background:#d6f5df; color:#217a3e; border-radius:3px; font-weight:700; text-align:center; line-height:1.15em; margin-right:0.32em;">NW</span>
+                        <span style="color:#274c6a; font-size:1em;">No Watch</span>
+                    </div>
+                    <div style="display:flex; align-items:center;">
+                        <span style="display:inline-block; width:1.9em; height:1.15em; background:#fff3cd; color:#B87333; border-radius:3px; font-weight:700; text-align:center; line-height:1.15em; margin-right:0.32em;">IW</span>
+                        <span style="color:#274c6a; font-size:1em;">Informal Watch</span>
+                    </div>
+                    <div style="display:flex; align-items:center;">
+                        <span style="display:inline-block; width:1.9em; height:1.15em; background:#f8d7da; color:#c30000; border-radius:3px; font-weight:700; text-align:center; line-height:1.15em; margin-right:0.32em;">FW</span>
+                        <span style="color:#274c6a; font-size:1em;">Formal Watch</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+                # Hint for edit Fund Type
+                st.markdown("""
+                <div style='margin-bottom:0.2em; color:#555; font-size:1em;'>
+                    <span style='font-size:1.15em; margin-right:0.2em;'>⚡️</span>
+                    <b>Tip:</b> You can override the <b>Fund Type</b> (Active/Passive) for each fund below.<br>
+                </div>
+                """, unsafe_allow_html=True)
+        
+                # Call your actual logic!
                 step3_5_6_scorecard_and_ips(pdf, sp, pp, factsheets_page, tot)
+        
+                # --- End Fancy Display ---
             else:
                 st.error("Missing scorecard, performance page, or total options")
 
