@@ -573,140 +573,93 @@ def step3_5_6_scorecard_and_ips(
 #───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
 
 def step6_process_factsheets(pdf, fund_names, suppress_output=True):
-    import re
-    from rapidfuzz import fuzz
-    import streamlit as st
-    import pandas as pd
+    # If you ever want UI, set suppress_output=False when calling
 
-    def clean_header_block(text):
-        # collapse internal newlines so label:value pairs are easier to regex
-        return " ".join(line.strip() for line in text.splitlines() if line.strip())
+    factsheet_start = st.session_state.get("factsheets_page")
+    total_declared = st.session_state.get("total_options")
+    performance_data = [
+        {"Fund Scorecard Name": name, "Ticker": ticker}
+        for name, ticker in st.session_state.get("tickers", {}).items()
+    ]
 
-    def extract_label_value(label, text, next_labels=None):
-        # non-greedy grab after label until next label or end
-        if next_labels is None:
-            next_labels = []
-        pattern = rf"{re.escape(label)}\s*(.*?)\s*(?:{'|'.join(re.escape(n) for n in next_labels)}|$)"
-        m = re.search(pattern, text, flags=re.IGNORECASE)
-        if m:
-            return m.group(1).strip()
-        return ""
+    if not factsheet_start:
+        if not suppress_output:
+            st.error("❌ 'Fund Factsheets' page number not found in TOC.")
+        return
 
-    def _process_factsheet_section(pdf, fund_names, page_key, section_label):
-        factsheet_start = st.session_state.get(page_key)
-        total_declared = st.session_state.get("total_options")
-        performance_data = [
-            {"Fund Scorecard Name": name, "Ticker": ticker}
-            for name, ticker in st.session_state.get("tickers", {}).items()
-        ]
-    
-        if not factsheet_start:
-            return []
-    
-        matched_factsheets = []
-        for i in range(factsheet_start - 1, len(pdf.pages)):
-            page = pdf.pages[i]
-            raw = page.extract_text() or ""
-            if not raw.strip():
-                continue
-            lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
-    
-            # Locate the block containing Benchmark and Expense Ratio anywhere on page
-            has_benchmark = any("Benchmark:" in ln for ln in lines)
-            has_expense = any("Expense Ratio:" in ln for ln in lines)
-            if not (has_benchmark and has_expense):
-                continue
-    
-            # Helper to get value after a label, allowing it to be on same line or next
-            def grab_value(label, lookahead=1):
-                for idx, ln in enumerate(lines):
-                    if label in ln:
-                        # same line after label
-                        after = ln.split(label, 1)[1].strip()
-                        if after:
-                            return after.split()[0]
-                        # look in next few lines for first non-empty chunk
-                        for j in range(1, lookahead+1):
-                            if idx + j < len(lines):
-                                candidate = lines[idx + j].strip()
-                                if candidate:
-                                    # stop if it looks like another label
-                                    if re.match(r"^[A-Za-z ]+:\s*", candidate):
-                                        # maybe value is after colonless part
-                                        continue
-                                    return candidate.split()[0]
+    matched_factsheets = []
+    for i in range(factsheet_start - 1, len(pdf.pages)):
+        page = pdf.pages[i]
+        words = page.extract_words(use_text_flow=True)
+        header_words = [w['text'] for w in words if w['top'] < 100]
+        first_line = " ".join(header_words).strip()
+
+        if not first_line or "Benchmark:" not in first_line or "Expense Ratio:" not in first_line:
+            continue
+
+        ticker_match = re.search(r"\b([A-Z]{5})\b", first_line)
+        ticker = ticker_match.group(1) if ticker_match else ""
+        fund_name_raw = first_line.split(ticker)[0].strip() if ticker else first_line
+
+        best_score = 0
+        matched_name = matched_ticker = ""
+        for item in performance_data:
+            ref = f"{item['Fund Scorecard Name']} {item['Ticker']}".strip()
+            score = fuzz.token_sort_ratio(f"{fund_name_raw} {ticker}".lower(), ref.lower())
+            if score > best_score:
+                best_score, matched_name, matched_ticker = score, item['Fund Scorecard Name'], item['Ticker']
+
+        def extract_field(label, text, stop=None):
+            try:
+                start = text.index(label) + len(label)
+                rest = text[start:]
+                if stop and stop in rest:
+                    return rest[:rest.index(stop)].strip()
+                return rest.split()[0]
+            except Exception:
                 return ""
-    
-            # Extract ticker: first 1–5 uppercase token that isn't a common label
-            ticker_match = None
-            for ln in lines:
-                for tok in re.findall(r"\b([A-Z]{1,5})\b", ln):
-                    # crude filter: skip if token is exactly a label word (optional customize)
-                    if tok.lower() in ("benchmark", "expense", "ratio", "category"):
-                        continue
-                    ticker_match = tok
-                    break
-                if ticker_match:
-                    break
-            ticker = ticker_match or ""
-    
-            # Extract raw fund name: attempt before ticker in the line containing both Benchmark and something identifying the fund
-            fund_name_raw = ""
-            # Look for a line that contains both the approximate fund name and maybe ticker
-            if ticker:
-                for ln in lines:
-                    if ticker in ln:
-                        # remove watchlist suffix
-                        name_part = ln.split(ticker, 1)[0]
-                        name_part = re.sub(r"has been placed on watchlist for not meeting .*? criteria", "", name_part, flags=re.IGNORECASE).strip()
-                        fund_name_raw = name_part
-                        break
-            if not fund_name_raw:
-                # fallback: take first line before any known label
-                for ln in lines:
-                    if "Benchmark:" in ln or "Expense Ratio:" in ln:
-                        continue
-                    # remove watchlist suffix
-                    candidate = re.sub(r"has been placed on watchlist for not meeting .*? criteria", "", ln, flags=re.IGNORECASE).strip()
-                    if candidate:
-                        fund_name_raw = candidate
-                        break
-    
-            # Fuzzy match to performance_data
-            best_score = 0
-            matched_name = matched_ticker = ""
-            for item in performance_data:
-                ref = f"{item['Fund Scorecard Name']} {item['Ticker']}".strip()
-                score = fuzz.token_sort_ratio(f"{fund_name_raw} {ticker}".lower(), ref.lower())
-                if score > best_score:
-                    best_score, matched_name, matched_ticker = score, item["Fund Scorecard Name"], item["Ticker"]
-    
-            # Extract fields with improved logic
-            benchmark = grab_value("Benchmark:", lookahead=2)
-            category = grab_value("Category:", lookahead=2)
-            net_assets = grab_value("Net Assets:", lookahead=2)
-            manager = grab_value("Manager Name:", lookahead=2)
-            avg_cap = grab_value("Avg. Market Cap:", lookahead=2)
-            expense = grab_value("Expense Ratio:", lookahead=2)
-    
-            matched_factsheets.append({
-                "Page #": i + 1,
-                "Parsed Fund Name": fund_name_raw,
-                "Parsed Ticker": ticker,
-                "Matched Fund Name": matched_name,
-                "Matched Ticker": matched_ticker,
-                "Benchmark": benchmark,
-                "Category": category,
-                "Net Assets": net_assets,
-                "Manager Name": manager,
-                "Avg. Market Cap": avg_cap,
-                "Expense Ratio": expense,
-                "Match Score": best_score,
-                "Matched": "✅" if best_score > 20 else "❌",
-                "Section": section_label,
-            })
-    
-        return matched_factsheets
+
+        benchmark = extract_field("Benchmark:", first_line, "Category:")
+        category  = extract_field("Category:", first_line, "Net Assets:")
+        net_assets= extract_field("Net Assets:", first_line, "Manager Name:")
+        manager   = extract_field("Manager Name:", first_line, "Avg. Market Cap:")
+        avg_cap   = extract_field("Avg. Market Cap:", first_line, "Expense Ratio:")
+        expense   = extract_field("Expense Ratio:", first_line)
+
+        matched_factsheets.append({
+            "Page #": i + 1,
+            "Parsed Fund Name": fund_name_raw,
+            "Parsed Ticker": ticker,
+            "Matched Fund Name": matched_name,
+            "Matched Ticker": matched_ticker,
+            "Benchmark": benchmark,
+            "Category": category,
+            "Net Assets": net_assets,
+            "Manager Name": manager,
+            "Avg. Market Cap": avg_cap,
+            "Expense Ratio": expense,
+            "Match Score": best_score,
+            "Matched": "✅" if best_score > 20 else "❌"
+        })
+
+    df_facts = pd.DataFrame(matched_factsheets)
+    st.session_state['fund_factsheets_data'] = matched_factsheets
+
+    # Hide UI output unless suppress_output is False
+    if not suppress_output:
+        display_df = df_facts[[
+            "Matched Fund Name", "Matched Ticker", "Benchmark", "Category",
+            "Net Assets", "Manager Name", "Avg. Market Cap", "Expense Ratio", "Matched"
+        ]].rename(columns={"Matched Fund Name": "Fund Name", "Matched Ticker": "Ticker"})
+
+        st.dataframe(display_df, use_container_width=True)
+
+        matched_count = sum(1 for r in matched_factsheets if r["Matched"] == "✅")
+        st.write(f"Matched {matched_count} of {len(matched_factsheets)} factsheet pages.")
+        if matched_count == total_declared:
+            st.success(f"All {matched_count} funds matched the declared Total Options from Page 1.")
+        else:
+            st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
 
     # --- Process both sections ---
