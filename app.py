@@ -146,9 +146,10 @@ with st.sidebar.expander("MPI Tools", expanded=False):
     nav_button("Fund Scorecard", "fund_scorecard.py")
     nav_button("Scorecard Metrics", "fund_scorecard_metrics.py")
     nav_button("IPS Screening", "ips_screening.py")
+    nav_button("Writeup Generator", "write_up.py")
 
 st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', unsafe_allow_html=True)
-nav_button("Writeup Test", "write_up_test.py")
+
 
 
 
