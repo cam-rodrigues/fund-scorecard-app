@@ -158,29 +158,34 @@ def show_report_summary():
 
 def process_toc(text):
     perf = re.search(r"Fund Performance[^\d]*(\d{1,3})", text or "")
-    sc   = re.search(r"Fund Scorecard\s+(\d{1,3})", text or "")
-    sc_prop = re.search(r"Fund Scorecard:\s*Proposed Funds\s+(\d{1,3})", text or "")
-    fs   = re.search(r"Fund Factsheets\s+(\d{1,3})", text or "")
     cy   = re.search(r"Fund Performance: Calendar Year\s+(\d{1,3})", text or "")
     r3yr = re.search(r"Risk Analysis: MPT Statistics \(3Yr\)\s+(\d{1,3})", text or "")
     r5yr = re.search(r"Risk Analysis: MPT Statistics \(5Yr\)\s+(\d{1,3})", text or "")
 
+    sc            = re.search(r"Fund Scorecard\s+(\d{1,3})", text or "")
+    sc_prop       = re.search(r"Fund Scorecard:\s*Proposed Funds\s+(\d{1,3})", text or "")
+
+    fs            = re.search(r"Fund Factsheets\s+(\d{1,3})", text or "")
+    fs_prop       = re.search(r"Fund Factsheets:\s*Proposed Funds\s+(\d{1,3})", text or "")
+
     perf_page     = int(perf.group(1)) if perf else None
-    sc_page       = int(sc.group(1))   if sc   else None
-    sc_prop_page  = int(sc_prop.group(1)) if sc_prop else None
-    fs_page       = int(fs.group(1))   if fs   else None
-    cy_page       = int(cy.group(1))   if cy   else None
+    cy_page       = int(cy.group(1)) if cy else None
     r3yr_page     = int(r3yr.group(1)) if r3yr else None
     r5yr_page     = int(r5yr.group(1)) if r5yr else None
+    sc_page       = int(sc.group(1)) if sc else None
+    sc_prop_page  = int(sc_prop.group(1)) if sc_prop else None
+    fs_page       = int(fs.group(1)) if fs else None
+    fs_prop_page  = int(fs_prop.group(1)) if fs_prop else None
 
-    # Store in session state for future reference
+    # Store in session state for downstream use
     st.session_state['performance_page'] = perf_page
-    st.session_state['scorecard_page']   = sc_page
-    st.session_state['scorecard_proposed_page'] = sc_prop_page
-    st.session_state['factsheets_page']  = fs_page
     st.session_state['calendar_year_page'] = cy_page
     st.session_state['r3yr_page'] = r3yr_page
     st.session_state['r5yr_page'] = r5yr_page
+    st.session_state['scorecard_page'] = sc_page
+    st.session_state['scorecard_proposed_page'] = sc_prop_page
+    st.session_state['factsheets_page'] = fs_page
+    st.session_state['factsheets_proposed_page'] = fs_prop_page
 
 
 #───IPS Invesment Screening──────────────────────────────────────────────────────────────────
@@ -493,11 +498,8 @@ def step3_5_6_scorecard_and_ips(
     st.session_state["tickers"] = st.session_state.get("fund_tickers_Regular_Scorecard", {})
 
 #───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
-
-def step6_process_factsheets(pdf, fund_names, suppress_output=True):
-    # If you ever want UI, set suppress_output=False when calling
-
-    factsheet_start = st.session_state.get("factsheets_page")
+def _process_factsheet_section(pdf, fund_names, page_key, suppress_output, section_label):
+    factsheet_start = st.session_state.get(page_key)
     total_declared = st.session_state.get("total_options")
     performance_data = [
         {"Fund Scorecard Name": name, "Ticker": ticker}
@@ -505,15 +507,13 @@ def step6_process_factsheets(pdf, fund_names, suppress_output=True):
     ]
 
     if not factsheet_start:
-        if not suppress_output:
-            st.error("❌ 'Fund Factsheets' page number not found in TOC.")
-        return
+        return []  # nothing extracted
 
     matched_factsheets = []
     for i in range(factsheet_start - 1, len(pdf.pages)):
         page = pdf.pages[i]
         words = page.extract_words(use_text_flow=True)
-        header_words = [w['text'] for w in words if w['top'] < 100]
+        header_words = [w["text"] for w in words if w["top"] < 100]
         first_line = " ".join(header_words).strip()
 
         if not first_line or "Benchmark:" not in first_line or "Expense Ratio:" not in first_line:
@@ -529,7 +529,7 @@ def step6_process_factsheets(pdf, fund_names, suppress_output=True):
             ref = f"{item['Fund Scorecard Name']} {item['Ticker']}".strip()
             score = fuzz.token_sort_ratio(f"{fund_name_raw} {ticker}".lower(), ref.lower())
             if score > best_score:
-                best_score, matched_name, matched_ticker = score, item['Fund Scorecard Name'], item['Ticker']
+                best_score, matched_name, matched_ticker = score, item["Fund Scorecard Name"], item["Ticker"]
 
         def extract_field(label, text, stop=None):
             try:
@@ -542,11 +542,11 @@ def step6_process_factsheets(pdf, fund_names, suppress_output=True):
                 return ""
 
         benchmark = extract_field("Benchmark:", first_line, "Category:")
-        category  = extract_field("Category:", first_line, "Net Assets:")
-        net_assets= extract_field("Net Assets:", first_line, "Manager Name:")
-        manager   = extract_field("Manager Name:", first_line, "Avg. Market Cap:")
-        avg_cap   = extract_field("Avg. Market Cap:", first_line, "Expense Ratio:")
-        expense   = extract_field("Expense Ratio:", first_line)
+        category = extract_field("Category:", first_line, "Net Assets:")
+        net_assets = extract_field("Net Assets:", first_line, "Manager Name:")
+        manager = extract_field("Manager Name:", first_line, "Avg. Market Cap:")
+        avg_cap = extract_field("Avg. Market Cap:", first_line, "Expense Ratio:")
+        expense = extract_field("Expense Ratio:", first_line)
 
         matched_factsheets.append({
             "Page #": i + 1,
@@ -561,27 +561,73 @@ def step6_process_factsheets(pdf, fund_names, suppress_output=True):
             "Avg. Market Cap": avg_cap,
             "Expense Ratio": expense,
             "Match Score": best_score,
-            "Matched": "✅" if best_score > 20 else "❌"
+            "Matched": "✅" if best_score > 20 else "❌",
+            "Section": section_label,
         })
 
-    df_facts = pd.DataFrame(matched_factsheets)
-    st.session_state['fund_factsheets_data'] = matched_factsheets
+    return matched_factsheets
+
+
+def step6_process_factsheets(pdf, fund_names, suppress_output=True):
+    # If you ever want UI, set suppress_output=False when calling
+
+    # Process regular factsheets
+    regular = _process_factsheet_section(
+        pdf, fund_names, "factsheets_page", suppress_output, "Regular"
+    )
+    # Process proposed factsheets
+    proposed = _process_factsheet_section(
+        pdf, fund_names, "factsheets_proposed_page", suppress_output, "Proposed Funds"
+    )
+
+    combined = regular + proposed
+    df_facts = pd.DataFrame(combined)
+    st.session_state["fund_factsheets_data"] = combined
 
     # Hide UI output unless suppress_output is False
     if not suppress_output:
-        display_df = df_facts[[
-            "Matched Fund Name", "Matched Ticker", "Benchmark", "Category",
-            "Net Assets", "Manager Name", "Avg. Market Cap", "Expense Ratio", "Matched"
-        ]].rename(columns={"Matched Fund Name": "Fund Name", "Matched Ticker": "Ticker"})
-
-        st.dataframe(display_df, use_container_width=True)
-
-        matched_count = sum(1 for r in matched_factsheets if r["Matched"] == "✅")
-        st.write(f"Matched {matched_count} of {len(matched_factsheets)} factsheet pages.")
-        if matched_count == total_declared:
-            st.success(f"All {matched_count} funds matched the declared Total Options from Page 1.")
+        if df_facts.empty:
+            st.info("No factsheet pages matched.")
         else:
-            st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
+            display_df = df_facts[[
+                "Section",
+                "Matched Fund Name",
+                "Matched Ticker",
+                "Benchmark",
+                "Category",
+                "Net Assets",
+                "Manager Name",
+                "Avg. Market Cap",
+                "Expense Ratio",
+                "Matched",
+            ]].rename(columns={
+                "Matched Fund Name": "Fund Name",
+                "Matched Ticker": "Ticker",
+            })
+
+            # Split display: regular first, then proposed
+            st.markdown("## Fund Factsheets — Regular")
+            df_regular = display_df[display_df["Section"] == "Regular"].drop(columns=["Section"])
+            if not df_regular.empty:
+                st.dataframe(df_regular, use_container_width=True)
+            else:
+                st.info("No regular factsheet matches found.")
+
+            st.markdown("## Fund Factsheets — Proposed Funds")
+            df_proposed = display_df[display_df["Section"] == "Proposed Funds"].drop(columns=["Section"])
+            if not df_proposed.empty:
+                st.dataframe(df_proposed, use_container_width=True)
+            else:
+                st.info("No proposed factsheet matches found.")
+
+            # Summary counts only from regular (to preserve original logic)
+            matched_count = sum(1 for r in regular if r["Matched"] == "✅")
+            total_declared = st.session_state.get("total_options")
+            st.write(f"Matched {matched_count} of {len(regular)} regular factsheet pages.")
+            if matched_count == total_declared:
+                st.success(f"All {matched_count} funds matched the declared Total Options from Page 1.")
+            else:
+                st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
 #───Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr / Net Expense Ratio & Bench QTD──────────────────────────────────────────────────────────────────
 
