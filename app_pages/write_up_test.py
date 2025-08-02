@@ -1055,7 +1055,6 @@ def step14_5_ips_fail_table():
     if fail_df.empty:
         return
 
-    # Convert to HTML table (minimal styling)
     table_html = fail_df.rename(columns={
         "Fund Name": "Fund",
         "IPS Watch Status": "Watch Status"
@@ -1063,49 +1062,51 @@ def step14_5_ips_fail_table():
 
     st.markdown(f"""
     <div style='
-        background: linear-gradient(120deg, #fdf4f5 80%, #fbe4e6 100%);
-        color: #244369;
+        background: linear-gradient(120deg, #e6f0fb 85%, #c8e0f6 100%);
+        color: #23395d;
         border-radius: 1.3rem;
-        box-shadow: 0 2px 14px rgba(199,38,38,0.06), 0 1px 4px rgba(36,67,105,0.07);
+        box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
         padding: 1.6rem 2.0rem 1.6rem 2.0rem;
         max-width: 650px;
         margin: 1.4rem auto 1.2rem auto;
-        border: 1.5px solid #d5bfc3;'>
-        <div style='font-weight:700; color:#c1121f; font-size:1.2rem; margin-bottom:0.5rem;'>
-            ⚠️ IPS Screening – Funds on Watch
+        border: 1.5px solid #b5d0eb;'>
+        <div style='font-weight:700; color:#1856b8; font-size:1.15rem; margin-bottom:0.5rem; letter-spacing:-0.5px;'>
+            ⏳ IPS Screening – Funds on Watch
         </div>
-        <div style='font-size:1rem; margin-bottom:1rem;'>
+        <div style='font-size:1rem; margin-bottom:1rem; color:#23395d;'>
             The following funds failed one or more IPS criteria and are currently on watch.
         </div>
         {table_html}
     </div>
     """, unsafe_allow_html=True)
 
-    # Optional: add extra CSS for table look
     st.markdown("""
     <style>
     .ips-fail-table {
         width: 100%;
         border-collapse: collapse;
         margin-top: 0.7em;
+        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
     }
     .ips-fail-table th, .ips-fail-table td {
         border: none;
-        padding: 0.5em 1.1em;
+        padding: 0.48em 1.1em;
         text-align: left;
         font-size: 1.07em;
     }
     .ips-fail-table th {
-        background: #c1121f;
+        background: #244369;
         color: #fff;
         font-weight: 700;
+        letter-spacing: 0.01em;
     }
-    .ips-fail-table tr:nth-child(even) {background: #fbe4e6;}
-    .ips-fail-table tr:nth-child(odd)  {background: #fff;}
+    .ips-fail-table td {
+        color: #244369;
+    }
+    .ips-fail-table tr:nth-child(even) {background: #e6f0fb;}
+    .ips-fail-table tr:nth-child(odd)  {background: #f8fafc;}
     </style>
     """, unsafe_allow_html=True)
-
-
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
 
