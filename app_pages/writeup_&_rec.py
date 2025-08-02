@@ -158,26 +158,36 @@ def show_report_summary():
 
 def process_toc(text):
     perf = re.search(r"Fund Performance[^\d]*(\d{1,3})", text or "")
-    sc   = re.search(r"Fund Scorecard\s+(\d{1,3})", text or "")
-    fs   = re.search(r"Fund Factsheets\s+(\d{1,3})", text or "")
     cy   = re.search(r"Fund Performance: Calendar Year\s+(\d{1,3})", text or "")
     r3yr = re.search(r"Risk Analysis: MPT Statistics \(3Yr\)\s+(\d{1,3})", text or "")
     r5yr = re.search(r"Risk Analysis: MPT Statistics \(5Yr\)\s+(\d{1,3})", text or "")
 
-    perf_page = int(perf.group(1)) if perf else None
-    sc_page   = int(sc.group(1))   if sc   else None
-    fs_page   = int(fs.group(1))   if fs   else None
-    cy_page   = int(cy.group(1))   if cy   else None
-    r3yr_page = int(r3yr.group(1)) if r3yr else None
-    r5yr_page = int(r5yr.group(1)) if r5yr else None
+    sc            = re.search(r"Fund Scorecard\s+(\d{1,3})", text or "")
+    sc_prop       = re.search(r"Fund Scorecard:\s*Proposed Funds\s+(\d{1,3})", text or "")
 
-    # Store in session state for future reference
+    fs            = re.search(r"Fund Factsheets\s+(\d{1,3})", text or "")
+    fs_prop       = re.search(r"Fund Factsheets:\s*Proposed Funds\s+(\d{1,3})", text or "")
+
+    perf_page     = int(perf.group(1)) if perf else None
+    cy_page       = int(cy.group(1)) if cy else None
+    r3yr_page     = int(r3yr.group(1)) if r3yr else None
+    r5yr_page     = int(r5yr.group(1)) if r5yr else None
+    sc_page       = int(sc.group(1)) if sc else None
+    sc_prop_page  = int(sc_prop.group(1)) if sc_prop else None
+    fs_page       = int(fs.group(1)) if fs else None
+    fs_prop_page  = int(fs_prop.group(1)) if fs_prop else None
+
+    # Store in session state for downstream use
     st.session_state['performance_page'] = perf_page
-    st.session_state['scorecard_page']   = sc_page
-    st.session_state['factsheets_page']  = fs_page
     st.session_state['calendar_year_page'] = cy_page
     st.session_state['r3yr_page'] = r3yr_page
     st.session_state['r5yr_page'] = r5yr_page
+    st.session_state['scorecard_page'] = sc_page
+    st.session_state['scorecard_proposed_page'] = sc_prop_page
+    st.session_state['factsheets_page'] = fs_page
+    st.session_state['factsheets_proposed_page'] = fs_prop_page
+
+
 
 #───IPS Invesment Screening──────────────────────────────────────────────────────────────────
 import streamlit as st
@@ -235,35 +245,90 @@ def extract_scorecard_blocks(pdf, scorecard_page):
     return fund_blocks
 
 def extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page=None):
-    end_page = factsheets_page-1 if factsheets_page else len(pdf.pages)
-    all_lines, perf_text = [], ""
-    for p in pdf.pages[performance_page-1:end_page]:
+    import re
+    from rapidfuzz import fuzz
+
+    def normalize_name(name):
+        # strip the watchlist suffix and punctuation, lowercase
+        cleaned = re.sub(
+            r"has been placed on watchlist for not meeting .*? criteria",
+            "",
+            name,
+            flags=re.IGNORECASE
+        )
+        cleaned = re.sub(r"[^A-Za-z0-9 ]+", "", cleaned)  # remove punctuation
+        return cleaned.strip().lower()
+
+    end_page = factsheets_page - 1 if factsheets_page else len(pdf.pages)
+    all_lines = []
+    for p in pdf.pages[performance_page - 1:end_page]:
         txt = p.extract_text() or ""
-        perf_text += txt + "\n"
-        all_lines.extend(txt.splitlines())
-    mapping = {}
+        all_lines.extend([ln.strip() for ln in txt.splitlines() if ln.strip()])
+
+    # Step 1: Collect candidate (raw_name, ticker) pairs from lines with uppercase tickers length 2-5
+    candidate_pairs = []  # list of tuples (normalized_raw_name, ticker, raw_name_original)
+    ticker_rx = re.compile(r"\b([A-Z]{2,5})\b")
     for ln in all_lines:
-        m = re.match(r"(.+?)\s+([A-Z]{1,5})$", ln.strip())
-        if not m:
+        matches = ticker_rx.findall(ln)
+        if not matches:
             continue
-        raw_name, ticker = m.groups()
-        norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
-        mapping[norm] = ticker
-    tickers = {}
+        for ticker in set(matches):
+            parts = ln.rsplit(ticker, 1)
+            if len(parts) >= 1:
+                raw_name = parts[0].strip()
+                if not raw_name:
+                    continue
+                norm_raw = normalize_name(raw_name)
+                if not norm_raw:
+                    continue
+                candidate_pairs.append((norm_raw, ticker, raw_name))
+
+    # Step 2: For each fund_name, find best candidate fuzzy match (one-to-one)
+    assigned = {}
+    used_tickers = set()
+
+    # Precompute normalized expected names
+    norm_expected_list = [
+        (name, normalize_name(name))
+        for name in fund_names
+    ]
+
+    for fund_name, norm_expected in norm_expected_list:
+        best = (None, None, 0)  # (ticker, raw_name_original, score)
+        for norm_raw, ticker, raw_name in candidate_pairs:
+            if ticker in used_tickers:
+                continue
+            score = fuzz.token_sort_ratio(norm_expected, norm_raw)
+            if score > best[2]:
+                best = (ticker, raw_name, score)
+        if best[2] >= 70:  # threshold, adjust if needed
+            assigned[fund_name] = best[0]
+            used_tickers.add(best[0])
+        else:
+            assigned[fund_name] = ""
+
+    # Step 3: Fallback for unmatched names: looser heuristic and line-based fallback
     for name in fund_names:
-        norm_expected = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
-        found = next((t for raw, t in mapping.items() if raw.startswith(norm_expected)), None)
-        tickers[name] = found
-    total = len(fund_names)
-    found_count = sum(1 for t in tickers.values() if t)
-    if found_count < total:
-        all_tks = re.findall(r'\b([A-Z]{1,5})\b', perf_text)
-        seen = []
-        for tk in all_tks:
-            if tk not in seen:
-                seen.append(tk)
-        tickers = {name: (seen[i] if i < len(seen) else "") for i, name in enumerate(fund_names)}
-    return {k: (v if v else "") for k, v in tickers.items()}
+        if assigned.get(name):
+            continue
+        norm_expected = normalize_name(name)
+        for norm_raw, ticker, raw_name in candidate_pairs:
+            if ticker in used_tickers:
+                continue
+            if norm_expected in norm_raw or norm_raw in norm_expected:
+                assigned[name] = ticker
+                used_tickers.add(ticker)
+                break
+        if not assigned.get(name):
+            for ln in all_lines:
+                if name.lower() in ln.lower():
+                    m = re.search(r"\b([A-Z]{2,5})\b", ln)
+                    if m:
+                        assigned[name] = m.group(1)
+                        break
+
+    # Final cleanup: ensure non-None strings
+    return {k: (v if v else "") for k, v in assigned.items()}
 
 def scorecard_to_ips(fund_blocks, fund_types, tickers):
     # Maps for converting scorecard to IPS criteria (from your logic)
