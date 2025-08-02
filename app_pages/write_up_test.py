@@ -1916,11 +1916,15 @@ def run():
                 else:
                     st.error("Missing scorecard, performance page, or total options")
 
-            # 2. Fund Factsheets (must come before Risk-Adjusted Returns / Peer Rank)
+            # 2. Fund Factsheets
             with st.expander("Fund Factsheets", expanded=True):
                 names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
                 step6_process_factsheets(pdf, names)
-
+                
+            # 3. Extract Fund Facts sub-headings (Step 12) so Step 15 has data
+            with st.expander("Fund Facts (sub-headings)", expanded=False):
+                step12_process_fund_facts(pdf)
+                
             # 3. Returns (annualized + calendar)
             with st.expander("Returns", expanded=False):
                 step7_extract_returns(pdf)
