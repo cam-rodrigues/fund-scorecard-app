@@ -318,75 +318,97 @@ def watch_status_color(val):
         return "background-color:#d6f5df; color:#217a3e; font-weight:600;"
     return ""
 
-def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheets_page, total_options):
+def step3_5_6_scorecard_and_ips(
+    pdf,
+    scorecard_page,
+    performance_page,
+    factsheets_page,
+    total_options,
+):
     import pandas as pd
     import streamlit as st
 
-    # --- 1. Extract scorecard blocks ---
-    fund_blocks = extract_scorecard_blocks(pdf, scorecard_page)
-    fund_names = [fund["Fund Name"] for fund in fund_blocks]
-    if not fund_blocks:
-        st.error("Could not extract fund scorecard blocks. Check the PDF and page number.")
-        return
+    # Helper to process one scorecard section
+    def process_section(section_name, sc_page):
+        if not sc_page:
+            return None, None, None, None  # nothing to do
+        fund_blocks = extract_scorecard_blocks(pdf, sc_page)
+        fund_names = [fund["Fund Name"] for fund in fund_blocks]
+        if not fund_blocks:
+            st.error(f"Could not extract fund scorecard blocks for {section_name}. Check the PDF and page number.")
+            return None, None, None, None
 
-    # --- 2. Extract tickers ---
-    tickers = extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page)
+        tickers = extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page)
 
-    # --- Prepare inferred fund type guesses/defaults ---
-    inferred_guesses = []
-    for name in fund_names:
-        guess = ""
-        if tickers.get(name):
-            guess = infer_fund_type_guess(tickers.get(name, "")) or ""
-        inferred_guesses.append("Passive" if guess.lower() == "passive" else ("Passive" if "index" in name.lower() else "Active"))
+        # Inferred types
+        inferred_guesses = []
+        for name in fund_names:
+            guess = ""
+            if tickers.get(name):
+                guess = infer_fund_type_guess(tickers.get(name, "")) or ""
+            inferred_guesses.append(
+                "Passive" if guess.lower() == "passive" else ("Passive" if "index" in name.lower() else "Active")
+            )
 
-    # Build base df for editor
-    df_types_base = pd.DataFrame({
-        "Fund Name":       fund_names,
-        "Ticker":          [tickers.get(n, "") for n in fund_names],
-        "Inferred Type":   inferred_guesses,
-        "Fund Type":       inferred_guesses,  # starts same as inferred
-    })
+        # Base df for potential editing
+        df_types_base = pd.DataFrame({
+            "Fund Name":     fund_names,
+            "Ticker":        [tickers.get(n, "") for n in fund_names],
+            "Inferred Type": inferred_guesses,
+            "Fund Type":     inferred_guesses,
+        })
 
-    # --- Toggleable editor display ---
-    if "show_edit_fund_type" not in st.session_state:
-        st.session_state["show_edit_fund_type"] = False
-    toggle_label = "Hide Fund Type Editor" if st.session_state["show_edit_fund_type"] else "Edit Fund Type"
-    if st.button(toggle_label, key="toggle_edit_fund_type"):
-        st.session_state["show_edit_fund_type"] = not st.session_state["show_edit_fund_type"]
+        # Editor toggle per section to avoid clashing keys
+        edit_key = f"show_edit_fund_type_{section_name.replace(' ', '_')}"
+        editor_state_key = f"data_editor_fundtype_ips_{section_name.replace(' ', '_')}"
+        if edit_key not in st.session_state:
+            st.session_state[edit_key] = False
+        toggle_label = f"Hide Fund Type Editor ({section_name})" if st.session_state[edit_key] else f"Edit Fund Type ({section_name})"
+        if st.button(toggle_label, key=f"toggle_edit_{section_name}"):
+            st.session_state[edit_key] = not st.session_state[edit_key]
 
-    # Decide fund_types mapping
-    if st.session_state["show_edit_fund_type"]:
-        st.markdown("### Fund Type Overrides")
-        st.caption("Edit any fund type here; once you modify at least one, your edits take precedence over inferred types.")
-        edited_types = st.data_editor(
-            df_types_base,
-            column_config={
-                "Fund Type": st.column_config.SelectboxColumn("Fund Type", options=["Active", "Passive"]),
-            },
-            disabled=["Fund Name", "Ticker", "Inferred Type"],
-            hide_index=True,
-            key="data_editor_fundtype_ips",
-            use_container_width=True,
-        )
-        # Determine whether any manual edit occurred (diff between Fund Type and Inferred Type)
-        manual_override = any(
-            row["Fund Type"] != row["Inferred Type"]
-            for _, row in edited_types.iterrows()
-        )
-        if manual_override:
-            fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
+        if st.session_state[edit_key]:
+            st.markdown(f"### Fund Type Overrides — {section_name}")
+            st.caption("Edit any fund type here; manual edits take precedence over inferred.")
+            edited_types = st.data_editor(
+                df_types_base,
+                column_config={
+                    "Fund Type": st.column_config.SelectboxColumn("Fund Type", options=["Active", "Passive"]),
+                },
+                disabled=["Fund Name", "Ticker", "Inferred Type"],
+                hide_index=True,
+                key=editor_state_key,
+                use_container_width=True,
+            )
+            manual_override = any(
+                row["Fund Type"] != row["Inferred Type"]
+                for _, row in edited_types.iterrows()
+            )
+            if manual_override:
+                fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
+            else:
+                fund_types = {row["Fund Name"]: row["Inferred Type"] for _, row in edited_types.iterrows()}
         else:
-            # none edited: use inferred
-            fund_types = {row["Fund Name"]: row["Inferred Type"] for _, row in edited_types.iterrows()}
-    else:
-        # editor hidden: use inferred guesses
-        fund_types = {name: inferred_guesses[i] for i, name in enumerate(fund_names)}
+            fund_types = {name: inferred_guesses[i] for i, name in enumerate(fund_names)}
 
-    # --- 4. IPS conversion ---
-    df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
+        # IPS conversion
+        df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
 
-    # --- IPS Results ---
+        # Persist per-section state keys
+        st.session_state[f"fund_blocks_{section_name}"] = fund_blocks
+        st.session_state[f"fund_types_{section_name}"] = fund_types
+        st.session_state[f"fund_tickers_{section_name}"] = tickers
+        st.session_state[f"ips_icon_table_{section_name}"] = df_icon
+        st.session_state[f"ips_raw_table_{section_name}"] = df_raw
+
+        return df_icon, df_raw, fund_blocks, fund_types
+
+    # --- Extract regular and proposed sections ---
+    regular_icon_df, regular_raw_df, regular_blocks, regular_types = process_section("Regular Scorecard", scorecard_page)
+    proposed_page = st.session_state.get("scorecard_proposed_page")
+    proposed_icon_df, proposed_raw_df, proposed_blocks, proposed_types = process_section("Proposed Funds", proposed_page)
+
+    # --- Display header ---
     st.subheader("IPS Screening Results")
     st.markdown(
         '<div style="display:flex; gap:1rem; margin-bottom:0.5rem;">'
@@ -396,10 +418,11 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
         '</div>', unsafe_allow_html=True
     )
 
-    if df_icon.empty:
-        st.info("No IPS screening data available.")
-    else:
-        # Compact numbered criteria
+    def render_compact(df_icon, title):
+        if df_icon is None or df_icon.empty:
+            st.info(f"No IPS screening data available for {title}.")
+            return
+        st.markdown(f"### {title}")
         display_columns = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
         display_df = df_icon.rename(columns=display_columns)
 
@@ -431,7 +454,7 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
         styled = compact_df.style.applymap(watch_style, subset=["IPS Watch Status"])
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
-        # --- Summary badges (bottom) ---
+        # Summary badges
         def summarize_watch(df):
             counts = df["IPS Watch Status"].value_counts().to_dict()
             return {
@@ -441,36 +464,33 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
             }
 
         summary = summarize_watch(df_icon)
-        st.markdown("---")
         st.markdown("### Watch Summary")
         b1, b2, b3 = st.columns(3, gap="small")
         with b1:
-            st.metric("No Watch", summary["No Watch"])
+            st.metric(f"{title} - No Watch", summary["No Watch"])
         with b2:
-            st.metric("Informal Watch", summary["Informal Watch"])
+            st.metric(f"{title} - Informal Watch", summary["Informal Watch"])
         with b3:
-            st.metric("Formal Watch", summary["Formal Watch"])
+            st.metric(f"{title} - Formal Watch", summary["Formal Watch"])
 
-    # --- Persist state downstream ---
-    st.session_state["fund_blocks"] = fund_blocks
-    st.session_state["fund_types"] = fund_types
-    st.session_state["fund_tickers"] = tickers
-    st.session_state["ips_icon_table"] = df_icon
-    st.session_state["ips_raw_table"] = df_raw
+    # Render both tables separately
+    render_compact(regular_icon_df, "Regular Fund Scorecard")
+    render_compact(proposed_icon_df, "Proposed Funds")
 
-    # --- Performance extraction ---
-    perf_data = extract_performance_table(
-        pdf,
-        performance_page,
-        fund_names,
-        factsheets_page
-    )
-    for itm in perf_data:
-        itm["Ticker"] = tickers.get(itm["Fund Scorecard Name"], "")
+    # --- Persist upstream performance & legacy state ---
+    if regular_blocks:
+        perf_data = extract_performance_table(
+            pdf,
+            performance_page,
+            [b["Fund Name"] for b in regular_blocks],
+            factsheets_page
+        )
+        for itm in perf_data:
+            itm["Ticker"] = st.session_state.get("fund_tickers_Regular_Scorecard", {}).get(itm.get("Fund Scorecard Name", ""), "")
+        st.session_state["fund_performance_data"] = perf_data
 
-    st.session_state["fund_performance_data"] = perf_data
-    st.session_state["tickers"] = tickers  # legacy compatibility
-
+    # Legacy tickers
+    st.session_state["tickers"] = st.session_state.get("fund_tickers_Regular_Scorecard", {})
 
 #───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
 
