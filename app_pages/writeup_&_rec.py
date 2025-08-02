@@ -917,59 +917,90 @@ def step8_calendar_returns(pdf):
     combined_fund_records = regular_fund_records + proposed_fund_records
     st.session_state["step8_returns"] = combined_fund_records
 
-    # — B) Benchmarks matched back to each fund’s ticker — (by section)
+    # — B) Benchmarks matched back to each fund’s ticker — anchored to fund lines —
     facts = st.session_state.get("fund_factsheets_data", []) or []
-    bench_by_section = {"Regular": [], "Proposed Funds": []}
-    for f in facts:
-        bench_name = f.get("Benchmark", "").strip()
-        fund_tkr = f.get("Matched Ticker", "")
-        section = f.get("Section", "Regular")  # default to Regular if missing
-        if not bench_name:
-            continue
+    bench_records = []
 
-        # Fuzzy locate best line for benchmark
-        best_idx = None
-        best_score = 0
-        for i, ln in enumerate(all_lines):
-            score = fuzz.token_sort_ratio(bench_name.lower(), ln.lower())
-            if score > best_score:
-                best_score, best_idx = score, i
-
-        if best_score < 60 or best_idx is None:
-            st.warning(f"⚠️ Benchmark '{bench_name}' ({section}): no good match found (score {best_score}).")
-            continue
-
-        raw = num_rx.findall(all_lines[best_idx])
-        # fallback to next line if not enough
-        if len(raw) < len(years) and best_idx + 1 < len(all_lines):
-            raw += num_rx.findall(all_lines[best_idx + 1])
-        clean = [n.strip("()%").rstrip("%") for n in raw]
-        vals = clean[:len(years)] + [None] * (len(years) - len(clean[:len(years)]))
-
-        rec = {"Name": bench_name, "Ticker": fund_tkr, "Section": section}
-        rec.update({years[i]: vals[i] for i in range(len(years))})
-        if section not in bench_by_section:
-            bench_by_section[section] = []
-        bench_by_section[section].append(rec)
-
-    # Display benchmark returns per section
-    if bench_by_section.get("Regular"):
-        df_bench_reg = pd.DataFrame(bench_by_section["Regular"])
-        st.markdown("**Benchmark Calendar-Year Returns — Regular**")
-        cols = ["Name", "Ticker"] + years
-        st.dataframe(df_bench_reg[cols], use_container_width=True)
-        st.session_state["benchmark_calendar_year_returns_regular"] = bench_by_section["Regular"]
+    if not facts:
+        st.warning("No factsheet metadata available to extract benchmarks.")
     else:
-        st.warning("No regular benchmark returns extracted.")
+        # Build a map: fund ticker -> benchmark name (from factsheet)
+        fund_to_bench = {}
+        for f in facts:
+            bench_name = (f.get("Benchmark") or "").strip()
+            fund_tkr = (f.get("Matched Ticker") or "").upper().strip()
+            if bench_name and fund_tkr:
+                fund_to_bench[fund_tkr] = bench_name
 
-    if bench_by_section.get("Proposed Funds"):
-        df_bench_prop = pd.DataFrame(bench_by_section["Proposed Funds"])
-        st.markdown("**Benchmark Calendar-Year Returns — Proposed Funds**")
-        cols = ["Name", "Ticker"] + years
-        st.dataframe(df_bench_prop[cols], use_container_width=True)
-        st.session_state["benchmark_calendar_year_returns_proposed"] = bench_by_section["Proposed Funds"]
+        # Precompute fuzzy-friendly versions
+        def norm(s):
+            return re.sub(r"\s+", " ", s.lower().strip())
+
+        for rec in fund_records:  # using the fund_records from part A which has Name/Ticker
+            fund_ticker = (rec.get("Ticker") or "").upper()
+            bench_name = fund_to_bench.get(fund_ticker, "")
+            if not bench_name:
+                continue  # no benchmark listed for this fund
+
+            # Find the fund line index first
+            fund_idx = next((i for i, ln in enumerate(all_lines)
+                             if fund_ticker and fund_ticker in ln.split()), None)
+            if fund_idx is None:
+                # fallback: try fuzzy fund name match if ticker didn't appear
+                fund_name = rec.get("Name", "")
+                scores = [(i, fuzz.token_sort_ratio(fund_name.lower(), ln.lower()))
+                          for i, ln in enumerate(all_lines)]
+                best_i, best_score = max(scores, key=lambda x: x[1])
+                if best_score > 60:
+                    fund_idx = best_i
+                else:
+                    continue  # can't locate fund anchor
+
+            # Search nearby lines (say +/-3) for the benchmark name (fuzzy or substring)
+            candidate_idx = None
+            best_score = 0
+            window = range(max(0, fund_idx - 3), min(len(all_lines), fund_idx + 4))
+            for i in window:
+                ln = all_lines[i]
+                # direct substring
+                if bench_name.lower() in ln.lower():
+                    candidate_idx = i
+                    best_score = 100
+                    break
+                # fuzzy match
+                score = fuzz.token_sort_ratio(norm(bench_name), norm(ln))
+                if score > best_score:
+                    best_score = score
+                    candidate_idx = i
+
+            if candidate_idx is None or best_score < 40:
+                # give up if even fuzzy is too weak
+                st.warning(f"⚠️ Could not confidently locate benchmark '{bench_name}' near fund '{rec.get('Name')}' (ticker {fund_ticker}). Best score={best_score}.")
+                continue
+
+            # Extract values from that line (and next if needed)
+            raw = num_rx.findall(all_lines[candidate_idx])
+            if len(raw) < len(years) and candidate_idx + 1 < len(all_lines):
+                raw += num_rx.findall(all_lines[candidate_idx + 1])
+            clean = [n.strip("()%").rstrip("%") for n in raw]
+            vals = clean[:len(years)] + [None] * (len(years) - len(clean[:len(years)]))
+
+            bench_rec = {
+                "Name": bench_name,
+                "Ticker": fund_ticker,  # associate with fund ticker since benchmark lacks its own
+            }
+            bench_rec.update({years[i]: vals[i] for i in range(len(years))})
+            bench_records.append(bench_rec)
+
+    # Display benchmark calendar-year returns (merged, no distinction regular/proposed here)
+    if bench_records:
+        df_bench = pd.DataFrame(bench_records)
+        st.markdown("**Benchmark Calendar-Year Returns**")
+        st.dataframe(df_bench[["Name", "Ticker"] + years], use_container_width=True)
+        st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
-        st.info("No proposed benchmark returns found.")
+        st.warning("No benchmark returns extracted.")
+
 
 #───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
 
