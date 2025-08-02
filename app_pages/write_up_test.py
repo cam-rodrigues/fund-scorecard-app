@@ -1043,42 +1043,27 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
 
 #───Step 14.5: IPS Fail Table──────────────────────────────────────────────────────────────────
 
-def step14_5_ips_fail_table():
+def step14_5_ips_fail_table(pdf=None):
     import streamlit as st
     import pandas as pd
 
-    st.subheader("IPS Screening Failures")
+    st.subheader("Funds Failing IPS Screening")
 
-    # Get IPS screening results (icon table)
     df_icon = st.session_state.get("ips_icon_table")
     if df_icon is None or df_icon.empty:
         st.info("No IPS screening results found. Run previous steps first.")
         return
 
-    # Funds that failed: "IPS Watch Status" is "FW" or any IPS criteria is '✗'
-    def is_fail(row):
-        if row.get("IPS Watch Status", "") == "FW":
-            return True
-        # Check any IPS Investment Criteria column for '✗'
-        for i in range(1, 12):
-            if row.get(str(i), "") == "✗":
-                return True
-        return False
+    # Filter for IW or FW
+    filtered = df_icon[df_icon["IPS Watch Status"].isin(["IW", "FW"])]
+    if filtered.empty:
+        st.success("No funds failed the IPS screening (no IW or FW).")
+        return
 
-    # Rename criteria columns for display if needed
-    display_df = df_icon.copy()
-    display_df.rename(
-        columns={f"IPS Investment Criteria {i}": str(i) for i in range(1, 12)},
-        inplace=True
-    )
+    # Display only Fund Name and IPS Watch Status
+    display_df = filtered[["Fund Name", "IPS Watch Status"]].reset_index(drop=True)
+    st.dataframe(display_df, use_container_width=True)
 
-    # Filter for fails
-    fails = display_df[display_df.apply(is_fail, axis=1)]
-
-    if fails.empty:
-        st.success("No funds failed the IPS screening!")
-    else:
-        st.dataframe(fails, use_container_width=True)
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
 
