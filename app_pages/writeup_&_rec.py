@@ -554,6 +554,30 @@ def step3_5_6_scorecard_and_ips(
     render_compact(regular_icon_df, "Regular Fund Scorecard", "Regular_Scorecard")
     render_compact(proposed_icon_df, "Proposed Funds", "Proposed_Funds")
 
+    # --- Consolidate into canonical key for backward compatibility / consumers expecting base key ---
+    icon_regular = st.session_state.get("ips_icon_table_Regular_Scorecard")
+    icon_proposed = st.session_state.get("ips_icon_table_Proposed_Funds")
+
+    if icon_regular is not None or icon_proposed is not None:
+        frames = []
+        if icon_regular is not None:
+            frames.append(icon_regular)
+        if icon_proposed is not None:
+            frames.append(icon_proposed)
+        if frames:
+            st.session_state["ips_icon_table"] = pd.concat(frames, ignore_index=True)
+        else:
+            st.session_state["ips_icon_table"] = pd.DataFrame()
+    else:
+        # fallback if somehow neither exists
+        st.session_state["ips_icon_table"] = st.session_state.get("ips_icon_table", pd.DataFrame())
+
+    # --- Ensure regular fallback mappings exist ---
+    if not st.session_state.get("fund_tickers_Regular_Scorecard"):
+        st.session_state["fund_tickers_Regular_Scorecard"] = st.session_state.get("tickers", {}).copy()
+    if not st.session_state.get("fund_types_Regular_Scorecard"):
+        st.session_state["fund_types_Regular_Scorecard"] = st.session_state.get("fund_types", {}).copy() if st.session_state.get("fund_types") else {}
+
     # --- Persist upstream performance & legacy state ---
     if regular_blocks:
         perf_data = extract_performance_table(
@@ -568,6 +592,7 @@ def step3_5_6_scorecard_and_ips(
 
     # Legacy tickers for backward compatibility
     st.session_state["tickers"] = get_regular_tickers()
+
 
 
 #───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
