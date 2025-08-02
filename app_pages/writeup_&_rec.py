@@ -1306,8 +1306,21 @@ def step15_display_selected_fund():
     import pandas as pd
     import streamlit as st
     import re
-    from rapidfuzz import fuzz  # <— put it here since other imports are inside the function
+    from rapidfuzz import fuzz
 
+    # --- Helper for finding counterpart between regular and proposed ---
+    def find_counterpart(name, source_blocks, threshold=70):
+        best = (None, 0)
+        for b in source_blocks:
+            candidate = b.get("Fund Name") or b.get("Matched Fund Name", "")
+            if not candidate:
+                continue
+            score = fuzz.token_sort_ratio(name.lower(), candidate.lower())
+            if score > best[1]:
+                best = (candidate, score)
+        return best[0] if best[1] >= threshold else None
+
+    # --- Basic selection & guardrails ---
     facts = st.session_state.get("fund_factsheets_data", [])
     if not facts:
         st.info("Run Steps 1–14 to populate data before viewing fund details.")
@@ -1318,27 +1331,31 @@ def step15_display_selected_fund():
     if not selected_fund:
         return
     st.session_state["selected_fund"] = selected_fund
-
     st.write(f"Details for: {selected_fund}")
 
-    # Get the factsheet record for the selected fund
-    factsheet_rec = next((row for row in facts if row.get("Matched Fund Name") == selected_fund), {})
+    # --- Resolve counterpart (regular <-> proposed) once ---
+    regular_blocks = st.session_state.get("fund_blocks_Regular_Scorecard", []) or []
+    proposed_blocks = st.session_state.get("fund_blocks_Proposed_Funds", []) or []
+    regular_names = [b.get("Fund Name", "") for b in regular_blocks]
+    proposed_names = [b.get("Fund Name", "") for b in proposed_blocks]
 
-    # Fund Facts table (from step12); may have different matching heuristics
+    counterpart_name = None
+    if selected_fund in regular_names:
+        counterpart_name = find_counterpart(selected_fund, proposed_blocks)
+    elif selected_fund in proposed_names:
+        counterpart_name = find_counterpart(selected_fund, regular_blocks)
+
+    # --- Factsheet & fact table retrieval ---
+    factsheet_rec = next((row for row in facts if row.get("Matched Fund Name") == selected_fund), {}) or {}
     fund_facts_table = st.session_state.get("step12_fund_facts_table", []) or []
-    # Filter out any metadata noise
     fund_facts_table = [row for row in fund_facts_table if row.get("Fund Name") and row.get("Fund Name").lower() != "metadata"]
 
-    # Try to find the detailed facts (step12) for the selected fund
-    facts_rec = None
-    # 1. Exact fund name match
+    # Matching logic for selected fund facts
     facts_rec = next((row for row in fund_facts_table if row.get("Fund Name") == selected_fund), None)
-    # 2. Match by ticker from the factsheet_rec
     if not facts_rec and factsheet_rec:
         factsheet_ticker = factsheet_rec.get("Matched Ticker", "")
         if factsheet_ticker:
             facts_rec = next((row for row in fund_facts_table if row.get("Ticker") == factsheet_ticker), None)
-    # 3. Fuzzy substring fallback on name
     if not facts_rec:
         facts_rec = next(
             (row for row in fund_facts_table
@@ -1347,28 +1364,7 @@ def step15_display_selected_fund():
             None
         )
 
-    # --- Counterpart logic (regular <-> proposed) ---
-    def find_counterpart(name, source_list, threshold=70):
-        best = (None, 0)
-        for b in source_list:
-            candidate = b.get("Fund Name") or b.get("Matched Fund Name", "")
-            score = fuzz.token_sort_ratio(name.lower(), candidate.lower())
-            if score > best[1]:
-                best = (candidate, score)
-        return best[0] if best[1] >= threshold else None
-
-    regular_blocks = st.session_state.get("fund_blocks_Regular_Scorecard", []) or []
-    proposed_blocks = st.session_state.get("fund_blocks_Proposed_Funds", []) or []
-    regular_names = [b.get("Fund Name", "") for b in regular_blocks]
-    proposed_names = [b.get("Fund Name", "") for b in proposed_blocks]
-    counterpart_name = None
-    if selected_fund in regular_names:
-        counterpart_name = find_counterpart(selected_fund, proposed_blocks)
-    elif selected_fund in proposed_names:
-        counterpart_name = find_counterpart(selected_fund, regular_blocks)
-    # --------------------------------------------------
-
-    # Build left and right summary boxes
+    # --- Summary boxes ---
     left_box = ""
     if factsheet_rec:
         left_box = f"""<div style='
@@ -1434,9 +1430,9 @@ def step15_display_selected_fund():
         unsafe_allow_html=True
     )
 
-    # --- Slide 1 Table: IPS Results ---
+    # --- Slide 1 Table: IPS Results (unchanged) ---
     ips_icon_table = st.session_state.get("ips_icon_table")
-    fs_rec = next((f for f in facts if f.get("Matched Fund Name") == selected_fund), {})
+    fs_rec = next((f for f in facts if f.get("Matched Fund Name") == selected_fund), {}) or {}
 
     if ips_icon_table is not None and not ips_icon_table.empty:
         row = ips_icon_table[ips_icon_table["Fund Name"] == selected_fund]
@@ -1453,54 +1449,47 @@ def step15_display_selected_fund():
 
             def color_bool(v):
                 return "background-color: green" if v == "✔" else ("background-color: red" if v == "✗" else "")
-            
+
             def style_status(v):
                 if v == "NW": return "background-color: green; color: white; font-weight: 600;"
                 if v == "IW": return "background-color: orange; color: white; font-weight: 600;"
                 if v == "FW": return "background-color: red; color: white; font-weight: 600;"
                 return ""
-            
+
             styled = row_df.style.applymap(color_bool, subset=[str(i) for i in range(1, 12)]) \
                                  .applymap(style_status, subset=["IPS Status"])
-            
+
             st.dataframe(styled, use_container_width=True)
         else:
             st.warning("No IPS screening result found for selected fund.")
     else:
         st.warning("IPS screening table not found. Run earlier steps first.")
 
- 
-    # --- Slide 2 Table 1 ---
+    # --- Slide 2 Table 1: Net Expense Ratio ---
     st.markdown("**Net Expense Ratio**")
-    perf_data = st.session_state.get("fund_performance_data", [])
-    perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == selected_fund), {})
-    inv_mgr = f"{selected_fund} ({perf_item.get('Ticker','')})"
-    net_exp = perf_item.get("Net Expense Ratio", "")
-    if net_exp and not str(net_exp).endswith("%"):
-        net_exp = f"{net_exp}%"
-    rows = [{
-        "Investment Manager": inv_mgr,
-        "Net Expense Ratio":  net_exp
-    }]
-    # Add counterpart if found
-    if counterpart_name:
-        # find its performance item
-        counterpart_perf = next((p for p in perf_data if p.get("Fund Scorecard Name") == counterpart_name), {})
-        counterpart_inv_mgr = f"{counterpart_name} ({counterpart_perf.get('Ticker','')})"
-        counterpart_net = counterpart_perf.get("Net Expense Ratio", "")
-        if counterpart_net and not str(counterpart_net).endswith("%"):
-            counterpart_net = f"{counterpart_net}%"
-        rows.append({
-            "Investment Manager": counterpart_inv_mgr,
-            "Net Expense Ratio":  counterpart_net
-        })
-    df_slide2 = pd.DataFrame(rows)
+    perf_data = st.session_state.get("fund_performance_data", []) or []
+    def format_pct(val):
+        s = str(val) if val is not None else ""
+        return s if s.endswith("%") or s == "" else f"{s}%"
 
-    # Save this dataframe for Step 17
+    def build_net_exp_row(fund_name, label):
+        perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == fund_name), {})
+        inv_mgr = f"{fund_name} ({perf_item.get('Ticker','')}) {label}".strip()
+        net_exp = perf_item.get("Net Expense Ratio", "")
+        if net_exp and not str(net_exp).endswith("%"):
+            net_exp = f"{net_exp}%"
+        return {"Investment Manager": inv_mgr, "Net Expense Ratio": net_exp}
+
+    rows = [build_net_exp_row(selected_fund, "(Selected)")]
+    if counterpart_name:
+        counterpart_label = "(Proposed)" if selected_fund in regular_names else "(Regular)"
+        rows.append(build_net_exp_row(counterpart_name, counterpart_label))
+
+    df_slide2 = pd.DataFrame(rows)
     st.session_state["slide2_table1_data"] = df_slide2
     st.dataframe(df_slide2, use_container_width=True)
 
-    # --- Slide 2 Table 2 ---
+    # --- Slide 2 Table 2: Returns ---
     st.markdown("**Returns**")
     date_label = st.session_state.get("report_date", "QTD")
 
@@ -1508,11 +1497,9 @@ def step15_display_selected_fund():
         s = str(val) if val is not None else ""
         return s if s.endswith("%") or s == "" else f"{s}%"
 
-    # Helper to build rows given a fund name
-    def build_return_rows(fund_name):
-        perf_data = st.session_state.get("fund_performance_data", [])
+    def build_return_block(fund_name, role_label):
         perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == fund_name), {})
-        inv_mgr = f"{fund_name} ({perf_item.get('Ticker','')})"
+        inv_mgr = f"{fund_name} ({perf_item.get('Ticker','')}) {role_label}".strip()
 
         qtd   = append_pct(perf_item.get("QTD", ""))
         one   = append_pct(perf_item.get("1Yr", ""))
@@ -1526,7 +1513,6 @@ def step15_display_selected_fund():
         bench_5yr   = append_pct(perf_item.get("Bench 5Yr", ""))
         bench_ten   = append_pct(perf_item.get("Bench 10Yr", ""))
 
-        # Fund row
         row_fund = {
             "Investment Manager": inv_mgr,
             date_label:           qtd,
@@ -1536,12 +1522,12 @@ def step15_display_selected_fund():
             "10 Year":            ten
         }
 
-        # Find benchmark name/ticker from factsheet data for this fund
-        facts = st.session_state.get("fund_factsheets_data", []) or []
-        fs_rec_this = next((f for f in facts if f.get("Matched Fund Name") == fund_name), None)
-        bench_name = fs_rec_this.get("Benchmark", "") if fs_rec_this else ""
-        bench_ticker = fs_rec_this.get("Matched Ticker", "") if fs_rec_this else ""
+        facts_local = st.session_state.get("fund_factsheets_data", []) or []
+        fs_rec_local = next((f for f in facts_local if f.get("Matched Fund Name") == fund_name), {})
+        bench_name = fs_rec_local.get("Benchmark", "")
+        bench_ticker = fs_rec_local.get("Matched Ticker", "")
         bench_inv_mgr = f"{bench_name} ({bench_ticker})" if bench_name else "Benchmark"
+        bench_inv_mgr = f"{bench_inv_mgr} {role_label}".strip()
 
         row_benchmark = {
             "Investment Manager": bench_inv_mgr,
@@ -1554,89 +1540,34 @@ def step15_display_selected_fund():
 
         return [row_fund, row_benchmark]
 
-    # Build for selected fund
-    base_rows = build_return_rows(selected_fund)
-
-    # If counterpart exists, append its block as well
+    all_rows = build_return_block(selected_fund, "(Selected)")
     if counterpart_name:
-        counterpart_rows = build_return_rows(counterpart_name)
-        # Optionally annotate counterpart to distinguish, e.g., prefix with "(Proposed)" or "(Regular)"
-        def annotate_mgr(row, label):
-            im = row.get("Investment Manager", "")
-            row["Investment Manager"] = f"{im} {label}"
-            return row
-
-        # Determine labels based on which is which
-        label_sel = ""
-        label_cp = ""
-        regular_names = [b.get("Fund Name", "") for b in st.session_state.get("fund_blocks_Regular_Scorecard", []) or []]
-        if selected_fund in regular_names:
-            label_sel = "(Regular)"
-            label_cp = "(Proposed)"
-        elif selected_fund in (b.get("Fund Name", "") for b in st.session_state.get("fund_blocks_Proposed_Funds", []) or []):
-            label_sel = "(Proposed)"
-            label_cp = "(Regular)"
-
-        # Apply labels
-        if label_sel:
-            base_rows[0] = annotate_mgr(base_rows[0], label_sel)
-            base_rows[1] = annotate_mgr(base_rows[1], label_sel)
-        if label_cp:
-            counterpart_rows[0] = annotate_mgr(counterpart_rows[0], label_cp)
-            counterpart_rows[1] = annotate_mgr(counterpart_rows[1], label_cp)
-
-        all_rows = base_rows + counterpart_rows
-    else:
-        all_rows = base_rows
+        counterpart_label = "(Proposed)" if selected_fund in regular_names else "(Regular)"
+        all_rows += build_return_block(counterpart_name, counterpart_label)
 
     df_slide2_2 = pd.DataFrame(all_rows)
-
-    # Save for Step 17 to use
     st.session_state["slide2_table2_data"] = df_slide2_2
     st.dataframe(df_slide2_2, use_container_width=True)
- 
-    # --- Slide 2 Table 3 ---
-    st.markdown("**Calender Returns**")
-    import re
-    from rapidfuzz import fuzz
 
-    fund_cy = st.session_state.get("step8_returns", [])
-    bench_cy = st.session_state.get("benchmark_calendar_year_returns", [])
+    # --- Slide 2 Table 3: Calendar Returns ---
+    st.markdown("**Calender Returns**")
+    fund_cy = st.session_state.get("step8_returns", []) or []
+    bench_cy = st.session_state.get("benchmark_calendar_year_returns", []) or []
     if not fund_cy or not bench_cy:
         st.error("❌ No calendar year returns data found. Ensure Step 8 has been run correctly.")
         return
-
-    # Helper to find counterpart (proposed <-> regular)
-    def find_counterpart(name, source_blocks, threshold=70):
-        best = (None, 0)
-        for b in source_blocks:
-            candidate = b.get("Fund Name") or b.get("Matched Fund Name", "")
-            score = fuzz.token_sort_ratio(name.lower(), candidate.lower())
-            if score > best[1]:
-                best = (candidate, score)
-        return best[0] if best[1] >= threshold else None
-
-    # Determine counterpart_name based on which list selected_fund belongs to
-    regular_blocks = st.session_state.get("fund_blocks_Regular_Scorecard", []) or []
-    proposed_blocks = st.session_state.get("fund_blocks_Proposed_Funds", []) or []
-    regular_names = [b.get("Fund Name", "") for b in regular_blocks]
-    proposed_names = [b.get("Fund Name", "") for b in proposed_blocks]
 
     fund_rec = next((r for r in fund_cy if r.get("Name") == selected_fund), None)
     if not fund_rec:
         st.error(f"❌ Could not find data for selected fund: {selected_fund}")
         return
 
-    # find counterpart (proposed if selected is regular, or regular if selected is proposed)
-    counterpart_name = None
-    if selected_fund in regular_names:
-        counterpart_name = find_counterpart(selected_fund, proposed_blocks)
-    elif selected_fund in proposed_names:
-        counterpart_name = find_counterpart(selected_fund, regular_blocks)
-
-    # selected fund's benchmark
-    benchmark_name = selected_fund
-    bench_rec = next((r for r in bench_cy if r.get("Name") == benchmark_name or r.get("Ticker") == fund_rec.get("Ticker")), None)
+    # Benchmark for selected fund
+    bench_rec = next(
+        (r for r in bench_cy
+         if r.get("Name") == selected_fund or r.get("Ticker") == fund_rec.get("Ticker")),
+        None
+    )
     if not bench_rec:
         st.error(f"❌ Could not find benchmark data for selected fund: {selected_fund}")
         return
@@ -1661,121 +1592,59 @@ def step15_display_selected_fund():
         else:
             st.info(f"Could not locate calendar-year returns for counterpart fund '{counterpart_name}'.")
 
-    # Benchmark row
+    # Benchmark row (selected fund's benchmark)
     row_benchmark = {"Investment Manager": f"{bench_rec.get('Name', 'Benchmark')} ({bench_rec.get('Ticker', '')})"}
     for year in year_cols:
         row_benchmark[year] = bench_rec.get(year, "")
     rows.append(row_benchmark)
 
     df_slide2_3 = pd.DataFrame(rows, columns=["Investment Manager"] + year_cols)
-
-    # Save for Step 17 to use
     st.session_state["slide2_table3_data"] = df_slide2_3
     st.dataframe(df_slide2_3, use_container_width=True)
 
-    # --- Slide 3 Table 1 ---
+    # --- Slide 3 Table 1: MPT Statistics Summary ---
     st.markdown("**MPT Statistics Summary**")
-    from rapidfuzz import fuzz
-    import re
-
-    # Helper to find counterpart (proposed <-> regular)
-    def find_counterpart(name, source_blocks, threshold=70):
-        best = (None, 0)
-        for b in source_blocks:
-            candidate = b.get("Fund Name") or b.get("Matched Fund Name", "")
-            score = fuzz.token_sort_ratio(name.lower(), candidate.lower())
-            if score > best[1]:
-                best = (candidate, score)
-        return best[0] if best[1] >= threshold else None
-
-    regular_blocks = st.session_state.get("fund_blocks_Regular_Scorecard", []) or []
-    proposed_blocks = st.session_state.get("fund_blocks_Proposed_Funds", []) or []
-    regular_names = [b.get("Fund Name", "") for b in regular_blocks]
-    proposed_names = [b.get("Fund Name", "") for b in proposed_blocks]
-
     mpt3 = st.session_state.get("step9_mpt_stats", []) or []
     mpt5 = st.session_state.get("step10_mpt_stats", []) or []
 
-    # Selected fund stats
-    stats3 = next((r for r in mpt3 if r.get("Fund Name") == selected_fund), {})
-    stats5 = next((r for r in mpt5 if r.get("Fund Name") == selected_fund), {})
-    ticker = stats3.get("Ticker", stats5.get("Ticker", ""))
-    inv_mgr = f"{selected_fund} ({ticker})"
-    row_selected = {
-        "Investment Manager":        inv_mgr,
-        "3 Year Alpha":              stats3.get("3 Year Alpha", ""),
-        "5 Year Alpha":              stats5.get("5 Year Alpha", ""),
-        "3 Year Beta":               stats3.get("3 Year Beta", ""),
-        "5 Year Beta":              stats5.get("5 Year Beta", ""),
-        "3 Year Upside Capture":     stats3.get("3 Year Upside Capture", ""),
-        "3 Year Downside Capture":   stats3.get("3 Year Downside Capture", ""),
-        "5 Year Upside Capture":     stats5.get("5 Year Upside Capture", ""),
-        "5 Year Downside Capture":   stats5.get("5 Year Downside Capture", "")
-    }
-
-    # Determine counterpart
-    counterpart_name = None
-    if selected_fund in regular_names:
-        counterpart_name = find_counterpart(selected_fund, proposed_blocks)
-    elif selected_fund in proposed_names:
-        counterpart_name = find_counterpart(selected_fund, regular_blocks)
-
-    rows = [row_selected]
-
-    # Counterpart row if found
-    if counterpart_name:
-        cp_stats3 = next((r for r in mpt3 if r.get("Fund Name") == counterpart_name), {})
-        cp_stats5 = next((r for r in mpt5 if r.get("Fund Name") == counterpart_name), {})
-        cp_ticker = cp_stats3.get("Ticker", cp_stats5.get("Ticker", ""))
-        cp_inv_mgr = f"{counterpart_name} ({cp_ticker})"
-        row_counterpart = {
-            "Investment Manager":        cp_inv_mgr,
-            "3 Year Alpha":              cp_stats3.get("3 Year Alpha", ""),
-            "5 Year Alpha":              cp_stats5.get("5 Year Alpha", ""),
-            "3 Year Beta":               cp_stats3.get("3 Year Beta", ""),
-            "5 Year Beta":              cp_stats5.get("5 Year Beta", ""),
-            "3 Year Upside Capture":     cp_stats3.get("3 Year Upside Capture", ""),
-            "3 Year Downside Capture":   cp_stats3.get("3 Year Downside Capture", ""),
-            "5 Year Upside Capture":     cp_stats5.get("5 Year Upside Capture", ""),
-            "5 Year Downside Capture":   cp_stats5.get("5 Year Downside Capture", "")
+    def make_mpt_row(fund_name):
+        stats3 = next((r for r in mpt3 if r.get("Fund Name") == fund_name), {})
+        stats5 = next((r for r in mpt5 if r.get("Fund Name") == fund_name), {})
+        ticker = stats3.get("Ticker", stats5.get("Ticker", ""))
+        inv_mgr = f"{fund_name} ({ticker})"
+        return {
+            "Investment Manager":        inv_mgr,
+            "3 Year Alpha":              stats3.get("3 Year Alpha", ""),
+            "5 Year Alpha":              stats5.get("5 Year Alpha", ""),
+            "3 Year Beta":               stats3.get("3 Year Beta", ""),
+            "5 Year Beta":               stats5.get("5 Year Beta", ""),
+            "3 Year Upside Capture":     stats3.get("3 Year Upside Capture", ""),
+            "3 Year Downside Capture":   stats3.get("3 Year Downside Capture", ""),
+            "5 Year Upside Capture":     stats5.get("5 Year Upside Capture", ""),
+            "5 Year Downside Capture":   stats5.get("5 Year Downside Capture", "")
         }
-        rows.append(row_counterpart)
+
+    rows = [make_mpt_row(selected_fund)]
+    if counterpart_name:
+        rows.append(make_mpt_row(counterpart_name))
 
     df_slide3_1 = pd.DataFrame(rows)
-
-    # Save for Step 17 to use
     st.session_state["slide3_table1_data"] = df_slide3_1
     st.dataframe(df_slide3_1, use_container_width=True)
-    # --- Slide 3 Table 2 ---
+
+    # --- Slide 3 Table 2: Risk-Adjusted Returns / Peer Ranking % ---
     st.markdown("**Risk-Adjusted Returns / Peer Ranking %**")
-    from rapidfuzz import fuzz
-
-    # helper to find counterpart name
-    def find_counterpart(name, source_blocks, threshold=70):
-        best = (None, 0)
-        for b in source_blocks:
-            candidate = b.get("Fund Name") or b.get("Matched Fund Name", "")
-            score = fuzz.token_sort_ratio(name.lower(), candidate.lower())
-            if score > best[1]:
-                best = (candidate, score)
-        return best[0] if best[1] >= threshold else None
-
-    regular_blocks = st.session_state.get("fund_blocks_Regular_Scorecard", []) or []
-    proposed_blocks = st.session_state.get("fund_blocks_Proposed_Funds", []) or []
-    regular_names = [b.get("Fund Name", "") for b in regular_blocks]
-    proposed_names = [b.get("Fund Name", "") for b in proposed_blocks]
-
     risk_table = st.session_state.get("step13_risk_adjusted_table", []) or []
     peer_table = st.session_state.get("step14_peer_rank_table", []) or []
 
-    def make_row(fund_name):
+    def make_risk_peer_row(fund_name):
         risk_rec = next((r for r in risk_table if r.get("Fund Name") == fund_name), {})
         peer_rec = next((r for r in peer_table if r.get("Fund Name") == fund_name), {})
         ticker = risk_rec.get("Ticker") or peer_rec.get("Ticker", "")
         inv_mgr = f"{fund_name} ({ticker})"
         def frac(metric, period):
-            r = risk_rec.get(f"{metric} {period}", "")
-            p = peer_rec.get(f"{metric} {period}", "")
+            r = risk_rec.get(f"{metric} {period}", "") or ""
+            p = peer_rec.get(f"{metric} {period}", "") or ""
             return f"{r} / {p}"
         return {
             "Investment Manager": inv_mgr,
@@ -1787,141 +1656,59 @@ def step15_display_selected_fund():
             "5 Year Information Ratio / Peer Ranking %": frac("Information Ratio", "5Yr"),
         }
 
-    # Selected fund row
-    row_selected = make_row(selected_fund)
-    rows = [row_selected]
-
-    # Determine counterpart
-    counterpart_name = None
-    if selected_fund in regular_names:
-        counterpart_name = find_counterpart(selected_fund, proposed_blocks)
-    elif selected_fund in proposed_names:
-        counterpart_name = find_counterpart(selected_fund, regular_blocks)
-
-    # Insert counterpart if found
+    rows = [make_risk_peer_row(selected_fund)]
     if counterpart_name:
-        row_counterpart = make_row(counterpart_name)
-        rows.append(row_counterpart)
+        rows.append(make_risk_peer_row(counterpart_name))
 
     df_slide3_2 = pd.DataFrame(rows)
-
-    # Save for Step 17 to use
     st.session_state["slide3_table2_data"] = df_slide3_2
     st.dataframe(df_slide3_2, use_container_width=True)
 
-    # --- Slide 4 Table 1 ---
+    # --- Slide 4 Table 1: Manager Tenure ---
     st.markdown("**Manager Tenure**")
-    from rapidfuzz import fuzz
-
-    # helper to find counterpart name
-    def find_counterpart(name, source_blocks, threshold=70):
-        best = (None, 0)
-        for b in source_blocks:
-            candidate = b.get("Fund Name") or b.get("Matched Fund Name", "")
-            score = fuzz.token_sort_ratio(name.lower(), candidate.lower())
-            if score > best[1]:
-                best = (candidate, score)
-        return best[0] if best[1] >= threshold else None
-
-    regular_blocks = st.session_state.get("fund_blocks_Regular_Scorecard", []) or []
-    proposed_blocks = st.session_state.get("fund_blocks_Proposed_Funds", []) or []
-    regular_names = [b.get("Fund Name", "") for b in regular_blocks]
-    proposed_names = [b.get("Fund Name", "") for b in proposed_blocks]
-
-    def extract_tenure(fund_name):
-        # find block from whichever section contains it
+    def extract_tenure_row(fund_name):
+        # find its block among regular/proposed
         block = next((b for b in regular_blocks if b.get("Fund Name") == fund_name), None)
         if not block:
             block = next((b for b in proposed_blocks if b.get("Fund Name") == fund_name), {})
-        raw_tenure = next((m["Info"] for m in (block.get("Metrics", []) or []) if m.get("Metric") == "Manager Tenure"), "")
+        raw_tenure = next((m.get("Info", "") for m in (block.get("Metrics", []) or []) if m.get("Metric") == "Manager Tenure"), "")
         m = re.search(r"(\d+(\.\d+)?)", raw_tenure)
         tenure = f"{m.group(1)} years" if m else raw_tenure
-        # ticker from performance data fallback
-        perf_data = st.session_state.get("fund_performance_data", [])
+        # ticker fallback from performance
         perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == fund_name), {})
         ticker = perf_item.get("Ticker", "")
         inv_mgr = f"{fund_name} ({ticker})"
-        return {
-            "Investment Manager": inv_mgr,
-            "Manager Tenure": tenure
-        }
+        return {"Investment Manager": inv_mgr, "Manager Tenure": tenure}
 
-    # Selected fund row
-    row_selected = extract_tenure(selected_fund)
-    rows = [row_selected]
-
-    # Determine counterpart
-    counterpart_name = None
-    if selected_fund in regular_names:
-        counterpart_name = find_counterpart(selected_fund, proposed_blocks)
-    elif selected_fund in proposed_names:
-        counterpart_name = find_counterpart(selected_fund, regular_blocks)
-
+    rows = [extract_tenure_row(selected_fund)]
     if counterpart_name:
-        row_counterpart = extract_tenure(counterpart_name)
-        rows.append(row_counterpart)
+        rows.append(extract_tenure_row(counterpart_name))
 
     df_slide4 = pd.DataFrame(rows)
-
-    # Save for Step 17 to use
     st.session_state["slide4"] = df_slide4
     st.dataframe(df_slide4, use_container_width=True)
 
-    # --- Slide 4 Table 2 ---
+    # --- Slide 4 Table 2: Assets ---
     st.markdown("**Assets**")
-    from rapidfuzz import fuzz
-
-    # helper to find counterpart name between regular and proposed scorecards
-    def find_counterpart(name, source_blocks, threshold=70):
-        best = (None, 0)
-        for b in source_blocks:
-            candidate = b.get("Fund Name") or b.get("Matched Fund Name", "")
-            score = fuzz.token_sort_ratio(name.lower(), candidate.lower())
-            if score > best[1]:
-                best = (candidate, score)
-        return best[0] if best[1] >= threshold else None
-
-    regular_blocks = st.session_state.get("fund_blocks_Regular_Scorecard", []) or []
-    proposed_blocks = st.session_state.get("fund_blocks_Proposed_Funds", []) or []
-    regular_names = [b.get("Fund Name", "") for b in regular_blocks]
-    proposed_names = [b.get("Fund Name", "") for b in proposed_blocks]
-
     def build_asset_row(fund_name):
-        # factsheet info
-        facts = st.session_state.get("fund_factsheets_data", [])
-        fs_rec = next((f for f in facts if f.get("Matched Fund Name") == fund_name), None)
-        # performance for ticker
-        perf_data = st.session_state.get("fund_performance_data", [])
+        facts_local = st.session_state.get("fund_factsheets_data", []) or []
+        fs_rec_local = next((f for f in facts_local if f.get("Matched Fund Name") == fund_name), {})
         perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == fund_name), {})
         ticker = perf_item.get("Ticker", "") or ""
         inv_mgr = f"{fund_name} ({ticker})"
-        assets = fs_rec.get("Net Assets", "") if fs_rec else ""
-        avg_cap = fs_rec.get("Avg. Market Cap", "") if fs_rec else ""
+        assets = fs_rec_local.get("Net Assets", "") if fs_rec_local else ""
+        avg_cap = fs_rec_local.get("Avg. Market Cap", "") if fs_rec_local else ""
         return {
             "Investment Manager":             inv_mgr,
             "Assets Under Management":        assets,
             "Average Market Capitalization":  avg_cap
         }
 
-    # Selected fund row
-    rows = []
-    row_selected = build_asset_row(selected_fund)
-    rows.append(row_selected)
-
-    # Determine counterpart and add if exists
-    counterpart_name = None
-    if selected_fund in regular_names:
-        counterpart_name = find_counterpart(selected_fund, proposed_blocks)
-    elif selected_fund in proposed_names:
-        counterpart_name = find_counterpart(selected_fund, regular_blocks)
-
+    rows = [build_asset_row(selected_fund)]
     if counterpart_name:
-        row_counterpart = build_asset_row(counterpart_name)
-        rows.append(row_counterpart)
+        rows.append(build_asset_row(counterpart_name))
 
     df_slide4_2 = pd.DataFrame(rows)
-
-    # Save for Step 17 to use
     st.session_state["slide4_table2_data"] = df_slide4_2
     st.dataframe(df_slide4_2, use_container_width=True)
 
