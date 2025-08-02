@@ -2112,7 +2112,7 @@ def run():
         # Step 14.5: IPS Fail Table
         step14_5_ips_fail_table()
 
-        step14_7_proposed_funds_lookup(pdf)
+        step14_7_list_proposed_funds(pdf)
         
         # Step 15: View Single Fund Details
         with st.expander("Single Fund Write Up", expanded=False):
