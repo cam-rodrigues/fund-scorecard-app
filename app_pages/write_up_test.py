@@ -1135,8 +1135,8 @@ def step14_5_ips_fail_table():
         max-width: 650px;
         margin: 1.4rem auto 1.2rem auto;
         border: 1.5px solid #b5d0eb;'>
-        <div style='font-weight:700; color:#1856b8; font-size:1.15rem; margin-bottom:0.5rem; letter-spacing:-0.5px;'>
-            IPS Screening – Funds on Watch
+        <div style='font-weight:700; color:#23395d; font-size:1.15rem; margin-bottom:0.5rem; letter-spacing:-0.5px;'>
+            Funds on Watch
         </div>
         <div style='font-size:1rem; margin-bottom:1rem; color:#23395d;'>
             The following funds failed five or more IPS criteria and are currently on watch.
