@@ -842,6 +842,7 @@ def step7_extract_returns(pdf):
 
 def step8_calendar_returns(pdf):
     import re, streamlit as st, pandas as pd
+    from rapidfuzz import fuzz
 
     # 1) Figure out section bounds
     cy_page = st.session_state.get("calendar_year_page")
@@ -906,32 +907,59 @@ def step8_calendar_returns(pdf):
     combined_fund_records = regular_fund_records + proposed_fund_records
     st.session_state["step8_returns"] = combined_fund_records
 
-    # — B) Benchmarks matched back to each fund’s ticker —
-    facts         = st.session_state.get("fund_factsheets_data", [])
+    # — B) Benchmarks matched back to each regular fund’s ticker (improved matching) —
+    facts = st.session_state.get("fund_factsheets_data", []) or []
     bench_records = []
+
+    # Precompute normalized lines for fuzzy matching
+    norm_lines = []
+    for i, ln in enumerate(all_lines):
+        cleaned = re.sub(r'\s+', ' ', ln).strip()
+        norm_lines.append((i, cleaned))
+
     for f in facts:
-        bench_name = f.get("Benchmark", "").strip()
-        fund_tkr   = f.get("Matched Ticker", "")
+        if f.get("Section") != "Regular":
+            continue  # only regular benchmarks
+        bench_name = (f.get("Benchmark", "") or "").strip()
+        fund_tkr = f.get("Matched Ticker", "")
         if not bench_name:
             continue
 
-        # find the first line containing the benchmark name
-        idx = next((i for i, ln in enumerate(all_lines) if bench_name in ln), None)
+        # Attempt exact match first
+        idx = next((i for i, ln in enumerate(all_lines) if bench_name and bench_name in ln), None)
+
+        # Fuzzy fallback if exact not found
         if idx is None:
-            continue
-        raw  = num_rx.findall(all_lines[idx])
+            best_score = 0
+            best_i = None
+            norm_bench = re.sub(r'[^A-Za-z0-9 ]+', '', bench_name).strip().lower()
+            for i, cleaned in norm_lines:
+                norm_line = re.sub(r'[^A-Za-z0-9 ]+', '', cleaned).strip().lower()
+                score = fuzz.token_set_ratio(norm_bench, norm_line)
+                if score > best_score:
+                    best_score = score
+                    best_i = i
+            if best_score >= 60 and best_i is not None:
+                idx = best_i
+
+        if idx is None:
+            continue  # could not locate benchmark line
+
+        raw = num_rx.findall(all_lines[idx])
         vals = raw[:len(years)] + [None] * (len(years) - len(raw))
-        rec  = {"Name": bench_name, "Ticker": fund_tkr}
+        rec = {"Name": bench_name, "Ticker": fund_tkr}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         bench_records.append(rec)
 
-    df_bench = pd.DataFrame(bench_records)
-    if not df_bench.empty:
-        st.markdown("**Benchmark Calendar‑Year Returns**")
-        st.dataframe(df_bench[["Name", "Ticker"] + years], use_container_width=True)
+    if bench_records:
+        df_bench = pd.DataFrame(bench_records)
+        st.markdown("**Benchmark Calendar-Year Returns — Regular**")
+        cols = ["Name", "Ticker"] + years
+        st.dataframe(df_bench[cols], use_container_width=True)
         st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
         st.warning("No benchmark returns extracted.")
+
 
 
 #───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
