@@ -1041,6 +1041,44 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
     st.session_state["step14_peer_rank_table"] = records
     st.dataframe(df, use_container_width=True)
 
+#───Step 14.5: IPS Fail Table──────────────────────────────────────────────────────────────────
+
+def step14_5_ips_fail_table():
+    import streamlit as st
+    import pandas as pd
+
+    st.subheader("IPS Screening Failures")
+
+    # Get IPS screening results (icon table)
+    df_icon = st.session_state.get("ips_icon_table")
+    if df_icon is None or df_icon.empty:
+        st.info("No IPS screening results found. Run previous steps first.")
+        return
+
+    # Funds that failed: "IPS Watch Status" is "FW" or any IPS criteria is '✗'
+    def is_fail(row):
+        if row.get("IPS Watch Status", "") == "FW":
+            return True
+        # Check any IPS Investment Criteria column for '✗'
+        for i in range(1, 12):
+            if row.get(str(i), "") == "✗":
+                return True
+        return False
+
+    # Rename criteria columns for display if needed
+    display_df = df_icon.copy()
+    display_df.rename(
+        columns={f"IPS Investment Criteria {i}": str(i) for i in range(1, 12)},
+        inplace=True
+    )
+
+    # Filter for fails
+    fails = display_df[display_df.apply(is_fail, axis=1)]
+
+    if fails.empty:
+        st.success("No funds failed the IPS screening!")
+    else:
+        st.dataframe(fails, use_container_width=True)
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
 
@@ -1854,7 +1892,12 @@ def run():
         with st.expander("Risk-Adjusted Returns", expanded=False):
             step13_process_risk_adjusted_returns(pdf)
             step14_extract_peer_risk_adjusted_return_rank(pdf)
-        
+
+        #Step 14.5: IPS Fail Table
+        with st.expander("IPS Fails", expanded=False):
+             step14_5_ips_fail_table(pdf)
+
+       
         # Step 15: View Single Fund Details
         with st.expander("Single Fund Write Up", expanded=False):
             step15_display_selected_fund()
