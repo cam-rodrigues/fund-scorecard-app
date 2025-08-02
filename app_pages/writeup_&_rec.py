@@ -573,7 +573,10 @@ def step3_5_6_scorecard_and_ips(
 #───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
 
 def step6_process_factsheets(pdf, fund_names, suppress_output=True):
-    # If you ever want UI, set suppress_output=False when calling
+    import re
+    import streamlit as st
+    from rapidfuzz import fuzz
+    import pandas as pd
 
     factsheet_start = st.session_state.get("factsheets_page")
     total_declared = st.session_state.get("total_options")
@@ -587,44 +590,91 @@ def step6_process_factsheets(pdf, fund_names, suppress_output=True):
             st.error("❌ 'Fund Factsheets' page number not found in TOC.")
         return
 
+    LABELS = ["Benchmark:", "Category:", "Net Assets:", "Manager Name:", "Avg. Market Cap:", "Expense Ratio:"]
+    label_rx = re.compile(r"^(Benchmark:|Category:|Net Assets:|Manager Name:|Avg\. Market Cap:|Expense Ratio:)", re.IGNORECASE)
+
     matched_factsheets = []
     for i in range(factsheet_start - 1, len(pdf.pages)):
         page = pdf.pages[i]
-        words = page.extract_words(use_text_flow=True)
-        header_words = [w['text'] for w in words if w['top'] < 100]
-        first_line = " ".join(header_words).strip()
+        text = page.extract_text() or ""
+        if not text.strip():
+            continue
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
 
-        if not first_line or "Benchmark:" not in first_line or "Expense Ratio:" not in first_line:
+        # Skip if no essential label
+        if not any("Benchmark:" in ln for ln in lines):
             continue
 
-        ticker_match = re.search(r"\b([A-Z]{5})\b", first_line)
-        ticker = ticker_match.group(1) if ticker_match else ""
-        fund_name_raw = first_line.split(ticker)[0].strip() if ticker else first_line
+        # Build field values by scanning lines
+        field_vals = {}
+        current_label = None
+        for ln in lines:
+            # Check if line starts with a label
+            m = label_rx.match(ln)
+            if m:
+                label = m.group(1).rstrip(":")
+                rest = ln[m.end():].strip()
+                if rest:
+                    # value on same line (stop at next label if embedded)
+                    for other in LABELS:
+                        if other.rstrip(":").lower() != label.lower() and other.lower() in rest.lower():
+                            rest = re.split(other, rest, flags=re.IGNORECASE)[0].strip()
+                    field_vals[label] = rest
+                    current_label = label if not rest else None
+                else:
+                    current_label = label
+                continue
+            # If previous label was open (value on next line), consume it unless it's another label
+            if current_label and not label_rx.match(ln):
+                field_vals[current_label] = ln
+                current_label = None
 
+        # Extract ticker: first uppercase 1-5 letter token (skip common words)
+        ticker = ""
+        for ln in lines:
+            for tok in re.findall(r"\b([A-Z]{1,5})\b", ln):
+                if tok.lower() in {"benchmark", "category", "ratio", "expense", "manager", "fund"}:
+                    continue
+                ticker = tok
+                break
+            if ticker:
+                break
+
+        # Derive raw fund name: prefer line containing ticker (before it), else first non-label line
+        fund_name_raw = ""
+        if ticker:
+            for ln in lines:
+                if ticker in ln:
+                    fund_name_raw = re.sub(
+                        r"has been placed on watchlist for not meeting .*? criteria",
+                        "",
+                        ln.split(ticker, 1)[0],
+                        flags=re.IGNORECASE
+                    ).strip()
+                    break
+        if not fund_name_raw:
+            for ln in lines:
+                if any(lbl.lower() in ln.lower() for lbl in LABELS):
+                    continue
+                candidate = re.sub(
+                    r"has been placed on watchlist for not meeting .*? criteria",
+                    "",
+                    ln,
+                    flags=re.IGNORECASE
+                ).strip()
+                if candidate:
+                    fund_name_raw = candidate
+                    break
+
+        # Fuzzy match to scorecard performance_data
         best_score = 0
         matched_name = matched_ticker = ""
         for item in performance_data:
             ref = f"{item['Fund Scorecard Name']} {item['Ticker']}".strip()
-            score = fuzz.token_sort_ratio(f"{fund_name_raw} {ticker}".lower(), ref.lower())
+            probe = f"{fund_name_raw} {ticker}".strip()
+            score = fuzz.token_sort_ratio(probe.lower(), ref.lower())
             if score > best_score:
-                best_score, matched_name, matched_ticker = score, item['Fund Scorecard Name'], item['Ticker']
-
-        def extract_field(label, text, stop=None):
-            try:
-                start = text.index(label) + len(label)
-                rest = text[start:]
-                if stop and stop in rest:
-                    return rest[:rest.index(stop)].strip()
-                return rest.split()[0]
-            except Exception:
-                return ""
-
-        benchmark = extract_field("Benchmark:", first_line, "Category:")
-        category  = extract_field("Category:", first_line, "Net Assets:")
-        net_assets= extract_field("Net Assets:", first_line, "Manager Name:")
-        manager   = extract_field("Manager Name:", first_line, "Avg. Market Cap:")
-        avg_cap   = extract_field("Avg. Market Cap:", first_line, "Expense Ratio:")
-        expense   = extract_field("Expense Ratio:", first_line)
+                best_score, matched_name, matched_ticker = score, item["Fund Scorecard Name"], item["Ticker"]
 
         matched_factsheets.append({
             "Page #": i + 1,
@@ -632,34 +682,59 @@ def step6_process_factsheets(pdf, fund_names, suppress_output=True):
             "Parsed Ticker": ticker,
             "Matched Fund Name": matched_name,
             "Matched Ticker": matched_ticker,
-            "Benchmark": benchmark,
-            "Category": category,
-            "Net Assets": net_assets,
-            "Manager Name": manager,
-            "Avg. Market Cap": avg_cap,
-            "Expense Ratio": expense,
+            "Benchmark": field_vals.get("Benchmark", "").strip(),
+            "Category": field_vals.get("Category", "").strip(),
+            "Net Assets": field_vals.get("Net Assets", "").strip(),
+            "Manager Name": field_vals.get("Manager Name", "").strip(),
+            "Avg. Market Cap": field_vals.get("Avg. Market Cap", "").strip(),
+            "Expense Ratio": field_vals.get("Expense Ratio", "").strip(),
             "Match Score": best_score,
-            "Matched": "✅" if best_score > 20 else "❌"
+            "Matched": "✅" if best_score > 20 else "❌",
+            "Section": "Regular" if page.extract_text() and "Proposed" not in page.extract_text() else "Proposed Funds",
         })
 
-    df_facts = pd.DataFrame(matched_factsheets)
-    st.session_state['fund_factsheets_data'] = matched_factsheets
-
-    # Hide UI output unless suppress_output is False
+    st.session_state["fund_factsheets_data"] = matched_factsheets
     if not suppress_output:
-        display_df = df_facts[[
-            "Matched Fund Name", "Matched Ticker", "Benchmark", "Category",
-            "Net Assets", "Manager Name", "Avg. Market Cap", "Expense Ratio", "Matched"
-        ]].rename(columns={"Matched Fund Name": "Fund Name", "Matched Ticker": "Ticker"})
-
-        st.dataframe(display_df, use_container_width=True)
-
-        matched_count = sum(1 for r in matched_factsheets if r["Matched"] == "✅")
-        st.write(f"Matched {matched_count} of {len(matched_factsheets)} factsheet pages.")
-        if matched_count == total_declared:
-            st.success(f"All {matched_count} funds matched the declared Total Options from Page 1.")
+        df_facts = pd.DataFrame(matched_factsheets)
+        if df_facts.empty:
+            st.info("No factsheet pages matched.")
         else:
-            st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
+            display_df = df_facts[[
+                "Section",
+                "Matched Fund Name",
+                "Matched Ticker",
+                "Benchmark",
+                "Category",
+                "Net Assets",
+                "Manager Name",
+                "Avg. Market Cap",
+                "Expense Ratio",
+                "Matched",
+            ]].rename(columns={
+                "Matched Fund Name": "Fund Name",
+                "Matched Ticker": "Ticker",
+            })
+            st.markdown("## Fund Factsheets — Regular")
+            df_regular = display_df[display_df["Section"] == "Regular"].drop(columns=["Section"])
+            if not df_regular.empty:
+                st.dataframe(df_regular, use_container_width=True)
+            else:
+                st.info("No regular factsheet matches found.")
+
+            st.markdown("## Fund Factsheets — Proposed Funds")
+            df_proposed = display_df[display_df["Section"] == "Proposed Funds"].drop(columns=["Section"])
+            if not df_proposed.empty:
+                st.dataframe(df_proposed, use_container_width=True)
+            else:
+                st.info("No proposed factsheet matches found.")
+
+            matched_count = sum(1 for r in matched_factsheets if r["Matched"] == "✅" and r.get("Section") == "Regular")
+            st.write(f"Matched {matched_count} of {len([r for r in matched_factsheets if r.get('Section')=='Regular'])} regular factsheet pages.")
+            if matched_count == total_declared:
+                st.success(f"All {matched_count} funds matched the declared Total Options from Page 1.")
+            else:
+                st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
+
 
 #───Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr / Net Expense Ratio & Bench QTD──────────────────────────────────────────────────────────────────
 
