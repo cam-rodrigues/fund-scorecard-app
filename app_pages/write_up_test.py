@@ -180,149 +180,20 @@ def process_toc(text):
     st.session_state['r5yr_page'] = r5yr_page
 
 #───IPS Invesment Screening──────────────────────────────────────────────────────────────────
-import streamlit as st
-import re
-import pdfplumber
-import pandas as pd
-import yfinance as yf
-
-def infer_fund_type_guess(ticker):
-    """Infer 'Active' or 'Passive' based on Yahoo Finance info (name and summary)."""
-    try:
-        if not ticker:
-            return ""
-        info = yf.Ticker(ticker).info
-        name = (info.get("longName") or info.get("shortName") or "").lower()
-        summary = (info.get("longBusinessSummary") or "").lower()
-        if "index" in name or "index" in summary:
-            return "Passive"
-        if "track" in summary and "index" in summary:
-            return "Passive"
-        if "actively managed" in summary or "actively-managed" in summary:
-            return "Active"
-        if "outperform" in summary or "manager selects" in summary:
-            return "Active"
-        return ""
-    except Exception:
-        return ""
-
-def extract_scorecard_blocks(pdf, scorecard_page):
-    metric_labels = [
-        "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
-        "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Expense Ratio Rank",
-        "Sharpe Ratio Rank (3Yr)", "Sharpe Ratio Rank (5Yr)", "R-Squared (3Yr)",
-        "R-Squared (5Yr)", "Sortino Ratio Rank (3Yr)", "Sortino Ratio Rank (5Yr)",
-        "Tracking Error Rank (3Yr)", "Tracking Error Rank (5Yr)"
-    ]
-    pages, fund_blocks, fund_name, metrics = [], [], None, []
-    for p in pdf.pages[scorecard_page-1:]:
-        pages.append(p.extract_text() or "")
-    lines = "\n".join(pages).splitlines()
-    for line in lines:
-        if not any(metric in line for metric in metric_labels) and line.strip():
-            if fund_name and metrics:
-                fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
-            fund_name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed on watchlist for not meeting .* out of 14 criteria)", "", line.strip()).strip()
-            metrics = []
-        for metric in metric_labels:
-            if metric in line:
-                m = re.match(r"^(.*?)\s+(Pass|Review|Fail)\s*(.*)", line.strip())
-                if m:
-                    metric_name, status, info = m.groups()
-                    metrics.append({"Metric": metric_name, "Status": status, "Info": info.strip()})
-    if fund_name and metrics:
-        fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
-    return fund_blocks
-
-def extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page=None):
-    end_page = factsheets_page-1 if factsheets_page else len(pdf.pages)
-    all_lines, perf_text = [], ""
-    for p in pdf.pages[performance_page-1:end_page]:
-        txt = p.extract_text() or ""
-        perf_text += txt + "\n"
-        all_lines.extend(txt.splitlines())
-    mapping = {}
-    for ln in all_lines:
-        m = re.match(r"(.+?)\s+([A-Z]{1,5})$", ln.strip())
-        if not m:
-            continue
-        raw_name, ticker = m.groups()
-        norm = re.sub(r'[^A-Za-z0-9 ]+', '', raw_name).strip().lower()
-        mapping[norm] = ticker
-    tickers = {}
-    for name in fund_names:
-        norm_expected = re.sub(r'[^A-Za-z0-9 ]+', '', name).strip().lower()
-        found = next((t for raw, t in mapping.items() if raw.startswith(norm_expected)), None)
-        tickers[name] = found
-    total = len(fund_names)
-    found_count = sum(1 for t in tickers.values() if t)
-    if found_count < total:
-        all_tks = re.findall(r'\b([A-Z]{1,5})\b', perf_text)
-        seen = []
-        for tk in all_tks:
-            if tk not in seen:
-                seen.append(tk)
-        tickers = {name: (seen[i] if i < len(seen) else "") for i, name in enumerate(fund_names)}
-    return {k: (v if v else "") for k, v in tickers.items()}
-
-def scorecard_to_ips(fund_blocks, fund_types, tickers):
-    # Maps for converting scorecard to IPS criteria (from your logic)
-    metrics_order = [
-        "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
-        "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Expense Ratio Rank",
-        "Sharpe Ratio Rank (3Yr)", "Sharpe Ratio Rank (5Yr)", "R-Squared (3Yr)",
-        "R-Squared (5Yr)", "Sortino Ratio Rank (3Yr)", "Sortino Ratio Rank (5Yr)",
-        "Tracking Error Rank (3Yr)", "Tracking Error Rank (5Yr)",
-    ]
-    active_map  = [0,1,3,6,10,2,4,7,11,5,None]
-    passive_map = [0,8,3,6,12,9,4,7,13,5,None]
-    ips_labels = [f"IPS Investment Criteria {i+1}" for i in range(11)]
-    ips_results, raw_results = [], []
-    for fund in fund_blocks:
-        fund_name = fund["Fund Name"]
-        fund_type = fund_types.get(fund_name, "Passive" if "index" in fund_name.lower() else "Active")
-        metrics = fund["Metrics"]
-        scorecard_status = [next((m["Status"] for m in metrics if m["Metric"] == label), None) for label in metrics_order]
-        idx_map = passive_map if fund_type == "Passive" else active_map
-        ips_status = [scorecard_status[m_idx] if m_idx is not None else "Pass" for m_idx in idx_map]
-        review_fail = sum(1 for status in ips_status if status in ["Review","Fail"])
-        watch_status = "FW" if review_fail >= 6 else "IW" if review_fail >= 5 else "NW"
-        def iconify(status): return "✔" if status == "Pass" else "✗" if status in ("Review", "Fail") else ""
-        row = {
-            "Fund Name": fund_name,
-            "Ticker": tickers.get(fund_name, ""),
-            "Fund Type": fund_type,
-            **{ips_labels[i]: iconify(ips_status[i]) for i in range(11)},
-            "IPS Watch Status": watch_status,
-        }
-        ips_results.append(row)
-        raw_results.append({
-            "Fund Name": fund_name,
-            "Ticker": tickers.get(fund_name, ""),
-            "Fund Type": fund_type,
-            **{ips_labels[i]: ips_status[i] for i in range(11)},
-            "IPS Watch Status": watch_status,
-        })
-    return pd.DataFrame(ips_results), pd.DataFrame(raw_results)
-
-def watch_status_color(val):
-    if val == "FW":
-        return "background-color:#f8d7da; color:#c30000; font-weight:600;"
-    if val == "IW":
-        return "background-color:#fff3cd; color:#B87333; font-weight:600;"
-    if val == "NW":
-        return "background-color:#d6f5df; color:#217a3e; font-weight:600;"
-    return ""
-
 def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheets_page, total_options):
+    import pandas as pd
+    import streamlit as st
+
     # 1. Extract scorecard blocks
     fund_blocks = extract_scorecard_blocks(pdf, scorecard_page)
     fund_names = [fund["Fund Name"] for fund in fund_blocks]
     if not fund_blocks:
         st.error("Could not extract fund scorecard blocks. Check the PDF and page number.")
         return
+
     # 2. Extract tickers
     tickers = extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page)
+
     # 3. Guess fund type using Yahoo (overridable)
     fund_type_guesses = []
     for name in fund_names:
@@ -339,48 +210,122 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
         value=True
     )
     prefill_fund_type = fund_type_guesses if use_guess else fund_type_defaults
-    df_types = pd.DataFrame({
+    df_types_initial = pd.DataFrame({
         "Fund Name": fund_names,
         "Ticker": [tickers[name] for name in fund_names],
         "Fund Type Guess": fund_type_guesses,
         "Fund Type": prefill_fund_type,
     })
+
+    # --- Top summary placeholder before IPS conversion ---
+    st.markdown("### IPS Investment Screening")
+    st.caption("Review and override fund types, then view the resulting IPS screening table below.")
+
+    # Editable fund type section
+    st.subheader("Fund Type Overrides")
+    st.caption("Defaults: index → Passive, otherwise Active; you can override before reapplying IPS logic.")
     edited_types = st.data_editor(
-        df_types,
+        df_types_initial,
         column_config={
             "Fund Type": st.column_config.SelectboxColumn("Fund Type", options=["Active", "Passive"]),
         },
         disabled=["Fund Name", "Ticker", "Fund Type Guess"],
         hide_index=True,
-        key="data_editor_fundtype",
+        key="data_editor_fundtype_ips",
         use_container_width=True,
     )
     fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
-    # 4. Convert to IPS screening
+
+    # 4. Convert to IPS screening with current overrides
     df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
-    # 5. Show table (short labels)
-    if not df_icon.empty:
+
+    # --- Summary badges ---
+    def summarize_watch(df):
+        counts = df["IPS Watch Status"].value_counts().to_dict()
+        return {
+            "No Watch": counts.get("NW", 0),
+            "Informal Watch": counts.get("IW", 0),
+            "Formal Watch": counts.get("FW", 0),
+        }
+
+    summary = summarize_watch(df_icon) if not df_icon.empty else {"No Watch": 0, "Informal Watch": 0, "Formal Watch": 0}
+    cols = st.columns(3, gap="small")
+    with cols[0]:
+        st.metric("No Watch", summary["No Watch"])
+    with cols[1]:
+        st.metric("Informal Watch", summary["Informal Watch"])
+    with cols[2]:
+        st.metric("Formal Watch", summary["Formal Watch"])
+
+    st.markdown("---")
+
+    # --- IPS Results Table ---
+    st.subheader("IPS Screening Results")
+    st.markdown(
+        '<div style="display:flex; gap:1rem; margin-bottom:0.5rem;">'
+        '<div style="padding:4px 10px; background:#d6f5df; border-radius:4px; font-weight:600;">NW: No Watch</div>'
+        '<div style="padding:4px 10px; background:#fff3cd; border-radius:4px; font-weight:600;">IW: Informal Watch</div>'
+        '<div style="padding:4px 10px; background:#f8d7da; border-radius:4px; font-weight:600;">FW: Formal Watch</div>'
+        '</div>', unsafe_allow_html=True
+    )
+
+    if df_icon.empty:
+        st.info("No IPS screening data available.")
+    else:
+        # Compact display: number the criteria
         display_columns = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
         display_df = df_icon.rename(columns=display_columns)
-        st.markdown(
-            '<div class="watch-key" style="margin-bottom: 1em;">'
-            '<span style="background:#d6f5df; color:#217a3e; padding:0.07em 0.55em; border-radius:2px;">NW</span> '
-            '(No Watch) &nbsp;'
-            '<span style="background:#fff3cd; color:#B87333; padding:0.07em 0.55em; border-radius:2px;">IW</span> '
-            '(Informal Watch) &nbsp;'
-            '<span style="background:#f8d7da; color:#c30000; padding:0.07em 0.55em; border-radius:2px;">FW</span> '
-            '(Formal Watch)</div>', unsafe_allow_html=True
-        )
-        styled = display_df.style.applymap(watch_status_color, subset=["IPS Watch Status"])
+
+        def iconify(s):
+            if s == "Pass":
+                return "✔"
+            if s in ("Review", "Fail"):
+                return "✗"
+            return ""
+
+        compact_df = display_df.copy()
+        for i in range(1, 12):
+            orig = f"IPS Investment Criteria {i}"
+            if orig in compact_df.columns:
+                compact_df[str(i)] = compact_df[orig].apply(iconify)
+                compact_df.drop(columns=[orig], inplace=True)
+        # Desired column order
+        cols_order = ["Fund Name", "Ticker", "Fund Type"] + [str(i) for i in range(1, 12)] + ["IPS Watch Status"]
+        compact_df = compact_df[[c for c in cols_order if c in compact_df.columns]]
+
+        # Style watch status
+        def watch_style(val):
+            if val == "NW":
+                return "background-color:#d6f5df; color:#217a3e; font-weight:600;"
+            if val == "IW":
+                return "background-color:#fff3cd; color:#B87333; font-weight:600;"
+            if val == "FW":
+                return "background-color:#f8d7da; color:#c30000; font-weight:600;"
+            return ""
+
+        styled = compact_df.style.applymap(watch_style, subset=["IPS Watch Status"])
         st.dataframe(styled, use_container_width=True, hide_index=True)
-        st.download_button(
-            "Download CSV",
-            data=df_raw.to_csv(index=False),
-            file_name="ips_screening_table.csv",
-            mime="text/csv",
-        )
-    else:
-        st.info("No IPS screening data available.")
+
+        # Download / raw data
+        with st.expander("Download / Raw IPS Data", expanded=False):
+            st.download_button(
+                "Download IPS Icon Table (clean)", data=df_icon.to_csv(index=False),
+                file_name="ips_screening_icon_table.csv", mime="text/csv"
+            )
+            st.download_button(
+                "Download IPS Raw Table (statuses)", data=df_raw.to_csv(index=False),
+                file_name="ips_screening_raw_table.csv", mime="text/csv"
+            )
+
+        # --- Funds on Watch ---
+        st.subheader("Funds on Watch")
+        fails = df_icon[df_icon["IPS Watch Status"].isin(["IW", "FW"])][["Fund Name", "IPS Watch Status"]].copy()
+        if not fails.empty:
+            fails["Watch Status"] = fails["IPS Watch Status"].map({"IW": "Informal", "FW": "Formal"})
+            st.table(fails[["Fund Name", "Watch Status"]].rename(columns={"Fund Name": "Fund"}))
+        else:
+            st.success("No funds currently on watch.")
+
     # 6. Save to session state for downstream steps
     st.session_state["fund_blocks"] = fund_blocks
     st.session_state["fund_types"] = fund_types
@@ -395,13 +340,13 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
         fund_names,
         factsheets_page
     )
-    # Attach tickers (already extracted earlier!)
+    # Attach tickers
     for itm in perf_data:
         itm["Ticker"] = tickers.get(itm["Fund Scorecard Name"], "")
 
-    # Save for Step 7 and others
     st.session_state["fund_performance_data"] = perf_data
-    st.session_state["tickers"] = tickers  # Keep ticker mapping for legacy steps
+    st.session_state["tickers"] = tickers  # legacy compatibility
+
 
 #───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
 
@@ -1845,44 +1790,7 @@ def run():
             pp = st.session_state.get('performance_page')
             factsheets_page = st.session_state.get('factsheets_page')
             if sp and tot is not None and pp:
-                # 🚩 --- Start Fancy Display Here ---
-                st.markdown("""
-                <div style='display:flex; align-items:center; gap:0.6em; margin-bottom:0.5em'>
-                    <span style='font-size:1.9em; color:#1856b8; margin-top:-0.09em;'>🛡️</span>
-                    <span style='font-size:1.37em; font-weight:700; letter-spacing:-0.5px; color:#1856b8;'>IPS Investment Screening</span>
-                </div>
-                """, unsafe_allow_html=True)
-        
-                # Legend
-                st.markdown("""
-                <div style="display:flex; gap:1.3em; margin-bottom:1em;">
-                    <div style="display:flex; align-items:center;">
-                        <span style="display:inline-block; width:1.9em; height:1.15em; background:#d6f5df; color:#217a3e; border-radius:3px; font-weight:700; text-align:center; line-height:1.15em; margin-right:0.32em;">NW</span>
-                        <span style="color:#274c6a; font-size:1em;">No Watch</span>
-                    </div>
-                    <div style="display:flex; align-items:center;">
-                        <span style="display:inline-block; width:1.9em; height:1.15em; background:#fff3cd; color:#B87333; border-radius:3px; font-weight:700; text-align:center; line-height:1.15em; margin-right:0.32em;">IW</span>
-                        <span style="color:#274c6a; font-size:1em;">Informal Watch</span>
-                    </div>
-                    <div style="display:flex; align-items:center;">
-                        <span style="display:inline-block; width:1.9em; height:1.15em; background:#f8d7da; color:#c30000; border-radius:3px; font-weight:700; text-align:center; line-height:1.15em; margin-right:0.32em;">FW</span>
-                        <span style="color:#274c6a; font-size:1em;">Formal Watch</span>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-        
-                # Hint for edit Fund Type
-                st.markdown("""
-                <div style='margin-bottom:0.2em; color:#555; font-size:1em;'>
-                    <span style='font-size:1.15em; margin-right:0.2em;'>⚡️</span>
-                    <b>Tip:</b> You can override the <b>Fund Type</b> (Active/Passive) for each fund below.<br>
-                </div>
-                """, unsafe_allow_html=True)
-        
-                # Call your actual logic!
                 step3_5_6_scorecard_and_ips(pdf, sp, pp, factsheets_page, tot)
-        
-                # --- End Fancy Display ---
             else:
                 st.error("Missing scorecard, performance page, or total options")
 
