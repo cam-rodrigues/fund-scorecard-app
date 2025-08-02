@@ -1965,7 +1965,7 @@ def run():
         # Step 14.5: IPS Fail Table
         step14_5_ips_fail_table()
 
-        # Single Fund Write Up
+        # Step 15: View Single Fund Details
         with st.expander("Single Fund Write Up", expanded=False):
             step15_display_selected_fund()
 
