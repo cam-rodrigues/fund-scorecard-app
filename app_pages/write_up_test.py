@@ -1903,9 +1903,9 @@ def run():
             toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
             process_toc(toc_text)
 
-        # Combined core details grouped together
+        # --- Combined core details grouped ---
         with st.expander("All Fund Details", expanded=True):
-            # IPS Investment Screening
+            # 1. IPS Investment Screening
             with st.expander("IPS Investment Screening", expanded=True):
                 sp = st.session_state.get('scorecard_page')
                 tot = st.session_state.get('total_options')
@@ -1916,29 +1916,28 @@ def run():
                 else:
                     st.error("Missing scorecard, performance page, or total options")
 
-            # Returns (annualized + calendar)
+            # 2. Fund Factsheets (must come before Risk-Adjusted Returns / Peer Rank)
+            with st.expander("Fund Factsheets", expanded=True):
+                names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
+                step6_process_factsheets(pdf, names)
+
+            # 3. Returns (annualized + calendar)
             with st.expander("Returns", expanded=False):
                 step7_extract_returns(pdf)
                 step8_calendar_returns(pdf)
 
-            # MPT Statistics Summary (includes Risk Analysis 3Yr & 5Yr)
+            # 4. MPT Statistics Summary (requires risk analyses first)
             with st.expander("MPT Statistics Summary", expanded=False):
-                # Risk Analysis 3Yr & 5Yr are prerequisites for the summary
                 step9_risk_analysis_3yr(pdf)
                 step10_risk_analysis_5yr(pdf)
                 step11_create_summary()
 
-            # Risk-Adjusted Returns (and peer rank)
+            # 5. Risk-Adjusted Returns and Peer Rank
             with st.expander("Risk-Adjusted Returns", expanded=False):
                 step13_process_risk_adjusted_returns(pdf)
                 step14_extract_peer_risk_adjusted_return_rank(pdf)
 
-        # Step 6: Fund Factsheets (can stay separate or you can move inside if desired)
-        with st.expander("Fund Factsheets", expanded=True):
-            names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
-            step6_process_factsheets(pdf, names)
-
-        # Data prep for bullet points
+        # Data prep for bullet points (unchanged)
         report_date = st.session_state.get("report_date", "")
         m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
         quarter = m.group(1) if m else ""
@@ -1963,22 +1962,20 @@ def run():
                 "[Year] by [QTD_bps_diff] bps ([QTD_vs])."
             ]
 
-        # Step 14.5: IPS Fail Table (outside or inside as needed)
+        # Step 14.5: IPS Fail Table
         step14_5_ips_fail_table()
 
-        # Step 15: Single Fund Write Up
+        # Single Fund Write Up
         with st.expander("Single Fund Write Up", expanded=False):
             step15_display_selected_fund()
 
-        # Step 16: Bullet Points
+        # Bullet Points
         with st.expander("Bullet Points", expanded=False):
             step16_bullet_points()
 
-        # Step 17: PowerPoint
+        # PowerPoint
         with st.expander("Powerpoint", expanded=False):
             step17_export_to_ppt()
-
-
 
 if __name__ == "__main__":
     run()
