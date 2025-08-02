@@ -853,7 +853,7 @@ def step8_calendar_returns(pdf):
 
     # 2) Pull every line from that section
     all_lines = []
-    for p in pdf.pages[cy_page - 1: end_page - 1]:
+    for p in pdf.pages[cy_page - 1 : end_page - 1]:
         all_lines.extend((p.extract_text() or "").splitlines())
 
     # 3) Identify header & years
@@ -907,39 +907,45 @@ def step8_calendar_returns(pdf):
     combined_fund_records = regular_fund_records + proposed_fund_records
     st.session_state["step8_returns"] = combined_fund_records
 
-    # — B) Benchmarks matched back to each regular fund’s ticker (improved matching) —
+    # — B) Benchmarks matched back to each regular fund’s ticker, pulling benchmark names from Fund Factsheets —
     facts = st.session_state.get("fund_factsheets_data", []) or []
     bench_records = []
 
-    # Precompute normalized lines for fuzzy matching
+    # Precompute normalized versions of all_lines for fuzzy matching
     norm_lines = []
     for i, ln in enumerate(all_lines):
         cleaned = re.sub(r'\s+', ' ', ln).strip()
-        norm_lines.append((i, cleaned))
+        norm_lines.append((i, cleaned, re.sub(r'[^A-Za-z0-9 ]+', '', cleaned).lower()))
+
+    def normalize(text):
+        return re.sub(r'[^A-Za-z0-9 ]+', '', (text or "").strip()).lower()
 
     for f in facts:
         if f.get("Section") != "Regular":
-            continue  # only regular benchmarks
+            continue  # only consider regular benchmarks
         bench_name = (f.get("Benchmark", "") or "").strip()
         fund_tkr = f.get("Matched Ticker", "")
         if not bench_name:
             continue
 
-        # Attempt exact match first
-        idx = next((i for i, ln in enumerate(all_lines) if bench_name and bench_name in ln), None)
+        idx = None
+        # Exact case-insensitive substring match
+        for i, ln, _ in norm_lines:
+            if bench_name.lower() in ln.lower():
+                idx = i
+                break
 
         # Fuzzy fallback if exact not found
         if idx is None:
+            norm_bench = normalize(bench_name)
             best_score = 0
             best_i = None
-            norm_bench = re.sub(r'[^A-Za-z0-9 ]+', '', bench_name).strip().lower()
-            for i, cleaned in norm_lines:
-                norm_line = re.sub(r'[^A-Za-z0-9 ]+', '', cleaned).strip().lower()
-                score = fuzz.token_set_ratio(norm_bench, norm_line)
+            for i, _, norm_ln in norm_lines:
+                score = fuzz.token_set_ratio(norm_bench, norm_ln)
                 if score > best_score:
                     best_score = score
                     best_i = i
-            if best_score >= 60 and best_i is not None:
+            if best_score >= 60:
                 idx = best_i
 
         if idx is None:
@@ -959,8 +965,6 @@ def step8_calendar_returns(pdf):
         st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
         st.warning("No benchmark returns extracted.")
-
-
 
 #───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
 
