@@ -1275,8 +1275,6 @@ def step14_5_ips_fail_table():
     </style>
     """, unsafe_allow_html=True)
 
-#───Step 15: Single Fund──────────────────────────────────────────────────────────────────
-
 def step15_display_selected_fund():
     import pandas as pd
     import streamlit as st
@@ -1287,32 +1285,42 @@ def step15_display_selected_fund():
         st.info("Run Steps 1–14 to populate data before viewing fund details.")
         return
 
-    fund_names = [f["Matched Fund Name"] for f in facts]
+    fund_names = [f.get("Matched Fund Name", "") for f in facts]
     selected_fund = st.selectbox("Select a fund to view details:", fund_names)
-    st.session_state.selected_fund = selected_fund
+    if not selected_fund:
+        return
+    st.session_state["selected_fund"] = selected_fund
 
     st.write(f"Details for: {selected_fund}")
-    factsheets = st.session_state.get("fund_factsheets_data", [])
-    factsheet_rec = next((row for row in factsheets if row["Matched Fund Name"] == selected_fund), None)
-    
-    fund_facts_table = st.session_state.get("step12_fund_facts_table", [])
-    
-    # Filter out metadata rows if present
+
+    # Get the factsheet record for the selected fund
+    factsheet_rec = next((row for row in facts if row.get("Matched Fund Name") == selected_fund), {})
+
+    # Fund Facts table (from step12); may have different matching heuristics
+    fund_facts_table = st.session_state.get("step12_fund_facts_table", []) or []
+    # Filter out any metadata noise
     fund_facts_table = [row for row in fund_facts_table if row.get("Fund Name") and row.get("Fund Name").lower() != "metadata"]
-    
-    # Robust matching
+
+    # Try to find the detailed facts (step12) for the selected fund
+    facts_rec = None
+    # 1. Exact fund name match
     facts_rec = next((row for row in fund_facts_table if row.get("Fund Name") == selected_fund), None)
+    # 2. Match by ticker from the factsheet_rec
     if not facts_rec and factsheet_rec:
-        factsheet_ticker = factsheet_rec.get("Matched Ticker")
-        facts_rec = next((row for row in fund_facts_table if row.get("Ticker") == factsheet_ticker), None)
+        factsheet_ticker = factsheet_rec.get("Matched Ticker", "")
+        if factsheet_ticker:
+            facts_rec = next((row for row in fund_facts_table if row.get("Ticker") == factsheet_ticker), None)
+    # 3. Fuzzy substring fallback on name
     if not facts_rec:
         facts_rec = next(
-            (row for row in fund_facts_table if selected_fund.lower() in row.get("Fund Name", "").lower()),
+            (row for row in fund_facts_table if selected_fund.lower() in row.get("Fund Name", "").lower() or row.get("Fund Name", "").lower() in selected_fund.lower()),
             None
         )
-    
-    left_box = (
-        f"""<div style='
+
+    # Build left and right summary boxes
+    left_box = ""
+    if factsheet_rec:
+        left_box = f"""<div style='
             background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
             color: #244369;
             border-radius: 1.2rem;
@@ -1331,11 +1339,12 @@ def step15_display_selected_fund():
             <div><b>Manager:</b> {factsheet_rec.get("Manager Name", "—")}</div>
             <div><b>Avg. Market Cap:</b> {factsheet_rec.get("Avg. Market Cap", "—")}</div>
         </div>"""
-        if factsheet_rec else "<div style='display:inline-block; min-width:220px; color:#666;'>No factsheet info found.</div>"
-    )
-    
-    right_box = (
-        f"""<div style='
+    else:
+        left_box = "<div style='display:inline-block; min-width:220px; color:#666;'>No factsheet info found.</div>"
+
+    right_box = ""
+    if facts_rec:
+        right_box = f"""<div style='
             background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
             color: #244369;
             border-radius: 1.2rem;
@@ -1354,9 +1363,9 @@ def step15_display_selected_fund():
             <div><b>Total Number of Holdings:</b> {facts_rec.get("Total Number of Holdings", "—")}</div>
             <div><b>Turnover Ratio:</b> {facts_rec.get("Turnover Ratio", "—")}</div>
         </div>"""
-        if facts_rec else "<div style='display:inline-block; min-width:220px; color:#666;'>No Fund Facts available.</div>"
-    )
-    
+    else:
+        right_box = "<div style='display:inline-block; min-width:220px; color:#666;'>No Fund Facts available.</div>"
+
     st.markdown(
         f"""
         <div style='
@@ -1374,11 +1383,9 @@ def step15_display_selected_fund():
         unsafe_allow_html=True
     )
 
-
     # --- Slide 1 Table: IPS Results ---
     ips_icon_table = st.session_state.get("ips_icon_table")
-    facts = st.session_state.get("fund_factsheets_data", [])
-    fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected_fund), None)
+    fs_rec = next((f for f in facts if f.get("Matched Fund Name") == selected_fund), {})
 
     if ips_icon_table is not None and not ips_icon_table.empty:
         row = ips_icon_table[ips_icon_table["Fund Name"] == selected_fund]
@@ -1388,7 +1395,7 @@ def step15_display_selected_fund():
             row_df = pd.DataFrame([{
                 "Category": fs_rec.get("Category", "") if fs_rec else "",
                 "Time Period": st.session_state.get("report_date", ""),
-                "Plan Assets": "$",  # Or replace with actual variable if you store this elsewhere!
+                "Plan Assets": "$",
                 **{display_columns.get(k, k): v for k, v in row_dict.items() if k.startswith("IPS Investment Criteria")},
                 "IPS Status": row_dict.get("IPS Watch Status", "")
             }])
@@ -1406,11 +1413,11 @@ def step15_display_selected_fund():
                                  .applymap(style_status, subset=["IPS Status"])
             
             st.dataframe(styled, use_container_width=True)
-
         else:
             st.warning("No IPS screening result found for selected fund.")
     else:
         st.warning("IPS screening table not found. Run earlier steps first.")
+
 
     # --- Slide 2 Table 1 ---
     st.markdown("**Net Expense Ratio**")
