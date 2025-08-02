@@ -1310,8 +1310,12 @@ def step15_display_selected_fund():
         st.info("Run Steps 1–14 to populate data before viewing fund details.")
         return
 
+    # Build available fund lists
+    regular_blocks = st.session_state.get("fund_blocks_Regular_Scorecard", []) or []
+    proposed_blocks = st.session_state.get("fund_blocks_Proposed_Funds", []) or []
     fund_names = [f.get("Matched Fund Name", "") for f in facts]
-    selected_fund = st.selectbox("Select a fund to view details:", fund_names)
+    all_names = [b["Fund Name"] for b in regular_blocks + proposed_blocks]
+    selected_fund = st.selectbox("Select a fund to view details:", all_names)
     if not selected_fund:
         return
     st.session_state["selected_fund"] = selected_fund
@@ -1338,7 +1342,9 @@ def step15_display_selected_fund():
     # 3. Fuzzy substring fallback on name
     if not facts_rec:
         facts_rec = next(
-            (row for row in fund_facts_table if selected_fund.lower() in row.get("Fund Name", "").lower() or row.get("Fund Name", "").lower() in selected_fund.lower()),
+            (row for row in fund_facts_table
+             if selected_fund.lower() in row.get("Fund Name", "").lower()
+             or row.get("Fund Name", "").lower() in selected_fund.lower()),
             None
         )
 
@@ -1408,41 +1414,49 @@ def step15_display_selected_fund():
         unsafe_allow_html=True
     )
 
-    # --- Slide 1 Table: IPS Results ---
+    # --- Slide 1 Table: IPS Results (with counterpart stacking) ---
     ips_icon_table = st.session_state.get("ips_icon_table")
     fs_rec = next((f for f in facts if f.get("Matched Fund Name") == selected_fund), {})
 
     if ips_icon_table is not None and not ips_icon_table.empty:
-        row = ips_icon_table[ips_icon_table["Fund Name"] == selected_fund]
-        if not row.empty:
-            row_dict = row.iloc[0].to_dict()
-            display_columns = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
-            row_df = pd.DataFrame([{
-                "Category": fs_rec.get("Category", "") if fs_rec else "",
-                "Time Period": st.session_state.get("report_date", ""),
-                "Plan Assets": "$",
-                **{display_columns.get(k, k): v for k, v in row_dict.items() if k.startswith("IPS Investment Criteria")},
-                "IPS Status": row_dict.get("IPS Watch Status", "")
-            }])
-
-            def color_bool(v):
-                return "background-color: green" if v == "✔" else ("background-color: red" if v == "✗" else "")
-            
-            def style_status(v):
-                if v == "NW": return "background-color: green; color: white; font-weight: 600;"
-                if v == "IW": return "background-color: orange; color: white; font-weight: 600;"
-                if v == "FW": return "background-color: red; color: white; font-weight: 600;"
-                return ""
-            
-            styled = row_df.style.applymap(color_bool, subset=[str(i) for i in range(1, 12)]) \
-                                 .applymap(style_status, subset=["IPS Status"])
-            
-            st.dataframe(styled, use_container_width=True)
-        else:
+        # Primary row
+        primary_row = ips_icon_table[ips_icon_table["Fund Name"] == selected_fund]
+        # Determine counterpart: if selected is regular, include proposed; if selected is proposed, include regular
+        regular_names = [b["Fund Name"] for b in regular_blocks]
+        proposed_names = [b["Fund Name"] for b in proposed_blocks]
+        extra_rows = pd.DataFrame()
+        if selected_fund in regular_names:
+            extra_rows = ips_icon_table[ips_icon_table["Fund Name"].isin(proposed_names)]
+        elif selected_fund in proposed_names:
+            extra_rows = ips_icon_table[ips_icon_table["Fund Name"].isin(regular_names)]
+        # Combine, ensuring selected appears first and dedupe
+        combined_df = pd.concat([primary_row, extra_rows[extra_rows["Fund Name"] != selected_fund]], ignore_index=True)
+        if combined_df.empty:
             st.warning("No IPS screening result found for selected fund.")
+        else:
+            display_columns = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
+            df_display = combined_df.copy()
+            # Convert full criteria to numbered icons
+            for orig, num in display_columns.items():
+                if orig in df_display.columns:
+                    df_display[num] = df_display[orig].apply(lambda s: "✔" if s == "Pass" else ("✗" if s in ("Review", "Fail") else ""))
+                    df_display.drop(columns=[orig], inplace=True)
+            # Order columns
+            cols_order = ["Fund Name", "Ticker", "Fund Type"] + [str(i) for i in range(1, 12)] + ["IPS Watch Status"]
+            col_present = [c for c in cols_order if c in df_display.columns]
+            # Style watch status
+            def style_watch(val):
+                if val == "NW":
+                    return "background-color:#d6f5df; color:#217a3e; font-weight:600;"
+                if val == "IW":
+                    return "background-color:#fff3cd; color:#B87333; font-weight:600;"
+                if val == "FW":
+                    return "background-color:#f8d7da; color:#c30000; font-weight:600;"
+                return ""
+            styled = df_display[col_present].style.applymap(style_watch, subset=["IPS Watch Status"] if "IPS Watch Status" in df_display else None)
+            st.dataframe(styled, use_container_width=True)
     else:
         st.warning("IPS screening table not found. Run earlier steps first.")
-
 
     # --- Slide 2 Table 1 ---
     st.markdown("**Net Expense Ratio**")
@@ -1464,23 +1478,23 @@ def step15_display_selected_fund():
     # --- Slide 2 Table 2 ---
     st.markdown("**Returns**")
     date_label = st.session_state.get("report_date", "QTD")
-    
+
     def append_pct(val):
         s = str(val) if val is not None else ""
         return s if s.endswith("%") or s == "" else f"{s}%"
-    
+
     qtd   = append_pct(perf_item.get("QTD", ""))
     one   = append_pct(perf_item.get("1Yr", ""))
     three = append_pct(perf_item.get("3Yr", ""))
     five  = append_pct(perf_item.get("5Yr", ""))
     ten   = append_pct(perf_item.get("10Yr", ""))
-    
+
     bench_qtd   = append_pct(perf_item.get("Bench QTD", ""))
     bench_one   = append_pct(perf_item.get("Bench 1Yr", ""))
     bench_3yr   = append_pct(perf_item.get("Bench 3Yr", ""))
     bench_5yr   = append_pct(perf_item.get("Bench 5Yr", ""))
     bench_ten   = append_pct(perf_item.get("Bench 10Yr", ""))
-    
+
     # Fund row
     row_fund = {
         "Investment Manager": inv_mgr,
@@ -1490,12 +1504,12 @@ def step15_display_selected_fund():
         "5 Year":             five,
         "10 Year":            ten
     }
-    
+
     # Benchmark row with corresponding benchmark returns
     bench_name = fs_rec.get("Benchmark", "") if fs_rec else ""
     bench_ticker = fs_rec.get("Matched Ticker", "") if fs_rec else ""
     bench_inv_mgr = f"{bench_name} ({bench_ticker})" if bench_name else "Benchmark"
-    
+
     row_benchmark = {
         "Investment Manager": bench_inv_mgr,
         date_label:           bench_qtd,
@@ -1504,13 +1518,12 @@ def step15_display_selected_fund():
         "5 Year":             bench_5yr,
         "10 Year":            bench_ten
     }
-    
+
     df_slide2_2 = pd.DataFrame([row_fund, row_benchmark])
-    
+
     # Save for Step 17 to use
     st.session_state["slide2_table2_data"] = df_slide2_2
     st.dataframe(df_slide2_2, use_container_width=True)
-
 
     # --- Slide 2 Table 3 ---
     st.markdown("**Calender Returns**")
@@ -1537,7 +1550,6 @@ def step15_display_selected_fund():
     row_benchmark = {"Investment Manager": f"{bench_rec.get('Name', 'Benchmark')} ({bench_rec.get('Ticker', '')})"}
     for year in year_cols:
         row_benchmark[year] = bench_rec.get(year, "")
-    rows.append(row_benchmark)
     df_slide2_3 = pd.DataFrame(rows, columns=["Investment Manager"] + year_cols)
 
     # Save for Step 17 to use
@@ -1577,10 +1589,12 @@ def step15_display_selected_fund():
     peer_rec = next((r for r in peer_table if r["Fund Name"] == selected_fund), {})
     ticker = risk_rec.get("Ticker") or peer_rec.get("Ticker", "")
     inv_mgr = f"{selected_fund} ({ticker})"
+
     def frac(metric, period):
         r = risk_rec.get(f"{metric} {period}", "")
         p = peer_rec.get(f"{metric} {period}", "")
         return f"{r} / {p}"
+
     row = {
         "Investment Manager": inv_mgr,
         "3 Year Sharpe Ratio / Peer Ranking %": frac("Sharpe Ratio", "3Yr"),
@@ -1591,21 +1605,21 @@ def step15_display_selected_fund():
         "5 Year Information Ratio / Peer Ranking %": frac("Information Ratio", "5Yr"),
     }
     df_slide3_2 = pd.DataFrame([row])
-        
+
     # Save for Step 17 to use
     st.session_state["slide3_table2_data"] = df_slide3_2
     st.dataframe(df_slide3_2, use_container_width=True)
 
     # --- Slide 4 Table 1 ---
     st.markdown("**Manager Tenure**")
-    blocks      = st.session_state.get("fund_blocks", [])
-    block       = next((b for b in blocks if b["Fund Name"] == selected_fund), {})
-    raw_tenure  = next((m["Info"] for m in block.get("Metrics", []) if m["Metric"] == "Manager Tenure"), "")
+    blocks = st.session_state.get("fund_blocks", [])
+    block = next((b for b in blocks if b["Fund Name"] == selected_fund), {})
+    raw_tenure = next((m["Info"] for m in block.get("Metrics", []) if m["Metric"] == "Manager Tenure"), "")
     m = re.search(r"(\d+(\.\d+)?)", raw_tenure)
     tenure = f"{m.group(1)} years" if m else raw_tenure
     perf_data = st.session_state.get("fund_performance_data", [])
     perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == selected_fund), {})
-    inv_mgr   = f"{selected_fund} ({perf_item.get('Ticker','')})"
+    inv_mgr = f"{selected_fund} ({perf_item.get('Ticker','')})"
     df_slide4 = pd.DataFrame([{
         "Investment Manager": inv_mgr,
         "Manager Tenure":     tenure
@@ -1614,16 +1628,16 @@ def step15_display_selected_fund():
     # Save for Step 17 to use
     st.session_state["slide4"] = df_slide4
     st.dataframe(df_slide4, use_container_width=True)
-    
+
     # --- Slide 4 Table 2 ---
     st.markdown("**Assets**")
     facts = st.session_state.get("fund_factsheets_data", [])
     fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected_fund), None)
     perf_data = st.session_state.get("fund_performance_data", [])
-    perf_item = next((p for p in perf_data if p["Fund Scorecard Name"] == selected_fund), None)
-    inv_mgr    = f"{selected_fund} ({perf_item.get('Ticker','') if perf_item else ''})"
-    assets     = fs_rec.get("Net Assets", "") if fs_rec else ""
-    avg_cap    = fs_rec.get("Avg. Market Cap", "") if fs_rec else ""
+    perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == selected_fund), None)
+    inv_mgr = f"{selected_fund} ({perf_item.get('Ticker','') if perf_item else ''})"
+    assets = fs_rec.get("Net Assets", "") if fs_rec else ""
+    avg_cap = fs_rec.get("Avg. Market Cap", "") if fs_rec else ""
     df_slide4_2 = pd.DataFrame([{
         "Investment Manager":             inv_mgr,
         "Assets Under Management":        assets,
@@ -1633,6 +1647,7 @@ def step15_display_selected_fund():
     # Save for Step 17 to use
     st.session_state["slide4_table2_data"] = df_slide4_2
     st.dataframe(df_slide4_2, use_container_width=True)
+
 
 #───Bullet Points──────────────────────────────────────────────────────────────────
 
