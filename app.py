@@ -149,7 +149,7 @@ with st.sidebar.expander("MPI Tools", expanded=False):
     nav_button("Writeup Generator", "write_up.py")
 
 st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', unsafe_allow_html=True)
-
+nav_button("Writeup & Rec", "writeup_&_rec.py")
 
 
 
