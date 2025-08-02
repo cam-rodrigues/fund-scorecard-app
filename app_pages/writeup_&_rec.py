@@ -1240,151 +1240,82 @@ def step14_5_ips_fail_table():
 
 #───Step 14.7: Proposal──────────────────────────────────────────────────────────────────
 
-def step14_7_proposed_funds_lookup(pdf):
+def step14_7_list_proposed_funds(pdf):
     import re
-    import pandas as pd
     import streamlit as st
     from rapidfuzz import fuzz
-
-    # Known metric labels as they appear under a proposed fund
-    metric_labels = [
-        "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
-        "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Expense Ratio Rank",
-        "Sharpe Ratio Rank (3Yr)", "Sharpe Ratio Rank (5Yr)", "R-Squared (3Yr)",
-        "R-Squared (5Yr)", "Sortino Ratio Rank (3Yr)", "Sortino Ratio Rank (5Yr)",
-        "Tracking Error Rank (3Yr)", "Tracking Error Rank (5Yr)"
-    ]
-    # Simplify matching by lowercasing
-    metric_labels_lower = [m.lower() for m in metric_labels]
+    import pandas as pd
 
     prop_page = st.session_state.get("scorecard_proposed_page")
     if not prop_page:
         st.error("❌ 'Fund Scorecard: Proposed Funds' page number not found in TOC.")
-        return
+        return []
 
-    # Collect lines from proposed funds section (same page and possibly following until a new major section)
+    # Grab lines from the proposed funds page (and stop if a new major section appears)
     collected_lines = []
     for pnum in range(prop_page - 1, len(pdf.pages)):
         txt = pdf.pages[pnum].extract_text() or ""
         lines = [ln.strip() for ln in txt.splitlines() if ln.strip()]
-        # Stop if a clearly different major section appears (adjust as needed)
-        boundary_patterns = [
-            r"Fund Factsheets", r"Fund Performance", r"Risk Analysis",
-            r"IPS Screening", r"Scorecard Metrics"
-        ]
-        if pnum > prop_page - 1 and any(re.search(pat, " ".join(lines), re.IGNORECASE) for pat in boundary_patterns):
+        # Simple boundary: if we see something that clearly isn't in this section, stop (adjust as needed)
+        if pnum > prop_page - 1 and any(re.search(pat, " ".join(lines), re.IGNORECASE)
+                                       for pat in ["Fund Factsheets", "Fund Performance", "IPS Screening"]):
             break
         collected_lines.extend(lines)
 
     if not collected_lines:
-        st.warning("No text found in the Proposed Funds area.")
-        return
+        st.warning("No text found on Proposed Funds page.")
+        return []
 
-    # Get existing scorecard fund names for fuzzy matching
+    # Heuristic: proposed fund names are lines that are followed soon by metric labels (we know those exist under each fund)
+    metric_indicators = [
+        "Manager Tenure", "Excess Performance", "Peer Return Rank", "Expense Ratio Rank",
+        "Sharpe Ratio Rank", "R-Squared", "Sortino Ratio Rank", "Tracking Error Rank"
+    ]
+    metric_indicators_lower = [m.lower() for m in metric_indicators]
+
+    proposed_names = []
+    for idx, line in enumerate(collected_lines):
+        # look ahead a few lines to see if any metric label appears; if so, treat current line as a fund name
+        lookahead = " ".join(collected_lines[idx + 1 : idx + 6]).lower()
+        if any(ind in lookahead for ind in metric_indicators_lower):
+            proposed_names.append(line)
+
+    # Dedupe while preserving order
+    seen = set()
+    deduped = []
+    for name in proposed_names:
+        if name not in seen:
+            seen.add(name)
+            deduped.append(name)
+
+    # Optionally fuzzy-match to known scorecard funds if available
     fund_blocks = st.session_state.get("fund_blocks", [])
     known_funds = [fb.get("Fund Name", "") for fb in fund_blocks] if fund_blocks else []
+    matches = []
+    for raw in deduped:
+        best_match, best_score = None, 0
+        for k in known_funds:
+            score = fuzz.token_sort_ratio(raw.lower(), k.lower())
+            if score > best_score:
+                best_score = score
+                best_match = k
+        matches.append({
+            "Raw Proposed Name": raw,
+            "Matched Scorecard Fund": best_match if best_score >= 70 else "",
+            "Match Score": best_score if best_match else None
+        })
 
-    proposals = []
-    i = 0
-    while i < len(collected_lines):
-        line = collected_lines[i]
-        # Heuristic: a proposed fund name is a line that is not a metric label and is followed shortly by metric lines
-        next_chunk = " ".join(collected_lines[i + 1 : i + 5]).lower()
-        if any(lbl in next_chunk for lbl in metric_labels_lower):
-            # Treat current line as fund header
-            raw_name = line
-            # Attempt to extract ticker if on same line (e.g., 2–5 uppercase letters)
-            tickers = re.findall(r"\b([A-Z]{2,5})\b", raw_name)
-            ticker_str = ", ".join(sorted(set(tickers))) if tickers else ""
+    df = pd.DataFrame(matches)
+    st.session_state["proposed_funds_list"] = deduped
+    st.session_state["proposed_funds_matches_df"] = df
 
-            # Now collect the following metric-status pairs until blank or until next fund-like header
-            metrics_summary = {}
-            j = i + 1
-            while j < len(collected_lines):
-                ln = collected_lines[j]
-                ln_lower = ln.lower()
-                matched_metric = None
-                for metric in metric_labels:
-                    if metric.lower() in ln_lower:
-                        matched_metric = metric
-                        break
-                if not matched_metric:
-                    # break if we hit something that looks like another fund header: followed by metrics soon
-                    lookahead = " ".join(collected_lines[j + 1 : j + 5]).lower()
-                    if any(lbl in lookahead for lbl in metric_labels_lower):
-                        break
-                    j += 1
-                    continue
-                # Extract status: look for "Pass" or "Review" near the metric
-                status = None
-                if "pass" in ln_lower:
-                    status = "Pass"
-                elif "review" in ln_lower:
-                    status = "Review"
-                else:
-                    # maybe icons or other markers; fallback to checking next token words
-                    if j + 1 < len(collected_lines):
-                        nxt = collected_lines[j + 1].lower()
-                        if "pass" in nxt:
-                            status = "Pass"
-                        elif "review" in nxt:
-                            status = "Review"
-                metrics_summary[matched_metric] = status or "Unknown"
-                j += 1
+    st.subheader("Proposed Funds (Step 14.7)")
+    if not df.empty:
+        st.table(df[["Raw Proposed Name", "Matched Scorecard Fund", "Match Score"]])
+    else:
+        st.write(deduped)
 
-            # Fuzzy match raw_name to known scorecard funds
-            best_match, best_score = None, 0
-            for k in known_funds:
-                score = fuzz.token_sort_ratio(raw_name.lower(), k.lower())
-                if score > best_score:
-                    best_score = score
-                    best_match = k
-            matched = best_match if best_score >= 70 else ""
-
-            proposals.append({
-                "Raw Proposed Name": raw_name,
-                "Ticker Candidates": ticker_str,
-                "Matched Scorecard Fund": matched,
-                "Match Score": best_score if matched else None,
-                "Metrics Summary": metrics_summary,
-            })
-
-            # Advance i past the block we consumed
-            i = j
-        else:
-            i += 1
-
-    if not proposals:
-        st.warning("No proposed fund headers detected.")
-        return
-
-    # Normalize into DataFrame: flatten metrics summary into columns
-    rows = []
-    for p in proposals:
-        base = {
-            "Raw Proposed Name": p["Raw Proposed Name"],
-            "Ticker Candidates": p["Ticker Candidates"],
-            "Matched Scorecard Fund": p["Matched Scorecard Fund"],
-            "Match Score": p["Match Score"],
-        }
-        for metric in metric_labels:
-            base[metric] = p["Metrics Summary"].get(metric, "")
-        rows.append(base)
-    df = pd.DataFrame(rows)
-
-    # Dedupe by Raw Proposed Name keeping highest match score
-    if "Match Score" in df.columns:
-        df = df.sort_values("Match Score", ascending=False).drop_duplicates("Raw Proposed Name", keep="first").reset_index(drop=True)
-
-    # Save to session
-    st.session_state["proposed_funds_lookup"] = df.to_dict("records")
-    st.session_state["proposed_funds_df"] = df
-
-    # Display
-    st.subheader("Step 14.7: Proposed Funds Extracted")
-    display_cols = ["Raw Proposed Name", "Ticker Candidates", "Matched Scorecard Fund", "Match Score"] + metric_labels
-    st.dataframe(df[display_cols], use_container_width=True)
-
+    return deduped
 
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
