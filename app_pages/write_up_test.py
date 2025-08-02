@@ -328,27 +328,14 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     # --- 2. Extract tickers ---
     tickers = extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page)
 
-    # --- 3. Prefill Fund Type guesses / defaults ---
+    # --- Prepare base guesses/defaults (used if editing) ---
     fund_type_guesses = []
     for name in fund_names:
         g = infer_fund_type_guess(tickers.get(name, "")) or ""
         fund_type_guesses.append("Passive" if g.lower() == "passive" else "Active")
     fund_type_defaults = ["Passive" if "index" in n.lower() else "Active" for n in fund_names]
-    use_guess = st.checkbox(
-        "Prefill Fund Type with Yahoo Finance guess instead of default (index => Passive, else Active)",
-        value=True
-    )
-    initial_types = fund_type_guesses if use_guess else fund_type_defaults
 
-    # Prepare base fund types dataframe
-    df_types_base = pd.DataFrame({
-        "Fund Name": fund_names,
-        "Ticker": [tickers.get(n, "") for n in fund_names],
-        "Fund Type Guess": fund_type_guesses,
-        "Fund Type": initial_types,
-    })
-
-    # --- Toggleable editor ---
+    # --- Toggleable editor state ---
     if "show_edit_fund_type" not in st.session_state:
         st.session_state["show_edit_fund_type"] = False
 
@@ -356,10 +343,25 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     if st.button(toggle_label, key="toggle_edit_fund_type"):
         st.session_state["show_edit_fund_type"] = not st.session_state["show_edit_fund_type"]
 
-    # Determine fund_types mapping (either initial or edited)
+    # Determine fund_types mapping
     if st.session_state["show_edit_fund_type"]:
         st.markdown("### Fund Type Overrides")
         st.caption("Override the inferred fund type here before reapplying IPS logic.")
+
+        # Prefill choice inside editor
+        use_guess = st.checkbox(
+            "Prefill Fund Type with Yahoo Finance guess instead of default (index → Passive, else Active)",
+            value=True
+        )
+        initial_types = fund_type_guesses if use_guess else fund_type_defaults
+
+        df_types_base = pd.DataFrame({
+            "Fund Name":        fund_names,
+            "Ticker":           [tickers.get(n, "") for n in fund_names],
+            "Fund Type Guess":  fund_type_guesses,
+            "Fund Type":        initial_types,
+        })
+
         edited_types = st.data_editor(
             df_types_base,
             column_config={
@@ -372,8 +374,8 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
         )
         fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
     else:
-        # Use the prefilled (guess or default) if not editing
-        fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in df_types_base.iterrows()}
+        # Not editing: use default rule (index → Passive, else Active)
+        fund_types = {name: ("Passive" if "index" in name.lower() else "Active") for name in fund_names}
 
     # --- 4. IPS conversion ---
     df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
@@ -423,7 +425,7 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
         styled = compact_df.style.applymap(watch_style, subset=["IPS Watch Status"])
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
-        # Download section
+        # Download / raw data
         with st.expander("Download / Raw IPS Data", expanded=False):
             st.download_button(
                 "Download IPS Icon Table (clean)", data=df_icon.to_csv(index=False),
@@ -434,7 +436,7 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
                 file_name="ips_screening_raw_table.csv", mime="text/csv"
             )
 
-        # --- Summary badges (moved to bottom) ---
+        # --- Summary badges (bottom) ---
         def summarize_watch(df):
             counts = df["IPS Watch Status"].value_counts().to_dict()
             return {
@@ -473,7 +475,6 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
 
     st.session_state["fund_performance_data"] = perf_data
     st.session_state["tickers"] = tickers  # legacy compatibility
-
 
 #───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
 
