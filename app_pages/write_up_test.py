@@ -328,54 +328,56 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     # --- 2. Extract tickers ---
     tickers = extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page)
 
-    # --- Prepare base guesses/defaults (used if editing) ---
-    fund_type_guesses = []
+    # --- Prepare inferred fund type guesses/defaults ---
+    inferred_guesses = []
     for name in fund_names:
-        g = infer_fund_type_guess(tickers.get(name, "")) or ""
-        fund_type_guesses.append("Passive" if g.lower() == "passive" else "Active")
-    fund_type_defaults = ["Passive" if "index" in n.lower() else "Active" for n in fund_names]
+        guess = ""
+        if tickers.get(name):
+            guess = infer_fund_type_guess(tickers.get(name, "")) or ""
+        inferred_guesses.append("Passive" if guess.lower() == "passive" else ("Passive" if "index" in name.lower() else "Active"))
 
-    # --- Toggleable editor state ---
+    # Build base df for editor
+    df_types_base = pd.DataFrame({
+        "Fund Name":       fund_names,
+        "Ticker":          [tickers.get(n, "") for n in fund_names],
+        "Inferred Type":   inferred_guesses,
+        "Fund Type":       inferred_guesses,  # starts same as inferred
+    })
+
+    # --- Toggleable editor display ---
     if "show_edit_fund_type" not in st.session_state:
         st.session_state["show_edit_fund_type"] = False
-
     toggle_label = "Hide Fund Type Editor" if st.session_state["show_edit_fund_type"] else "Edit Fund Type"
     if st.button(toggle_label, key="toggle_edit_fund_type"):
         st.session_state["show_edit_fund_type"] = not st.session_state["show_edit_fund_type"]
 
-    # Determine fund_types mapping
+    # Decide fund_types mapping
     if st.session_state["show_edit_fund_type"]:
         st.markdown("### Fund Type Overrides")
-        st.caption("Override the inferred fund type here before reapplying IPS logic.")
-
-        # Prefill choice inside editor
-        use_guess = st.checkbox(
-            "Prefill Fund Type with Yahoo Finance guess instead of default (index → Passive, else Active)",
-            value=True
-        )
-        initial_types = fund_type_guesses if use_guess else fund_type_defaults
-
-        df_types_base = pd.DataFrame({
-            "Fund Name":        fund_names,
-            "Ticker":           [tickers.get(n, "") for n in fund_names],
-            "Fund Type Guess":  fund_type_guesses,
-            "Fund Type":        initial_types,
-        })
-
+        st.caption("Edit any fund type here; once you modify at least one, your edits take precedence over inferred types.")
         edited_types = st.data_editor(
             df_types_base,
             column_config={
                 "Fund Type": st.column_config.SelectboxColumn("Fund Type", options=["Active", "Passive"]),
             },
-            disabled=["Fund Name", "Ticker", "Fund Type Guess"],
+            disabled=["Fund Name", "Ticker", "Inferred Type"],
             hide_index=True,
             key="data_editor_fundtype_ips",
             use_container_width=True,
         )
-        fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
+        # Determine whether any manual edit occurred (diff between Fund Type and Inferred Type)
+        manual_override = any(
+            row["Fund Type"] != row["Inferred Type"]
+            for _, row in edited_types.iterrows()
+        )
+        if manual_override:
+            fund_types = {row["Fund Name"]: row["Fund Type"] for _, row in edited_types.iterrows()}
+        else:
+            # none edited: use inferred
+            fund_types = {row["Fund Name"]: row["Inferred Type"] for _, row in edited_types.iterrows()}
     else:
-        # Not editing: use default rule (index → Passive, else Active)
-        fund_types = {name: ("Passive" if "index" in name.lower() else "Active") for name in fund_names}
+        # editor hidden: use inferred guesses
+        fund_types = {name: inferred_guesses[i] for i, name in enumerate(fund_names)}
 
     # --- 4. IPS conversion ---
     df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
@@ -475,6 +477,7 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
 
     st.session_state["fund_performance_data"] = perf_data
     st.session_state["tickers"] = tickers  # legacy compatibility
+
 
 #───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
 
