@@ -599,40 +599,79 @@ def step6_process_factsheets(pdf, fund_names, suppress_output=True):
             {"Fund Scorecard Name": name, "Ticker": ticker}
             for name, ticker in st.session_state.get("tickers", {}).items()
         ]
-
+    
         if not factsheet_start:
             return []
-
+    
         matched_factsheets = []
         for i in range(factsheet_start - 1, len(pdf.pages)):
             page = pdf.pages[i]
             raw = page.extract_text() or ""
             if not raw.strip():
                 continue
-            # Work with a collapsed header/text to avoid line-split issues
-            norm = clean_header_block(raw)
-
-            # Require at least Benchmark and Expense Ratio mention somewhere on page
-            if "benchmark:" not in norm.lower() or "expense ratio:" not in norm.lower():
+            lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+    
+            # Locate the block containing Benchmark and Expense Ratio anywhere on page
+            has_benchmark = any("Benchmark:" in ln for ln in lines)
+            has_expense = any("Expense Ratio:" in ln for ln in lines)
+            if not (has_benchmark and has_expense):
                 continue
-
-            # Extract ticker: look for 1–5 uppercase letters adjacent to fund name area
-            ticker_match = re.search(r"\b([A-Z]{1,5})\b", norm)
-            ticker = ticker_match.group(1) if ticker_match else ""
-
-            # Extract raw fund name: attempt before ticker, else fallback to removing known labels
+    
+            # Helper to get value after a label, allowing it to be on same line or next
+            def grab_value(label, lookahead=1):
+                for idx, ln in enumerate(lines):
+                    if label in ln:
+                        # same line after label
+                        after = ln.split(label, 1)[1].strip()
+                        if after:
+                            return after.split()[0]
+                        # look in next few lines for first non-empty chunk
+                        for j in range(1, lookahead+1):
+                            if idx + j < len(lines):
+                                candidate = lines[idx + j].strip()
+                                if candidate:
+                                    # stop if it looks like another label
+                                    if re.match(r"^[A-Za-z ]+:\s*", candidate):
+                                        # maybe value is after colonless part
+                                        continue
+                                    return candidate.split()[0]
+                return ""
+    
+            # Extract ticker: first 1–5 uppercase token that isn't a common label
+            ticker_match = None
+            for ln in lines:
+                for tok in re.findall(r"\b([A-Z]{1,5})\b", ln):
+                    # crude filter: skip if token is exactly a label word (optional customize)
+                    if tok.lower() in ("benchmark", "expense", "ratio", "category"):
+                        continue
+                    ticker_match = tok
+                    break
+                if ticker_match:
+                    break
+            ticker = ticker_match or ""
+    
+            # Extract raw fund name: attempt before ticker in the line containing both Benchmark and something identifying the fund
+            fund_name_raw = ""
+            # Look for a line that contains both the approximate fund name and maybe ticker
             if ticker:
-                parts = norm.split(ticker, 1)
-                fund_name_raw = parts[0].strip()
-            else:
-                # remove known segments to approximate
-                fund_name_raw = re.sub(r"Benchmark:.*", "", norm, flags=re.IGNORECASE)
-                fund_name_raw = re.sub(r"Expense Ratio:.*", "", fund_name_raw, flags=re.IGNORECASE)
-                fund_name_raw = fund_name_raw.strip()
-
-            # Clean up watchlist suffixes if present
-            fund_name_raw = re.sub(r"has been placed on watchlist for not meeting .*? criteria", "", fund_name_raw, flags=re.IGNORECASE).strip()
-
+                for ln in lines:
+                    if ticker in ln:
+                        # remove watchlist suffix
+                        name_part = ln.split(ticker, 1)[0]
+                        name_part = re.sub(r"has been placed on watchlist for not meeting .*? criteria", "", name_part, flags=re.IGNORECASE).strip()
+                        fund_name_raw = name_part
+                        break
+            if not fund_name_raw:
+                # fallback: take first line before any known label
+                for ln in lines:
+                    if "Benchmark:" in ln or "Expense Ratio:" in ln:
+                        continue
+                    # remove watchlist suffix
+                    candidate = re.sub(r"has been placed on watchlist for not meeting .*? criteria", "", ln, flags=re.IGNORECASE).strip()
+                    if candidate:
+                        fund_name_raw = candidate
+                        break
+    
             # Fuzzy match to performance_data
             best_score = 0
             matched_name = matched_ticker = ""
@@ -641,15 +680,15 @@ def step6_process_factsheets(pdf, fund_names, suppress_output=True):
                 score = fuzz.token_sort_ratio(f"{fund_name_raw} {ticker}".lower(), ref.lower())
                 if score > best_score:
                     best_score, matched_name, matched_ticker = score, item["Fund Scorecard Name"], item["Ticker"]
-
-            # Extract fields with awareness of label order
-            benchmark = extract_label_value("Benchmark:", norm, next_labels=["Category:", "Expense Ratio:"])
-            category = extract_label_value("Category:", norm, next_labels=["Net Assets:", "Benchmark:"])
-            net_assets = extract_label_value("Net Assets:", norm, next_labels=["Manager Name:", "Category:"])
-            manager = extract_label_value("Manager Name:", norm, next_labels=["Avg. Market Cap:", "Net Assets:"])
-            avg_cap = extract_label_value("Avg. Market Cap:", norm, next_labels=["Expense Ratio:", "Manager Name:"])
-            expense = extract_label_value("Expense Ratio:", norm, next_labels=[])
-
+    
+            # Extract fields with improved logic
+            benchmark = grab_value("Benchmark:", lookahead=2)
+            category = grab_value("Category:", lookahead=2)
+            net_assets = grab_value("Net Assets:", lookahead=2)
+            manager = grab_value("Manager Name:", lookahead=2)
+            avg_cap = grab_value("Avg. Market Cap:", lookahead=2)
+            expense = grab_value("Expense Ratio:", lookahead=2)
+    
             matched_factsheets.append({
                 "Page #": i + 1,
                 "Parsed Fund Name": fund_name_raw,
@@ -666,7 +705,9 @@ def step6_process_factsheets(pdf, fund_names, suppress_output=True):
                 "Matched": "✅" if best_score > 20 else "❌",
                 "Section": section_label,
             })
+    
         return matched_factsheets
+
 
     # --- Process both sections ---
     regular = _process_factsheet_section(pdf, fund_names, "factsheets_page", "Regular")
