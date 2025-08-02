@@ -1920,7 +1920,7 @@ def step17_export_to_ppt_headings():
 # === Main App ===
 def run():
     import re
-    st.title("Writeup")
+    st.title("Writeup & Rec")
     uploaded = st.file_uploader("Upload MPI PDF", type="pdf")
     if not uploaded:
         return
