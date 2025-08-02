@@ -427,17 +427,6 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
         styled = compact_df.style.applymap(watch_style, subset=["IPS Watch Status"])
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
-        # Download / raw data
-        with st.expander("Download / Raw IPS Data", expanded=False):
-            st.download_button(
-                "Download IPS Icon Table (clean)", data=df_icon.to_csv(index=False),
-                file_name="ips_screening_icon_table.csv", mime="text/csv"
-            )
-            st.download_button(
-                "Download IPS Raw Table (statuses)", data=df_raw.to_csv(index=False),
-                file_name="ips_screening_raw_table.csv", mime="text/csv"
-            )
-
         # --- Summary badges (bottom) ---
         def summarize_watch(df):
             counts = df["IPS Watch Status"].value_counts().to_dict()
