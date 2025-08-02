@@ -1238,6 +1238,105 @@ def step14_5_ips_fail_table():
     </style>
     """, unsafe_allow_html=True)
 
+#───Step 14.7: Proposal──────────────────────────────────────────────────────────────────
+
+def step14_7_proposed_funds_lookup(pdf):
+    import re
+    import pandas as pd
+    import streamlit as st
+    from rapidfuzz import fuzz
+
+    # Get the proposed funds page from TOC
+    prop_page = st.session_state.get("scorecard_proposed_page")
+    if not prop_page:
+        st.error("❌ 'Fund Scorecard: Proposed Funds' page number not found in TOC.")
+        return
+
+    # Gather lines starting at proposed funds page until we hit a likely new section header.
+    collected_lines = []
+    for pnum in range(prop_page - 1, len(pdf.pages)):
+        txt = pdf.pages[pnum].extract_text() or ""
+        lines = [ln.strip() for ln in txt.splitlines() if ln.strip()]
+        # Heuristic for section boundary: if we see a header that looks like a different major section.
+        # For example: "Fund Factsheets", "Fund Performance", or "Risk Analysis" etc.
+        boundary_patterns = [
+            r"Fund Factsheets", r"Fund Performance", r"Risk Analysis", r"Calendar Year",
+            r"Fund Scorecard\b(?!: Proposed Funds)", r"IPS Screening", r"Scorecard Metrics"
+        ]
+        if pnum > prop_page - 1:
+            # if any line matches a new major section, stop
+            if any(re.search(pat, " ".join(lines), re.IGNORECASE) for pat in boundary_patterns):
+                break
+        collected_lines.extend(lines)
+
+    if not collected_lines:
+        st.warning("No text found on 'Proposed Funds' section.")
+        return
+
+    # Heuristic: investment option names are likely lines with mixed case and maybe followed/preceded by tickers.
+    # Extract candidate raw names plus any 2-5 uppercase ticker tokens nearby.
+    ticker_rx = re.compile(r"\b([A-Z]{2,5})\b")
+    proposals = []  # list of dicts: Raw Name, Ticker (if any), Matched Scorecard Fund (fuzzy), Score
+
+    # Get existing scorecard fund names (from earlier step if available)
+    fund_blocks = st.session_state.get("fund_blocks", [])
+    known_funds = [fb["Fund Name"] for fb in fund_blocks] if fund_blocks else []
+
+    for ln in collected_lines:
+        # Skip lines that look like headers or too short
+        if len(ln) < 4:
+            continue
+        # Attempt to extract ticker if present
+        tickers = ticker_rx.findall(ln)
+        # Clean potential fund name by removing trailing ticker(s)
+        raw_name = ln
+        for tk in tickers:
+            # remove isolated ticker from end or parenthetical
+            raw_name = re.sub(rf"\b{re.escape(tk)}\b", "", raw_name).strip()
+        raw_name = re.sub(r"\s{2,}", " ", raw_name)  # collapse spaces
+
+        if not raw_name:
+            continue
+
+        # Fuzzy match against known scorecard fund names
+        best_match, best_score = None, 0
+        for k in known_funds:
+            score = fuzz.token_sort_ratio(raw_name.lower(), k.lower())
+            if score > best_score:
+                best_score = score
+                best_match = k
+        matched = best_match if best_score >= 70 else ""
+        proposals.append({
+            "Raw Proposed Name": raw_name,
+            "Ticker Candidates": ", ".join(sorted(set(tickers))) if tickers else "",
+            "Matched Scorecard Fund": matched,
+            "Match Score": best_score if matched else None
+        })
+
+    # Deduplicate by Raw Proposed Name preserving best match score
+    df = pd.DataFrame(proposals)
+    if df.empty:
+        st.warning("No proposed fund names extracted.")
+        return
+    df = (df.sort_values("Match Score", ascending=False)
+            .drop_duplicates(subset=["Raw Proposed Name"], keep="first")
+            .reset_index(drop=True))
+
+    # Save to session state
+    st.session_state["proposed_funds_lookup"] = df.to_dict("records")
+    st.session_state["proposed_funds_df"] = df
+
+    # Display concise table
+    st.subheader("Step 14.7: Proposed Funds Extracted")
+    display_cols = [
+        "Raw Proposed Name",
+        "Ticker Candidates",
+        "Matched Scorecard Fund",
+        "Match Score",
+    ]
+    st.dataframe(df[display_cols], use_container_width=True)
+
+
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
 
 def step15_display_selected_fund():
@@ -2032,6 +2131,8 @@ def run():
         # Step 14.5: IPS Fail Table
         step14_5_ips_fail_table()
 
+        step14_7_proposed_funds_lookup()
+        
         # Step 15: View Single Fund Details
         with st.expander("Single Fund Write Up", expanded=False):
             step15_display_selected_fund()
