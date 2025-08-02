@@ -55,17 +55,19 @@ def process_page1(text):
 def process_toc(text):
     perf = re.search(r"Fund Performance[^\d]*(\d{1,3})", text or "")
     sc   = re.search(r"Fund Scorecard\s+(\d{1,3})", text or "")
+    sc_prop = re.search(r"Fund Scorecard:\s*Proposed Funds\s+(\d{1,3})", text or "")
     fs   = re.search(r"Fund Factsheets\s+(\d{1,3})", text or "")
     cy   = re.search(r"Fund Performance: Calendar Year\s+(\d{1,3})", text or "")
     r3yr = re.search(r"Risk Analysis: MPT Statistics \(3Yr\)\s+(\d{1,3})", text or "")
     r5yr = re.search(r"Risk Analysis: MPT Statistics \(5Yr\)\s+(\d{1,3})", text or "")
 
-    perf_page = int(perf.group(1)) if perf else None
-    sc_page   = int(sc.group(1))   if sc   else None
-    fs_page   = int(fs.group(1))   if fs   else None
-    cy_page   = int(cy.group(1))   if cy   else None
-    r3yr_page = int(r3yr.group(1)) if r3yr else None
-    r5yr_page = int(r5yr.group(1)) if r5yr else None
+    perf_page     = int(perf.group(1)) if perf else None
+    sc_page       = int(sc.group(1))   if sc   else None
+    sc_prop_page  = int(sc_prop.group(1)) if sc_prop else None
+    fs_page       = int(fs.group(1))   if fs   else None
+    cy_page       = int(cy.group(1))   if cy   else None
+    r3yr_page     = int(r3yr.group(1)) if r3yr else None
+    r5yr_page     = int(r5yr.group(1)) if r5yr else None
 
     st.subheader("Table of Contents Pages")
     st.write(f"- Fund Performance Current vs Proposed Comparison : {perf_page}")
@@ -73,13 +75,13 @@ def process_toc(text):
     st.write(f"- MPT 3Yr Risk Analysis : {r3yr_page}")
     st.write(f"- MPT 5Yr Risk Analysis : {r5yr_page}")
     st.write(f"- Fund Scorecard:   {sc_page}")
+    st.write(f"- Fund Scorecard: Proposed Funds: {sc_prop_page}")
     st.write(f"- Fund Factsheets :  {fs_page}")
-    
-
 
     # Store in session state for future reference
     st.session_state['performance_page'] = perf_page
     st.session_state['scorecard_page']   = sc_page
+    st.session_state['scorecard_proposed_page'] = sc_prop_page
     st.session_state['factsheets_page']  = fs_page
     st.session_state['calendar_year_page'] = cy_page
     st.session_state['r3yr_page'] = r3yr_page
