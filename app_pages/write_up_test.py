@@ -1043,54 +1043,48 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
 
 #───Step 14.5: IPS Fail Table──────────────────────────────────────────────────────────────────
 
-def step14_5_ips_fail_table(pdf=None):
+def step14_5_ips_fail_table():
     import streamlit as st
     import pandas as pd
 
-    df_icon = st.session_state.get("ips_icon_table")
-    if df_icon is None or df_icon.empty:
-        return
+    df = st.session_state.get("ips_icon_table")
+    if df is None or df.empty:
+        return  # Nothing to show
 
-    # Filter for IW or FW
-    filtered = df_icon[df_icon["IPS Watch Status"].isin(["IW", "FW"])]
-    if filtered.empty:
-        st.markdown("""
-            <div style="
-                background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
-                color: #244369;
-                border-radius: 1.5rem;
-                box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
-                padding: 1.2rem 2.3rem 1.2rem 2.3rem;
-                margin-bottom: 2rem;
-                font-size: 1.08rem;
-                border: 1.2px solid #b5d0eb;
-                text-align: center;">
-                <b>All funds passed IPS screening (no IW or FW).</b>
-            </div>
-        """, unsafe_allow_html=True)
-        return
+    fail_df = df[df["IPS Watch Status"].isin(["FW", "IW"])][["Fund Name", "IPS Watch Status"]]
+    if fail_df.empty:
+        return  # Nothing to show
 
-    # Display only Fund Name and IPS Watch Status
-    display_df = filtered[["Fund Name", "IPS Watch Status"]].reset_index(drop=True)
-
+    # Build the info card HTML
     st.markdown("""
-        <div style="
-            background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
-            color: #244369;
-            border-radius: 1.5rem;
-            box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
-            padding: 1.3rem 2.4rem 1.6rem 2.4rem;
-            margin: 1.2rem 0 2.2rem 0;
-            font-size: 1.09rem;
-            border: 1.2px solid #b5d0eb;">
-            <div style="font-weight: 700; color: #1856b8; font-size: 1.21rem; margin-bottom: 0.6rem;">
-                Funds Failing IPS Screening
-            </div>
+    <div style='
+        background: linear-gradient(120deg, #fdf4f5 80%, #fbe4e6 100%);
+        color: #244369;
+        border-radius: 1.3rem;
+        box-shadow: 0 2px 14px rgba(199,38,38,0.06), 0 1px 4px rgba(36,67,105,0.07);
+        padding: 1.6rem 2.0rem 1.6rem 2.0rem;
+        max-width: 650px;
+        margin: 1.4rem auto 1.2rem auto;
+        border: 1.5px solid #d5bfc3;'>
+        <div style='font-weight:700; color:#c1121f; font-size:1.2rem; margin-bottom:0.5rem;'>
+            ⚠️ IPS Screening – Funds on Watch
+        </div>
+        <div style='font-size:1rem; margin-bottom:1rem;'>
+            The following funds failed one or more IPS criteria and are currently on watch.
+        </div>
     """, unsafe_allow_html=True)
 
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
+    # Show table with no index/scroll
+    st.dataframe(
+        fail_df.rename(columns={"Fund Name": "Fund", "IPS Watch Status": "Watch Status"}),
+        use_container_width=False,
+        hide_index=True,
+        height=min(400, 48 + 38 * len(fail_df)),
+        column_order=["Fund", "Watch Status"]
+    )
 
     st.markdown("</div>", unsafe_allow_html=True)
+
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
 
