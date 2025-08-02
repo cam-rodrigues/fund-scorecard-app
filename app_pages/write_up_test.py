@@ -315,9 +315,12 @@ def watch_status_color(val):
     return ""
 
 def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheets_page, total_options):
-    # 1. Extract fund scorecard blocks
+    import pandas as pd
+    import streamlit as st
+
+    # 1. Extract scorecard blocks
     fund_blocks = extract_scorecard_blocks(pdf, scorecard_page)
-    fund_names  = [fb["Fund Name"] for fb in fund_blocks]
+    fund_names = [fund["Fund Name"] for fund in fund_blocks]
     if not fund_blocks:
         st.error("Could not extract fund scorecard blocks. Check the PDF and page number.")
         return
@@ -326,7 +329,7 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     tickers = extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page)
 
     # 3. Prefill Fund Type (override-able)
-    fund_type_guesses  = []
+    fund_type_guesses = []
     for name in fund_names:
         g = infer_fund_type_guess(tickers.get(name, "")) or ""
         fund_type_guesses.append("Passive" if g == "Passive" else "Active")
@@ -338,9 +341,9 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     initial_types = fund_type_guesses if use_guess else fund_type_defaults
 
     df_types = pd.DataFrame({
-        "Fund Name":    fund_names,
-        "Ticker":       [tickers.get(n, "") for n in fund_names],
-        "Fund Type":    initial_types,
+        "Fund Name": fund_names,
+        "Ticker": [tickers.get(n, "") for n in fund_names],
+        "Fund Type": initial_types,
     })
 
     st.markdown("### Fund Type Overrides")
@@ -348,9 +351,9 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     edited = st.data_editor(
         df_types,
         column_config={
-            "Fund Type": st.column_config.SelectboxColumn("Fund Type", options=["Active","Passive"])
+            "Fund Type": st.column_config.SelectboxColumn("Fund Type", options=["Active", "Passive"])
         },
-        disabled=["Fund Name","Ticker"],
+        disabled=["Fund Name", "Ticker"],
         hide_index=True,
         key="ips_type_editor",
         use_container_width=True,
@@ -360,76 +363,103 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     # 4. Run IPS conversion
     df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
 
-    sums = summarize(df_icon)
-    c1,c2,c3 = st.columns(3, gap="small")
-    c1.metric("No Watch",       sums["No Watch"])
-    c2.metric("Informal Watch", sums["Informal Watch"])
-    c3.metric("Formal Watch",   sums["Formal Watch"])
-    st.markdown("---")
-
-    # 6. IPS Results Table
+    # --- IPS Results Table ---
     st.subheader("IPS Screening Results")
+    st.markdown(
+        '<div style="display:flex; gap:1rem; margin-bottom:0.5rem;">'
+        '<div style="padding:4px 10px; background:#d6f5df; border-radius:4px; font-weight:600;">NW: No Watch</div>'
+        '<div style="padding:4px 10px; background:#fff3cd; border-radius:4px; font-weight:600;">IW: Informal Watch</div>'
+        '<div style="padding:4px 10px; background:#f8d7da; border-radius:4px; font-weight:600;">FW: Formal Watch</div>'
+        '</div>', unsafe_allow_html=True
+    )
+
     if df_icon.empty:
-        st.info("No IPS data available.")
+        st.info("No IPS screening data available.")
     else:
-        # rename verbose columns to numbers
-        num_map = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
-        df_disp = df_icon.rename(columns=num_map)
+        # Compact display: number the criteria
+        display_columns = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
+        display_df = df_icon.rename(columns=display_columns)
 
-        # convert statuses to icons
-        def icon(s):
-            return "✔" if s=="Pass" else ("✗" if s in ("Review","Fail") else "")
-        compact = df_disp.copy()
-        for i in range(1,12):
-            orig = f"IPS Investment Criteria {i}"
-            if orig in compact:
-                compact[str(i)] = compact[orig].apply(icon)
-                compact.drop(columns=[orig], inplace=True)
-
-        cols = ["Fund Name","Ticker","Fund Type"] + [str(i) for i in range(1,12)] + ["IPS Watch Status"]
-        compact = compact[[c for c in cols if c in compact.columns]]
-
-        # style watch status
-        def style_watch(v):
-            if v=="NW": return "background-color:#d6f5df;color:#217a3e;font-weight:600;"
-            if v=="IW": return "background-color:#fff3cd;color:#B87333;font-weight:600;"
-            if v=="FW": return "background-color:#f8d7da;color:#c30000;font-weight:600;"
+        def iconify(s):
+            if s == "Pass":
+                return "✔"
+            if s in ("Review", "Fail"):
+                return "✗"
             return ""
-        styled = compact.style.applymap(style_watch, subset=["IPS Watch Status"])
+
+        compact_df = display_df.copy()
+        for i in range(1, 12):
+            orig = f"IPS Investment Criteria {i}"
+            if orig in compact_df.columns:
+                compact_df[str(i)] = compact_df[orig].apply(iconify)
+                compact_df.drop(columns=[orig], inplace=True)
+        # Desired column order
+        cols_order = ["Fund Name", "Ticker", "Fund Type"] + [str(i) for i in range(1, 12)] + ["IPS Watch Status"]
+        compact_df = compact_df[[c for c in cols_order if c in compact_df.columns]]
+
+        # Style watch status
+        def watch_style(val):
+            if val == "NW":
+                return "background-color:#d6f5df; color:#217a3e; font-weight:600;"
+            if val == "IW":
+                return "background-color:#fff3cd; color:#B87333; font-weight:600;"
+            if val == "FW":
+                return "background-color:#f8d7da; color:#c30000; font-weight:600;"
+            return ""
+
+        styled = compact_df.style.applymap(watch_style, subset=["IPS Watch Status"])
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
-        # downloads
-        with st.expander("Download / Raw Data", expanded=False):
-            st.download_button("Download Clean Table",
-                               df_icon.to_csv(index=False), "ips_icon_table.csv","text/csv")
-            st.download_button("Download Raw Statuses",
-                               df_raw.to_csv(index=False), "ips_raw_table.csv","text/csv")
+        # Download / raw data
+        with st.expander("Download / Raw IPS Data", expanded=False):
+            st.download_button(
+                "Download IPS Icon Table (clean)", data=df_icon.to_csv(index=False),
+                file_name="ips_screening_icon_table.csv", mime="text/csv"
+            )
+            st.download_button(
+                "Download IPS Raw Table (statuses)", data=df_raw.to_csv(index=False),
+                file_name="ips_screening_raw_table.csv", mime="text/csv"
+            )
 
-    # 5. Show summary badges
-    def summarize(df):
-        cnt = df["IPS Watch Status"].value_counts().to_dict()
-        return {
-            "No Watch":       cnt.get("NW",0),
-            "Informal Watch": cnt.get("IW",0),
-            "Formal Watch":   cnt.get("FW",0),
-        }
-        
-    # 8. Save session state for downstream
-    st.session_state.update({
-        "fund_blocks":            fund_blocks,
-        "fund_types":             fund_types,
-        "fund_tickers":           tickers,
-        "ips_icon_table":         df_icon,
-        "ips_raw_table":          df_raw,
-    })
+        # --- Summary badges moved to bottom ---
+        def summarize_watch(df):
+            counts = df["IPS Watch Status"].value_counts().to_dict()
+            return {
+                "No Watch": counts.get("NW", 0),
+                "Informal Watch": counts.get("IW", 0),
+                "Formal Watch": counts.get("FW", 0),
+            }
 
-    # 9. Extract & save performance data
-    perf = extract_performance_table(pdf, performance_page, fund_names, factsheets_page)
-    for itm in perf:
+        summary = summarize_watch(df_icon)
+        st.markdown("---")
+        st.markdown("### Watch Summary")
+        b1, b2, b3 = st.columns(3, gap="small")
+        with b1:
+            st.metric("No Watch", summary["No Watch"])
+        with b2:
+            st.metric("Informal Watch", summary["Informal Watch"])
+        with b3:
+            st.metric("Formal Watch", summary["Formal Watch"])
+
+    # 6. Save to session state for downstream steps
+    st.session_state["fund_blocks"] = fund_blocks
+    st.session_state["fund_types"] = fund_types
+    st.session_state["fund_tickers"] = tickers
+    st.session_state["ips_icon_table"] = df_icon
+    st.session_state["ips_raw_table"] = df_raw
+
+    # 7. Extract & save fund performance data for later steps
+    perf_data = extract_performance_table(
+        pdf,
+        performance_page,
+        fund_names,
+        factsheets_page
+    )
+    for itm in perf_data:
         itm["Ticker"] = tickers.get(itm["Fund Scorecard Name"], "")
-    st.session_state["fund_performance_data"] = perf
-    st.session_state["tickers"]              = tickers
 
+    st.session_state["fund_performance_data"] = perf_data
+    st.session_state["tickers"] = tickers  # legacy compatibility
 
 #───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
 
