@@ -1872,7 +1872,7 @@ def step17_export_to_ppt():
     # --- Save and offer download ---
     output = BytesIO()
     prs.save(output)
-    st.success("Writeup PowerPoint generated successfully!")
+    st.success("Powerpoint Generated")
     st.download_button(
         label="Download Writeup PowerPoint",
         data=output.getvalue(),
