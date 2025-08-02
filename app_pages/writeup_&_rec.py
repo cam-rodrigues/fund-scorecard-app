@@ -188,6 +188,7 @@ def process_toc(text):
     st.session_state['factsheets_proposed_page'] = fs_prop_page
 
 
+
 #───IPS Invesment Screening──────────────────────────────────────────────────────────────────
 import streamlit as st
 import re
@@ -333,6 +334,10 @@ def step3_5_6_scorecard_and_ips(
     import pandas as pd
     import streamlit as st
 
+    # Helper to safely get regular tickers (fallback to legacy if needed)
+    def get_regular_tickers():
+        return st.session_state.get("fund_tickers_Regular_Scorecard") or st.session_state.get("tickers", {})
+
     # Helper to process one scorecard section
     def process_section(section_name, sc_page):
         if not sc_page:
@@ -400,11 +405,12 @@ def step3_5_6_scorecard_and_ips(
         df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
 
         # Persist per-section state keys
-        st.session_state[f"fund_blocks_{section_name}"] = fund_blocks
-        st.session_state[f"fund_types_{section_name}"] = fund_types
-        st.session_state[f"fund_tickers_{section_name}"] = tickers
-        st.session_state[f"ips_icon_table_{section_name}"] = df_icon
-        st.session_state[f"ips_raw_table_{section_name}"] = df_raw
+        key_base = section_name.replace(" ", "_")
+        st.session_state[f"fund_blocks_{key_base}"] = fund_blocks
+        st.session_state[f"fund_types_{key_base}"] = fund_types
+        st.session_state[f"fund_tickers_{key_base}"] = tickers
+        st.session_state[f"ips_icon_table_{key_base}"] = df_icon
+        st.session_state[f"ips_raw_table_{key_base}"] = df_raw
 
         return df_icon, df_raw, fund_blocks, fund_types
 
@@ -412,6 +418,13 @@ def step3_5_6_scorecard_and_ips(
     regular_icon_df, regular_raw_df, regular_blocks, regular_types = process_section("Regular Scorecard", scorecard_page)
     proposed_page = st.session_state.get("scorecard_proposed_page")
     proposed_icon_df, proposed_raw_df, proposed_blocks, proposed_types = process_section("Proposed Funds", proposed_page)
+
+    # --- Ensure regular fallback mappings exist ---
+    if not st.session_state.get("fund_tickers_Regular_Scorecard"):
+        # legacy fallback
+        st.session_state["fund_tickers_Regular_Scorecard"] = st.session_state.get("tickers", {}).copy()
+    if not st.session_state.get("fund_types_Regular_Scorecard"):
+        st.session_state["fund_types_Regular_Scorecard"] = st.session_state.get("fund_types", {}).copy() if st.session_state.get("fund_types") else {}
 
     # --- Display header ---
     st.subheader("IPS Screening Results")
@@ -491,16 +504,19 @@ def step3_5_6_scorecard_and_ips(
             factsheets_page
         )
         for itm in perf_data:
-            itm["Ticker"] = st.session_state.get("fund_tickers_Regular_Scorecard", {}).get(itm.get("Fund Scorecard Name", ""), "")
+            itm["Ticker"] = get_regular_tickers().get(itm.get("Fund Scorecard Name", ""), "")
         st.session_state["fund_performance_data"] = perf_data
 
-    # Legacy tickers
-    st.session_state["tickers"] = st.session_state.get("fund_tickers_Regular_Scorecard", {})
+    # Legacy tickers: keep backward compatibility
+    st.session_state["tickers"] = get_regular_tickers()
 
-#def _process_factsheet_section(pdf, fund_names, page_key, suppress_output, section_label):
-    import re
-    from rapidfuzz import fuzz
-    factsheet_start = st.session_state.get(page_key)
+
+#───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
+
+def step6_process_factsheets(pdf, fund_names, suppress_output=True):
+    # If you ever want UI, set suppress_output=False when calling
+
+    factsheet_start = st.session_state.get("factsheets_page")
     total_declared = st.session_state.get("total_options")
     performance_data = [
         {"Fund Scorecard Name": name, "Ticker": ticker}
@@ -508,37 +524,23 @@ def step3_5_6_scorecard_and_ips(
     ]
 
     if not factsheet_start:
-        return []  # nothing extracted
+        if not suppress_output:
+            st.error("❌ 'Fund Factsheets' page number not found in TOC.")
+        return
 
     matched_factsheets = []
     for i in range(factsheet_start - 1, len(pdf.pages)):
         page = pdf.pages[i]
-        full_text = page.extract_text() or ""
-        lines = [ln.strip() for ln in full_text.splitlines() if ln.strip()]
+        words = page.extract_words(use_text_flow=True)
+        header_words = [w['text'] for w in words if w['top'] < 100]
+        first_line = " ".join(header_words).strip()
 
-        # Find the line that has both Benchmark: and Expense Ratio:
-        candidate_line = None
-        for ln in lines:
-            if "Benchmark:" in ln and "Expense Ratio:" in ln:
-                candidate_line = ln
-                break
-        if not candidate_line:
+        if not first_line or "Benchmark:" not in first_line or "Expense Ratio:" not in first_line:
             continue
 
-        first_line = candidate_line
-
-        # Extract ticker (1–5 uppercase letters) - fallback to nearest uppercase group
-        ticker_match = re.search(r"\b([A-Z]{1,5})\b", first_line)
+        ticker_match = re.search(r"\b([A-Z]{5})\b", first_line)
         ticker = ticker_match.group(1) if ticker_match else ""
-
-        # Fund name is everything before the ticker if ticker present, else full line minus known labels
-        if ticker:
-            fund_name_raw = first_line.split(ticker)[0].strip()
-        else:
-            # remove known label fragments to try to isolate name
-            cleaned = re.sub(r"Benchmark:.*", "", first_line)
-            cleaned = re.sub(r"Expense Ratio:.*", "", cleaned)
-            fund_name_raw = cleaned.strip()
+        fund_name_raw = first_line.split(ticker)[0].strip() if ticker else first_line
 
         best_score = 0
         matched_name = matched_ticker = ""
@@ -546,7 +548,7 @@ def step3_5_6_scorecard_and_ips(
             ref = f"{item['Fund Scorecard Name']} {item['Ticker']}".strip()
             score = fuzz.token_sort_ratio(f"{fund_name_raw} {ticker}".lower(), ref.lower())
             if score > best_score:
-                best_score, matched_name, matched_ticker = score, item["Fund Scorecard Name"], item["Ticker"]
+                best_score, matched_name, matched_ticker = score, item['Fund Scorecard Name'], item['Ticker']
 
         def extract_field(label, text, stop=None):
             try:
@@ -559,11 +561,11 @@ def step3_5_6_scorecard_and_ips(
                 return ""
 
         benchmark = extract_field("Benchmark:", first_line, "Category:")
-        category = extract_field("Category:", first_line, "Net Assets:")
-        net_assets = extract_field("Net Assets:", first_line, "Manager Name:")
-        manager = extract_field("Manager Name:", first_line, "Avg. Market Cap:")
-        avg_cap = extract_field("Avg. Market Cap:", first_line, "Expense Ratio:")
-        expense = extract_field("Expense Ratio:", first_line)
+        category  = extract_field("Category:", first_line, "Net Assets:")
+        net_assets= extract_field("Net Assets:", first_line, "Manager Name:")
+        manager   = extract_field("Manager Name:", first_line, "Avg. Market Cap:")
+        avg_cap   = extract_field("Avg. Market Cap:", first_line, "Expense Ratio:")
+        expense   = extract_field("Expense Ratio:", first_line)
 
         matched_factsheets.append({
             "Page #": i + 1,
@@ -578,11 +580,27 @@ def step3_5_6_scorecard_and_ips(
             "Avg. Market Cap": avg_cap,
             "Expense Ratio": expense,
             "Match Score": best_score,
-            "Matched": "✅" if best_score > 20 else "❌",
-            "Section": section_label,
+            "Matched": "✅" if best_score > 20 else "❌"
         })
 
-    return matched_factsheets
+    df_facts = pd.DataFrame(matched_factsheets)
+    st.session_state['fund_factsheets_data'] = matched_factsheets
+
+    # Hide UI output unless suppress_output is False
+    if not suppress_output:
+        display_df = df_facts[[
+            "Matched Fund Name", "Matched Ticker", "Benchmark", "Category",
+            "Net Assets", "Manager Name", "Avg. Market Cap", "Expense Ratio", "Matched"
+        ]].rename(columns={"Matched Fund Name": "Fund Name", "Matched Ticker": "Ticker"})
+
+        st.dataframe(display_df, use_container_width=True)
+
+        matched_count = sum(1 for r in matched_factsheets if r["Matched"] == "✅")
+        st.write(f"Matched {matched_count} of {len(matched_factsheets)} factsheet pages.")
+        if matched_count == total_declared:
+            st.success(f"All {matched_count} funds matched the declared Total Options from Page 1.")
+        else:
+            st.error(f"Mismatch: Page 1 declared {total_declared}, but only matched {matched_count}.")
 
 #───Step 7: QTD / 1Yr / 3Yr / 5Yr / 10Yr / Net Expense Ratio & Bench QTD──────────────────────────────────────────────────────────────────
 
@@ -594,18 +612,11 @@ def step7_extract_returns(pdf):
 
     # 1) Where to scan
     perf_page = st.session_state.get("performance_page")
-    end_page = st.session_state.get("calendar_year_page") or (len(pdf.pages) + 1)
+    end_page  = st.session_state.get("calendar_year_page") or (len(pdf.pages) + 1)
     perf_data = st.session_state.get("fund_performance_data", [])
     if perf_page is None or not perf_data:
-        st.error("❌ Run Step 5 first to populate performance data.")
+        st.error("❌ Run Step 5 first to populate performance data.")
         return
-
-    # Determine which funds are proposed vs regular
-    proposed_blocks = st.session_state.get("fund_blocks_Proposed_Funds", []) or []
-    regular_blocks = st.session_state.get("fund_blocks_Regular_Scorecard", []) or []
-
-    proposed_names = set(b.get("Fund Name") for b in proposed_blocks if b.get("Fund Name"))
-    regular_names = set(b.get("Fund Name") for b in regular_blocks if b.get("Fund Name"))
 
     # 2) Prep output slots
     fields = [
@@ -615,14 +626,6 @@ def step7_extract_returns(pdf):
     for itm in perf_data:
         for f in fields:
             itm.setdefault(f, None)
-        # assign section based on name matching
-        name = itm.get("Fund Scorecard Name", "")
-        if name in proposed_names:
-            itm["Section"] = "Proposed Funds"
-        elif name in regular_names:
-            itm["Section"] = "Regular"
-        else:
-            itm["Section"] = "Unknown"
 
     # 3) Gather every nonblank line in the Performance section
     lines = []
@@ -636,7 +639,7 @@ def step7_extract_returns(pdf):
     matched = 0
     for item in perf_data:
         name = item["Fund Scorecard Name"]
-        tk = item["Ticker"].upper().strip()
+        tk   = item["Ticker"].upper().strip()
 
         # a) Exact-ticker match
         idx = next(
@@ -664,11 +667,11 @@ def step7_extract_returns(pdf):
             clean += [None] * (8 - len(clean))
 
         # d) Map fund returns & net expense
-        item["QTD"] = clean[0]
-        item["1Yr"] = clean[2]
-        item["3Yr"] = clean[3]
-        item["5Yr"] = clean[4]
-        item["10Yr"] = clean[5]
+        item["QTD"]               = clean[0]
+        item["1Yr"]               = clean[2]
+        item["3Yr"]               = clean[3]
+        item["5Yr"]               = clean[4]
+        item["10Yr"]              = clean[5]
         item["Net Expense Ratio"] = clean[-2]
 
         # e) Pull benchmark QTD, 1Yr, 3Yr, 5Yr, and 10Yr from the very next line(s)
@@ -679,7 +682,7 @@ def step7_extract_returns(pdf):
             bench_raw = num_rx.findall(lines[idx + 2])
         bench_clean = [n.strip("()%").rstrip("%") for n in bench_raw]
 
-        item["Bench QTD"] = bench_clean[0] if len(bench_clean) > 0 else None
+        item["Bench QTD"]  = bench_clean[0] if len(bench_clean) > 0 else None
         item["Bench 1Yr"] = bench_clean[1] if len(bench_clean) > 1 else None
         item["Bench 3Yr"] = bench_clean[3] if len(bench_clean) > 3 else None
         item["Bench 5Yr"] = bench_clean[4] if len(bench_clean) > 4 else None
@@ -690,26 +693,17 @@ def step7_extract_returns(pdf):
     # 5) Save & display
     st.session_state["fund_performance_data"] = perf_data
     df = pd.DataFrame(perf_data)
+    # Hide the per-fund warnings and overall success message, but still alert if something is off
+    
+    expected_count = len(perf_data)
+    if matched < expected_count:
+        st.error(f"❌ Only matched {matched} of {expected_count} funds with return data. Check your PDF or extraction logic.")
+    # (Do NOT display per-fund warnings or success)
 
-    if matched < len(perf_data):
-        st.error(f"❌ Only matched {matched} of {len(perf_data)} funds with return data. Check your PDF or extraction logic.")
-
-    # Split and display by section
-    def display_section(name):
-        df_section = df[df["Section"] == name]
-        if df_section.empty:
-            st.info(f"No performance data for {name}.")
-            return
-        st.markdown(f"## Performance — {name}")
-        st.dataframe(
-            df_section[["Fund Scorecard Name", "Ticker"] + fields],
-            use_container_width=True
-        )
-
-    display_section("Regular")
-    display_section("Proposed Funds")
-    display_section("Unknown")  # catch-alls if any
-
+    st.dataframe(
+        df[["Fund Scorecard Name", "Ticker"] + fields],
+        use_container_width=True
+    )
 
 
 #───Step 8 Calendar Year Returns (funds + benchmarks──────────────────────────────────────────────────────────────────
@@ -718,7 +712,7 @@ def step8_calendar_returns(pdf):
     import re, streamlit as st, pandas as pd
 
     # 1) Figure out section bounds
-    cy_page = st.session_state.get("calendar_year_page")
+    cy_page  = st.session_state.get("calendar_year_page")
     end_page = st.session_state.get("r3yr_page", len(pdf.pages) + 1)
     if cy_page is None:
         st.error("❌ 'Fund Performance: Calendar Year' not found in TOC.")
@@ -726,7 +720,7 @@ def step8_calendar_returns(pdf):
 
     # 2) Pull every line from that section
     all_lines = []
-    for p in pdf.pages[cy_page - 1: end_page - 1]:
+    for p in pdf.pages[cy_page-1 : end_page-1]:
         all_lines.extend((p.extract_text() or "").splitlines())
 
     # 3) Identify header & years
@@ -737,95 +731,50 @@ def step8_calendar_returns(pdf):
     years = re.findall(r"\b20\d{2}\b", header)
     num_rx = re.compile(r"-?\d+\.\d+%?")
 
-    # Helper to build fund return table given a mapping of names->tickers and label
-    def build_fund_table(fund_name_set, label):
-        fund_records = []
-        # Determine tickers source per section: legacy single tickers map for regular, 
-        # but if you stored separate ones use those session keys
-        if label == "Regular":
-            fund_blocks = st.session_state.get("fund_blocks_Regular_Scorecard", []) or []
-            tickers_map = st.session_state.get("fund_tickers_Regular_Scorecard", {}) or st.session_state.get("tickers", {})
-        else:  # Proposed
-            fund_blocks = st.session_state.get("fund_blocks_Proposed_Funds", []) or []
-            tickers_map = st.session_state.get("fund_tickers_Proposed_Funds", {}) or {}
-        for b in fund_blocks:
-            name = b.get("Fund Name")
-            if not name:
-                continue
-            ticker = (tickers_map.get(name, "") or "").upper()
-            idx = next((i for i, ln in enumerate(all_lines) if ticker and ticker in ln.split()), None)
-            raw = num_rx.findall(all_lines[idx - 1]) if idx not in (None, 0) else []
-            vals = raw[:len(years)] + [None] * (len(years) - len(raw))
-            rec = {"Name": name, "Ticker": ticker, "Section": label}
-            rec.update({years[i]: vals[i] for i in range(len(years))})
-            fund_records.append(rec)
-        return fund_records
+    # — A) Funds themselves —
+    fund_map     = st.session_state.get("tickers", {})
+    fund_records = []
+    for name, tk in fund_map.items():
+        ticker = (tk or "").upper()
+        idx    = next((i for i, ln in enumerate(all_lines) if ticker in ln.split()), None)
+        raw    = num_rx.findall(all_lines[idx-1]) if idx not in (None, 0) else []
+        vals   = raw[:len(years)] + [None] * (len(years) - len(raw))
+        rec    = {"Name": name, "Ticker": ticker}
+        rec.update({years[i]: vals[i] for i in range(len(years))})
+        fund_records.append(rec)
 
-    # Build for both sections
-    regular_fund_records = build_fund_table(None, "Regular")
-    proposed_fund_records = build_fund_table(None, "Proposed Funds")
-
-    # Combine and display
-    if regular_fund_records:
-        df_regular = pd.DataFrame(regular_fund_records)
-        st.markdown("**Fund Calendar-Year Returns — Regular**")
-        cols = ["Name", "Ticker"] + years
-        st.dataframe(df_regular[cols], use_container_width=True)
-    else:
-        st.info("No regular fund calendar-year returns found.")
-
-    if proposed_fund_records:
-        df_proposed = pd.DataFrame(proposed_fund_records)
-        st.markdown("**Fund Calendar-Year Returns — Proposed Funds**")
-        cols = ["Name", "Ticker"] + years
-        st.dataframe(df_proposed[cols], use_container_width=True)
-    else:
-        st.info("No proposed fund calendar-year returns found.")
-
-    # Save combined for downstream if desired
-    combined_fund_records = regular_fund_records + proposed_fund_records
-    st.session_state["step8_returns"] = combined_fund_records
+    df_fund = pd.DataFrame(fund_records)
+    if not df_fund.empty:
+        st.markdown("**Fund Calendar‑Year Returns**")
+        st.dataframe(df_fund[["Name", "Ticker"] + years], use_container_width=True)
+        st.session_state["step8_returns"] = fund_records
 
     # — B) Benchmarks matched back to each fund’s ticker —
-    facts = st.session_state.get("fund_factsheets_data", []) or []
-    # Separate benchmark records by section from factsheets' "Section" field
-    bench_by_section = {"Regular": [], "Proposed Funds": []}
+    facts         = st.session_state.get("fund_factsheets_data", [])
+    bench_records = []
     for f in facts:
         bench_name = f.get("Benchmark", "").strip()
-        fund_tkr = f.get("Matched Ticker", "")
-        section = f.get("Section", "Regular")  # fallback to Regular
+        fund_tkr   = f.get("Matched Ticker", "")
         if not bench_name:
             continue
+
+        # find the first line containing the benchmark name
         idx = next((i for i, ln in enumerate(all_lines) if bench_name in ln), None)
         if idx is None:
             continue
-        raw = num_rx.findall(all_lines[idx])
+        raw  = num_rx.findall(all_lines[idx])
         vals = raw[:len(years)] + [None] * (len(years) - len(raw))
-        rec = {"Name": bench_name, "Ticker": fund_tkr, "Section": section}
+        rec  = {"Name": bench_name, "Ticker": fund_tkr}
         rec.update({years[i]: vals[i] for i in range(len(years))})
-        if section in bench_by_section:
-            bench_by_section[section].append(rec)
-        else:
-            bench_by_section["Regular"].append(rec)
+        bench_records.append(rec)
 
-    if bench_by_section["Regular"]:
-        df_bench_reg = pd.DataFrame(bench_by_section["Regular"])
-        st.markdown("**Benchmark Calendar-Year Returns — Regular**")
-        cols = ["Name", "Ticker"] + years
-        st.dataframe(df_bench_reg[cols], use_container_width=True)
-        st.session_state["benchmark_calendar_year_returns_regular"] = bench_by_section["Regular"]
+    df_bench = pd.DataFrame(bench_records)
+    if not df_bench.empty:
+        st.markdown("**Benchmark Calendar‑Year Returns**")
+        st.dataframe(df_bench[["Name", "Ticker"] + years], use_container_width=True)
+        st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
-        st.warning("No regular benchmark returns extracted.")
-
-    if bench_by_section["Proposed Funds"]:
-        df_bench_prop = pd.DataFrame(bench_by_section["Proposed Funds"])
-        st.markdown("**Benchmark Calendar-Year Returns — Proposed Funds**")
-        cols = ["Name", "Ticker"] + years
-        st.dataframe(df_bench_prop[cols], use_container_width=True)
-        st.session_state["benchmark_calendar_year_returns_proposed"] = bench_by_section["Proposed Funds"]
-    else:
-        st.info("No proposed benchmark returns extracted.")
-
+        st.warning("No benchmark returns extracted.")
 
 #───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
 
@@ -833,215 +782,123 @@ def step9_risk_analysis_3yr(pdf):
     import re, streamlit as st, pandas as pd
     from rapidfuzz import fuzz
 
-    def extract_section(section_label, fund_blocks_key, tickers_key, page_key):
-        fund_blocks = st.session_state.get(fund_blocks_key, []) or []
-        fund_map = st.session_state.get(tickers_key, {}) or {}
-        if not fund_blocks:
-            return None  # nothing to do
-        if not fund_map:
-            st.error(f"❌ No ticker mapping found for {section_label}.")
-            return None
+    # 1) Get your fund→ticker map
+    fund_map = st.session_state.get("tickers", {})
+    if not fund_map:
+        st.error("❌ No ticker mapping found. Run Step 5 first.")
+        return
 
-        start_page = st.session_state.get(page_key)
-        if not start_page:
-            st.error(f"❌ ‘Risk Analysis: MPT Statistics (3Yr)’ page not found; run Step 2 first.")
-            return None
+    # 2) Locate the “Risk Analysis: MPT Statistics (3Yr)” page
+    start_page = st.session_state.get("r3yr_page")
+    if not start_page:
+        st.error("❌ ‘Risk Analysis: MPT Statistics (3Yr)’ page not found; run Step 2 first.")
+        return
 
-        # scan forward until all tickers in this section are located
-        locs = {}
-        for pnum in range(start_page, len(pdf.pages) + 1):
-            lines = (pdf.pages[pnum - 1].extract_text() or "").splitlines()
-            for li, ln in enumerate(lines):
-                tokens = ln.split()
-                for fund in fund_blocks:
-                    name = fund.get("Fund Name")
-                    if not name or name in locs:
-                        continue
-                    tk = (fund_map.get(name, "") or "").upper()
-                    if tk and tk in tokens:
-                        locs[name] = {"page": pnum, "line": li}
-            if len(locs) == len(fund_blocks):
-                break
+    # 3) Scan forward until you’ve seen each ticker (no display)
+    locs = {}
+    for pnum in range(start_page, len(pdf.pages) + 1):
+        lines = (pdf.pages[pnum-1].extract_text() or "").splitlines()
+        for li, ln in enumerate(lines):
+            tokens = ln.split()
+            for fname, tk in fund_map.items():
+                if fname in locs: 
+                    continue
+                if tk.upper() in tokens:
+                    locs[fname] = {"page": pnum, "line": li}
+        if len(locs) == len(fund_map):
+            break
 
-        # extract stats
-        num_rx = re.compile(r"-?\d+\.\d+")
-        results = []
-        for fund in fund_blocks:
-            name = fund.get("Fund Name")
-            if not name:
-                continue
-            if name not in locs:
-                st.warning(f"⚠️ {section_label} - {name}: ticker not located in 3Yr MPT section.")
-                continue
-            info = locs[name]
-            page = pdf.pages[info["page"] - 1]
-            lines = (page.extract_text() or "").splitlines()
-            line = lines[info["line"]]
-            nums = num_rx.findall(line)
-            nums += [None] * (4 - len(nums))
-            alpha, beta, up, down = nums[:4]
-            results.append({
-                "Fund Name":             name,
-                "Ticker":                (fund_map.get(name, "") or "").upper(),
-                "3 Year Alpha":          alpha,
-                "3 Year Beta":           beta,
-                "3 Year Upside Capture": up,
-                "3 Year Downside Capture": down,
-                "Section":               section_label,
-            })
-        return results
+    # 4) Extract the first four numeric MPT stats from that same line
+    num_rx = re.compile(r"-?\d+\.\d+")
+    results = []
+    for name, info in locs.items():
+        page = pdf.pages[info["page"]-1]
+        lines = (page.extract_text() or "").splitlines()
+        line = lines[info["line"]]
+        nums = num_rx.findall(line)
+        nums += [None] * (4 - len(nums))
+        alpha, beta, up, down = nums[:4]
+        results.append({
+            "Fund Name":               name,
+            "Ticker":                  fund_map[name].upper(),
+            "3 Year Alpha":            alpha,
+            "3 Year Beta":             beta,
+            "3 Year Upside Capture":   up,
+            "3 Year Downside Capture": down
+        })
 
-    # Regular and Proposed extraction
-    regular_results = extract_section(
-        "Regular",
-        "fund_blocks_Regular_Scorecard",
-        "fund_tickers_Regular_Scorecard",
-        "r3yr_page"
-    ) or []
-    proposed_results = extract_section(
-        "Proposed Funds",
-        "fund_blocks_Proposed_Funds",
-        "fund_tickers_Proposed_Funds",
-        "r3yr_page"
-    ) or []
-
-    # Combine for state
-    all_results = (regular_results or []) + (proposed_results or [])
-    st.session_state["step9_mpt_stats"] = all_results
-
-    # Display
-    if regular_results:
-        df_reg = pd.DataFrame(regular_results)
-        st.markdown("## Risk Analysis (3Yr) — Regular Funds")
-        st.dataframe(df_reg[[
-            "Fund Name", "Ticker",
-            "3 Year Alpha", "3 Year Beta", "3 Year Upside Capture", "3 Year Downside Capture"
-        ]], use_container_width=True)
-    else:
-        st.info("No regular 3Yr MPT stats extracted.")
-
-    if proposed_results:
-        df_prop = pd.DataFrame(proposed_results)
-        st.markdown("## Risk Analysis (3Yr) — Proposed Funds")
-        st.dataframe(df_prop[[
-            "Fund Name", "Ticker",
-            "3 Year Alpha", "3 Year Beta", "3 Year Upside Capture", "3 Year Downside Capture"
-        ]], use_container_width=True)
-    else:
-        st.info("No proposed 3Yr MPT stats extracted.")
+    # 5) Display final table only
+    st.session_state["step9_mpt_stats"] = results
 
 #───Step 10: Risk Analysis (5Yr) – Match & Extract MPT Statistics──────────────────────────────────────────────────────────────────
 
 def step10_risk_analysis_5yr(pdf):
     import re, streamlit as st, pandas as pd
 
-    def extract_section(section_label, fund_blocks_key, tickers_key):
-        fund_blocks = st.session_state.get(fund_blocks_key, []) or []
-        fund_map = st.session_state.get(tickers_key, {}) or {}
-        if not fund_blocks:
-            return None
-        if not fund_map:
-            st.error(f"❌ No ticker mapping found for {section_label}. Run prior steps first.")
-            return None
+    # 1) Your fund→ticker map from Step 5
+    fund_map = st.session_state.get("tickers", {})
+    if not fund_map:
+        st.error("❌ No ticker mapping found. Run Step 5 first.")
+        return
 
-        # Locate the header page for 5Yr MPT stats
-        section_page = next(
-            (i for i, pg in enumerate(pdf.pages, start=1)
-             if "Risk Analysis: MPT Statistics (5Yr)" in (pg.extract_text() or "")),
-            None
-        )
-        if section_page is None:
-            st.error("❌ Could not find ‘Risk Analysis: MPT Statistics (5Yr)’ section.")
-            return None
+    # 2) Locate the “Risk Analysis: MPT Statistics (5Yr)” section
+    section_page = next(
+        (i for i, pg in enumerate(pdf.pages, start=1)
+         if "Risk Analysis: MPT Statistics (5Yr)" in (pg.extract_text() or "")),
+        None
+    )
+    if section_page is None:
+        st.error("❌ Could not find ‘Risk Analysis: MPT Statistics (5Yr)’ section.")
+        return
 
-        # Scan forward until each fund in this section is located
-        locs = {}
-        for pnum in range(section_page, len(pdf.pages) + 1):
-            lines = (pdf.pages[pnum - 1].extract_text() or "").splitlines()
-            for li, ln in enumerate(lines):
-                tokens = ln.split()
-                for fund in fund_blocks:
-                    name = fund.get("Fund Name")
-                    if not name or name in locs:
-                        continue
-                    tk = (st.session_state.get(tickers_key, {}).get(name, "") or "").upper()
-                    if tk and tk in tokens:
-                        locs[name] = {"page": pnum, "line": li}
-            if len(locs) == len(fund_blocks):
-                break
+    # 3) Under‑the‑hood: scan pages until each ticker is located
+    locs = {}
+    total = len(fund_map)
+    for pnum in range(section_page, len(pdf.pages) + 1):
+        lines = (pdf.pages[pnum-1].extract_text() or "").splitlines()
+        for li, ln in enumerate(lines):
+            tokens = ln.split()
+            for name, tk in fund_map.items():
+                if name in locs:
+                    continue
+                if tk.upper() in tokens:
+                    locs[name] = {"page": pnum, "line": li}
+        if len(locs) == total:
+            break
 
-        num_rx = re.compile(r"-?\d+\.\d+")
-        results = []
-        for fund in fund_blocks:
-            name = fund.get("Fund Name")
-            if not name:
-                continue
-            tk = (st.session_state.get(tickers_key, {}).get(name, "") or "").upper()
-            info = locs.get(name)
-            vals = [None] * 4
-            if info:
-                page = pdf.pages[info["page"] - 1]
-                text_lines = (page.extract_text() or "").splitlines()
-                idx = info["line"]
-                nums = []
-                # look on the ticker line and up to two lines after
-                for j in range(idx, min(idx + 3, len(text_lines))):
-                    nums += num_rx.findall(text_lines[j])
-                    if len(nums) >= 4:
-                        break
-                nums += [None] * (4 - len(nums))
-                vals = nums[:4]
-            else:
-                st.warning(f"⚠️ {section_label} - {name} ({tk}): not found after locating section.")
+    # 4) Wrap‑aware extraction of the first four floats after each ticker line
+    num_rx = re.compile(r"-?\d+\.\d+")
+    results = []
+    for name, tk in fund_map.items():
+        info = locs.get(name)
+        vals = [None] * 4
+        if info:
+            page = pdf.pages[info["page"] - 1]
+            text_lines = (page.extract_text() or "").splitlines()
+            idx = info["line"]
+            nums = []
+            # look on the line of the ticker and up to the next 2 lines
+            for j in range(idx, min(idx + 3, len(text_lines))):
+                nums += num_rx.findall(text_lines[j])
+                if len(nums) >= 4:
+                    break
+            nums += [None] * (4 - len(nums))
+            vals = nums[:4]
+        else:
+            st.warning(f"⚠️ {name} ({tk.upper()}): not found after page {section_page}.")
 
-            alpha5, beta5, up5, down5 = vals
-            results.append({
-                "Fund Name":                  name,
-                "Ticker":                     tk,
-                "5 Year Alpha":              alpha5,
-                "5 Year Beta":               beta5,
-                "5 Year Upside Capture":     up5,
-                "5 Year Downside Capture":   down5,
-                "Section":                   section_label,
-            })
-        return results
+        alpha5, beta5, up5, down5 = vals
+        results.append({
+            "Fund Name":               name,
+            "Ticker":                  tk.upper(),
+            "5 Year Alpha":            alpha5,
+            "5 Year Beta":             beta5,
+            "5 Year Upside Capture":   up5,
+            "5 Year Downside Capture": down5,
+        })
 
-    # Extract for both Regular and Proposed Funds
-    regular_results = extract_section(
-        "Regular",
-        "fund_blocks_Regular_Scorecard",
-        "fund_tickers_Regular_Scorecard"
-    ) or []
-    proposed_results = extract_section(
-        "Proposed Funds",
-        "fund_blocks_Proposed_Funds",
-        "fund_tickers_Proposed_Funds"
-    ) or []
-
-    all_results = (regular_results or []) + (proposed_results or [])
-    st.session_state["step10_mpt_stats"] = all_results
-
-    # Display
-    if regular_results:
-        df_reg = pd.DataFrame(regular_results)
-        st.markdown("## Risk Analysis (5Yr) — Regular Funds")
-        st.dataframe(df_reg[[
-            "Fund Name", "Ticker",
-            "5 Year Alpha", "5 Year Beta", "5 Year Upside Capture", "5 Year Downside Capture"
-        ]], use_container_width=True)
-    else:
-        st.info("No regular 5Yr MPT stats extracted.")
-
-    if proposed_results:
-        df_prop = pd.DataFrame(proposed_results)
-        st.markdown("## Risk Analysis (5Yr) — Proposed Funds")
-        st.dataframe(df_prop[[
-            "Fund Name", "Ticker",
-            "5 Year Alpha", "5 Year Beta", "5 Year Upside Capture", "5 Year Downside Capture"
-        ]], use_container_width=True)
-    else:
-        st.info("No proposed 5Yr MPT stats extracted.")
-
+    # 5) Save & display only the consolidated table
+    st.session_state["step10_mpt_stats"] = results
 
 #───Step 11: Combined MPT Statistics Summary──────────────────────────────────────────────────────────────────
 
@@ -1049,111 +906,45 @@ def step11_create_summary(pdf=None):
     import pandas as pd
     import streamlit as st
 
-    # 1) Load your 3-Yr and 5-Yr stats from session state
-    mpt3 = st.session_state.get("step9_mpt_stats", []) or []
-    mpt5 = st.session_state.get("step10_mpt_stats", []) or []
+    # 1) Load your 3‑Yr and 5‑Yr stats from session state
+    mpt3 = st.session_state.get("step9_mpt_stats", [])
+    mpt5 = st.session_state.get("step10_mpt_stats", [])
     if not mpt3 or not mpt5:
         st.error("❌ Missing MPT stats. Run Steps 9 & 10 first.")
         return
 
-    # 2) Build DataFrames and ensure Section exists
-    df3 = pd.DataFrame(mpt3)
-    df5 = pd.DataFrame(mpt5)
+    # 2) Build DataFrames
+    df3 = pd.DataFrame(mpt3)  # contains "3 Year Alpha", "3 Year Beta", etc.
+    df5 = pd.DataFrame(mpt5)  # contains "5 Year Alpha", "5 Year Beta", etc.
 
-    # If Section column is missing, assume all Regular for backwards compatibility
-    if "Section" not in df3.columns:
-        df3["Section"] = "Regular"
-    if "Section" not in df5.columns:
-        df5["Section"] = "Regular"
+    # 3) Merge on Fund Name & Ticker
+    df = pd.merge(
+        df3,
+        df5,
+        on=["Fund Name", "Ticker"],
+        how="outer",
+        suffixes=("_3yr", "_5yr")
+    )
 
-    # 3) Determine all sections present in either
-    sections = sorted(set(df3["Section"].unique()) | set(df5["Section"].unique()))
+    # 4) Build the Investment Manager column
+    df.insert(0, "Investment Manager", df["Fund Name"] + " (" + df["Ticker"] + ")")
 
-    summary_records = []
-    for section in sections:
-        sub3 = df3[df3["Section"] == section]
-        sub5 = df5[df5["Section"] == section]
+    # 5) Select & order the columns
+    df = df[[
+        "Investment Manager",
+        "3 Year Alpha",
+        "5 Year Alpha",
+        "3 Year Beta",
+        "5 Year Beta",
+        "3 Year Upside Capture",
+        "3 Year Downside Capture",
+        "5 Year Upside Capture",
+        "5 Year Downside Capture"
+    ]]
 
-        if sub3.empty and sub5.empty:
-            continue  # nothing to do for this section
-
-        # 4) Merge on Fund Name & Ticker within this section
-        merged = pd.merge(
-            sub3,
-            sub5,
-            on=["Fund Name", "Ticker", "Section"],
-            how="outer",
-            suffixes=("_3yr", "_5yr"),
-        )
-
-        # 5) Build Investment Manager column
-        merged.insert(0, "Investment Manager", merged["Fund Name"] + " (" + merged["Ticker"] + ")")
-
-        # 6) Select & normalize the desired columns (falling back if missing)
-        def col(name):
-            return name if name in merged.columns else None
-
-        desired = [
-            "Investment Manager",
-            "3 Year Alpha",
-            "5 Year Alpha",
-            "3 Year Beta",
-            "5 Year Beta",
-            "3 Year Upside Capture",
-            "3 Year Downside Capture",
-            "5 Year Upside Capture",
-            "5 Year Downside Capture",
-            "Section",
-        ]
-
-        # Handle suffixed names if necessary (in case columns got merged with suffix)
-        col_map = {
-            "3 Year Alpha": merged.columns[merged.columns.str.contains(r"3 Year Alpha(_3yr)?$", regex=True)][0]
-            if any(merged.columns.str.contains(r"3 Year Alpha(_3yr)?$", regex=True)) else "3 Year Alpha",
-            "5 Year Alpha": merged.columns[merged.columns.str.contains(r"5 Year Alpha(_5yr)?$", regex=True)][0]
-            if any(merged.columns.str.contains(r"5 Year Alpha(_5yr)?$", regex=True)) else "5 Year Alpha",
-            "3 Year Beta": merged.columns[merged.columns.str.contains(r"3 Year Beta(_3yr)?$", regex=True)][0]
-            if any(merged.columns.str.contains(r"3 Year Beta(_3yr)?$", regex=True)) else "3 Year Beta",
-            "5 Year Beta": merged.columns[merged.columns.str.contains(r"5 Year Beta(_5yr)?$", regex=True)][0]
-            if any(merged.columns.str.contains(r"5 Year Beta(_5yr)?$", regex=True)) else "5 Year Beta",
-            "3 Year Upside Capture": merged.columns[merged.columns.str.contains(r"3 Year Upside Capture(_3yr)?$", regex=True)][0]
-            if any(merged.columns.str.contains(r"3 Year Upside Capture(_3yr)?$", regex=True)) else "3 Year Upside Capture",
-            "3 Year Downside Capture": merged.columns[merged.columns.str.contains(r"3 Year Downside Capture(_3yr)?$", regex=True)][0]
-            if any(merged.columns.str.contains(r"3 Year Downside Capture(_3yr)?$", regex=True)) else "3 Year Downside Capture",
-            "5 Year Upside Capture": merged.columns[merged.columns.str.contains(r"5 Year Upside Capture(_5yr)?$", regex=True)][0]
-            if any(merged.columns.str.contains(r"5 Year Upside Capture(_5yr)?$", regex=True)) else "5 Year Upside Capture",
-            "5 Year Downside Capture": merged.columns[merged.columns.str.contains(r"5 Year Downside Capture(_5yr)?$", regex=True)][0]
-            if any(merged.columns.str.contains(r"5 Year Downside Capture(_5yr)?$", regex=True)) else "5 Year Downside Capture",
-        }
-
-        final_cols = [
-            "Investment Manager",
-            col_map["3 Year Alpha"],
-            col_map["5 Year Alpha"],
-            col_map["3 Year Beta"],
-            col_map["5 Year Beta"],
-            col_map["3 Year Upside Capture"],
-            col_map["3 Year Downside Capture"],
-            col_map["5 Year Upside Capture"],
-            col_map["5 Year Downside Capture"],
-            "Section",
-        ]
-        # Filter out any missing columns gracefully
-        final_cols = [c for c in final_cols if c and c in merged.columns]
-        summary_df = merged[final_cols].copy()
-
-        # 7) Display per section
-        st.markdown(f"## Summary — {section}")
-        st.dataframe(summary_df, use_container_width=True)
-
-        # accumulate for combined output
-        summary_records.extend(summary_df.to_dict("records"))
-
-        # also persist per-section if desired
-        st.session_state[f"step11_summary_{section.replace(' ', '_').lower()}"] = summary_df.to_dict("records")
-
-    # 8) Persist combined summary
-    st.session_state["step11_summary"] = summary_records
+    # 6) Display
+    st.session_state["step11_summary"] = df.to_dict("records")
+    st.dataframe(df)
 
 #───Step 12: Extract “FUND FACTS” & Its Table Details in One Go──────────────────────────────────────────────────────────────────
 
@@ -1162,91 +953,59 @@ def step12_process_fund_facts(pdf):
     import streamlit as st
     import pandas as pd
 
-    fs_start = st.session_state.get("factsheets_page")
-    proposed_fs_start = st.session_state.get("factsheets_proposed_page")
+    fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
-    if not (fs_start or proposed_fs_start) or not factsheets:
+    if not fs_start or not factsheets:
         st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
-    # Build map: page -> list of (Matched Fund Name, Matched Ticker, Section)
-    page_map = {}
-    for f in factsheets:
-        page = f.get("Page #")
-        if not page:
-            continue
-        entry = (
-            f.get("Matched Fund Name", ""),
-            f.get("Matched Ticker", ""),
-            f.get("Section", "Regular"),
-        )
-        page_map.setdefault(page, []).append(entry)
+    # map factsheet pages to fund name & ticker
+    page_map = {
+        f["Page #"]: (f["Matched Fund Name"], f["Matched Ticker"])
+        for f in factsheets
+    }
 
+    # the exact labels and the order you want them in the table
     labels = [
         "Manager Tenure Yrs.",
         "Expense Ratio",
         "Expense Ratio Rank",
         "Total Number of Holdings",
-        "Turnover Ratio",
+        "Turnover Ratio"
     ]
 
     records = []
-    # scan each relevant factsheet page (union of regular and proposed ranges)
-    max_page = len(pdf.pages)
-    for pnum, entries in page_map.items():
-        if pnum < 1 or pnum > max_page:
+    # scan each factsheet page
+    for pnum in range(fs_start, len(pdf.pages) + 1):
+        if pnum not in page_map:
             continue
-        lines = (pdf.pages[pnum - 1].extract_text() or "").splitlines()
-        for fund_name, ticker, section in entries:
-            for idx, line in enumerate(lines):
-                if line.lstrip().upper().startswith("FUND FACTS"):
-                    snippet = lines[idx + 1 : idx + 1 + 8]
-                    rec = {
-                        "Fund Name": fund_name,
-                        "Ticker": ticker,
-                        "Section": section,
-                        "Page #": pnum,
-                    }
-                    for lab in labels:
-                        val = None
-                        for ln in snippet:
-                            norm = " ".join(ln.strip().split())
-                            if norm.startswith(lab):
-                                rest = norm[len(lab):].strip(" :\t")
-                                m = re.match(r"(-?\d+\.\d+)", rest)
-                                val = m.group(1) if m else (rest.split()[0] if rest else None)
-                                break
-                        rec[lab] = val
-                    records.append(rec)
-                    break  # done with this page/fund
+        fund_name, ticker = page_map[pnum]
+        lines = pdf.pages[pnum-1].extract_text().splitlines()
+
+        for idx, line in enumerate(lines):
+            if line.lstrip().upper().startswith("FUND FACTS"):
+                # grab the next 8 lines (should contain your 5 labels)
+                snippet = lines[idx+1 : idx+1+8]
+                rec = {"Fund Name": fund_name, "Ticker": ticker}
+                for lab in labels:
+                    val = None
+                    for ln in snippet:
+                        norm = " ".join(ln.strip().split())
+                        if norm.startswith(lab):
+                            rest = norm[len(lab):].strip(" :\t")
+                            m = re.match(r"(-?\d+\.\d+)", rest)
+                            val = m.group(1) if m else (rest.split()[0] if rest else None)
+                            break
+                    rec[lab] = val
+                records.append(rec)
+                break  # move on to the next page once Fund Facts is processed
 
     if not records:
         st.warning("No Fund Facts tables found.")
         return
 
-    # Split by section
-    df_all = pd.DataFrame(records)
-    df_regular = df_all[df_all["Section"] == "Regular"].drop(columns=["Section"])
-    df_proposed = df_all[df_all["Section"] == "Proposed Funds"].drop(columns=["Section"])
-
-    # save to session
-    st.session_state["step12_fund_facts_table"] = records  # combined
-    st.session_state["step12_fund_facts_table_regular"] = df_regular.to_dict("records")
-    st.session_state["step12_fund_facts_table_proposed_funds"] = df_proposed.to_dict("records")
-
-    # Optionally display (you can remove if not desired)
-    st.markdown("## Fund Facts — Regular")
-    if not df_regular.empty:
-        st.dataframe(df_regular, use_container_width=True)
-    else:
-        st.info("No regular fund facts extracted.")
-
-    st.markdown("## Fund Facts — Proposed Funds")
-    if not df_proposed.empty:
-        st.dataframe(df_proposed, use_container_width=True)
-    else:
-        st.info("No proposed fund facts extracted.")
-
+    # save & show
+    st.session_state["step12_fund_facts_table"] = records
 
 #───Step 13: Extract Risk‑Adjusted Returns Metrics──────────────────────────────────────────────────────────────────
 
@@ -1255,89 +1014,65 @@ def step13_process_risk_adjusted_returns(pdf):
     import streamlit as st
     import pandas as pd
 
-    fs_start = st.session_state.get("factsheets_page")
-    proposed_fs_start = st.session_state.get("factsheets_proposed_page")
+    fs_start   = st.session_state.get("factsheets_page")
     factsheets = st.session_state.get("fund_factsheets_data", [])
-    if not (fs_start or proposed_fs_start) or not factsheets:
-        st.error("❌ Run Step 6 first to populate your factsheet pages.")
+    if not fs_start or not factsheets:
+        st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
-    # Build map: page -> list of (Matched Fund Name, Matched Ticker, Section)
-    page_map = {}
-    for f in factsheets:
-        page = f.get("Page #")
-        if not page:
-            continue
-        entry = (
-            f.get("Matched Fund Name", ""),
-            f.get("Matched Ticker", ""),
-            f.get("Section", "Regular"),
-        )
-        page_map.setdefault(page, []).append(entry)
+    # map factsheet pages to fund name & ticker
+    page_map = {
+        f["Page #"]: (f["Matched Fund Name"], f["Matched Ticker"])
+        for f in factsheets
+    }
 
+    # which metrics to pull
     metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
-    num_rx = re.compile(r"-?\d+\.\d+")
+    num_rx  = re.compile(r"-?\d+\.\d+")
 
     records = []
-    for pnum, entries in page_map.items():
-        if pnum < 1 or pnum > len(pdf.pages):
+    for pnum in range(fs_start, len(pdf.pages) + 1):
+        if pnum not in page_map:
             continue
-        lines = (pdf.pages[pnum - 1].extract_text() or "").splitlines()
-        for fund_name, ticker, section in entries:
-            for idx, line in enumerate(lines):
-                norm = " ".join(line.strip().split()).upper()
-                if norm.startswith("RISK-ADJUSTED RETURNS"):
-                    snippet = lines[idx + 1 : idx + 1 + 6]  # next few lines
-                    rec = {
-                        "Fund Name": fund_name,
-                        "Ticker": ticker,
-                        "Section": section,
-                        "Page #": pnum,
-                    }
+        fund_name, ticker = page_map[pnum]
+        lines = (pdf.pages[pnum-1].extract_text() or "").splitlines()
 
-                    for metric in metrics:
-                        text_line = next(
-                            (
-                                " ".join(ln.strip().split())
-                                for ln in snippet
-                                if ln.strip().upper().startswith(metric.upper())
-                            ),
-                            "",
-                        )
-                        nums = num_rx.findall(text_line or "")
-                        nums += [None] * (4 - len(nums))
-                        rec[f"{metric} 1Yr"] = nums[0]
-                        rec[f"{metric} 3Yr"] = nums[1]
-                        rec[f"{metric} 5Yr"] = nums[2]
-                        rec[f"{metric} 10Yr"] = nums[3]
+        # find the heading
+        for idx, line in enumerate(lines):
+            norm = " ".join(line.strip().split()).upper()
+            if norm.startswith("RISK-ADJUSTED RETURNS"):
+                snippet = lines[idx+1 : idx+1+6]  # grab next few lines
+                rec = {"Fund Name": fund_name, "Ticker": ticker}
 
-                    records.append(rec)
-                    break  # done with this fund on this page
+                for metric in metrics:
+                    # find the snippet line for this metric
+                    text_line = next(
+                        ( " ".join(ln.strip().split())
+                          for ln in snippet
+                          if ln.strip().upper().startswith(metric.upper()) ),
+                        None
+                    ) or ""
+                    # extract up to 4 numbers
+                    nums = num_rx.findall(text_line)
+                    nums += [None] * (4 - len(nums))
+
+                    # assign into rec
+                    rec[f"{metric} 1Yr"]  = nums[0]
+                    rec[f"{metric} 3Yr"]  = nums[1]
+                    rec[f"{metric} 5Yr"]  = nums[2]
+                    rec[f"{metric} 10Yr"] = nums[3]
+
+                records.append(rec)
+                break  # done with this page
 
     if not records:
-        st.warning("No 'RISK-ADJUSTED RETURNS' tables found.")
+        st.warning("No 'RISK‑ADJUSTED RETURNS' tables found.")
         return
 
     # save & show
     st.session_state["step13_risk_adjusted_table"] = records
-
-    df_all = pd.DataFrame(records)
-    df_regular = df_all[df_all["Section"] == "Regular"].drop(columns=["Section"])
-    df_proposed = df_all[df_all["Section"] == "Proposed Funds"].drop(columns=["Section"])
-
-    st.markdown("## Risk-Adjusted Returns — Regular")
-    if not df_regular.empty:
-        st.dataframe(df_regular, use_container_width=True)
-        st.session_state["step13_risk_adjusted_table_regular"] = df_regular.to_dict("records")
-    else:
-        st.info("No regular risk-adjusted returns extracted.")
-
-    st.markdown("## Risk-Adjusted Returns — Proposed Funds")
-    if not df_proposed.empty:
-        st.dataframe(df_proposed, use_container_width=True)
-        st.session_state["step13_risk_adjusted_table_proposed_funds"] = df_proposed.to_dict("records")
-    else:
-        st.info("No proposed risk-adjusted returns extracted.")
+    df = pd.DataFrame(records)
+    st.dataframe(df, use_container_width=True)
 
 #───Step 14: Peer Risk-Adjusted Return Rank──────────────────────────────────────────────────────────────────
 
@@ -1353,97 +1088,66 @@ def step14_extract_peer_risk_adjusted_return_rank(pdf):
         st.error("❌ Run Step 6 first to populate your factsheet pages.")
         return
 
-    # Build map: page -> list of (Matched Fund Name, Matched Ticker, Section)
-    page_map = {}
-    for f in factsheets:
-        page = f.get("Page #")
-        if not page:
-            continue
-        entry = (
-            f.get("Matched Fund Name", ""),
-            f.get("Matched Ticker", ""),
-            f.get("Section", "Regular"),
-        )
-        page_map.setdefault(page, []).append(entry)
+    page_map = {
+        f["Page #"]:(f["Matched Fund Name"], f["Matched Ticker"])
+        for f in factsheets
+    }
 
     metrics = ["Sharpe Ratio", "Information Ratio", "Sortino Ratio"]
+    records = []
 
-    all_records = []
-    for pnum, entries in page_map.items():
-        if pnum < 1 or pnum > len(pdf.pages):
-            continue
-        page = pdf.pages[pnum - 1]
+    for pnum, (fund, ticker) in page_map.items():
+        page = pdf.pages[pnum-1]
         text = page.extract_text() or ""
         lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
 
-        for fund, ticker, section in entries:
-            # 1) locate the Risk-Adjusted Returns header
-            try:
-                risk_idx = next(i for i, ln in enumerate(lines) if "RISK-ADJUSTED RETURNS" in ln.upper())
-            except StopIteration:
-                st.warning(f"⚠️ {section} - {fund} ({ticker}): Risk-Adjusted header not found.")
-                continue
+        # 1) locate the Risk-Adjusted Returns header
+        try:
+            risk_idx = next(i for i, ln in enumerate(lines)
+                            if "RISK-ADJUSTED RETURNS" in ln.upper())
+        except StopIteration:
+            st.warning(f"⚠️ {fund} ({ticker}): Risk-Adjusted header not found.")
+            continue
 
-            # 2) find all “1 Yr 3 Yrs 5 Yrs 10 Yrs” lines after that
-            header_idxs = [i for i, ln in enumerate(lines) if re.match(r"1\s*Yr", ln, flags=re.IGNORECASE)]
-            peer_header_idxs = [i for i in header_idxs if i > risk_idx]
+        # 2) find all “1 Yr 3 Yrs 5 Yrs 10 Yrs” lines after that
+        header_idxs = [i for i, ln in enumerate(lines)
+                       if re.match(r"1\s*Yr", ln)]
+        peer_header_idxs = [i for i in header_idxs if i > risk_idx]
 
-            if not peer_header_idxs:
-                st.warning(f"⚠️ {section} - {fund} ({ticker}): peer header not found.")
-                continue
+        if not peer_header_idxs:
+            st.warning(f"⚠️ {fund} ({ticker}): peer header not found.")
+            continue
 
-            # take second occurrence if present (first is risk-adjusted, next is peer)
-            peer_hdr = peer_header_idxs[0] if len(peer_header_idxs) == 1 else peer_header_idxs[1]
+        # take the *second* header occurrence (first is Risk-Adjusted, next is Peer)
+        peer_hdr = peer_header_idxs[0] if len(peer_header_idxs)==1 else peer_header_idxs[1]
 
-            rec = {
-                "Fund Name": fund,
-                "Ticker": ticker,
-                "Section": section,
-                "Page #": pnum,
-            }
+        rec = {"Fund Name": fund, "Ticker": ticker}
 
-            # 3) read the three lines immediately below that header
-            for offset, metric in enumerate(metrics, start=1):
-                if peer_hdr + offset < len(lines):
-                    parts = lines[peer_hdr + offset].split()
-                    # assume parts like: "<Metric Name> ... <vals...>"
-                    vals = parts[2:6] if len(parts) >= 6 else []
-                else:
-                    vals = []
+        # 3) read the three lines immediately below that header
+        for offset, metric in enumerate(metrics, start=1):
+            if peer_hdr + offset < len(lines):
+                parts = lines[peer_hdr + offset].split()
+                # parts[0:2] = metric name words, parts[2:6] = the four integer ranks
+                vals = parts[2:6] if len(parts) >= 6 else []
+            else:
+                vals = []
 
-                for idx, period in enumerate(["1Yr", "3Yr", "5Yr", "10Yr"]):
-                    rec[f"{metric} {period}"] = vals[idx] if idx < len(vals) else None
+            # fill into record (pad with None if missing)
+            for idx, period in enumerate(["1Yr","3Yr","5Yr","10Yr"]):
+                rec[f"{metric} {period}"] = vals[idx] if idx < len(vals) else None
 
-                if len(vals) < 4:
-                    st.warning(f"⚠️ {section} - {fund} ({ticker}): only {len(vals)} peer values found for '{metric}'.")
+            if len(vals) < 4:
+                st.warning(f"⚠️ {fund} ({ticker}): only {len(vals)} peer values found for '{metric}'.")
 
-            all_records.append(rec)
+        records.append(rec)
 
-    if not all_records:
+    if not records:
         st.warning("❌ No Peer Risk-Adjusted Return Rank data extracted.")
         return
 
-    df_all = pd.DataFrame(all_records)
-    st.session_state["step14_peer_rank_table"] = all_records
-
-    # Split by section
-    df_regular = df_all[df_all["Section"] == "Regular"].drop(columns=["Section"])
-    df_proposed = df_all[df_all["Section"] == "Proposed Funds"].drop(columns=["Section"])
-
-    st.markdown("## Peer Risk-Adjusted Return Rank — Regular")
-    if not df_regular.empty:
-        st.dataframe(df_regular, use_container_width=True)
-        st.session_state["step14_peer_rank_table_regular"] = df_regular.to_dict("records")
-    else:
-        st.info("No regular peer rank data extracted.")
-
-    st.markdown("## Peer Risk-Adjusted Return Rank — Proposed Funds")
-    if not df_proposed.empty:
-        st.dataframe(df_proposed, use_container_width=True)
-        st.session_state["step14_peer_rank_table_proposed_funds"] = df_proposed.to_dict("records")
-    else:
-        st.info("No proposed peer rank data extracted.")
-
+    df = pd.DataFrame(records)
+    st.session_state["step14_peer_rank_table"] = records
+    st.dataframe(df, use_container_width=True)
 
 #───Step 14.5: IPS Fail Table──────────────────────────────────────────────────────────────────
 
