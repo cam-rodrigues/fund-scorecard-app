@@ -1243,45 +1243,71 @@ def step14_5_ips_fail_table():
 def step14_7_extract_proposed_fund_names_from_manager_tenure(pdf):
     import re
     import streamlit as st
-    from rapidfuzz import fuzz
-    import pandas as pd
 
     prop_page = st.session_state.get("scorecard_proposed_page")
     if not prop_page:
         st.error("❌ 'Fund Scorecard: Proposed Funds' page number not found in TOC.")
         return []
 
-    # Collect lines from proposed funds section (stop if a new major section starts)
-    lines = []
+    # 1. Collect lines starting at the Proposed Funds header, stopping when hitting a clear next major section.
+    all_lines = []
     for pnum in range(prop_page - 1, len(pdf.pages)):
         txt = pdf.pages[pnum].extract_text() or ""
         page_lines = [ln.strip() for ln in txt.splitlines() if ln.strip()]
-        # boundary heuristic
-        if pnum > prop_page - 1 and any(re.search(pat, " ".join(page_lines), re.IGNORECASE)
-                                       for pat in ["Fund Factsheets", "Fund Performance", "IPS Screening", "Scorecard Metrics"]):
+        all_lines.extend(page_lines)
+        # boundary: stop if we reach a section that clearly follows proposed funds
+        if any(re.search(pat, " ".join(page_lines), re.IGNORECASE)
+               for pat in ["FUND FACTS", "FUND CORRELATION MATRIX", "Single Fund Write Up", "Bullet Points", "Export to Powerpoint"]):
             break
-        lines.extend(page_lines)
 
-    if not lines:
+    if not all_lines:
         st.warning("No text found on Proposed Funds page.")
         return []
 
-    proposed_names = []
-    for idx, line in enumerate(lines):
-        if re.search(r"manager tenure", line, re.IGNORECASE):
-            # look backward for the first non-empty line before this
-            if idx == 0:
-                continue
-            candidate = lines[idx - 1].strip()
-            # filter out header noise like "Proposed Funds (Step 14.7)" etc.
-            if not candidate:
-                continue
-            low = candidate.lower()
-            if any(keyword in low for keyword in ["manager tenure", "excess performance", "criteria", "threshold", "proposed funds"]):
-                continue
-            proposed_names.append(candidate)
+    # 2. Find start of the Proposed Funds block
+    start_idx = 0
+    for i, ln in enumerate(all_lines):
+        if re.search(r"Proposed Funds", ln, re.IGNORECASE):
+            start_idx = i + 1
+            break
+    slice_lines = all_lines[start_idx:]
 
-    # Dedupe preserving order
+    # 3. Define noise to skip when walking backward
+    noise_keywords = [
+        "proposed funds", "manager tenure", "excess performance", "peer return rank",
+        "expense ratio rank", "sharpe ratio", "r-squared", "sortino ratio",
+        "tracking error", "criteria", "threshold", "pass", "review"
+    ]
+    header_noise_regex = re.compile(r"^(FUND FACTS\b|3 YEAR ROLLING STYLE\b|ASSET LOADINGS\b|CORRELATION MATRIX\b|WRITE UP\b|BULLET POINTS\b)", re.IGNORECASE)
+
+    proposed_names = []
+    for idx, line in enumerate(slice_lines):
+        if re.search(r"manager tenure", line, re.IGNORECASE):
+            # Walk backwards to find the first plausible fund name
+            j = idx - 1
+            while j >= 0:
+                candidate = slice_lines[j].strip()
+                if not candidate:
+                    j -= 1
+                    continue
+                low = candidate.lower()
+                # Skip if candidate is clearly noise/metric or section header
+                if any(kw in low for kw in noise_keywords):
+                    j -= 1
+                    continue
+                if header_noise_regex.search(candidate):
+                    j -= 1
+                    continue
+                # Heuristic: skip if candidate is all uppercase and very short (likely a label)
+                words = candidate.split()
+                if candidate.isupper() and len(words) <= 2:
+                    j -= 1
+                    continue
+                # Found a plausible fund name
+                proposed_names.append(candidate)
+                break
+
+    # Deduplicate while preserving order
     seen = set()
     deduped = []
     for name in proposed_names:
@@ -1289,37 +1315,18 @@ def step14_7_extract_proposed_fund_names_from_manager_tenure(pdf):
             seen.add(name)
             deduped.append(name)
 
-    # Optional: fuzzy match to canonical scorecard fund names if available
-    fund_blocks = st.session_state.get("fund_blocks", [])
-    known_funds = [fb.get("Fund Name", "") for fb in fund_blocks] if fund_blocks else []
-    matches = []
-    for raw in deduped:
-        best_match, best_score = None, 0
-        for k in known_funds:
-            score = fuzz.token_sort_ratio(raw.lower(), k.lower()) if known_funds else 0
-            if score > best_score:
-                best_score = score
-                best_match = k
-        matches.append({
-            "Raw Proposed Name": raw,
-            "Matched Scorecard Fund": best_match if best_score >= 70 else "",
-            "Match Score": best_score if best_match else None
-        })
-
-    # Save to session
+    # Save to session (raw names)
     st.session_state["proposed_funds_list"] = deduped
-    st.session_state["proposed_funds_matches_df"] = pd.DataFrame(matches)
 
     # Display
-    st.subheader("Proposed Funds (Step 14.7)")
+    st.subheader("Proposed Funds (Step 14.7) - Names from above Manager Tenure")
     if deduped:
-        st.table(st.session_state["proposed_funds_matches_df"][["Raw Proposed Name", "Matched Scorecard Fund", "Match Score"]])
+        for n in deduped:
+            st.write(f"- {n}")
     else:
-        st.write("No proposed fund names found via Manager Tenure anchors.")
+        st.write("No proposed fund names found via Manager Tenure anchor in the expected section.")
 
     return deduped
-
-
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
 
