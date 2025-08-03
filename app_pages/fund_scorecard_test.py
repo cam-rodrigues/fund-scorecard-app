@@ -1434,10 +1434,10 @@ def run():
         with st.expander("All Fund Details", expanded=True):
             # 1. IPS Investment Screening
             with st.expander("IPS Investment Screening", expanded=True):
-                sp = st.session_state.get('scorecard_page')
-                tot = st.session_state.get('total_options')
-                pp = st.session_state.get('performance_page')
-                factsheets_page = st.session_state.get('factsheets_page')
+                sp = st.session_state.get("scorecard_page")
+                tot = st.session_state.get("total_options")
+                pp = st.session_state.get("performance_page")
+                factsheets_page = st.session_state.get("factsheets_page")
                 if sp and tot is not None and pp:
                     step3_5_6_scorecard_and_ips(pdf, sp, pp, factsheets_page, tot)
                 else:
@@ -1452,18 +1452,18 @@ def run():
             with st.expander("Fund Facts (sub-headings)", expanded=False):
                 step12_process_fund_facts(pdf)
                 
-            # 3. Returns (annualized + calendar)
+            # 4. Returns (annualized + calendar)
             with st.expander("Returns", expanded=False):
                 step7_extract_returns(pdf)
                 step8_calendar_returns(pdf)
 
-            # 4. MPT Statistics Summary (requires risk analyses first)
+            # 5. MPT Statistics Summary (requires risk analyses first)
             with st.expander("MPT Statistics Summary", expanded=False):
                 step9_risk_analysis_3yr(pdf)
                 step10_risk_analysis_5yr(pdf)
                 step11_create_summary()
 
-            # 5. Risk-Adjusted Returns and Peer Rank
+            # 6. Risk-Adjusted Returns and Peer Rank
             with st.expander("Risk-Adjusted Returns", expanded=False):
                 step13_process_risk_adjusted_returns(pdf)
                 step14_extract_peer_risk_adjusted_return_rank(pdf)
@@ -1496,9 +1496,8 @@ def run():
         # Step 14.5: IPS Fail Table
         step14_5_ips_fail_table()
 
-        # Step 15: Populate template
+        # Step 15: Populate template (button is inside function)
         try:
-            filled_path = step15_populate_excel_template(
             filled_path = step15_populate_excel_template(
                 template_path="assets/investment_metrics_template.xlsx",
                 output_path="filled_investment_metrics.xlsx",
