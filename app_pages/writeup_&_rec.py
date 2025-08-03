@@ -1249,7 +1249,7 @@ def step14_7_extract_proposed_fund_names_from_manager_tenure(pdf):
         st.error("❌ 'Fund Scorecard: Proposed Funds' page number not found in TOC.")
         return []
 
-    # 1. Collect lines starting at the Proposed Funds header, stopping when hitting a clear next major section.
+    # 1. Collect lines starting at the Proposed Funds header, stop when hitting the next big section
     all_lines = []
     for pnum in range(prop_page - 1, len(pdf.pages)):
         txt = pdf.pages[pnum].extract_text() or ""
@@ -1263,7 +1263,7 @@ def step14_7_extract_proposed_fund_names_from_manager_tenure(pdf):
         st.warning("No text found on Proposed Funds page.")
         return []
 
-    # Locate the start of the Proposed Funds block
+    # Find start of Proposed Funds block
     start_idx = 0
     for i, ln in enumerate(all_lines):
         if re.search(r"Proposed Funds", ln, re.IGNORECASE):
@@ -1271,34 +1271,37 @@ def step14_7_extract_proposed_fund_names_from_manager_tenure(pdf):
             break
     slice_lines = all_lines[start_idx:]
 
-    # Helpers to identify junk
-    junk_terms = [
-        "proposed funds", "investment options", "fund facts", "3 year rolling style",
-        "asset loadings", "returns-based", "correlation matrix", "write up", "bullet points",
-        "export to powerpoint"
-    ]
-    metric_or_threshold = [
-        "manager tenure", "excess performance", "peer return rank", "expense ratio rank",
-        "sharpe ratio", "r-squared", "sortino ratio", "tracking error", "criteria", "threshold",
-        "pass", "review", "fund scorecard"
+    metric_labels = [
+        "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
+        "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Expense Ratio Rank",
+        "Sharpe Ratio Rank (3Yr)", "Sharpe Ratio Rank (5Yr)", "R-Squared (3Yr)",
+        "R-Squared (5Yr)", "Sortino Ratio Rank (3Yr)", "Sortino Ratio Rank (5Yr)",
+        "Tracking Error Rank (3Yr)", "Tracking Error Rank (5Yr)"
     ]
 
     def is_junk_line(line):
         low = line.lower()
-        if any(term in low for term in junk_terms):
+        if any(kw in low for kw in [
+            "investment options", "criteria", "threshold", "fund scorecard", "proposed funds"
+        ]):
             return True
-        if any(term in low for term in metric_or_threshold):
-            return True
-        # All-caps short headers like "INVESTMENT OPTIONS"
+        # short all-caps headers
         words = line.split()
-        if line.upper() == line and len(words) <= 3:
+        if line.isupper() and len(words) <= 3:
             return True
         return False
 
     proposed_names = []
     for idx, line in enumerate(slice_lines):
         if re.search(r"manager tenure", line, re.IGNORECASE):
-            # Walk backwards to find the first non-junk line that looks like a fund name
+            # Validate that this is inside a fund block by checking for other metric labels ahead
+            lookahead = slice_lines[idx : idx + 12]  # a small window
+            found_metrics = sum(1 for lbl in metric_labels if any(lbl.lower() in ln.lower() for ln in lookahead))
+            # must have at least 3 metrics including Manager Tenure to be a fund block (avoids header table)
+            if found_metrics < 3:
+                continue
+
+            # Walk backward to first plausible name
             j = idx - 1
             candidate = None
             while j >= 0:
@@ -1309,7 +1312,7 @@ def step14_7_extract_proposed_fund_names_from_manager_tenure(pdf):
                 if is_junk_line(prev):
                     j -= 1
                     continue
-                # Heuristic: fund names usually have at least two words and are not purely numeric
+                # Heuristic: fund name likely has at least two words and isn't just numeric/noise
                 if len(prev.split()) >= 2 and not re.fullmatch(r"[\d\W]+", prev):
                     candidate = prev
                     break
@@ -1317,7 +1320,7 @@ def step14_7_extract_proposed_fund_names_from_manager_tenure(pdf):
             if candidate:
                 proposed_names.append(candidate)
 
-    # Deduplicate while preserving order
+    # Deduplicate preserving order
     seen = set()
     deduped = []
     for name in proposed_names:
