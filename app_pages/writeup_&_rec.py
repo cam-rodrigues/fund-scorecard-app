@@ -1866,7 +1866,7 @@ def step16_bullet_points():
     bullets.append(b1)
     st.markdown(f"- {b1}")
 
-    # Get IPS status from icon table (guaranteed to match Slide 1 Table)
+    # Get IPS status
     ips_icon_table = st.session_state.get("ips_icon_table")
     ips_status = None
     if ips_icon_table is not None and not ips_icon_table.empty:
@@ -1885,14 +1885,21 @@ def step16_bullet_points():
             ips_status or "on watch"
         )
 
-        three   = float(item.get("3Yr") or 0)
-        bench3  = float(item.get("Bench 3Yr") or 0)
-        five    = float(item.get("5Yr") or 0)
-        bench5  = float(item.get("Bench 5Yr") or 0)
+        # Safely coerce and default to 0
+        def to_float(x):
+            try:
+                return float(x)
+            except:
+                return 0.0
+
+        three   = to_float(item.get("3Yr"))
+        bench3  = to_float(item.get("Bench 3Yr"))
+        five    = to_float(item.get("5Yr"))
+        bench5  = to_float(item.get("Bench 5Yr"))
         bps3 = round((three - bench3) * 100, 1)
         bps5 = round((five  - bench5) * 100, 1)
 
-        # Peer rank logic (safe handling)
+        # Peer rank logic
         peer = st.session_state.get("step14_peer_rank_table", [])
         raw3 = next((r.get("Sharpe Ratio 3Yr") or r.get("Sharpe Ratio Rank 3Yr") for r in peer
                      if r.get("Fund Name") == selected_fund), None)
@@ -1908,21 +1915,19 @@ def step16_bullet_points():
             pos5 = "bottom"
 
         b2 = (
-            f"- The fund is now on **{status_label}**. Its 3‑year return trails the benchmark by "
-            f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its 5‑year return trails by "
-            f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half of peers "
-            f"and the {pos5} half of its 5‑Yr Sharpe ranks."
+            f"- The fund is now on **{status_label}**. Its 3-year return trails the benchmark by "
+            f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its 5-year return trails by "
+            f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3-Yr Sharpe ranks in the {pos3} half of peers "
+            f"and the {pos5} half of its 5-Yr Sharpe ranks."
         )
         bullets.append(b2)
         st.markdown(b2)
 
     # Bullet 3: Action for Formal Watch only
     if ips_status == "FW":
-        # Get confirmed proposed funds (stays constant regardless of selected fund)
         confirmed = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
         proposals = []
         if not confirmed.empty:
-            # Unique ordered list of proposed fund names with tickers
             seen = set()
             for name, ticker in zip(confirmed["Fund Scorecard Name"], confirmed["Ticker"]):
                 display = f"{name} ({ticker})" if ticker else name
@@ -1933,6 +1938,9 @@ def step16_bullet_points():
         b3 = f"- **Action:** Consider replacing this fund with {replacement}."
         bullets.append(b3)
         st.markdown(b3)
+
+    # Persist updated bullets so export uses current ones
+    st.session_state["bullet_points"] = bullets
 
 
 
@@ -2012,27 +2020,33 @@ def step17_export_to_ppt():
         return replaced
 
     def fill_bullet_points(slide, placeholder="[Bullet Point 1]", bullets=None):
+        # Stronger replacement: find the paragraph containing the placeholder, clear entire text frame, and add fresh bullets.
         if bullets is None:
-            bullets = st.session_state.get("bullet_points", None)
+            bullets = st.session_state.get("bullet_points", [])
         if not bullets:
             bullets = ["Performance exceeded benchmark.", "No watch status.", "No action required."]
+        replaced = False
         for shape in slide.shapes:
             if not shape.has_text_frame:
                 continue
-            for p in shape.text_frame.paragraphs:
-                if placeholder in p.text:
-                    shape.text_frame.clear()
-                    for b in bullets:
-                        p_new = shape.text_frame.add_paragraph()
-                        clean_text = b.replace("**", "")
-                        p_new.text = clean_text
-                        p_new.level = 0
-                        p_new.font.name = "Cambria"
-                        p_new.font.size = Pt(11)
-                        p_new.font.color.rgb = RGBColor(0, 0, 0)
-                        p_new.font.bold = True
-                    return True
-        return False
+            tf = shape.text_frame
+            # Look for placeholder anywhere in any paragraph
+            if any(placeholder in p.text for p in tf.paragraphs):
+                # Clear existing content
+                tf.clear()
+                for b in bullets:
+                    p_new = tf.add_paragraph()
+                    clean_text = b.replace("**", "")
+                    p_new.text = clean_text
+                    p_new.level = 0
+                    p_new.font.name = "Cambria"
+                    p_new.font.size = Pt(11)
+                    p_new.font.color.rgb = RGBColor(0, 0, 0)
+                    p_new.font.bold = True
+                replaced = True
+                break
+        return replaced
+
 
     # Gather session data
     facts = st.session_state.get("fund_factsheets_data", [])
