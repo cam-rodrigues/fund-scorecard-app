@@ -1240,174 +1240,47 @@ def step14_5_ips_fail_table():
 
 #───Step 15 - Excel──────────────────────────────────────────────────────────────────
 
-from openpyxl import load_workbook
-from rapidfuzz import fuzz
 import os
 import streamlit as st
+from openpyxl import load_workbook
 
-def step15_populate_excel_template(template_path: str = "assets/invesment_metrics_template.xlsx",
-                                   output_path: str = "filled_investment_metrics.xlsx",
-                                   fund_factsheets_data: list = None,
-                                   fund_tickers: dict = None,
-                                   ips_icon_df=None,
-                                   sheet_name: str = None,
-                                   fuzzy_threshold: int = 75):
+def step15_populate_excel_template(template_path: str = "assets/investment_metrics_template.xlsx",
+                                   output_path: str = "filled_investment_metrics.xlsx"):
     """
-    Step 15: Populate the investment metrics Excel template with extracted fund info.
-    Only runs when the user presses the button.
+    Step 15 minimal: on button press, write 'Prepared for' into AB4 (Current Period sheet if present,
+    otherwise the active/populated sheet) and save. Does not modify anything else.
     """
-    if not st.button("Populate Investment Metrics Excel"):
-        return None  # no-op until clicked
+    if not st.button("Populate Investment Metrics Excel (Step 15: Prepared for)"):
+        return None  # wait until clicked
 
-    fund_factsheets_data = fund_factsheets_data or []
-    fund_tickers = fund_tickers or {}
-
-    def norm(s: str):
-        return (s or "").strip().lower()
-
-    # Build lookups
-    expense_map = {}
-    ticker_map = {}
-    for rec in fund_factsheets_data:
-        name_raw = rec.get("Matched Fund Name") or rec.get("Fund Name") or ""
-        name = norm(name_raw)
-        expense = rec.get("Expense Ratio", "") or rec.get("Net Expense Ratio", "") or rec.get("Expense Ratio (%)", "")
-        ticker = rec.get("Matched Ticker") or rec.get("Ticker") or ""
-        if expense != "":
-            expense_map[name] = expense
-        if ticker:
-            ticker_map[name] = ticker
-
-    ips_status_map = {}
-    if ips_icon_df is not None:
-        for _, row in ips_icon_df.iterrows():
-            fname = norm(row.get("Fund Name", ""))
-            ips_status = row.get("IPS Watch Status") or row.get("IPS Pass/Fail") or row.get("Status") or ""
-            ips_status_map[fname] = ips_status
-
-    # Load workbook
     if not os.path.exists(template_path):
         st.error(f"Template not found at {template_path}")
         return None
-    wb = load_workbook(template_path)
 
-    # Select sheet
-    if sheet_name and sheet_name in wb.sheetnames:
-        ws = wb[sheet_name]
-    elif "Past Quarter" in wb.sheetnames:
-        ws = wb["Past Quarter"]
-    else:
-        # fallback: find sheet containing header
-        ws = None
-        for name in wb.sheetnames:
-            candidate = wb[name]
-            for i in range(1, min(6, candidate.max_row) + 1):
-                values = [c.value for c in candidate[i]]
-                if any(isinstance(v, str) and "Investment Option" in v for v in values if v):
-                    ws = candidate
-                    break
-            if ws:
-                break
-        if ws is None:
-            ws = wb[wb.sheetnames[0]]
-
-    # Locate header row
-    header_row_idx = None
-    headers = {}
-    for i in range(1, min(15, ws.max_row) + 1):
-        row = list(ws[i])
-        values = [c.value for c in row]
-        if values and any(isinstance(v, str) and "Investment Option" in v for v in values if v):
-            header_row_idx = i
-            for idx, cell in enumerate(row):
-                if cell.value:
-                    headers[cell.value] = idx + 1
-            break
-    if header_row_idx is None:
-        st.error("Could not find header row with 'Investment Option' in the template.")
+    try:
+        wb = load_workbook(template_path)
+    except Exception as e:
+        st.error(f"Failed to open template: {e}")
         return None
 
-    invest_option_col = headers.get("Investment Option")
-    ticker_col = headers.get("Ticker")
-    expense_col = headers.get("Expense Ratio")
-
-    # IPS status column (create if missing)
-    if "IPS Status" in headers:
-        ips_col = headers["IPS Status"]
+    # Write "Prepared for" into AB4, preferring "Current Period" sheet
+    if "Current Period" in wb.sheetnames:
+        ws_target = wb["Current Period"]
     else:
-        ips_col = None
-        if expense_col:
-            ips_col = expense_col + 1
-            if ws.cell(row=header_row_idx, column=ips_col).value is None:
-                ws.cell(row=header_row_idx, column=ips_col, value="IPS Status")
+        # fallback to first sheet
+        ws_target = wb[wb.sheetnames[0]]
 
-    # Iterate rows and populate
-    for row in ws.iter_rows(min_row=header_row_idx + 1, max_row=ws.max_row):
-        inv_cell = row[invest_option_col - 1] if invest_option_col else None
-        if not inv_cell or not inv_cell.value:
-            continue
-        inv_name = str(inv_cell.value)
-        inv_norm = norm(inv_name)
+    ws_target["AB4"] = "Prepared for"
 
-        # Best fuzzy match for fund name
-        best_match = None
-        best_score = 0
-        for rec in fund_factsheets_data:
-            cand_name = norm(rec.get("Matched Fund Name") or rec.get("Fund Name") or "")
-            if not cand_name:
-                continue
-            score = fuzz.token_sort_ratio(inv_norm, cand_name)
-            if score > best_score:
-                best_score = score
-                best_match = cand_name
-
-        if best_score < fuzzy_threshold:
-            for name in list(expense_map.keys()) + list(ticker_map.keys()):
-                if name in inv_norm or inv_norm in name:
-                    best_match = name
-                    best_score = 100
-                    break
-
-        # Resolve ticker
-        resolved_ticker = ""
-        if best_match and best_match in ticker_map:
-            resolved_ticker = ticker_map[best_match]
-        else:
-            for k, v in (fund_tickers or {}).items():
-                if norm(k) in inv_norm or inv_norm in norm(k):
-                    resolved_ticker = v
-                    break
-        if resolved_ticker and ticker_col:
-            ws.cell(row=inv_cell.row, column=ticker_col, value=resolved_ticker)
-
-        # Resolve expense ratio
-        resolved_expense = ""
-        if best_match and best_match in expense_map:
-            resolved_expense = expense_map[best_match]
-        if resolved_expense and expense_col:
-            ws.cell(row=inv_cell.row, column=expense_col, value=resolved_expense)
-
-        # IPS status
-        status_val = ""
-        if best_match and best_match in ips_status_map:
-            status_val = ips_status_map[best_match]
-        else:
-            for fname, status in ips_status_map.items():
-                if fname in inv_norm or inv_norm in fname:
-                    status_val = status
-                    break
-        if status_val and ips_col:
-            ws.cell(row=inv_cell.row, column=ips_col, value=status_val)
-
-    # Save workbook
     try:
         wb.save(output_path)
     except Exception as e:
-        st.error(f"Failed saving populated workbook: {e}")
+        st.error(f"Failed to save populated workbook: {e}")
         return None
 
-    st.success(f"Template populated and saved to {output_path}")
+    st.success(f"'Prepared for' written to AB4 and saved to {output_path}")
     return output_path
+
 
 
 #───Main App──────────────────────────────────────────────────────────────────
@@ -1498,17 +1371,19 @@ def run():
 
         # Step 15: Populate template (button is inside function)
         try:
+            # optional: let user type a name to show in AB4
+            client_name = st.text_input("Prepared for:", value=st.session_state.get("client_name", ""))
+            st.session_state["client_name"] = client_name  # persist if needed
+        
             filled_path = step15_populate_excel_template(
-                template_path="assets/invesment_metrics_template.xlsx",
-                output_path="filled_investment_metrics.xlsx",
-                fund_factsheets_data=st.session_state.get("fund_factsheets_data", []),
-                fund_tickers=st.session_state.get("fund_tickers", {}),
-                ips_icon_df=st.session_state.get("ips_icon_table")
+                template_path="assets/investment_metrics_template.xlsx",
+                output_path="filled_investment_metrics.xlsx"
             )
             if filled_path:
                 st.markdown(f"[Download populated Excel]({filled_path})")
         except Exception as e:
             st.error(f"Step 15 failed: {e}")
+
 
 if __name__ == "__main__":
     run()
