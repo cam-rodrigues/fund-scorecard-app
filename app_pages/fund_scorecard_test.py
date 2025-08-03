@@ -1243,7 +1243,7 @@ def step14_5_ips_fail_table():
 
 def run():
     import re
-    st.title("Writeup Generator")
+    st.title("Fund Scorecard Generator")
     uploaded = st.file_uploader("Upload MPI PDF to Generate Writup PPTX", type="pdf")
     if not uploaded:
         return
