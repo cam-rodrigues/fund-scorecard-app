@@ -1247,28 +1247,28 @@ def extract_proposed_scorecard_blocks(pdf):
     prop_page = st.session_state.get("scorecard_proposed_page")
     if not prop_page:
         st.error("❌ 'Fund Scorecard: Proposed Funds' page number not found in TOC.")
-        return []
+        return pd.DataFrame()
 
-    # 1. Only pull text from the proposed funds scorecard page (no bleed into regular scorecard)
+    # 1. Extract text from only the Proposed Funds scorecard page
     page = pdf.pages[prop_page - 1]
     lines = [ln.strip() for ln in (page.extract_text() or "").splitlines() if ln.strip()]
     if not lines:
         st.warning("No text found on the Proposed Funds scorecard page.")
-        return []
+        return pd.DataFrame()
 
-    # 2. Prepare candidate funds from performance/scorecard extraction
+    # 2. Build candidate list from already-extracted funds (performance/scorecard)
     perf_data = st.session_state.get("fund_performance_data", [])
     candidate_funds = []
     for item in perf_data:
         name = item.get("Fund Scorecard Name", "").strip()
         ticker = item.get("Ticker", "").strip().upper()
         if name:
-            candidate_funds.append({"Fund Name": name, "Ticker": ticker})
+            candidate_funds.append({"Fund Scorecard Name": name, "Ticker": ticker})
 
-    # 3. Fuzzy-match each candidate against the lines on the proposed funds page
+    # 3. Fuzzy-match each candidate against lines on the proposed page
     results = []
     for fund in candidate_funds:
-        name = fund["Fund Name"]
+        name = fund["Fund Scorecard Name"]
         ticker = fund["Ticker"]
         best_score = 0
         best_line = ""
@@ -1279,7 +1279,7 @@ def extract_proposed_scorecard_blocks(pdf):
             if score > best_score:
                 best_score = score
                 best_line = line
-        found = best_score >= 70  # adjust threshold if needed
+        found = best_score >= 70  # threshold; tweak if too strict/lenient
         results.append({
             "Fund Scorecard Name": name,
             "Ticker": ticker,
@@ -1288,29 +1288,31 @@ def extract_proposed_scorecard_blocks(pdf):
             "Matched Line": best_line if found else ""
         })
 
+    df = pd.DataFrame(results)
+    # 4. Keep only confirmed proposed funds
+    df_confirmed = df[df["Found on Proposed"] == "✅"].copy()
+    st.session_state["proposed_funds_confirmed_df"] = df_confirmed
 
-    df_matches = match_existing_funds_to_proposed(pdf)
-    
-    # Keep only those found on the Proposed Funds page
-    df_only_matched = df_matches[df_matches["Found on Proposed"] == "✅"].copy()
-    
-    # Optional: clean up columns for display
-    display_df = df_only_matched[[
-        "Fund Scorecard Name",
-        "Ticker",
-        "Match Score",
-        "Matched Line"
-    ]].rename(columns={
-        "Fund Scorecard Name": "Fund",
-        "Match Score": "Score",
-        "Matched Line": "Context Line"
-    })
-    
-    st.subheader("Proposed Funds (confirmed matches)")
-    if display_df.empty:
-        st.write("No confirmed proposed funds found.")
+    # 5. Display cleaned table
+    if df_confirmed.empty:
+        st.subheader("Proposed Funds (confirmed matches)")
+        st.write("No confirmed proposed funds found on the Proposed Funds scorecard page.")
     else:
+        display_df = df_confirmed[[
+            "Fund Scorecard Name",
+            "Ticker",
+            "Match Score",
+            "Matched Line"
+        ]].rename(columns={
+            "Fund Scorecard Name": "Fund",
+            "Match Score": "Score",
+            "Matched Line": "Context Line"
+        })
+        st.subheader("Proposed Funds (confirmed matches)")
         st.table(display_df)
+
+    return df_confirmed
+
 
 
 
@@ -2108,8 +2110,9 @@ def run():
         # Step 14.5: IPS Fail Table
         step14_5_ips_fail_table()
 
-        extract_proposed_scorecard_blocks(pdf)
-        
+        with st.expander("Proposed Funds (confirmed)", expanded=True):
+            extract_proposed_scorecard_blocks(pdf)
+
         # Step 15: View Single Fund Details
         with st.expander("Single Fund Write Up", expanded=False):
             step15_display_selected_fund()
