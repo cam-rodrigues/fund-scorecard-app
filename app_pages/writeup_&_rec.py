@@ -1911,7 +1911,7 @@ def step16_bullet_points():
             f"- The fund is now on **{status_label}**. Its 3‑year return trails the benchmark by "
             f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its 5‑year return trails by "
             f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3‑Yr Sharpe ranks in the {pos3} half of peers "
-            f"and its 5‑Yr Sharpe ranks in the {pos5} half."
+            f"and the {pos5} half of its 5‑Yr Sharpe ranks."
         )
         bullets.append(b2)
         st.markdown(b2)
