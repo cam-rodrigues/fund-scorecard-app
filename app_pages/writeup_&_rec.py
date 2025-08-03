@@ -1632,8 +1632,6 @@ def step15_display_selected_fund():
     st.session_state["slide2_table2_data"] = df_slide2_table2
     st.dataframe(df_slide2_table2, use_container_width=True)
 
-
-    # --- Slide 2 Table 3 ---
     # --- Slide 2 Table 3: Calendar Returns ---
     st.markdown("**Calendar Returns**")
     fund_cy = st.session_state.get("step8_returns", [])
@@ -1943,7 +1941,7 @@ def step17_export_to_ppt():
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
 
-    template_path = "assets/writeup_templates.pptx"  # Adjust path if needed
+    template_path = "assets/writeup&rec_template.pptx"  # Adjust path if needed
     try:
         prs = Presentation(template_path)
     except Exception as e:
@@ -2088,7 +2086,7 @@ def step17_export_to_ppt():
         st.warning("Could not find bullet points placeholder on Slide 1.")
 
     # --- Fill Slide 2 ---
-    slide2 = prs.slides[1]
+    slide2 = prs.slides[3]
     if not fill_text_placeholder_preserving_format(slide2, "[Category]", category):
         st.warning("Could not find [Category] placeholder on Slide 2.")
 
@@ -2160,7 +2158,7 @@ def step17_export_to_ppt():
             st.warning("Could not find matching table for Slide 2 Table 3.")
 
     # --- Fill Slide 3 ---
-    slide3 = prs.slides[2]
+    slide3 = prs.slides[4]
     if not fill_text_placeholder_preserving_format(slide3, "[Category]", category):
         st.warning("Could not find [Category] placeholder on Slide 3.")
 
@@ -2181,7 +2179,7 @@ def step17_export_to_ppt():
                 st.warning("Slide 3 Table 2 headers do not match.")
 
     # --- Fill Slide 4 ---
-    slide4 = prs.slides[3]
+    slide4 = prs.slides[5]
     qualitative_placeholder = f"[Category]– Qualitative Factors"
     qualitative_replacement = f"{category} - Qualitative Factors"
     if not fill_text_placeholder_preserving_format(slide4, qualitative_placeholder, qualitative_replacement):
