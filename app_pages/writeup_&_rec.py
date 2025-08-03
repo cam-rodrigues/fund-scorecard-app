@@ -1529,12 +1529,11 @@ def step15_display_selected_fund():
             return s
         return f"{s}%"
     
-    def build_expense_row(fund_name, label_override=None):
+    def build_expense_row(fund_name):
         perf_data = st.session_state.get("fund_performance_data", [])
         item = next((p for p in perf_data if p.get("Fund Scorecard Name") == fund_name), {})
         ticker = (item.get("Ticker") or "").upper().strip()
-        display_name = label_override or fund_name
-        inv_mgr = f"{display_name} ({ticker})" if ticker else f"{display_name}"
+        inv_mgr = f"{fund_name} ({ticker})" if ticker else fund_name
         net_exp = format_expense(item.get("Net Expense Ratio", ""))
         return {
             "Investment Manager": inv_mgr,
@@ -1550,15 +1549,16 @@ def step15_display_selected_fund():
     if not confirmed_proposed_df.empty:
         proposed_names = confirmed_proposed_df["Fund Scorecard Name"].unique().tolist()
         for pf in proposed_names:
-            proposed_rows.append(build_expense_row(pf, label_override=f"Proposed: {pf}"))
+            proposed_rows.append(build_expense_row(pf))
     
-    # Assemble final table: selected fund, then proposed(s)
+    # Assemble final table: selected fund first, then proposed(s)
     all_rows = [row_selected] + proposed_rows
     df_slide2_table1 = pd.DataFrame(all_rows)
     
     # Save & display
     st.session_state["slide2_table1_data"] = df_slide2_table1
     st.dataframe(df_slide2_table1, use_container_width=True)
+
 
 
 
