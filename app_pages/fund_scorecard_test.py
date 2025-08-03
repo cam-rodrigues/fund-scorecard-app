@@ -1245,7 +1245,7 @@ from rapidfuzz import fuzz
 import os
 import streamlit as st
 
-def step15_populate_excel_template(template_path: str = "assets/investment_metrics_template.xlsx",
+def step15_populate_excel_template(template_path: str = "assets/invesment_metrics_template.xlsx",
                                    output_path: str = "filled_investment_metrics.xlsx",
                                    fund_factsheets_data: list = None,
                                    fund_tickers: dict = None,
@@ -1499,7 +1499,7 @@ def run():
         # Step 15: Populate template (button is inside function)
         try:
             filled_path = step15_populate_excel_template(
-                template_path="assets/investment_metrics_template.xlsx",
+                template_path="assets/invesment_metrics_template.xlsx",
                 output_path="filled_investment_metrics.xlsx",
                 fund_factsheets_data=st.session_state.get("fund_factsheets_data", []),
                 fund_tickers=st.session_state.get("fund_tickers", {}),
