@@ -1239,125 +1239,110 @@ def step14_5_ips_fail_table():
 #───Step 14.7: Proposal──────────────────────────────────────────────────────────────────
 
 def extract_proposed_scorecard_blocks(pdf):
+    import re
+    import streamlit as st
+    import pandas as pd
+    from rapidfuzz import fuzz
 
-    scorecard_proposed_page = st.session_state.get("scorecard_proposed_page")
-    if not scorecard_proposed_page:
+    prop_page = st.session_state.get("scorecard_proposed_page")
+    if not prop_page:
         st.error("❌ 'Fund Scorecard: Proposed Funds' page number not found in TOC.")
         return []
 
-
-    metric_labels = [
-        "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
-        "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Expense Ratio Rank",
-        "Sharpe Ratio Rank (3Yr)", "Sharpe Ratio Rank (5Yr)", "R-Squared (3Yr)",
-        "R-Squared (5Yr)", "Sortino Ratio Rank (3Yr)", "Sortino Ratio Rank (5Yr)",
-        "Tracking Error Rank (3Yr)", "Tracking Error Rank (5Yr)"
-    ]
-    pages, fund_blocks, fund_name, metrics = [], [], None, []
-    for p in pdf.pages[scorecard_proposed_page-1:]:
-        pages.append(p.extract_text() or "")
-    lines = "\n".join(pages).splitlines()
-    for line in lines:
-        if not any(metric in line for metric in metric_labels) and line.strip():
-            if fund_name and metrics:
-                fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
-            fund_name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed on watchlist for not meeting .* out of 14 criteria)", "", line.strip()).strip()
-            metrics = []
-        for metric in metric_labels:
-            if metric in line:
-                m = re.match(r"^(.*?)\s+(Pass|Review|Fail)\s*(.*)", line.strip())
-                if m:
-                    metric_name, status, info = m.groups()
-                    metrics.append({"Metric": metric_name, "Status": status, "Info": info.strip()})
-    if fund_name and metrics:
-        fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
-    return fund_blocks
-
-def extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page=None):
-    import re
-    from rapidfuzz import fuzz
-
-    def normalize_name(name):
-        # strip the watchlist suffix and punctuation, lowercase
-        cleaned = re.sub(
-            r"has been placed on watchlist for not meeting .*? criteria",
-            "",
-            name,
-            flags=re.IGNORECASE
-        )
-        cleaned = re.sub(r"[^A-Za-z0-9 ]+", "", cleaned)  # remove punctuation
-        return cleaned.strip().lower()
-
-    end_page = factsheets_page - 1 if factsheets_page else len(pdf.pages)
+    # 1. Collect lines beginning at the proposed funds section; stop when hitting a known next big section
     all_lines = []
-    for p in pdf.pages[performance_page - 1:end_page]:
-        txt = p.extract_text() or ""
-        all_lines.extend([ln.strip() for ln in txt.splitlines() if ln.strip()])
+    for pnum in range(prop_page - 1, len(pdf.pages)):
+        txt = pdf.pages[pnum].extract_text() or ""
+        page_lines = [ln.strip() for ln in txt.splitlines() if ln.strip()]
+        all_lines.extend(page_lines)
+        if any(re.search(pat, " ".join(page_lines), re.IGNORECASE)
+               for pat in ["FUND CORRELATION MATRIX", "Single Fund Write Up", "Bullet Points", "Export to Powerpoint"]):
+            break
 
-    # Step 1: Collect candidate (raw_name, ticker) pairs from lines with uppercase tickers length 2-5
-    candidate_pairs = []  # list of tuples (normalized_raw_name, ticker, raw_name_original)
-    ticker_rx = re.compile(r"\b([A-Z]{2,5})\b")
-    for ln in all_lines:
-        matches = ticker_rx.findall(ln)
-        if not matches:
+    if not all_lines:
+        st.warning("No text found on Proposed Funds page.")
+        return []
+
+    # 2. Trim to after the "Proposed Funds" header
+    start_idx = 0
+    for i, ln in enumerate(all_lines):
+        if re.search(r"Proposed Funds", ln, re.IGNORECASE):
+            start_idx = i + 1
+            break
+    slice_lines = all_lines[start_idx:]
+
+    # pattern for metric lines with status
+    metric_label_regex = re.compile(
+        r"^(Manager Tenure|Excess Performance\s*\(3Yr\)|Excess Performance\s*\(5Yr\)|"
+        r"Peer Return Rank\s*\(3Yr\)|Peer Return Rank\s*\(5Yr\)|Expense Ratio Rank|"
+        r"Sharpe Ratio Rank\s*\(3Yr\)|Sharpe Ratio Rank\s*\(5Yr\)|R-Squared\s*\(3Yr\)|"
+        r"R-Squared\s*\(5Yr\)|Sortino Ratio Rank\s*\(3Yr\)|Sortino Ratio Rank\s*\(5Yr\)|"
+        r"Tracking Error Rank\s*\(3Yr\)|Tracking Error Rank\s*\(5Yr\))\s+(Pass|Review|Fail)",
+        re.IGNORECASE
+    )
+
+    def is_junk(line):
+        low = line.lower()
+        if any(k in low for k in ["investment options", "criteria", "threshold", "fund scorecard"]):
+            return True
+        if line.isupper() and len(line.split()) <= 3:  # short header
+            return True
+        return False
+
+    # 3. Extract candidate fund names: line followed by >=3 metric-status lines
+    proposed_raw = []
+    for idx, line in enumerate(slice_lines):
+        if is_junk(line):
             continue
-        for ticker in set(matches):
-            parts = ln.rsplit(ticker, 1)
-            if len(parts) >= 1:
-                raw_name = parts[0].strip()
-                if not raw_name:
-                    continue
-                norm_raw = normalize_name(raw_name)
-                if not norm_raw:
-                    continue
-                candidate_pairs.append((norm_raw, ticker, raw_name))
+        lookahead = slice_lines[idx + 1 : idx + 8]
+        metric_hits = [ln for ln in lookahead if metric_label_regex.search(ln)]
+        if len(metric_hits) >= 3:
+            proposed_raw.append(line)
 
-    # Step 2: For each fund_name, find best candidate fuzzy match (one-to-one)
-    assigned = {}
-    used_tickers = set()
+    # dedupe preserving order
+    seen = set()
+    deduped = []
+    for name in proposed_raw:
+        if name not in seen:
+            seen.add(name)
+            deduped.append(name)
 
-    # Precompute normalized expected names
-    norm_expected_list = [
-        (name, normalize_name(name))
-        for name in fund_names
-    ]
+    st.session_state["proposed_funds_list"] = deduped
 
-    for fund_name, norm_expected in norm_expected_list:
-        best = (None, None, 0)  # (ticker, raw_name_original, score)
-        for norm_raw, ticker, raw_name in candidate_pairs:
-            if ticker in used_tickers:
-                continue
-            score = fuzz.token_sort_ratio(norm_expected, norm_raw)
-            if score > best[2]:
-                best = (ticker, raw_name, score)
-        if best[2] >= 70:  # threshold, adjust if needed
-            assigned[fund_name] = best[0]
-            used_tickers.add(best[0])
-        else:
-            assigned[fund_name] = ""
+    # 4. Fuzzy-match to known scorecard funds
+    fund_blocks = st.session_state.get("fund_blocks", [])
+    known_funds = [fb.get("Fund Name", "") for fb in fund_blocks] if fund_blocks else []
 
-    # Step 3: Fallback for unmatched names: looser heuristic and line-based fallback
-    for name in fund_names:
-        if assigned.get(name):
-            continue
-        norm_expected = normalize_name(name)
-        for norm_raw, ticker, raw_name in candidate_pairs:
-            if ticker in used_tickers:
-                continue
-            if norm_expected in norm_raw or norm_raw in norm_expected:
-                assigned[name] = ticker
-                used_tickers.add(ticker)
-                break
-        if not assigned.get(name):
-            for ln in all_lines:
-                if name.lower() in ln.lower():
-                    m = re.search(r"\b([A-Z]{2,5})\b", ln)
-                    if m:
-                        assigned[name] = m.group(1)
-                        break
+    matches = []
+    for raw in deduped:
+        best_match, best_score = "", 0
+        for k in known_funds:
+            score = fuzz.token_sort_ratio(raw.lower(), k.lower())
+            if score > best_score:
+                best_score = score
+                best_match = k
+        matches.append({
+            "Raw Proposed Name": raw,
+            "Matched Scorecard Fund": best_match if best_score >= 70 else "",
+            "Match Score": best_score
+        })
 
-    # Final cleanup: ensure non-None strings
-    return {k: (v if v else "") for k, v in assigned.items()}
+    df_matches = pd.DataFrame(matches)
+    st.session_state["proposed_funds_matches_df"] = df_matches
+
+    # 5. Display results
+    st.subheader("Proposed Funds (Step 14.7) - Names from above Manager Tenure / Metric Clusters")
+    if deduped:
+        st.markdown("**Raw Proposed Fund Names Extracted:**")
+        st.table(pd.DataFrame(deduped, columns=["Raw Proposed Name"]))
+        st.markdown("**Fuzzy Matches to Scorecard Funds:**")
+        st.table(df_matches)
+    else:
+        st.write("No proposed fund names found via the metric cluster heuristic.")
+
+    return deduped
+
+
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
 
 def step15_display_selected_fund():
