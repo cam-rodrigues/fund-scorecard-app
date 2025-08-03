@@ -1560,9 +1560,7 @@ def step15_display_selected_fund():
     st.dataframe(df_slide2_table1, use_container_width=True)
 
 
-
-
-    # --- Slide 2 Table 2 ---
+    # --- Slide 2 Table 2: Returns ---
     st.markdown("**Returns**")
     date_label = st.session_state.get("report_date", "QTD")
     
@@ -1570,53 +1568,52 @@ def step15_display_selected_fund():
         s = str(val) if val is not None else ""
         return s if s.endswith("%") or s == "" else f"{s}%"
     
-    # Helper to build a row for a given fund name + ticker
-    def build_return_row(fund_name, ticker, label_override=None):
+    def build_return_row(fund_name):
         perf_data = st.session_state.get("fund_performance_data", [])
-        perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == fund_name), {})
-        inv_mgr_label = f"{label_override or fund_name} ({perf_item.get('Ticker','')})"
-        qtd   = append_pct(perf_item.get("QTD", ""))
-        one   = append_pct(perf_item.get("1Yr", ""))
-        three = append_pct(perf_item.get("3Yr", ""))
-        five  = append_pct(perf_item.get("5Yr", ""))
-        ten   = append_pct(perf_item.get("10Yr", ""))
+        item = next((p for p in perf_data if p.get("Fund Scorecard Name") == fund_name), {})
+        ticker = (item.get("Ticker") or "").upper().strip()
+        inv_mgr = f"{fund_name} ({ticker})" if ticker else fund_name
     
-        row = {
-            "Investment Manager": inv_mgr_label,
+        qtd   = append_pct(item.get("QTD", ""))
+        one   = append_pct(item.get("1Yr", ""))
+        three = append_pct(item.get("3Yr", ""))
+        five  = append_pct(item.get("5Yr", ""))
+        ten   = append_pct(item.get("10Yr", ""))
+    
+        return {
+            "Investment Manager": inv_mgr,
             date_label:           qtd,
             "1 Year":             one,
             "3 Year":             three,
             "5 Year":             five,
             "10 Year":            ten
         }
-        return row
     
-    # Build selected fund row
-    row_fund = build_return_row(selected_fund, None)
+    # Selected fund row
+    row_selected = build_return_row(selected_fund)
     
-    # Build proposed fund rows (persisted independently)
+    # Proposed fund(s)
     proposed_rows = []
     confirmed_proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
     if not confirmed_proposed_df.empty:
         proposed_names = confirmed_proposed_df["Fund Scorecard Name"].unique().tolist()
         for pf in proposed_names:
-            # Only add if we have performance data
-            proposed_rows.append(build_return_row(pf, None, label_override=f"Proposed: {pf}"))
+            proposed_rows.append(build_return_row(pf))
     
-    # Benchmark row
+    # Benchmark row (same as before)
+    fs_rec = next((f for f in st.session_state.get("fund_factsheets_data", []) if f["Matched Fund Name"] == selected_fund), {})
     bench_name = fs_rec.get("Benchmark", "") if fs_rec else ""
     bench_ticker = fs_rec.get("Matched Ticker", "") if fs_rec else ""
-    bench_inv_mgr = f"{bench_name} ({bench_ticker})" if bench_name else "Benchmark"
+    bench_inv_mgr = f"{bench_name} ({bench_ticker})" if bench_name and bench_ticker else (bench_name or "Benchmark")
     
-    # Try to find benchmark returns via the same mechanism as earlier
-    # Reuse selected fund's perf_item to get bench returns
+    # Need the selected fund's perf_item to get benchmark returns
     perf_data = st.session_state.get("fund_performance_data", [])
-    selected_perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == selected_fund), {})
-    bench_qtd   = append_pct(selected_perf_item.get("Bench QTD", ""))
-    bench_one   = append_pct(selected_perf_item.get("Bench 1Yr", ""))
-    bench_3yr   = append_pct(selected_perf_item.get("Bench 3Yr", ""))
-    bench_5yr   = append_pct(selected_perf_item.get("Bench 5Yr", ""))
-    bench_ten   = append_pct(selected_perf_item.get("Bench 10Yr", ""))
+    perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == selected_fund), {})
+    bench_qtd   = append_pct(perf_item.get("Bench QTD", ""))
+    bench_one   = append_pct(perf_item.get("Bench 1Yr", ""))
+    bench_3yr   = append_pct(perf_item.get("Bench 3Yr", ""))
+    bench_5yr   = append_pct(perf_item.get("Bench 5Yr", ""))
+    bench_ten   = append_pct(perf_item.get("Bench 10Yr", ""))
     
     row_benchmark = {
         "Investment Manager": bench_inv_mgr,
@@ -1627,13 +1624,14 @@ def step15_display_selected_fund():
         "10 Year":            bench_ten
     }
     
-    # Compose final dataframe: selected fund, then proposed(s), then benchmark
-    all_rows = [row_fund] + proposed_rows + [row_benchmark]
-    df_slide2_2 = pd.DataFrame(all_rows)
+    # Assemble: selected, proposed(s), then benchmark
+    all_rows = [row_selected] + proposed_rows + [row_benchmark]
+    df_slide2_table2 = pd.DataFrame(all_rows)
     
-    # Save for Step 17 to use
-    st.session_state["slide2_table2_data"] = df_slide2_2
-    st.dataframe(df_slide2_2, use_container_width=True)
+    # Save & display
+    st.session_state["slide2_table2_data"] = df_slide2_table2
+    st.dataframe(df_slide2_table2, use_container_width=True)
+
 
     # --- Slide 2 Table 3 ---
     st.markdown("**Calender Returns**")
