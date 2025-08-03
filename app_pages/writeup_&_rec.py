@@ -1304,7 +1304,6 @@ def extract_proposed_scorecard_blocks(pdf):
     st.session_state["proposed_funds_confirmed_df"] = df_confirmed
 
     # 5. Display styled summary card with only Fund and Ticker shown
-    st.subheader("Proposed Funds (confirmed matches)")
     if df_confirmed.empty:
         st.markdown(f"""
         <div style="
@@ -1533,15 +1532,16 @@ def step15_display_selected_fund():
     def build_expense_row(fund_name, label_override=None):
         perf_data = st.session_state.get("fund_performance_data", [])
         item = next((p for p in perf_data if p.get("Fund Scorecard Name") == fund_name), {})
-        ticker = item.get("Ticker", "")
-        inv_mgr = f"{label_override or fund_name} ({ticker})"
+        ticker = (item.get("Ticker") or "").upper().strip()
+        display_name = label_override or fund_name
+        inv_mgr = f"{display_name} ({ticker})" if ticker else f"{display_name}"
         net_exp = format_expense(item.get("Net Expense Ratio", ""))
         return {
             "Investment Manager": inv_mgr,
             "Net Expense Ratio": net_exp
         }
     
-    # Selected fund
+    # Selected fund row
     row_selected = build_expense_row(selected_fund)
     
     # Proposed fund(s) — persistent, independent of selection
@@ -1559,6 +1559,7 @@ def step15_display_selected_fund():
     # Save & display
     st.session_state["slide2_table1_data"] = df_slide2_table1
     st.dataframe(df_slide2_table1, use_container_width=True)
+
 
 
     # --- Slide 2 Table 2 ---
