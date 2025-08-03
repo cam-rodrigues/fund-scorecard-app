@@ -1951,23 +1951,29 @@ def step17_export_to_ppt():
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
 
-    template_path = "assets/writeup&rec_template.pptx"  # Adjust path if needed
+    # Get confirmed proposed funds (name + ticker)
+    confirmed_proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    proposed = []
+    if not confirmed_proposed_df.empty:
+        for _, row in confirmed_proposed_df.iterrows():
+            name = row.get("Fund Scorecard Name", "")
+            ticker = row.get("Ticker", "")
+            label = f"{name} ({ticker})" if ticker else name
+            proposed.append(label)
+    # Limit to two proposals because template supports up to two
+    proposed = proposed[:2]
+
+    template_path = "assets/writeup&rec_template.pptx"
     try:
         prs = Presentation(template_path)
     except Exception as e:
         st.error(f"Could not load PowerPoint template: {e}")
         return
 
-    # Helper to get table header texts
-    def get_table_header(table):
-        return tuple(cell.text.strip() for cell in table.rows[0].cells)
-
-    # Fill table with styles; add option to choose first col font color white or black
     def fill_table_with_styles(table, df_table, bold_row_idx=None, first_col_white=True):
-        n_rows = min(len(df_table), len(table.rows) - 1)
-        n_cols = min(len(df_table.columns), len(table.columns))
-        for i in range(n_rows):
-            for j in range(n_cols):
+        from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
+        for i in range(min(len(df_table), len(table.rows) - 1)):
+            for j in range(min(len(df_table.columns), len(table.columns))):
                 val = df_table.iloc[i, j]
                 cell = table.cell(i + 1, j)
                 cell.text = str(val) if val is not None else ""
@@ -1977,14 +1983,12 @@ def step17_export_to_ppt():
                     for run in para.runs:
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
-                        # Conditionally set font color for first column
                         if j == 0:
                             run.font.color.rgb = RGBColor(255, 255, 255) if first_col_white else RGBColor(0, 0, 0)
                         else:
                             run.font.color.rgb = RGBColor(0, 0, 0)
                         run.font.bold = (bold_row_idx is not None and i == bold_row_idx)
 
-    # Replace placeholder text in slide, preserving formatting as best as possible
     def fill_text_placeholder_preserving_format(slide, placeholder_text, replacement_text):
         replaced = False
         for shape in slide.shapes:
@@ -2009,9 +2013,7 @@ def step17_export_to_ppt():
                     replaced = True
         return replaced
 
-    # Fill bullet points placeholder with a list of bullet strings
     def fill_bullet_points(slide, placeholder="[Bullet Point 1]", bullets=None):
-        import streamlit as st
         if bullets is None:
             bullets = st.session_state.get("bullet_points", None)
         if not bullets:
@@ -2023,26 +2025,23 @@ def step17_export_to_ppt():
                 if placeholder in p.text:
                     shape.text_frame.clear()
                     for b in bullets:
-                        p = shape.text_frame.add_paragraph()
-                        # Remove markdown asterisks if any
+                        p_new = shape.text_frame.add_paragraph()
                         clean_text = b.replace("**", "")
-                        p.text = clean_text
-                        p.level = 0
-                        p.font.name = "Cambria"
-                        p.font.size = Pt(11)
-                        p.font.color.rgb = RGBColor(0, 0, 0)
-                        # Bold the entire paragraph if you want
-                        p.font.bold = True  # <-- makes the whole bullet bold
+                        p_new.text = clean_text
+                        p_new.level = 0
+                        p_new.font.name = "Cambria"
+                        p_new.font.size = Pt(11)
+                        p_new.font.color.rgb = RGBColor(0, 0, 0)
+                        p_new.font.bold = True
                     return True
         return False
 
-
-    # Get actual category for placeholder replacement
+    # Gather session data for selected fund
     facts = st.session_state.get("fund_factsheets_data", [])
     fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected), {})
     category = fs_rec.get("Category", "N/A")
 
-    # Prepare Slide data from session_state
+    # IPS slide data
     df_slide1 = None
     ips_icon_table = st.session_state.get("ips_icon_table")
     if ips_icon_table is not None and not ips_icon_table.empty:
@@ -2060,13 +2059,127 @@ def step17_export_to_ppt():
             headers = ["Category", "Time Period", "Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
             df_slide1 = pd.DataFrame([table_data], columns=headers)
 
-    df_slide2_table1 = st.session_state.get("slide2_table1_data")
-    df_slide2_table2 = st.session_state.get("slide2_table2_data")
-    df_slide2_table3 = st.session_state.get("slide2_table3_data")
+    # Slide 2 raw tables (with ordering injection of proposed between selected and benchmark)
+    # Build Slide 2 Table 2 manually to guarantee order: selected, proposed(s), benchmark
+    perf_item = next((p for p in st.session_state.get("fund_performance_data", []) if p.get("Fund Scorecard Name") == selected), {})
+    def append_pct(val):
+        s = str(val) if val is not None else ""
+        return s if s.endswith("%") or s == "" else f"{s}%"
+    date_label = st.session_state.get("report_date", "QTD")
+    qtd   = append_pct(perf_item.get("QTD", ""))
+    one   = append_pct(perf_item.get("1Yr", ""))
+    three = append_pct(perf_item.get("3Yr", ""))
+    five  = append_pct(perf_item.get("5Yr", ""))
+    ten   = append_pct(perf_item.get("10Yr", ""))
+    inv_mgr_selected = f"{selected} ({perf_item.get('Ticker','')})"
+    row_fund = {
+        "Investment Manager": inv_mgr_selected,
+        date_label:           qtd,
+        "1 Year":             one,
+        "3 Year":             three,
+        "5 Year":             five,
+        "10 Year":            ten
+    }
 
+    # Proposed fund(s) rows
+    proposed_rows = []
+    for prop in proposed:
+        # prop is "Name (TICKER)"
+        # Try to retrieve its performance and expense ratio similarly
+        raw_name = prop.split(" (")[0]
+        perf_item_prop = next((p for p in st.session_state.get("fund_performance_data", []) if p.get("Fund Scorecard Name") == raw_name), {})
+        qtd_p   = append_pct(perf_item_prop.get("QTD", ""))
+        one_p   = append_pct(perf_item_prop.get("1Yr", ""))
+        three_p = append_pct(perf_item_prop.get("3Yr", ""))
+        five_p  = append_pct(perf_item_prop.get("5Yr", ""))
+        ten_p   = append_pct(perf_item_prop.get("10Yr", ""))
+        inv_mgr_prop = prop  # already has ticker in parentheses
+        row_prop = {
+            "Investment Manager": inv_mgr_prop,
+            date_label:           qtd_p,
+            "1 Year":             one_p,
+            "3 Year":             three_p,
+            "5 Year":             five_p,
+            "10 Year":            ten_p
+        }
+        proposed_rows.append(row_prop)
+
+    # Benchmark row (must come last)
+    fs_rec_selected = fs_rec
+    bench_name = fs_rec_selected.get("Benchmark", "") if fs_rec_selected else ""
+    bench_ticker = fs_rec_selected.get("Matched Ticker", "") if fs_rec_selected else ""
+    bench_inv_mgr = f"{bench_name} ({bench_ticker})" if bench_name else "Benchmark"
+    bench_qtd   = append_pct(perf_item.get("Bench QTD", ""))
+    bench_one   = append_pct(perf_item.get("Bench 1Yr", ""))
+    bench_3yr   = append_pct(perf_item.get("Bench 3Yr", ""))
+    bench_5yr   = append_pct(perf_item.get("Bench 5Yr", ""))
+    bench_ten   = append_pct(perf_item.get("Bench 10Yr", ""))
+    row_benchmark = {
+        "Investment Manager": bench_inv_mgr,
+        date_label:           bench_qtd,
+        "1 Year":             bench_one,
+        "3 Year":             bench_3yr,
+        "5 Year":             bench_5yr,
+        "10 Year":            bench_ten
+    }
+
+    # Assemble Slide 2 Table 2: selected, proposed(s), benchmark
+    rows_for_table2 = [row_fund] + proposed_rows + [row_benchmark]
+    df_slide2_table2 = pd.DataFrame(rows_for_table2)
+
+    # Slide 2 Table 3 (Calendar Year): similar ordering logic
+    fund_cy = st.session_state.get("step8_returns", [])
+    bench_cy = st.session_state.get("benchmark_calendar_year_returns", [])
+    # Build calendar returns rows
+    def build_cy_row(name, source_list):
+        rec = next((r for r in source_list if r.get("Name") == name or r.get("Ticker") == name), None)
+        if not rec:
+            return None
+        year_cols = [col for col in rec.keys() if re.match(r"20\d{2}", col)]
+        inv_mgr = f"{name} ({rec.get('Ticker','')})"
+        row = {"Investment Manager": inv_mgr}
+        for year in year_cols:
+            row[year] = rec.get(year, "")
+        return row, year_cols
+
+    # Selected fund calendar row
+    fund_row_cy, cy_years = build_cy_row(selected, fund_cy) or ({}, [])
+    bench_row_cy, _ = build_cy_row(bench_inv_mgr, bench_cy) or ({}, [])
+    # Proposed funds calendar rows
+    proposed_cy_rows = []
+    for prop in proposed:
+        raw_name = prop.split(" (")[0]
+        row_prop_cy, _ = build_cy_row(raw_name, fund_cy) or (None, [])
+        if row_prop_cy:
+            proposed_cy_rows.append(row_prop_cy)
+    # Assemble table3: selected, proposed(s), benchmark
+    rows_for_table3 = []
+    if fund_row_cy:
+        rows_for_table3.append(fund_row_cy)
+    rows_for_table3.extend(proposed_cy_rows)
+    if bench_row_cy:
+        rows_for_table3.append(bench_row_cy)
+    df_slide2_table3 = pd.DataFrame(rows_for_table3, columns=["Investment Manager"] + (cy_years if cy_years else []))
+
+    # Slide 2 Table 1: Net Expense Ratio (selected + proposed(s))
+    def build_expense_row(name):
+        perf_item_local = next((p for p in st.session_state.get("fund_performance_data", []) if p.get("Fund Scorecard Name") == name), {})
+        net_exp = perf_item_local.get("Net Expense Ratio", "")
+        if net_exp and not str(net_exp).endswith("%"):
+            net_exp = f"{net_exp}%"
+        inv_mgr_local = f"{name} ({perf_item_local.get('Ticker','')})"
+        return {"Investment Manager": inv_mgr_local, "Net Expense Ratio": net_exp}
+
+    rows_table1 = [build_expense_row(selected)]
+    for prop in proposed:
+        raw_name = prop.split(" (")[0]
+        rows_table1.append(build_expense_row(raw_name))
+    df_slide2_table1 = pd.DataFrame(rows_table1)
+
+    # Slide 3 and others remain similar to prior logic (you can insert proposed fund context elsewhere if needed)
+    df_slide1_table1 = df_slide1
     df_slide3_table1 = st.session_state.get("slide3_table1_data")
     df_slide3_table2 = st.session_state.get("slide3_table2_data")
-
     df_slide4_table1 = st.session_state.get("slide4")
     df_slide4_table2 = st.session_state.get("slide4_table2_data")
 
@@ -2074,150 +2187,115 @@ def step17_export_to_ppt():
     slide1 = prs.slides[0]
     if not fill_text_placeholder_preserving_format(slide1, "[Fund Name]", selected):
         st.warning("Could not find the [Fund Name] placeholder on Slide 1.")
-
-    if df_slide1 is not None:
+    if df_slide1_table1 is not None:
         filled = False
         for shape in slide1.shapes:
             if shape.has_table:
                 table = shape.table
-                if len(table.columns) == len(df_slide1.columns):
-                    # Use first_col_white=False here to set first column font black for Slide 1 table
-                    fill_table_with_styles(table, df_slide1, first_col_white=False)
+                if df_slide1_table1 is not None and len(table.columns) == len(df_slide1_table1.columns):
+                    fill_table_with_styles(table, df_slide1_table1, first_col_white=False)
                     filled = True
                     break
         if not filled:
             st.warning("Could not find matching table on Slide 1 to fill.")
     else:
         st.warning("Slide 1 IPS data not found in session state.")
-
-    # Fill bullet points on Slide 1
     bullets = st.session_state.get("bullet_points", None)
     if not fill_bullet_points(slide1, "[Bullet Point 1]", bullets):
         st.warning("Could not find bullet points placeholder on Slide 1.")
 
     # --- Fill Slide 2 ---
     slide2 = prs.slides[3]
-    if not fill_text_placeholder_preserving_format(slide2, "[Category]", category):
-        st.warning("Could not find [Category] placeholder on Slide 2.")
-
+    fill_text_placeholder_preserving_format(slide2, "[Category]", category)
+    # Table 1
     if df_slide2_table1 is None:
         st.warning("Slide 2 Table 1 data not found.")
     else:
-        filled = False
         for shape in slide2.shapes:
-            if shape.has_table:
-                table = shape.table
-                if len(table.columns) == len(df_slide2_table1.columns):
-                    fill_table_with_styles(table, df_slide2_table1)  # default: first_col_white=True
-                    filled = True
-                    break
-        if not filled:
-            st.warning("Could not find matching table for Slide 2 Table 1.")
+            if shape.has_table and len(shape.table.columns) == len(df_slide2_table1.columns):
+                fill_table_with_styles(shape.table, df_slide2_table1)
+                break
+    # Table 2 (with header adjustment)
+    quarter_label = st.session_state.get("report_date", "QTD")
+    for shape in slide2.shapes:
+        if shape.has_table and len(shape.table.columns) == len(df_slide2_table2.columns):
+            table = shape.table
+            # second cell header
+            table.cell(0, 1).text = quarter_label
+            for c in range(len(table.columns)):
+                cell = table.cell(0, c)
+                for para in cell.text_frame.paragraphs:
+                    para.alignment = PP_ALIGN.CENTER
+                    for run in para.runs:
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(11)
+                        run.font.color.rgb = RGBColor(255, 255, 255)
+                        run.font.bold = True
+            fill_table_with_styles(table, df_slide2_table2, bold_row_idx=len(proposed))  # bold benchmark if it's last
+            break
+    # Table 3 (calendar year)
+    for shape in slide2.shapes:
+        if shape.has_table and df_slide2_table3 is not None and len(shape.table.columns) == len(df_slide2_table3.columns):
+            table = shape.table
+            # replace headers
+            for c, col in enumerate(df_slide2_table3.columns):
+                cell = table.cell(0, c)
+                cell.text = str(col)
+                for para in cell.text_frame.paragraphs:
+                    para.alignment = PP_ALIGN.CENTER
+                    for run in para.runs:
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(11)
+                        run.font.color.rgb = RGBColor(255, 255, 255)
+                        run.font.bold = True
+            fill_table_with_styles(table, df_slide2_table3, bold_row_idx=len(proposed))  # benchmark bottom
+            break
 
-    if df_slide2_table2 is None:
-        st.warning("Slide 2 Table 2 data not found.")
+    # --- Replacement placeholders for proposed funds ---
+    slide_repl1 = prs.slides[1]
+    if proposed:
+        fill_text_placeholder_preserving_format(slide_repl1, "[Replacement 1]", proposed[0])
+    if len(proposed) > 1:
+        slide_repl2 = prs.slides[2]
+        fill_text_placeholder_preserving_format(slide_repl2, "[Replacement 2]", proposed[1])
     else:
-        # Replace 2nd header cell text with quarter/year label
-        quarter_label = st.session_state.get("report_date", "QTD")
-        filled = False
-        for shape in slide2.shapes:
-            if shape.has_table:
-                table = shape.table
-                if len(table.columns) == len(df_slide2_table2.columns):
-                    # Update header row font/color + replace 2nd header cell
-                    table.cell(0, 1).text = quarter_label
-                    for c in range(len(table.columns)):
-                        cell = table.cell(0, c)
-                        for para in cell.text_frame.paragraphs:
-                            para.alignment = PP_ALIGN.CENTER
-                            for run in para.runs:
-                                run.font.name = "Cambria"
-                                run.font.size = Pt(11)
-                                run.font.color.rgb = RGBColor(255, 255, 255)
-                                run.font.bold = True
-                    fill_table_with_styles(table, df_slide2_table2, bold_row_idx=1)  # bold benchmark row, first_col_white=True
-                    filled = True
-                    break
-        if not filled:
-            st.warning("Could not find matching table for Slide 2 Table 2.")
-
-    if df_slide2_table3 is None:
-        st.warning("Slide 2 Table 3 data not found.")
-    else:
-        # Update headers dynamically for years, fill benchmark row bold
-        filled = False
-        for shape in slide2.shapes:
-            if shape.has_table:
-                table = shape.table
-                if len(table.columns) == len(df_slide2_table3.columns):
-                    # Replace header cells with df column names & style font/color
-                    for c, col in enumerate(df_slide2_table3.columns):
-                        cell = table.cell(0, c)
-                        cell.text = str(col)
-                        for para in cell.text_frame.paragraphs:
-                            para.alignment = PP_ALIGN.CENTER
-                            for run in para.runs:
-                                run.font.name = "Cambria"
-                                run.font.size = Pt(11)
-                                run.font.color.rgb = RGBColor(255, 255, 255)
-                                run.font.bold = True
-                    fill_table_with_styles(table, df_slide2_table3, bold_row_idx=1)  # bold benchmark row, first_col_white=True
-                    filled = True
-                    break
-        if not filled:
-            st.warning("Could not find matching table for Slide 2 Table 3.")
+        # remove the second replacement slide if only one proposed fund
+        try:
+            prs.slides._sldIdLst.remove(prs.slides._sldIdLst[2])
+        except Exception:
+            pass  # safe fallback
 
     # --- Fill Slide 3 ---
-    slide3 = prs.slides[4]
-    if not fill_text_placeholder_preserving_format(slide3, "[Category]", category):
-        st.warning("Could not find [Category] placeholder on Slide 3.")
-
+    slide3 = prs.slides[4 if len(proposed) > 1 else 3]  # index shifts if slide 2 removed
+    fill_text_placeholder_preserving_format(slide3, "[Category]", category)
     if df_slide3_table1 is None or df_slide3_table2 is None:
         st.warning("Slide 3 table data not found.")
     else:
         tables = [shape.table for shape in slide3.shapes if shape.has_table]
-        if len(tables) < 2:
-            st.warning("Expected two tables on Slide 3, found fewer.")
-        else:
+        if len(tables) >= 1 and df_slide3_table1 is not None:
             if len(df_slide3_table1.columns) == len(tables[0].columns):
-                fill_table_with_styles(tables[0], df_slide3_table1)  # first_col_white=True default
-            else:
-                st.warning("Slide 3 Table 1 headers do not match.")
+                fill_table_with_styles(tables[0], df_slide3_table1)
+        if len(tables) >= 2 and df_slide3_table2 is not None:
             if len(df_slide3_table2.columns) == len(tables[1].columns):
-                fill_table_with_styles(tables[1], df_slide3_table2)  # first_col_white=True default
-            else:
-                st.warning("Slide 3 Table 2 headers do not match.")
+                fill_table_with_styles(tables[1], df_slide3_table2)
 
     # --- Fill Slide 4 ---
-    slide4 = prs.slides[5]
+    slide4_index = 5 if len(proposed) > 1 else 4
+    slide4 = prs.slides[slide4_index]
     qualitative_placeholder = f"[Category]– Qualitative Factors"
     qualitative_replacement = f"{category} - Qualitative Factors"
     if not fill_text_placeholder_preserving_format(slide4, qualitative_placeholder, qualitative_replacement):
         st.warning(f"Could not find placeholder '{qualitative_placeholder}' on Slide 4.")
-
     if df_slide4_table1 is not None:
-        filled = False
         for shape in slide4.shapes:
-            if shape.has_table:
-                table = shape.table
-                if len(table.columns) == len(df_slide4_table1.columns):
-                    fill_table_with_styles(table, df_slide4_table1)  # first_col_white=True default
-                    filled = True
-                    break
-        if not filled:
-            st.warning("Could not find matching table for Slide 4 Table 1.")
-
+            if shape.has_table and len(shape.table.columns) == len(df_slide4_table1.columns):
+                fill_table_with_styles(shape.table, df_slide4_table1)
+                break
     if df_slide4_table2 is not None:
-        filled = False
         for shape in slide4.shapes:
-            if shape.has_table:
-                table = shape.table
-                if len(table.columns) == len(df_slide4_table2.columns):
-                    fill_table_with_styles(table, df_slide4_table2)  # first_col_white=True default
-                    filled = True
-                    break
-        if not filled:
-            st.warning("Could not find matching table for Slide 4 Table 2.")
+            if shape.has_table and len(shape.table.columns) == len(df_slide4_table2.columns):
+                fill_table_with_styles(shape.table, df_slide4_table2)
+                break
 
     # --- Save and offer download ---
     output = BytesIO()
