@@ -1279,7 +1279,7 @@ def extract_proposed_scorecard_blocks(pdf):
             if score > best_score:
                 best_score = score
                 best_line = line
-        found = best_score >= 70  # threshold; tweak if too strict/lenient
+        found = best_score >= 70  # threshold; adjust if needed
         results.append({
             "Fund Scorecard Name": name,
             "Ticker": ticker,
@@ -1289,30 +1289,77 @@ def extract_proposed_scorecard_blocks(pdf):
         })
 
     df = pd.DataFrame(results)
-    # 4. Keep only confirmed proposed funds
     df_confirmed = df[df["Found on Proposed"] == "✅"].copy()
     st.session_state["proposed_funds_confirmed_df"] = df_confirmed
 
-    # 5. Display cleaned table
+    # Display in styled card like IPS fail table
+    st.subheader("Proposed Funds (confirmed matches)")
     if df_confirmed.empty:
-        st.subheader("Proposed Funds (confirmed matches)")
         st.write("No confirmed proposed funds found on the Proposed Funds scorecard page.")
-    else:
-        display_df = df_confirmed[[
-            "Fund Scorecard Name",
-            "Ticker",
-            "Match Score",
-            "Matched Line"
-        ]].rename(columns={
-            "Fund Scorecard Name": "Fund",
-            "Match Score": "Score",
-            "Matched Line": "Context Line"
-        })
-        st.subheader("Proposed Funds (confirmed matches)")
-        st.table(display_df)
+        return df_confirmed
+
+    display_df = df_confirmed[[
+        "Fund Scorecard Name",
+        "Ticker",
+        "Match Score",
+        "Matched Line"
+    ]].rename(columns={
+        "Fund Scorecard Name": "Fund",
+        "Match Score": "Score",
+        "Matched Line": "Context Line"
+    })
+
+    table_html = display_df.to_html(index=False, border=0, justify="center", classes="proposed-fund-table")
+
+    st.markdown(f"""
+    <div style='
+        background: linear-gradient(120deg, #e6f0fb 85%, #c8e0f6 100%);
+        color: #23395d;
+        border-radius: 1.3rem;
+        box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
+        padding: 1.6rem 2.0rem 1.6rem 2.0rem;
+        max-width: 900px;
+        margin: 1.4rem auto 1.2rem auto;
+        border: 1.5px solid #b5d0eb;'>
+        <div style='font-weight:700; color:#23395d; font-size:1.15rem; margin-bottom:0.5rem; letter-spacing:-0.5px;'>
+            Proposed Funds
+        </div>
+        <div style='font-size:1rem; margin-bottom:1rem; color:#23395d;'>
+            The following funds were confirmed to appear on the Proposed Funds scorecard page via fuzzy matching.
+        </div>
+        {table_html}
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <style>
+    .proposed-fund-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 0.7em;
+        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+    }
+    .proposed-fund-table th, .proposed-fund-table td {
+        border: none;
+        padding: 0.48em 1.1em;
+        text-align: left;
+        font-size: 1.0em;
+    }
+    .proposed-fund-table th {
+        background: #244369;
+        color: #fff;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+    }
+    .proposed-fund-table td {
+        color: #23395d;
+    }
+    .proposed-fund-table tr:nth-child(even) {background: #e6f0fb;}
+    .proposed-fund-table tr:nth-child(odd)  {background: #f8fafc;}
+    </style>
+    """, unsafe_allow_html=True)
 
     return df_confirmed
-
 
 
 
