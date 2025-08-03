@@ -1245,16 +1245,16 @@ def extract_proposed_scorecard_blocks(pdf):
     from rapidfuzz import fuzz
 
     """
-    Step 14.7: Look only on the 'Fund Scorecard: Proposed Funds' page,
-    fuzzy-match the already-extracted scorecard/performance fund names (and tickers)
-    to that page, and persist/display only the confirmed proposed funds.
+    Step 14.7: On only the 'Fund Scorecard: Proposed Funds' page, fuzzy-match the
+    already-extracted fund names/tickers from the performance/scorecard and persist/display
+    only those confirmed as proposed.
     """
     prop_page = st.session_state.get("scorecard_proposed_page")
     if not prop_page:
         st.error("❌ 'Fund Scorecard: Proposed Funds' page number not found in TOC.")
         return pd.DataFrame()
 
-    # 1. Extract text from only the Proposed Funds scorecard page
+    # 1. Extract lines from just the Proposed Funds scorecard page
     page = pdf.pages[prop_page - 1]
     lines = [ln.strip() for ln in (page.extract_text() or "").splitlines() if ln.strip()]
     if not lines:
@@ -1263,6 +1263,10 @@ def extract_proposed_scorecard_blocks(pdf):
 
     # 2. Build candidate list from already-extracted funds (performance/scorecard)
     perf_data = st.session_state.get("fund_performance_data", [])
+    if not perf_data:
+        st.warning("No performance/scorecard fund names available to match against.")
+        return pd.DataFrame()
+
     candidate_funds = []
     for item in perf_data:
         name = item.get("Fund Scorecard Name", "").strip()
@@ -1270,7 +1274,7 @@ def extract_proposed_scorecard_blocks(pdf):
         if name:
             candidate_funds.append({"Fund Scorecard Name": name, "Ticker": ticker})
 
-    # 3. Fuzzy-match each candidate against lines on the proposed page
+    # 3. Fuzzy-match each candidate against the lines on the proposed page
     results = []
     for fund in candidate_funds:
         name = fund["Fund Scorecard Name"]
@@ -1284,7 +1288,7 @@ def extract_proposed_scorecard_blocks(pdf):
             if score > best_score:
                 best_score = score
                 best_line = line
-        found = best_score >= 70  # threshold; tune if necessary
+        found = best_score >= 70  # threshold; adjust if needed
         results.append({
             "Fund Scorecard Name": name,
             "Ticker": ticker,
@@ -1295,14 +1299,25 @@ def extract_proposed_scorecard_blocks(pdf):
 
     df = pd.DataFrame(results)
 
-    # 4. Keep only confirmed proposed funds and persist independently
+    # 4. Keep only confirmed proposed funds and persist independently of selection
     df_confirmed = df[df["Found on Proposed"] == "✅"].copy()
     st.session_state["proposed_funds_confirmed_df"] = df_confirmed
 
-    # 5. Display styled summary (similar container style to IPS fail)
+    # 5. Display summary in a styled section
     st.subheader("Proposed Funds (confirmed matches)")
     if df_confirmed.empty:
-        st.write("No confirmed proposed funds found on the Proposed Funds scorecard page.")
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(120deg, #fff8f0 85%, #ffe9d8 100%);
+            color: #8a5a2b;
+            border-radius: 1.2rem;
+            padding: 1rem 1.5rem;
+            border: 1px solid #f0d4b5;
+            margin-bottom: 1rem;
+        ">
+            No confirmed proposed funds were found on the Proposed Funds scorecard page.
+        </div>
+        """, unsafe_allow_html=True)
     else:
         display_df = df_confirmed[[
             "Fund Scorecard Name",
@@ -1314,11 +1329,9 @@ def extract_proposed_scorecard_blocks(pdf):
             "Match Score": "Score",
             "Matched Line": "Context Line"
         })
-        # Optional: keep only matched (i.e., drop the Found on Proposed and show score)
         st.table(display_df)
 
     return df_confirmed
-
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
 
@@ -2237,8 +2250,8 @@ def step17_export_to_ppt():
 
 def run():
     import re
-    st.title("Writeup Generator")
-    uploaded = st.file_uploader("Upload MPI PDF to Generate Writup PPTX", type="pdf")
+    st.title("Writeup & Rec")
+    uploaded = st.file_uploader("Upload MPI PDF to Generate Writup & Rec PPTX", type="pdf")
     if not uploaded:
         return
 
@@ -2319,8 +2332,7 @@ def run():
         # Step 14.5: IPS Fail Table
         step14_5_ips_fail_table()
 
-        with st.expander("Proposed Funds (confirmed)", expanded=True):
-            extract_proposed_scorecard_blocks(pdf)
+        extract_proposed_scorecard_blocks(pdf)
 
         # Step 15: View Single Fund Details
         with st.expander("Single Fund Write Up", expanded=False):
