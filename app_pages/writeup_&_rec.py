@@ -1332,6 +1332,13 @@ def step15_display_selected_fund():
     selected_fund = st.selectbox("Select a fund to view details:", fund_names)
     st.session_state.selected_fund = selected_fund
 
+    # --- NEW: pull confirmed proposed funds once, independent of selection ---
+    confirmed_proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    proposed_fund_names = (
+        confirmed_proposed_df["Fund Scorecard Name"].unique().tolist()
+        if not confirmed_proposed_df.empty else []
+    )
+
     st.write(f"Details for: {selected_fund}")
     factsheets = st.session_state.get("fund_factsheets_data", [])
     factsheet_rec = next((row for row in factsheets if row["Matched Fund Name"] == selected_fund), None)
@@ -1461,11 +1468,31 @@ def step15_display_selected_fund():
     net_exp = perf_item.get("Net Expense Ratio", "")
     if net_exp and not str(net_exp).endswith("%"):
         net_exp = f"{net_exp}%"
-    df_slide2 = pd.DataFrame([{
+    
+    # Get confirmed proposed funds (persistent, independent of selection)
+    confirmed_proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    proposed_fund_names = (
+        confirmed_proposed_df["Fund Scorecard Name"].unique().tolist()
+        if not confirmed_proposed_df.empty else []
+    )
+    
+    # Build rows: selected fund first, then proposed funds (skip if same), using same metric unless overridden
+    rows = []
+    rows.append({
         "Investment Manager": inv_mgr,
         "Net Expense Ratio":  net_exp
-    }])
-
+    })
+    for pf in proposed_fund_names:
+        if pf == selected_fund:
+            continue
+        label = f"{pf} (Proposed)"
+        rows.append({
+            "Investment Manager": label,
+            "Net Expense Ratio":  net_exp
+        })
+    
+    df_slide2 = pd.DataFrame(rows)
+    
     # Save this dataframe for Step 17
     st.session_state["slide2_table1_data"] = df_slide2
     st.dataframe(df_slide2, use_container_width=True)
@@ -1490,7 +1517,7 @@ def step15_display_selected_fund():
     bench_5yr   = append_pct(perf_item.get("Bench 5Yr", ""))
     bench_ten   = append_pct(perf_item.get("Bench 10Yr", ""))
     
-    # Fund row
+    # Selected fund row
     row_fund = {
         "Investment Manager": inv_mgr,
         date_label:           qtd,
@@ -1500,11 +1527,10 @@ def step15_display_selected_fund():
         "10 Year":            ten
     }
     
-    # Benchmark row with corresponding benchmark returns
+    # Benchmark row
     bench_name = fs_rec.get("Benchmark", "") if fs_rec else ""
     bench_ticker = fs_rec.get("Matched Ticker", "") if fs_rec else ""
     bench_inv_mgr = f"{bench_name} ({bench_ticker})" if bench_name else "Benchmark"
-    
     row_benchmark = {
         "Investment Manager": bench_inv_mgr,
         date_label:           bench_qtd,
@@ -1514,11 +1540,35 @@ def step15_display_selected_fund():
         "10 Year":            bench_ten
     }
     
-    df_slide2_2 = pd.DataFrame([row_fund, row_benchmark])
+    # Get confirmed proposed funds (fixed)
+    confirmed_proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    proposed_fund_names = (
+        confirmed_proposed_df["Fund Scorecard Name"].unique().tolist()
+        if not confirmed_proposed_df.empty else []
+    )
+    
+    # Build rows: selected fund, then proposed fund(s), then benchmark
+    rows = [row_fund]
+    for pf in proposed_fund_names:
+        if pf == selected_fund:
+            continue  # avoid duplicate if selected is also proposed
+        label = f"{pf} (Proposed)"
+        rows.append({
+            "Investment Manager": label,
+            date_label:           qtd,
+            "1 Year":             one,
+            "3 Year":             three,
+            "5 Year":             five,
+            "10 Year":            ten
+        })
+    rows.append(row_benchmark)
+    
+    df_slide2_2 = pd.DataFrame(rows)
     
     # Save for Step 17 to use
     st.session_state["slide2_table2_data"] = df_slide2_2
     st.dataframe(df_slide2_2, use_container_width=True)
+
 
 
     # --- Slide 2 Table 3 ---
@@ -1528,40 +1578,90 @@ def step15_display_selected_fund():
     if not fund_cy or not bench_cy:
         st.error("❌ No calendar year returns data found. Ensure Step 8 has been run correctly.")
         return
+    
+    # Selected fund record
     fund_rec = next((r for r in fund_cy if r.get("Name") == selected_fund), None)
     if not fund_rec:
         st.error(f"❌ Could not find data for selected fund: {selected_fund}")
         return
+    
+    # Benchmark record
     benchmark_name = selected_fund
     bench_rec = next((r for r in bench_cy if r.get("Name") == benchmark_name or r.get("Ticker") == fund_rec.get("Ticker")), None)
     if not bench_rec:
         st.error(f"❌ Could not find benchmark data for selected fund: {selected_fund}")
         return
+    
     year_cols = [col for col in fund_rec.keys() if re.match(r"20\d{2}", col)]
+    
+    # Get proposed fund names (fixed, independent of selection)
+    confirmed_proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    proposed_fund_names = (
+        confirmed_proposed_df["Fund Scorecard Name"].unique().tolist()
+        if not confirmed_proposed_df.empty else []
+    )
+    
     rows = []
-    row_fund = {"Investment Manager": f"{selected_fund} ({fund_rec.get('Ticker','')})"}
-    for year in year_cols:
-        row_fund[year] = fund_rec.get(year, "")
-    rows.append(row_fund)
-    row_benchmark = {"Investment Manager": f"{bench_rec.get('Name', 'Benchmark')} ({bench_rec.get('Ticker', '')})"}
-    for year in year_cols:
-        row_benchmark[year] = bench_rec.get(year, "")
-    rows.append(row_benchmark)
+    
+    # Selected fund row
+    rows.append({
+        "Investment Manager": f"{selected_fund} ({fund_rec.get('Ticker','')})",
+        **{year: fund_rec.get(year, "") for year in year_cols}
+    })
+    
+    # Proposed fund rows (skip duplicate if selected is itself proposed)
+    for pf in proposed_fund_names:
+        if pf == selected_fund:
+            continue
+        # Try to find its own calendar-year record
+        pf_rec = next((r for r in fund_cy if r.get("Name") == pf), None)
+        label = f"{pf} (Proposed)"
+        if pf_rec:
+            rows.append({
+                "Investment Manager": label,
+                **{year: pf_rec.get(year, "") for year in year_cols}
+            })
+        else:
+            # Fallback: repeat selected fund's numbers (or leave blank)
+            rows.append({
+                "Investment Manager": label,
+                **{year: "" for year in year_cols}
+            })
+    
+    # Benchmark row last
+    rows.append({
+        "Investment Manager": f"{bench_rec.get('Name', 'Benchmark')} ({bench_rec.get('Ticker', '')})",
+        **{year: bench_rec.get(year, "") for year in year_cols}
+    })
+    
     df_slide2_3 = pd.DataFrame(rows, columns=["Investment Manager"] + year_cols)
-
+    
     # Save for Step 17 to use
     st.session_state["slide2_table3_data"] = df_slide2_3
     st.dataframe(df_slide2_3, use_container_width=True)
 
+
     # --- Slide 3 Table 1 ---
     st.markdown("**MPT Statistics Summary**")
+    # Base data for selected fund
     mpt3 = st.session_state.get("step9_mpt_stats", [])
-    stats3 = next((r for r in mpt3 if r["Fund Name"] == selected_fund), {})
     mpt5 = st.session_state.get("step10_mpt_stats", [])
+    stats3 = next((r for r in mpt3 if r["Fund Name"] == selected_fund), {})
     stats5 = next((r for r in mpt5 if r["Fund Name"] == selected_fund), {})
     ticker = stats3.get("Ticker", stats5.get("Ticker", ""))
     inv_mgr = f"{selected_fund} ({ticker})"
-    row = {
+    
+    # Get confirmed proposed funds (persistent, independent of selection)
+    confirmed_proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    proposed_fund_names = (
+        confirmed_proposed_df["Fund Scorecard Name"].unique().tolist()
+        if not confirmed_proposed_df.empty else []
+    )
+    
+    rows = []
+    
+    # Selected fund row
+    rows.append({
         "Investment Manager":        inv_mgr,
         "3 Year Alpha":              stats3.get("3 Year Alpha", ""),
         "5 Year Alpha":              stats5.get("5 Year Alpha", ""),
@@ -1571,74 +1671,179 @@ def step15_display_selected_fund():
         "3 Year Downside Capture":   stats3.get("3 Year Downside Capture", ""),
         "5 Year Upside Capture":     stats5.get("5 Year Upside Capture", ""),
         "5 Year Downside Capture":   stats5.get("5 Year Downside Capture", "")
-    }
-    df_slide3_1 = pd.DataFrame([row])
-
+    })
+    
+    # Proposed fund rows
+    for pf in proposed_fund_names:
+        if pf == selected_fund:
+            continue
+        # pull its stats if available
+        pf_stats3 = next((r for r in mpt3 if r["Fund Name"] == pf), {})
+        pf_stats5 = next((r for r in mpt5 if r["Fund Name"] == pf), {})
+        pf_ticker = pf_stats3.get("Ticker", pf_stats5.get("Ticker", ""))
+        label = f"{pf} (Proposed)"
+        rows.append({
+            "Investment Manager":        label,
+            "3 Year Alpha":              pf_stats3.get("3 Year Alpha", ""),
+            "5 Year Alpha":              pf_stats5.get("5 Year Alpha", ""),
+            "3 Year Beta":               pf_stats3.get("3 Year Beta", ""),
+            "5 Year Beta":               pf_stats5.get("5 Year Beta", ""),
+            "3 Year Upside Capture":     pf_stats3.get("3 Year Upside Capture", ""),
+            "3 Year Downside Capture":   pf_stats3.get("3 Year Downside Capture", ""),
+            "5 Year Upside Capture":     pf_stats5.get("5 Year Upside Capture", ""),
+            "5 Year Downside Capture":   pf_stats5.get("5 Year Downside Capture", "")
+        })
+    
+    df_slide3_1 = pd.DataFrame(rows)
+    
     # Save for Step 17 to use
     st.session_state["slide3_table1_data"] = df_slide3_1
     st.dataframe(df_slide3_1, use_container_width=True)
+
 
     # --- Slide 3 Table 2 ---
     st.markdown("**Risk-Adjusted Returns / Peer Ranking %**")
     risk_table = st.session_state.get("step13_risk_adjusted_table", [])
     peer_table = st.session_state.get("step14_peer_rank_table", [])
+    
+    # Selected fund metrics
     risk_rec = next((r for r in risk_table if r["Fund Name"] == selected_fund), {})
     peer_rec = next((r for r in peer_table if r["Fund Name"] == selected_fund), {})
     ticker = risk_rec.get("Ticker") or peer_rec.get("Ticker", "")
     inv_mgr = f"{selected_fund} ({ticker})"
-    def frac(metric, period):
-        r = risk_rec.get(f"{metric} {period}", "")
-        p = peer_rec.get(f"{metric} {period}", "")
+    
+    def frac(metric, period, rec, peer):
+        r = rec.get(f"{metric} {period}", "")
+        p = peer.get(f"{metric} {period}", "")
         return f"{r} / {p}"
-    row = {
+    
+    rows = []
+    # Selected fund row
+    rows.append({
         "Investment Manager": inv_mgr,
-        "3 Year Sharpe Ratio / Peer Ranking %": frac("Sharpe Ratio", "3Yr"),
-        "5 Year Sharpe Ratio / Peer Ranking %": frac("Sharpe Ratio", "5Yr"),
-        "3 Year Sortino Ratio / Peer Ranking %": frac("Sortino Ratio", "3Yr"),
-        "5 Year Sortino Ratio / Peer Ranking %": frac("Sortino Ratio", "5Yr"),
-        "3 Year Information Ratio / Peer Ranking %": frac("Information Ratio", "3Yr"),
-        "5 Year Information Ratio / Peer Ranking %": frac("Information Ratio", "5Yr"),
-    }
-    df_slide3_2 = pd.DataFrame([row])
-        
+        "3 Year Sharpe Ratio / Peer Ranking %": frac("Sharpe Ratio", "3Yr", risk_rec, peer_rec),
+        "5 Year Sharpe Ratio / Peer Ranking %": frac("Sharpe Ratio", "5Yr", risk_rec, peer_rec),
+        "3 Year Sortino Ratio / Peer Ranking %": frac("Sortino Ratio", "3Yr", risk_rec, peer_rec),
+        "5 Year Sortino Ratio / Peer Ranking %": frac("Sortino Ratio", "5Yr", risk_rec, peer_rec),
+        "3 Year Information Ratio / Peer Ranking %": frac("Information Ratio", "3Yr", risk_rec, peer_rec),
+        "5 Year Information Ratio / Peer Ranking %": frac("Information Ratio", "5Yr", risk_rec, peer_rec),
+    })
+    
+    # Proposed funds (persistent)
+    confirmed_proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    proposed_fund_names = (
+        confirmed_proposed_df["Fund Scorecard Name"].unique().tolist()
+        if not confirmed_proposed_df.empty else []
+    )
+    for pf in proposed_fund_names:
+        if pf == selected_fund:
+            continue
+        pf_risk = next((r for r in risk_table if r["Fund Name"] == pf), {})
+        pf_peer = next((r for r in peer_table if r["Fund Name"] == pf), {})
+        label = f"{pf} (Proposed)"
+        rows.append({
+            "Investment Manager": label,
+            "3 Year Sharpe Ratio / Peer Ranking %": frac("Sharpe Ratio", "3Yr", pf_risk, pf_peer),
+            "5 Year Sharpe Ratio / Peer Ranking %": frac("Sharpe Ratio", "5Yr", pf_risk, pf_peer),
+            "3 Year Sortino Ratio / Peer Ranking %": frac("Sortino Ratio", "3Yr", pf_risk, pf_peer),
+            "5 Year Sortino Ratio / Peer Ranking %": frac("Sortino Ratio", "5Yr", pf_risk, pf_peer),
+            "3 Year Information Ratio / Peer Ranking %": frac("Information Ratio", "3Yr", pf_risk, pf_peer),
+            "5 Year Information Ratio / Peer Ranking %": frac("Information Ratio", "5Yr", pf_risk, pf_peer),
+        })
+    
+    df_slide3_2 = pd.DataFrame(rows)
+    
     # Save for Step 17 to use
     st.session_state["slide3_table2_data"] = df_slide3_2
     st.dataframe(df_slide3_2, use_container_width=True)
 
     # --- Slide 4 Table 1 ---
     st.markdown("**Manager Tenure**")
-    blocks      = st.session_state.get("fund_blocks", [])
-    block       = next((b for b in blocks if b["Fund Name"] == selected_fund), {})
-    raw_tenure  = next((m["Info"] for m in block.get("Metrics", []) if m["Metric"] == "Manager Tenure"), "")
+    blocks = st.session_state.get("fund_blocks", [])
+    
+    # Selected fund row
+    block = next((b for b in blocks if b["Fund Name"] == selected_fund), {})
+    raw_tenure = next((m["Info"] for m in block.get("Metrics", []) if m["Metric"] == "Manager Tenure"), "")
     m = re.search(r"(\d+(\.\d+)?)", raw_tenure)
     tenure = f"{m.group(1)} years" if m else raw_tenure
     perf_data = st.session_state.get("fund_performance_data", [])
     perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == selected_fund), {})
-    inv_mgr   = f"{selected_fund} ({perf_item.get('Ticker','')})"
-    df_slide4 = pd.DataFrame([{
+    inv_mgr = f"{selected_fund} ({perf_item.get('Ticker','')})"
+    
+    rows = [{
         "Investment Manager": inv_mgr,
         "Manager Tenure":     tenure
-    }])
-
+    }]
+    
+    # Proposed fund rows (persistent)
+    confirmed_proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    proposed_fund_names = (
+        confirmed_proposed_df["Fund Scorecard Name"].unique().tolist()
+        if not confirmed_proposed_df.empty else []
+    )
+    for pf in proposed_fund_names:
+        if pf == selected_fund:
+            continue
+        pf_block = next((b for b in blocks if b["Fund Name"] == pf), {})
+        pf_raw_tenure = next((m["Info"] for m in pf_block.get("Metrics", []) if m["Metric"] == "Manager Tenure"), "")
+        m2 = re.search(r"(\d+(\.\d+)?)", pf_raw_tenure)
+        pf_tenure = f"{m2.group(1)} years" if m2 else pf_raw_tenure
+        # ticker reuse from performance data if available
+        pf_perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == pf), {})
+        pf_inv_mgr = f"{pf} ({pf_perf_item.get('Ticker','')})"
+        rows.append({
+            "Investment Manager": pf_inv_mgr + " (Proposed)",
+            "Manager Tenure":     pf_tenure
+        })
+    
+    df_slide4 = pd.DataFrame(rows)
+    
     # Save for Step 17 to use
     st.session_state["slide4"] = df_slide4
     st.dataframe(df_slide4, use_container_width=True)
+
     
     # --- Slide 4 Table 2 ---
     st.markdown("**Assets**")
     facts = st.session_state.get("fund_factsheets_data", [])
-    fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected_fund), None)
     perf_data = st.session_state.get("fund_performance_data", [])
-    perf_item = next((p for p in perf_data if p["Fund Scorecard Name"] == selected_fund), None)
-    inv_mgr    = f"{selected_fund} ({perf_item.get('Ticker','') if perf_item else ''})"
-    assets     = fs_rec.get("Net Assets", "") if fs_rec else ""
-    avg_cap    = fs_rec.get("Avg. Market Cap", "") if fs_rec else ""
-    df_slide4_2 = pd.DataFrame([{
+    
+    # Selected fund row
+    fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected_fund), None)
+    perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == selected_fund), {})
+    inv_mgr = f"{selected_fund} ({perf_item.get('Ticker','') if perf_item else ''})"
+    assets = fs_rec.get("Net Assets", "") if fs_rec else ""
+    avg_cap = fs_rec.get("Avg. Market Cap", "") if fs_rec else ""
+    
+    rows = [{
         "Investment Manager":             inv_mgr,
         "Assets Under Management":        assets,
         "Average Market Capitalization":  avg_cap
-    }])
-
+    }]
+    
+    # Proposed fund rows (persistent)
+    confirmed_proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    proposed_fund_names = (
+        confirmed_proposed_df["Fund Scorecard Name"].unique().tolist()
+        if not confirmed_proposed_df.empty else []
+    )
+    for pf in proposed_fund_names:
+        if pf == selected_fund:
+            continue
+        # Factsheet & perf for proposed fund
+        pf_fs = next((f for f in facts if f["Matched Fund Name"] == pf), {})
+        pf_perf = next((p for p in perf_data if p.get("Fund Scorecard Name") == pf), {})
+        pf_inv_mgr = f"{pf} ({pf_perf.get('Ticker','') if pf_perf else ''}) (Proposed)"
+        pf_assets = pf_fs.get("Net Assets", "") if pf_fs else ""
+        pf_avg_cap = pf_fs.get("Avg. Market Cap", "") if pf_fs else ""
+        rows.append({
+            "Investment Manager":             pf_inv_mgr,
+            "Assets Under Management":        pf_assets,
+            "Average Market Capitalization":  pf_avg_cap
+        })
+    
+    df_slide4_2 = pd.DataFrame(rows)
+    
     # Save for Step 17 to use
     st.session_state["slide4_table2_data"] = df_slide4_2
     st.dataframe(df_slide4_2, use_container_width=True)
