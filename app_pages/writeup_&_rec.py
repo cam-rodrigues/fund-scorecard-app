@@ -1247,7 +1247,7 @@ def extract_proposed_scorecard_blocks(pdf):
     """
     Step 14.7: On only the 'Fund Scorecard: Proposed Funds' page, fuzzy-match the
     already-extracted fund names/tickers from the performance/scorecard and persist/display
-    only those confirmed as proposed in a styled card.
+    only those confirmed as proposed. The card view shows only the name and ticker.
     """
     prop_page = st.session_state.get("scorecard_proposed_page")
     if not prop_page:
@@ -1303,7 +1303,7 @@ def extract_proposed_scorecard_blocks(pdf):
     df_confirmed = df[df["Found on Proposed"] == "✅"].copy()
     st.session_state["proposed_funds_confirmed_df"] = df_confirmed
 
-    # 5. Display styled summary similar to IPS fail card
+    # 5. Display styled summary card with only Fund and Ticker shown
     st.subheader("Proposed Funds (confirmed matches)")
     if df_confirmed.empty:
         st.markdown(f"""
@@ -1320,18 +1320,11 @@ def extract_proposed_scorecard_blocks(pdf):
         </div>
         """, unsafe_allow_html=True)
     else:
-        display_df = df_confirmed[[
-            "Fund Scorecard Name",
-            "Ticker",
-            "Match Score",
-            "Matched Line"
-        ]].rename(columns={
+        # Simplified display: only name and ticker
+        display_df = df_confirmed[["Fund Scorecard Name", "Ticker"]].rename(columns={
             "Fund Scorecard Name": "Fund",
-            "Match Score": "Score",
-            "Matched Line": "Context Line"
         })
 
-        # Build HTML table with custom class and embed in card
         table_html = display_df.to_html(index=False, border=0, justify="center", classes="proposed-fund-table")
 
         st.markdown(f"""
@@ -1348,7 +1341,7 @@ def extract_proposed_scorecard_blocks(pdf):
                 Confirmed Proposed Funds
             </div>
             <div style='font-size:1rem; margin-bottom:1rem; color:#23395d;'>
-                The following funds were identified on the Proposed Funds scorecard page via fuzzy match.
+                The following funds were identified on the Proposed Funds scorecard page.
             </div>
             {table_html}
         </div>
@@ -1380,6 +1373,7 @@ def extract_proposed_scorecard_blocks(pdf):
         """, unsafe_allow_html=True)
 
     return df_confirmed
+
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
 
