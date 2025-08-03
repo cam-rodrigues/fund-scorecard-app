@@ -1918,12 +1918,22 @@ def step16_bullet_points():
 
     # Bullet 3: Action for Formal Watch only
     if ips_status == "FW":
-        b3 = "- **Action:** Consider replacing this fund."
+        # Get confirmed proposed funds (stays constant regardless of selected fund)
+        confirmed = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+        proposals = []
+        if not confirmed.empty:
+            # Unique ordered list of proposed fund names with tickers
+            seen = set()
+            for name, ticker in zip(confirmed["Fund Scorecard Name"], confirmed["Ticker"]):
+                display = f"{name} ({ticker})" if ticker else name
+                if display not in seen:
+                    seen.add(display)
+                    proposals.append(display)
+        replacement = ", ".join(proposals) if proposals else "a proposed fund"
+        b3 = f"- **Action:** Consider replacing this fund with {replacement}."
         bullets.append(b3)
         st.markdown(b3)
 
-    # Save bullets for Step 17
-    st.session_state["bullet_points"] = bullets
 
 
 #───Build Powerpoint──────────────────────────────────────────────────────────────────
