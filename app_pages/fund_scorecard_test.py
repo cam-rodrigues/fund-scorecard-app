@@ -1379,10 +1379,18 @@ def run():
                 template_path="assets/investment_metrics_template.xlsx",
                 output_path="filled_investment_metrics.xlsx"
             )
-            if filled_path:
-                st.markdown(f"[Download populated Excel]({filled_path})")
+            if filled_path and os.path.exists(filled_path):
+                with open(filled_path, "rb") as f:
+                    data = f.read()
+                st.download_button(
+                    "Download populated Excel",
+                    data=data,
+                    file_name="filled_investment_metrics.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
         except Exception as e:
             st.error(f"Step 15 failed: {e}")
+
 
 
 if __name__ == "__main__":
