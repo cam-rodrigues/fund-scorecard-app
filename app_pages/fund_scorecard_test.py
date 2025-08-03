@@ -1239,47 +1239,50 @@ def step14_5_ips_fail_table():
     """, unsafe_allow_html=True)
 
 #───Step 15 - Excel──────────────────────────────────────────────────────────────────
+import openpyxl
+from pathlib import Path
 
-import os
-import streamlit as st
-from openpyxl import load_workbook
-
-def step15_populate_excel_template(template_path: str = "assets/investment_metrics_template.xlsx",
-                                   output_path: str = "filled_investment_metrics.xlsx"):
+def step15_populate_excel():
     """
-    Step 15 minimal: on button press, write 'Prepared for' into AB4 (Current Period sheet if present,
-    otherwise the active/populated sheet) and save. Does not modify anything else.
+    Opens the Excel template at assets/investment_metrics_template,
+    writes the 'prepared_for' value into cell AB4, and returns the workbook bytes.
     """
-    if not st.button("Populate Investment Metrics Excel (Step 15: Prepared for)"):
-        return None  # wait until clicked
-
-    if not os.path.exists(template_path):
-        st.error(f"Template not found at {template_path}")
+    prepared_for = st.session_state.get("prepared_for", "")
+    if not prepared_for:
+        st.error("❌ Cannot populate Excel: 'prepared_for' is missing in session state.")
         return None
 
-    try:
-        wb = load_workbook(template_path)
-    except Exception as e:
-        st.error(f"Failed to open template: {e}")
-        return None
-
-    # Write "Prepared for" into AB4, preferring "Current Period" sheet
-    if "Current Period" in wb.sheetnames:
-        ws_target = wb["Current Period"]
+    template_path = Path("assets") / "investment_metrics_template"
+    # Try common extensions if not explicit
+    if template_path.is_dir():
+        # find a file inside if user gave directory
+        candidates = list(template_path.glob("*.xlsx"))
+        if not candidates:
+            st.error(f"❌ No .xlsx file found in {template_path}.")
+            return None
+        template_file = candidates[0]
     else:
-        # fallback to first sheet
-        ws_target = wb[wb.sheetnames[0]]
-
-    ws_target["AB4"] = "Prepared for"
+        template_file = template_path
+        if not template_file.exists():
+            st.error(f"❌ Excel template not found at {template_file}.")
+            return None
 
     try:
-        wb.save(output_path)
+        wb = openpyxl.load_workbook(template_file)
     except Exception as e:
-        st.error(f"Failed to save populated workbook: {e}")
+        st.error(f"❌ Failed to load Excel template: {e}")
         return None
 
-    st.success(f"'Prepared for' written to AB4 and saved to {output_path}")
-    return output_path
+    # Assume first sheet unless you need a specific one
+    ws = wb.active
+    ws["AB4"] = prepared_for
+
+    # Save to in-memory buffer so you can offer download or further processing
+    from io import BytesIO
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
+    return out
 
 
 
@@ -1370,26 +1373,20 @@ def run():
         step14_5_ips_fail_table()
 
         # Step 15: Populate template (button is inside function)
-        try:
-            # optional: let user type a name to show in AB4
-            client_name = st.text_input("Prepared for:", value=st.session_state.get("client_name", ""))
-            st.session_state["client_name"] = client_name  # persist if needed
-        
-            filled_path = step15_populate_excel_template(
-                template_path="assets/investment_metrics_template.xlsx",
-                output_path="filled_investment_metrics.xlsx"
-            )
-            if filled_path and os.path.exists(filled_path):
-                with open(filled_path, "rb") as f:
-                    data = f.read()
+        # Step 15: Populate template (button is inside function)
+        st.markdown("### Step 15: Populate Excel Template")
+        if st.button("Populate Excel"):
+            excel_bytes = step15_populate_excel()
+            if excel_bytes:
+                st.success("Excel template populated with 'Prepared For'.")
                 st.download_button(
-                    "Download populated Excel",
-                    data=data,
-                    file_name="filled_investment_metrics.xlsx",
+                    "Download Populated Excel",
+                    data=excel_bytes,
+                    file_name="investment_metrics_filled.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-        except Exception as e:
-            st.error(f"Step 15 failed: {e}")
+
+
 
 
 
