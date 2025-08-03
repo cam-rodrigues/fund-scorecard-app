@@ -1960,8 +1960,7 @@ def step17_export_to_ppt():
             ticker = row.get("Ticker", "")
             label = f"{name} ({ticker})" if ticker else name
             proposed.append(label)
-    # Limit to two proposals because template supports up to two
-    proposed = proposed[:2]
+    proposed = proposed[:2]  # template supports up to two
 
     template_path = "assets/writeup&rec_templates.pptx"
     try:
@@ -1971,7 +1970,6 @@ def step17_export_to_ppt():
         return
 
     def fill_table_with_styles(table, df_table, bold_row_idx=None, first_col_white=True):
-        from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
         for i in range(min(len(df_table), len(table.rows) - 1)):
             for j in range(min(len(df_table.columns), len(table.columns))):
                 val = df_table.iloc[i, j]
@@ -2036,9 +2034,9 @@ def step17_export_to_ppt():
                     return True
         return False
 
-    # Gather session data for selected fund
+    # Gather session data
     facts = st.session_state.get("fund_factsheets_data", [])
-    fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected), {})
+    fs_rec = next((f for f in facts if f.get("Matched Fund Name") == selected), {})
     category = fs_rec.get("Category", "N/A")
 
     # IPS slide data
@@ -2059,26 +2057,38 @@ def step17_export_to_ppt():
             headers = ["Category", "Time Period", "Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
             df_slide1 = pd.DataFrame([table_data], columns=headers)
 
-     # --- Fill Slide 2 ---
+    # Raw Slide 2 tables from session (they should already have selected, proposed(s), benchmark ordering)
+    df_slide2_table1 = st.session_state.get("slide2_table1_data")
+    df_slide2_table2 = st.session_state.get("slide2_table2_data")
+    df_slide2_table3 = st.session_state.get("slide2_table3_data")
 
-    from copy import deepcopy
-
-    def insert_row_with_format(table, insert_after_idx, source_row_idx):
-        tbl = table._tbl
-        source_tr = table.rows[source_row_idx]._tr
-        new_tr = deepcopy(source_tr)
-        # Insert before the next row’s tr if exists, else append
-        if insert_after_idx + 1 < len(table.rows):
-            ref_tr = table.rows[insert_after_idx + 1]._tr
-            tbl.insert(tbl._element.index(ref_tr), new_tr)
-        else:
-            tbl.append(new_tr)
+    # --- Fill Slide 1 ---
+    slide1 = prs.slides[0]
+    if not fill_text_placeholder_preserving_format(slide1, "[Fund Name]", selected):
+        st.warning("Could not find the [Fund Name] placeholder on Slide 1.")
+    if df_slide1 is not None:
+        filled = False
+        for shape in slide1.shapes:
+            if shape.has_table:
+                table = shape.table
+                if len(table.columns) == len(df_slide1.columns):
+                    fill_table_with_styles(table, df_slide1, first_col_white=False)
+                    filled = True
+                    break
+        if not filled:
+            st.warning("Could not find matching table on Slide 1 to fill.")
+    else:
+        st.warning("Slide 1 IPS data not found in session state.")
+    bullets = st.session_state.get("bullet_points", None)
+    if not fill_bullet_points(slide1, "[Bullet Point 1]", bullets):
+        st.warning("Could not find bullet points placeholder on Slide 1.")
 
     # --- Fill Slide 2 ---
     slide2 = prs.slides[3]
-    fill_text_placeholder_preserving_format(slide2, "[Category]", category)
-    
-    # --- Table 1 ---
+    if not fill_text_placeholder_preserving_format(slide2, "[Category]", category):
+        st.warning("Could not find [Category] placeholder on Slide 2.")
+
+    # Table 1
     if df_slide2_table1 is None:
         st.warning("Slide 2 Table 1 data not found.")
     else:
@@ -2086,45 +2096,42 @@ def step17_export_to_ppt():
             if shape.has_table and len(shape.table.columns) == len(df_slide2_table1.columns):
                 fill_table_with_styles(shape.table, df_slide2_table1)
                 break
-    
-    # --- Table 2 (Returns with selected, proposed(s), then benchmark) ---
+
+    # Table 2 (Returns)
     quarter_label = st.session_state.get("report_date", "QTD")
     if df_slide2_table2 is None:
         st.warning("Slide 2 Table 2 data not found.")
     else:
         for shape in slide2.shapes:
-            if shape.has_table and len(shape.table.columns) == len(df_slide2_table2.columns):
-                table = shape.table
-                # Replace second header cell with quarter label and style header row
+            if not (shape.has_table and len(shape.table.columns) == len(df_slide2_table2.columns)):
+                continue
+            table = shape.table
+            # Header replacement and styling
+            if quarter_label:
                 table.cell(0, 1).text = quarter_label
-                for c in range(len(table.columns)):
-                    cell = table.cell(0, c)
-                    for para in cell.text_frame.paragraphs:
-                        para.alignment = PP_ALIGN.CENTER
-                        for run in para.runs:
-                            run.font.name = "Cambria"
-                            run.font.size = Pt(11)
-                            run.font.color.rgb = RGBColor(255, 255, 255)
-                            run.font.bold = True
-                # Bold the benchmark row: it should be the last row in df_slide2_table2
-                benchmark_row_idx = len(df_slide2_table2) - 1
-                fill_table_with_styles(table, df_slide2_table2, bold_row_idx=benchmark_row_idx)
-                break
-    
-    # --- Table 3 (Calendar Year Returns) ---
+            for c in range(len(table.columns)):
+                cell = table.cell(0, c)
+                for para in cell.text_frame.paragraphs:
+                    para.alignment = PP_ALIGN.CENTER
+                    for run in para.runs:
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(11)
+                        run.font.color.rgb = RGBColor(255, 255, 255)
+                        run.font.bold = True
+            # Bold benchmark row (assumed last)
+            benchmark_idx = len(df_slide2_table2) - 1
+            fill_table_with_styles(table, df_slide2_table2, bold_row_idx=benchmark_idx)
+            break
+
+    # Table 3 (Calendar Year)
     if df_slide2_table3 is None:
         st.warning("Slide 2 Table 3 data not found.")
     else:
-        # Ensure benchmark row exists: assume benchmark is last row; if not, attempt to append from bench_cy
-        # (This presumes df_slide2_table3 was built earlier with selected, proposed(s), benchmark.)
         for shape in slide2.shapes:
-            if not (shape.has_table and df_slide2_table3 is not None):
+            if not (shape.has_table and len(shape.table.columns) == len(df_slide2_table3.columns)):
                 continue
             table = shape.table
-            if len(table.columns) != len(df_slide2_table3.columns):
-                continue
-    
-            # Replace header cells with df column names and style
+            # Replace headers
             for c, col in enumerate(df_slide2_table3.columns):
                 cell = table.cell(0, c)
                 cell.text = str(col)
@@ -2135,10 +2142,9 @@ def step17_export_to_ppt():
                         run.font.size = Pt(11)
                         run.font.color.rgb = RGBColor(255, 255, 255)
                         run.font.bold = True
-    
-            # Bold the benchmark row (last data row)
-            benchmark_row_idx = len(df_slide2_table3) - 1
-            fill_table_with_styles(table, df_slide2_table3, bold_row_idx=benchmark_row_idx)
+            # Bold benchmark row (last)
+            benchmark_idx = len(df_slide2_table3) - 1
+            fill_table_with_styles(table, df_slide2_table3, bold_row_idx=benchmark_idx)
             break
 
     # --- Replacement placeholders for proposed funds ---
@@ -2153,11 +2159,14 @@ def step17_export_to_ppt():
         try:
             prs.slides._sldIdLst.remove(prs.slides._sldIdLst[2])
         except Exception:
-            pass  # safe fallback
+            pass
 
     # --- Fill Slide 3 ---
-    slide3 = prs.slides[4 if len(proposed) > 1 else 3]  # index shifts if slide 2 removed
-    fill_text_placeholder_preserving_format(slide3, "[Category]", category)
+    slide3 = prs.slides[4 if len(proposed) > 1 else 3]
+    if not fill_text_placeholder_preserving_format(slide3, "[Category]", category):
+        st.warning("Could not find [Category] placeholder on Slide 3.")
+    df_slide3_table1 = st.session_state.get("slide3_table1_data")
+    df_slide3_table2 = st.session_state.get("slide3_table2_data")
     if df_slide3_table1 is None or df_slide3_table2 is None:
         st.warning("Slide 3 table data not found.")
     else:
@@ -2176,6 +2185,8 @@ def step17_export_to_ppt():
     qualitative_replacement = f"{category} - Qualitative Factors"
     if not fill_text_placeholder_preserving_format(slide4, qualitative_placeholder, qualitative_replacement):
         st.warning(f"Could not find placeholder '{qualitative_placeholder}' on Slide 4.")
+    df_slide4_table1 = st.session_state.get("slide4")
+    df_slide4_table2 = st.session_state.get("slide4_table2_data")
     if df_slide4_table1 is not None:
         for shape in slide4.shapes:
             if shape.has_table and len(shape.table.columns) == len(df_slide4_table1.columns):
@@ -2197,6 +2208,7 @@ def step17_export_to_ppt():
         file_name=f"{selected} Writeup.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
+
 
 
 #───Main App──────────────────────────────────────────────────────────────────
