@@ -1252,7 +1252,7 @@ def step15_populate_excel():
         st.error("❌ Cannot populate Excel: 'prepared_for' is missing in session state.")
         return None
 
-    template_path = Path("assets") / "investment_metrics_template"
+    template_path = Path("assets") / "investment_metrics_template.xlsx"
     # Try common extensions if not explicit
     if template_path.is_dir():
         # find a file inside if user gave directory
