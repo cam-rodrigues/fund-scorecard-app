@@ -1240,72 +1240,85 @@ def step14_5_ips_fail_table():
 
 #───Step 14.7: Proposal──────────────────────────────────────────────────────────────────
 
-def step14_7_list_proposed_fund_names_only(pdf):
+def step14_7_extract_proposed_fund_names_from_manager_tenure(pdf):
     import re
     import streamlit as st
+    from rapidfuzz import fuzz
+    import pandas as pd
 
     prop_page = st.session_state.get("scorecard_proposed_page")
     if not prop_page:
         st.error("❌ 'Fund Scorecard: Proposed Funds' page number not found in TOC.")
         return []
 
-    # Collect lines starting at the proposed funds page; stop if a different major section appears.
-    collected_lines = []
+    # Collect lines from proposed funds section (stop if a new major section starts)
+    lines = []
     for pnum in range(prop_page - 1, len(pdf.pages)):
         txt = pdf.pages[pnum].extract_text() or ""
-        lines = [ln.strip() for ln in txt.splitlines() if ln.strip()]
-        if pnum > prop_page - 1 and any(re.search(pat, " ".join(lines), re.IGNORECASE)
+        page_lines = [ln.strip() for ln in txt.splitlines() if ln.strip()]
+        # boundary heuristic
+        if pnum > prop_page - 1 and any(re.search(pat, " ".join(page_lines), re.IGNORECASE)
                                        for pat in ["Fund Factsheets", "Fund Performance", "IPS Screening", "Scorecard Metrics"]):
             break
-        collected_lines.extend(lines)
+        lines.extend(page_lines)
 
-    if not collected_lines:
+    if not lines:
         st.warning("No text found on Proposed Funds page.")
         return []
 
-    # Exclude anything that is obviously not a fund name
-    exclude_pattern_terms = [
-        r"manager tenure", r"excess performance", r"peer return rank", r"expense ratio rank",
-        r"sharpe ratio", r"r-squared", r"sortino ratio", r"tracking error", r"criteria", r"threshold",
-        r"investment options", r"fund scorecard: proposed funds", r"\d{4}",  # years
-        r"%", r"\bpass\b", r"\breview\b"
-    ]
-    exclude_regex = re.compile("|".join(exclude_pattern_terms), re.IGNORECASE)
+    proposed_names = []
+    for idx, line in enumerate(lines):
+        if re.search(r"manager tenure", line, re.IGNORECASE):
+            # look backward for the first non-empty line before this
+            if idx == 0:
+                continue
+            candidate = lines[idx - 1].strip()
+            # filter out header noise like "Proposed Funds (Step 14.7)" etc.
+            if not candidate:
+                continue
+            low = candidate.lower()
+            if any(keyword in low for keyword in ["manager tenure", "excess performance", "criteria", "threshold", "proposed funds"]):
+                continue
+            proposed_names.append(candidate)
 
-    candidate_names = []
-    for line in collected_lines:
-        if not line:
-            continue
-        if exclude_regex.search(line):
-            continue  # skip metrics, descriptions, years, statuses
-        # Skip short garbage and lines that are mostly numeric
-        if len(line) < 5:
-            continue
-        if re.fullmatch(r"[\d\.\-\s/]+", line):
-            continue
-        # Heuristic: fund names often have multiple words, title-like; avoid lines that look like full sentences (too many lowercase endings)
-        # Accept if there's at least two capitalized words or typical fund naming patterns
-        candidate_names.append(line)
-
-    # Deduplicate preserving order
+    # Dedupe preserving order
     seen = set()
-    fund_names = []
-    for name in candidate_names:
-        if name in seen:
-            continue
-        seen.add(name)
-        fund_names.append(name)
+    deduped = []
+    for name in proposed_names:
+        if name not in seen:
+            seen.add(name)
+            deduped.append(name)
 
-    # Save and display
-    st.session_state["proposed_funds_list"] = fund_names
-    st.subheader("Proposed Funds (names only)")
-    if fund_names:
-        for n in fund_names:
-            st.write(f"- {n}")
+    # Optional: fuzzy match to canonical scorecard fund names if available
+    fund_blocks = st.session_state.get("fund_blocks", [])
+    known_funds = [fb.get("Fund Name", "") for fb in fund_blocks] if fund_blocks else []
+    matches = []
+    for raw in deduped:
+        best_match, best_score = None, 0
+        for k in known_funds:
+            score = fuzz.token_sort_ratio(raw.lower(), k.lower()) if known_funds else 0
+            if score > best_score:
+                best_score = score
+                best_match = k
+        matches.append({
+            "Raw Proposed Name": raw,
+            "Matched Scorecard Fund": best_match if best_score >= 70 else "",
+            "Match Score": best_score if best_match else None
+        })
+
+    # Save to session
+    st.session_state["proposed_funds_list"] = deduped
+    st.session_state["proposed_funds_matches_df"] = pd.DataFrame(matches)
+
+    # Display
+    st.subheader("Proposed Funds (Step 14.7)")
+    if deduped:
+        st.table(st.session_state["proposed_funds_matches_df"][["Raw Proposed Name", "Matched Scorecard Fund", "Match Score"]])
     else:
-        st.write("No proposed fund names detected.")
+        st.write("No proposed fund names found via Manager Tenure anchors.")
 
-    return fund_names
+    return deduped
+
 
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
@@ -2102,7 +2115,7 @@ def run():
         # Step 14.5: IPS Fail Table
         step14_5_ips_fail_table()
 
-        step14_7_list_proposed_fund_names_only(pdf)
+        step14_7_extract_proposed_fund_names_from_manager_tenure(pdf)
         
         # Step 15: View Single Fund Details
         with st.expander("Single Fund Write Up", expanded=False):
