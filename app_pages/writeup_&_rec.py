@@ -177,6 +177,15 @@ def process_toc(text):
     fs_page       = int(fs.group(1)) if fs else None
     fs_prop_page  = int(fs_prop.group(1)) if fs_prop else None
 
+    st.write['performance_page'] = perf_page
+    st.write['calendar_year_page'] = cy_page
+    st.write['r3yr_page'] = r3yr_page
+    st.write['r5yr_page'] = r5yr_page
+    st.write['scorecard_page'] = sc_page
+    st.write['scorecard_proposed_page'] = sc_prop_page
+    st.write['factsheets_page'] = fs_page
+    st.write['factsheets_proposed_page'] = fs_prop_page
+
     # Store in session state for downstream use
     st.session_state['performance_page'] = perf_page
     st.session_state['calendar_year_page'] = cy_page
