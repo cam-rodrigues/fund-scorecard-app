@@ -1238,7 +1238,14 @@ def step14_5_ips_fail_table():
 
 #───Step 14.7: Proposal──────────────────────────────────────────────────────────────────
 
-def extract_proposed_scorecard_blocks(pdf, scorecard_proposed_page):
+def extract_proposed_scorecard_blocks(pdf):
+
+    scorecard_proposed_page = st.session_state.get("scorecard_proposed_page")
+    if not scorecard_proposed_page:
+        st.error("❌ 'Fund Scorecard: Proposed Funds' page number not found in TOC.")
+        return []
+
+
     metric_labels = [
         "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
         "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Expense Ratio Rank",
@@ -2145,7 +2152,7 @@ def run():
         # Step 14.5: IPS Fail Table
         step14_5_ips_fail_table()
 
-        extract_proposed_scorecard_blocks(pdf, scorecard_proposed_page)
+        extract_proposed_scorecard_blocks(pdf)
         
         # Step 15: View Single Fund Details
         with st.expander("Single Fund Write Up", expanded=False):
