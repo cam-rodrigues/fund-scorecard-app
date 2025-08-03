@@ -1328,85 +1328,84 @@ def step15_display_selected_fund():
         st.info("Run Steps 1–14 to populate data before viewing fund details.")
         return
 
+    # build lookups
+    perf_data = st.session_state.get("fund_performance_data", [])
+    perf_by_name = {p["Fund Scorecard Name"]: p for p in perf_data}
+    facts = st.session_state.get("fund_factsheets_data", [])
+    facts_by_name = {f["Matched Fund Name"]: f for f in facts}
+    fund_blocks = st.session_state.get("fund_blocks", [])
+    blocks_by_name = {b["Fund Name"]: b for b in fund_blocks}
+    fund_facts_table = st.session_state.get("step12_fund_facts_table", []) or []
+    # filter metadata
+    fund_facts_table = [row for row in fund_facts_table if row.get("Fund Name") and row.get("Fund Name").lower() != "metadata"]
+
     fund_names = [f["Matched Fund Name"] for f in facts]
     selected_fund = st.selectbox("Select a fund to view details:", fund_names)
     st.session_state.selected_fund = selected_fund
 
-    # --- NEW: pull confirmed proposed funds once, independent of selection ---
+    # confirmed proposed funds (persistent)
     confirmed_proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
     proposed_fund_names = (
         confirmed_proposed_df["Fund Scorecard Name"].unique().tolist()
         if not confirmed_proposed_df.empty else []
     )
 
-    st.write(f"Details for: {selected_fund}")
-    factsheets = st.session_state.get("fund_factsheets_data", [])
-    factsheet_rec = next((row for row in factsheets if row["Matched Fund Name"] == selected_fund), None)
-    
-    fund_facts_table = st.session_state.get("step12_fund_facts_table", [])
-    
-    # Filter out metadata rows if present
-    fund_facts_table = [row for row in fund_facts_table if row.get("Fund Name") and row.get("Fund Name").lower() != "metadata"]
-    
-    # Robust matching
-    facts_rec = next((row for row in fund_facts_table if row.get("Fund Name") == selected_fund), None)
-    if not facts_rec and factsheet_rec:
-        factsheet_ticker = factsheet_rec.get("Matched Ticker")
-        facts_rec = next((row for row in fund_facts_table if row.get("Ticker") == factsheet_ticker), None)
-    if not facts_rec:
-        facts_rec = next(
-            (row for row in fund_facts_table if selected_fund.lower() in row.get("Fund Name", "").lower()),
-            None
+    def render_fund_cards(fund_name, label_suffix=""):
+        fs_rec = facts_by_name.get(fund_name, {})
+        ff_rec = next((r for r in fund_facts_table if r.get("Fund Name") == fund_name), None)
+        if not ff_rec and fs_rec:
+            ticker = fs_rec.get("Matched Ticker", "")
+            ff_rec = next((r for r in fund_facts_table if r.get("Ticker") == ticker), None)
+
+        left_box = (
+            f"""<div style='
+                background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
+                color: #244369;
+                border-radius: 1.2rem;
+                box-shadow: 0 2px 12px rgba(44,85,130,0.09), 0 1px 4px rgba(36,67,105,0.07);
+                padding: 1rem 1.2rem;
+                min-width: 220px;
+                max-width: 260px;
+                margin: 0.3rem 1.2rem 0.3rem 0;
+                border: 1.2px solid #b5d0eb;
+                font-size: 1rem;
+                display: inline-block;
+                vertical-align: top;'>
+                <div><b>Category:</b> {fs_rec.get("Category", "—")}</div>
+                <div><b>Benchmark:</b> {fs_rec.get("Benchmark", "—")}</div>
+                <div><b>Net Assets:</b> {fs_rec.get("Net Assets", "—")}</div>
+                <div><b>Manager:</b> {fs_rec.get("Manager Name", "—")}</div>
+                <div><b>Avg. Market Cap:</b> {fs_rec.get("Avg. Market Cap", "—")}</div>
+            </div>"""
+            if fs_rec else "<div style='display:inline-block; min-width:220px; color:#666;'>No factsheet info found.</div>"
         )
-    
-    left_box = (
-        f"""<div style='
-            background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
-            color: #244369;
-            border-radius: 1.2rem;
-            box-shadow: 0 2px 12px rgba(44,85,130,0.09), 0 1px 4px rgba(36,67,105,0.07);
-            padding: 1rem 1.2rem;
-            min-width: 220px;
-            max-width: 260px;
-            margin: 0.3rem 1.2rem 0.3rem 0;
-            border: 1.2px solid #b5d0eb;
-            font-size: 1rem;
-            display: inline-block;
-            vertical-align: top;'>
-            <div><b>Category:</b> {factsheet_rec.get("Category", "—")}</div>
-            <div><b>Benchmark:</b> {factsheet_rec.get("Benchmark", "—")}</div>
-            <div><b>Net Assets:</b> {factsheet_rec.get("Net Assets", "—")}</div>
-            <div><b>Manager:</b> {factsheet_rec.get("Manager Name", "—")}</div>
-            <div><b>Avg. Market Cap:</b> {factsheet_rec.get("Avg. Market Cap", "—")}</div>
-        </div>"""
-        if factsheet_rec else "<div style='display:inline-block; min-width:220px; color:#666;'>No factsheet info found.</div>"
-    )
-    
-    right_box = (
-        f"""<div style='
-            background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
-            color: #244369;
-            border-radius: 1.2rem;
-            box-shadow: 0 2px 12px rgba(44,85,130,0.09), 0 1px 4px rgba(36,67,105,0.07);
-            padding: 1rem 1.2rem;
-            min-width: 220px;
-            max-width: 260px;
-            margin: 0.3rem 0 0.3rem 0;
-            border: 1.2px solid #b5d0eb;
-            font-size: 1rem;
-            display: inline-block;
-            vertical-align: top;'>
-            <div><b>Manager Tenure:</b> {facts_rec.get("Manager Tenure Yrs.", "—")}</div>
-            <div><b>Expense Ratio:</b> {facts_rec.get("Expense Ratio", "—")}</div>
-            <div><b>Expense Ratio Rank:</b> {facts_rec.get("Expense Ratio Rank", "—")}</div>
-            <div><b>Total Number of Holdings:</b> {facts_rec.get("Total Number of Holdings", "—")}</div>
-            <div><b>Turnover Ratio:</b> {facts_rec.get("Turnover Ratio", "—")}</div>
-        </div>"""
-        if facts_rec else "<div style='display:inline-block; min-width:220px; color:#666;'>No Fund Facts available.</div>"
-    )
-    
-    st.markdown(
-        f"""
+        right_box = (
+            f"""<div style='
+                background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
+                color: #244369;
+                border-radius: 1.2rem;
+                box-shadow: 0 2px 12px rgba(44,85,130,0.09), 0 1px 4px rgba(36,67,105,0.07);
+                padding: 1rem 1.2rem;
+                min-width: 220px;
+                max-width: 260px;
+                margin: 0.3rem 0 0.3rem 0;
+                border: 1.2px solid #b5d0eb;
+                font-size: 1rem;
+                display: inline-block;
+                vertical-align: top;'>
+                <div><b>Manager Tenure:</b> {ff_rec.get("Manager Tenure Yrs.", "—") if ff_rec else '—'}</div>
+                <div><b>Expense Ratio:</b> {ff_rec.get("Expense Ratio", "—") if ff_rec else '—'}</div>
+                <div><b>Expense Ratio Rank:</b> {ff_rec.get("Expense Ratio Rank", "—") if ff_rec else '—'}</div>
+                <div><b>Total Number of Holdings:</b> {ff_rec.get("Total Number of Holdings", "—") if ff_rec else '—'}</div>
+                <div><b>Turnover Ratio:</b> {ff_rec.get("Turnover Ratio", "—") if ff_rec else '—'}</div>
+            </div>"""
+            if ff_rec else "<div style='display:inline-block; min-width:260px; color:#666;'>No Fund Facts available.</div>"
+        )
+        title = f"{fund_name} {label_suffix}".strip()
+        return f"""
+        <div style='margin-bottom:0.5rem; font-weight:700; font-size:1.1rem;'>
+            {title}
+        </div>
         <div style='
             width:100%;
             display:flex;
@@ -1414,13 +1413,23 @@ def step15_display_selected_fund():
             justify-content:center;
             align-items:flex-start;
             gap:24px;
-            margin: 0.6rem 0 2rem 0;
+            margin: 0.3rem 0 1rem 0;
         '>
             {left_box}{right_box}
         </div>
-        """,
-        unsafe_allow_html=True
-    )
+        """
+
+    # Display selected fund
+    st.markdown(f"## Selected Fund: {selected_fund}")
+    st.markdown(render_fund_cards(selected_fund))
+
+    # Display proposed fund(s) below, fixed
+    if proposed_fund_names:
+        st.markdown("## Proposed Fund(s)")
+        for pf in proposed_fund_names:
+            if pf == selected_fund:
+                continue
+            st.markdown(render_fund_cards(pf, label_suffix="(Proposed)"))
 
 
     # --- Slide 1 Table: IPS Results ---
