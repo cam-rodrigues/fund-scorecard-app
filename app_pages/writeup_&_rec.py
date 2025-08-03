@@ -1521,40 +1521,45 @@ def step15_display_selected_fund():
 
     # --- Slide 2 Table 1 ---
     st.markdown("**Net Expense Ratio**")
-    perf_data = st.session_state.get("fund_performance_data", [])
-    perf_item = next((p for p in perf_data if p.get("Fund Scorecard Name") == selected_fund), {})
-    inv_mgr = f"{selected_fund} ({perf_item.get('Ticker','')})"
-    net_exp = perf_item.get("Net Expense Ratio", "")
-    if net_exp and not str(net_exp).endswith("%"):
-        net_exp = f"{net_exp}%"
     
-    # Get confirmed proposed funds (persistent, independent of selection)
+    def format_expense(val):
+        if val is None or val == "":
+            return ""
+        s = str(val)
+        if s.endswith("%"):
+            return s
+        return f"{s}%"
+    
+    def build_expense_row(fund_name, label_override=None):
+        perf_data = st.session_state.get("fund_performance_data", [])
+        item = next((p for p in perf_data if p.get("Fund Scorecard Name") == fund_name), {})
+        ticker = item.get("Ticker", "")
+        inv_mgr = f"{label_override or fund_name} ({ticker})"
+        net_exp = format_expense(item.get("Net Expense Ratio", ""))
+        return {
+            "Investment Manager": inv_mgr,
+            "Net Expense Ratio": net_exp
+        }
+    
+    # Selected fund
+    row_selected = build_expense_row(selected_fund)
+    
+    # Proposed fund(s) — persistent, independent of selection
+    proposed_rows = []
     confirmed_proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
-    proposed_fund_names = (
-        confirmed_proposed_df["Fund Scorecard Name"].unique().tolist()
-        if not confirmed_proposed_df.empty else []
-    )
+    if not confirmed_proposed_df.empty:
+        proposed_names = confirmed_proposed_df["Fund Scorecard Name"].unique().tolist()
+        for pf in proposed_names:
+            proposed_rows.append(build_expense_row(pf, label_override=f"Proposed: {pf}"))
     
-    # Build rows: selected fund first, then proposed funds (skip if same), using same metric unless overridden
-    rows = []
-    rows.append({
-        "Investment Manager": inv_mgr,
-        "Net Expense Ratio":  net_exp
-    })
-    for pf in proposed_fund_names:
-        if pf == selected_fund:
-            continue
-        label = f"{pf} (Proposed)"
-        rows.append({
-            "Investment Manager": label,
-            "Net Expense Ratio":  net_exp
-        })
+    # Assemble final table: selected fund, then proposed(s)
+    all_rows = [row_selected] + proposed_rows
+    df_slide2_table1 = pd.DataFrame(all_rows)
     
-    df_slide2 = pd.DataFrame(rows)
-    
-    # Save this dataframe for Step 17
-    st.session_state["slide2_table1_data"] = df_slide2
-    st.dataframe(df_slide2, use_container_width=True)
+    # Save & display
+    st.session_state["slide2_table1_data"] = df_slide2_table1
+    st.dataframe(df_slide2_table1, use_container_width=True)
+
 
     # --- Slide 2 Table 2 ---
     st.markdown("**Returns**")
