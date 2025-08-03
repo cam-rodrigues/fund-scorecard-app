@@ -1249,7 +1249,7 @@ def extract_proposed_scorecard_blocks(pdf):
         st.error("❌ 'Fund Scorecard: Proposed Funds' page number not found in TOC.")
         return []
 
-    # 1. Collect lines beginning at the proposed funds section; stop when hitting a known next big section
+    # 1. Collect lines from the Proposed Funds section (stop at next major section)
     all_lines = []
     for pnum in range(prop_page - 1, len(pdf.pages)):
         txt = pdf.pages[pnum].extract_text() or ""
@@ -1258,90 +1258,51 @@ def extract_proposed_scorecard_blocks(pdf):
         if any(re.search(pat, " ".join(page_lines), re.IGNORECASE)
                for pat in ["FUND CORRELATION MATRIX", "Single Fund Write Up", "Bullet Points", "Export to Powerpoint"]):
             break
-
     if not all_lines:
         st.warning("No text found on Proposed Funds page.")
         return []
 
-    # 2. Trim to after the "Proposed Funds" header
-    start_idx = 0
-    for i, ln in enumerate(all_lines):
-        if re.search(r"Proposed Funds", ln, re.IGNORECASE):
-            start_idx = i + 1
-            break
-    slice_lines = all_lines[start_idx:]
+    # 2. Prepare the list of candidate funds from performance section (name + ticker)
+    perf_data = st.session_state.get("fund_performance_data", [])
+    candidate_funds = []
+    for item in perf_data:
+        name = item.get("Fund Scorecard Name", "").strip()
+        ticker = item.get("Ticker", "").strip().upper()
+        if name:
+            candidate_funds.append({"Fund Name": name, "Ticker": ticker})
 
-    # pattern for metric lines with status
-    metric_label_regex = re.compile(
-        r"^(Manager Tenure|Excess Performance\s*\(3Yr\)|Excess Performance\s*\(5Yr\)|"
-        r"Peer Return Rank\s*\(3Yr\)|Peer Return Rank\s*\(5Yr\)|Expense Ratio Rank|"
-        r"Sharpe Ratio Rank\s*\(3Yr\)|Sharpe Ratio Rank\s*\(5Yr\)|R-Squared\s*\(3Yr\)|"
-        r"R-Squared\s*\(5Yr\)|Sortino Ratio Rank\s*\(3Yr\)|Sortino Ratio Rank\s*\(5Yr\)|"
-        r"Tracking Error Rank\s*\(3Yr\)|Tracking Error Rank\s*\(5Yr\))\s+(Pass|Review|Fail)",
-        re.IGNORECASE
-    )
-
-    def is_junk(line):
-        low = line.lower()
-        if any(k in low for k in ["investment options", "criteria", "threshold", "fund scorecard"]):
-            return True
-        if line.isupper() and len(line.split()) <= 3:  # short header
-            return True
-        return False
-
-    # 3. Extract candidate fund names: line followed by >=3 metric-status lines
-    proposed_raw = []
-    for idx, line in enumerate(slice_lines):
-        if is_junk(line):
-            continue
-        lookahead = slice_lines[idx + 1 : idx + 8]
-        metric_hits = [ln for ln in lookahead if metric_label_regex.search(ln)]
-        if len(metric_hits) >= 3:
-            proposed_raw.append(line)
-
-    # dedupe preserving order
-    seen = set()
-    deduped = []
-    for name in proposed_raw:
-        if name not in seen:
-            seen.add(name)
-            deduped.append(name)
-
-    st.session_state["proposed_funds_list"] = deduped
-
-    # 4. Fuzzy-match to known scorecard funds
-    fund_blocks = st.session_state.get("fund_blocks", [])
-    known_funds = [fb.get("Fund Name", "") for fb in fund_blocks] if fund_blocks else []
-
-    matches = []
-    for raw in deduped:
-        best_match, best_score = "", 0
-        for k in known_funds:
-            score = fuzz.token_sort_ratio(raw.lower(), k.lower())
+    # 3. For each candidate, fuzzy-match against each line in proposed section
+    results = []
+    for fund in candidate_funds:
+        name = fund["Fund Name"]
+        ticker = fund["Ticker"]
+        best_score = 0
+        best_line = ""
+        for line in all_lines:
+            # score both against name and ticker if present
+            score_name = fuzz.token_sort_ratio(name.lower(), line.lower())
+            score_ticker = fuzz.token_sort_ratio(ticker.lower(), line.lower()) if ticker else 0
+            score = max(score_name, score_ticker)
             if score > best_score:
                 best_score = score
-                best_match = k
-        matches.append({
-            "Raw Proposed Name": raw,
-            "Matched Scorecard Fund": best_match if best_score >= 70 else "",
-            "Match Score": best_score
+                best_line = line
+        found = best_score >= 70  # threshold you can adjust
+        results.append({
+            "Fund Scorecard Name": name,
+            "Ticker": ticker,
+            "Found on Proposed": "✅" if found else "❌",
+            "Match Score": best_score,
+            "Matched Line": best_line if found else ""
         })
 
-    df_matches = pd.DataFrame(matches)
-    st.session_state["proposed_funds_matches_df"] = df_matches
+    df = pd.DataFrame(results)
+    st.session_state["proposed_funds_matched_existing_df"] = df
 
-    # 5. Display results
-    st.subheader("Proposed Funds (Step 14.7) - Names from above Manager Tenure / Metric Clusters")
-    if deduped:
-        st.markdown("**Raw Proposed Fund Names Extracted:**")
-        st.table(pd.DataFrame(deduped, columns=["Raw Proposed Name"]))
-        st.markdown("**Fuzzy Matches to Scorecard Funds:**")
-        st.table(df_matches)
-    else:
-        st.write("No proposed fund names found via the metric cluster heuristic.")
+    st.subheader("Proposed Funds (matched from existing performance list)")
+    st.markdown("### Detection of which known funds appear on the Proposed Funds scorecard section")
+    st.dataframe(df.sort_values(by="Match Score", ascending=False), use_container_width=True)
 
-    return deduped
-
+    return df
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
 
