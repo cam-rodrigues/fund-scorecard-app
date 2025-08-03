@@ -1951,17 +1951,22 @@ def step17_export_to_ppt():
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
 
-    # Get confirmed proposed funds (name + ticker)
+    # Get confirmed proposed funds (name + ticker), limit to two since template supports up to two
     confirmed_proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
     proposed = []
     if not confirmed_proposed_df.empty:
         for _, row in confirmed_proposed_df.iterrows():
-            name = row.get("Fund Scorecard Name", "")
-            ticker = row.get("Ticker", "")
+            name = row.get("Fund Scorecard Name", "").strip()
+            ticker = row.get("Ticker", "").strip().upper()
+            if not name:
+                continue
             label = f"{name} ({ticker})" if ticker else name
-            proposed.append(label)
-    # Limit to two proposals because template supports up to two
+            if label not in proposed:  # dedupe preserving order
+                proposed.append(label)
+    # cap at two proposals
     proposed = proposed[:2]
+    num_proposed = len(proposed)  # use this for branching logic downstream
+
 
     template_path = "assets/writeup&rec_template.pptx"
     try:
@@ -2378,53 +2383,46 @@ def step17_export_to_ppt():
 
 
     # --- Fill Slide 4 ---
-    slide4_index = 5 if len(proposed) > 1 else 4
+    slide4_index = 5 if num_proposed > 1 else 4
     slide4 = prs.slides[slide4_index]
     qualitative_placeholder = f"[Category]– Qualitative Factors"
     qualitative_replacement = f"{category} - Qualitative Factors"
     if not fill_text_placeholder_preserving_format(slide4, qualitative_placeholder, qualitative_replacement):
         st.warning(f"Could not find placeholder '{qualitative_placeholder}' on Slide 4.")
     
-    # Table 1: Qualitative / Manager Tenure style (df_slide4_table1)
+    # Table 1
     if df_slide4_table1 is not None:
         tables = [shape.table for shape in slide4.shapes if shape.has_table]
         if tables:
             table = tables[0]
             if len(df_slide4_table1.columns) == len(table.columns):
                 fill_table_with_styles(table, df_slide4_table1)
-                # if only one proposed fund, collapse any extra empty placeholder row
-                if len(proposed) == 1 and len(table.rows) > 3:
+                # collapse third row if only one proposed fund and it's empty/placeholder
+                if num_proposed == 1 and len(table.rows) > 3:
                     extra_row = table.rows[2]
                     texts = [cell.text.strip() for cell in extra_row.cells]
                     if all(t == "" or t in ("—", "?", "N/A") for t in texts):
                         for cell in extra_row.cells:
                             cell.text = ""
-                        try:
-                            extra_row.height = Pt(2)
-                        except Exception:
-                            pass
             else:
                 st.warning("Slide 4 Table 1 headers do not match.")
     
-    # Table 2: Assets (df_slide4_table2)
+    # Table 2
     if df_slide4_table2 is not None:
         tables = [shape.table for shape in slide4.shapes if shape.has_table]
         if len(tables) >= 2:
             table = tables[1]
             if len(df_slide4_table2.columns) == len(table.columns):
                 fill_table_with_styles(table, df_slide4_table2)
-                if len(proposed) == 1 and len(table.rows) > 3:
+                if num_proposed == 1 and len(table.rows) > 3:
                     extra_row = table.rows[2]
                     texts = [cell.text.strip() for cell in extra_row.cells]
                     if all(t == "" or t in ("—", "?", "N/A") for t in texts):
                         for cell in extra_row.cells:
                             cell.text = ""
-                        try:
-                            extra_row.height = Pt(2)
-                        except Exception:
-                            pass
             else:
                 st.warning("Slide 4 Table 2 headers do not match.")
+
 
 
     # --- Save and offer download ---
