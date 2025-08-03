@@ -1240,114 +1240,175 @@ def step14_5_ips_fail_table():
 
 #───Step 15 - Excel──────────────────────────────────────────────────────────────────
 
-import os
 from openpyxl import load_workbook
+from rapidfuzz import fuzz
+import os
+import streamlit as st
 
-def step15_populate_excel_template(template_path: str, output_path: str,
-                                   fund_factsheets_data: list,
-                                   fund_tickers: dict,
-                                   ips_icon_df: pd.DataFrame):
+def step15_populate_excel_template(template_path: str = "assets/investment_metrics_template.xlsx",
+                                   output_path: str = "filled_investment_metrics.xlsx",
+                                   fund_factsheets_data: list = None,
+                                   fund_tickers: dict = None,
+                                   ips_icon_df=None,
+                                   sheet_name: str = None,
+                                   fuzzy_threshold: int = 75):
     """
-    Populates the provided investment metrics Excel template with extracted data.
-    - template_path: path to invesment_metrics_template.xlsx
-    - output_path: where to save the filled workbook
-    - fund_factsheets_data: list of dicts from step6/step12 containing 'Matched Fund Name', 'Matched Ticker', and expense ratio info
-    - fund_tickers: mapping fund name -> ticker (fallback)
-    - ips_icon_df: DataFrame from scorecard_to_ips (iconified pass/Fail) with "Fund Name" and other columns
+    Step 15: Populate the investment metrics Excel template with extracted fund info.
+    Only runs when the user presses the button.
     """
-    # Load workbook
-    wb = load_workbook(template_path)
-    # Choose appropriate sheet; adjust if you want dynamic selection
-    sheet_name = "Past Quarter"
-    if sheet_name not in wb.sheetnames:
-        raise ValueError(f"Template missing expected sheet '{sheet_name}'")
-    ws = wb[sheet_name]
+    if not st.button("Populate Investment Metrics Excel"):
+        return None  # no-op until clicked
 
-    # Build lookup tables
-    # Normalize names to compare loosely
-    def norm(s):
+    fund_factsheets_data = fund_factsheets_data or []
+    fund_tickers = fund_tickers or {}
+
+    def norm(s: str):
         return (s or "").strip().lower()
 
-    # Expense ratio lookup from fund facts (step12 may store label "Expense Ratio")
+    # Build lookups
     expense_map = {}
+    ticker_map = {}
     for rec in fund_factsheets_data:
-        fname = rec.get("Fund Name") or rec.get("Matched Fund Name") or ""
-        er = rec.get("Expense Ratio") or rec.get("Expense Ratio Rank") or ""
-        expense_map[norm(fname)] = er
+        name_raw = rec.get("Matched Fund Name") or rec.get("Fund Name") or ""
+        name = norm(name_raw)
+        expense = rec.get("Expense Ratio", "") or rec.get("Net Expense Ratio", "") or rec.get("Expense Ratio (%)", "")
+        ticker = rec.get("Matched Ticker") or rec.get("Ticker") or ""
+        if expense != "":
+            expense_map[name] = expense
+        if ticker:
+            ticker_map[name] = ticker
 
-    # IPS status lookup (e.g., could be used to mark watch status columns)
-    ips_watch_map = {}
+    ips_status_map = {}
     if ips_icon_df is not None:
         for _, row in ips_icon_df.iterrows():
-            ips_watch_map[norm(row.get("Fund Name", ""))] = row.get("IPS Watch Status", "")
+            fname = norm(row.get("Fund Name", ""))
+            ips_status = row.get("IPS Watch Status") or row.get("IPS Pass/Fail") or row.get("Status") or ""
+            ips_status_map[fname] = ips_status
 
-    # Iterate rows starting after header (guess header is row with 'Investment Option')
-    # Find header row index
+    # Load workbook
+    if not os.path.exists(template_path):
+        st.error(f"Template not found at {template_path}")
+        return None
+    wb = load_workbook(template_path)
+
+    # Select sheet
+    if sheet_name and sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+    elif "Past Quarter" in wb.sheetnames:
+        ws = wb["Past Quarter"]
+    else:
+        # fallback: find sheet containing header
+        ws = None
+        for name in wb.sheetnames:
+            candidate = wb[name]
+            for i in range(1, min(6, candidate.max_row) + 1):
+                values = [c.value for c in candidate[i]]
+                if any(isinstance(v, str) and "Investment Option" in v for v in values if v):
+                    ws = candidate
+                    break
+            if ws:
+                break
+        if ws is None:
+            ws = wb[wb.sheetnames[0]]
+
+    # Locate header row
     header_row_idx = None
-    for i, row in enumerate(ws.iter_rows(min_row=1, max_row=10, values_only=True), start=1):
-        if row and "Investment Option" in row:
+    headers = {}
+    for i in range(1, min(15, ws.max_row) + 1):
+        row = list(ws[i])
+        values = [c.value for c in row]
+        if values and any(isinstance(v, str) and "Investment Option" in v for v in values if v):
             header_row_idx = i
+            for idx, cell in enumerate(row):
+                if cell.value:
+                    headers[cell.value] = idx + 1
             break
     if header_row_idx is None:
-        raise RuntimeError("Could not locate header row with 'Investment Option' in template.")
+        st.error("Could not find header row with 'Investment Option' in the template.")
+        return None
 
-    # Determine column indices by header
-    headers = {cell.value: idx + 1 for idx, cell in enumerate(ws[header_row_idx]) if cell.value}
-    # Required columns
     invest_option_col = headers.get("Investment Option")
     ticker_col = headers.get("Ticker")
     expense_col = headers.get("Expense Ratio")
-    # You can add more (e.g., custom IPS columns) if template is extended
 
-    if not invest_option_col or not ticker_col or not expense_col:
-        raise RuntimeError(f"Template missing one of required columns: Investment Option, Ticker, Expense Ratio. Found headers: {list(headers.keys())}")
+    # IPS status column (create if missing)
+    if "IPS Status" in headers:
+        ips_col = headers["IPS Status"]
+    else:
+        ips_col = None
+        if expense_col:
+            ips_col = expense_col + 1
+            if ws.cell(row=header_row_idx, column=ips_col).value is None:
+                ws.cell(row=header_row_idx, column=ips_col, value="IPS Status")
 
-    # Walk rows below header
+    # Iterate rows and populate
     for row in ws.iter_rows(min_row=header_row_idx + 1, max_row=ws.max_row):
-        inv_option_cell = row[invest_option_col - 1]
-        if not inv_option_cell.value:
+        inv_cell = row[invest_option_col - 1] if invest_option_col else None
+        if not inv_cell or not inv_cell.value:
             continue
-        inv_name = str(inv_option_cell.value)
-        n_inv = norm(inv_name)
+        inv_name = str(inv_cell.value)
+        inv_norm = norm(inv_name)
 
-        # Attempt to find matching fund name in expense_map (fuzzy could be added)
-        # Simple substring match fallback
-        matched_expense = None
-        for fname_norm, er in expense_map.items():
-            if fname_norm in n_inv or n_inv in fname_norm:
-                matched_expense = er
-                break
-        # Ticker: first try from factsheets matched ticker, then fallback to fund_tickers
-        matched_ticker = ""
+        # Best fuzzy match for fund name
+        best_match = None
+        best_score = 0
         for rec in fund_factsheets_data:
-            name = rec.get("Matched Fund Name") or rec.get("Fund Name") or ""
-            if norm(name) in n_inv or n_inv in norm(name):
-                matched_ticker = rec.get("Matched Ticker") or ""
-                break
-        if not matched_ticker:
-            # fallback to provided tickers mapping
-            for fname, tk in fund_tickers.items():
-                if norm(fname) in n_inv or n_inv in norm(fname):
-                    matched_ticker = tk
+            cand_name = norm(rec.get("Matched Fund Name") or rec.get("Fund Name") or "")
+            if not cand_name:
+                continue
+            score = fuzz.token_sort_ratio(inv_norm, cand_name)
+            if score > best_score:
+                best_score = score
+                best_match = cand_name
+
+        if best_score < fuzzy_threshold:
+            for name in list(expense_map.keys()) + list(ticker_map.keys()):
+                if name in inv_norm or inv_norm in name:
+                    best_match = name
+                    best_score = 100
                     break
 
-        # Write back into sheet
-        if matched_ticker:
-            row[ticker_col - 1].value = matched_ticker
-        if matched_expense:
-            row[expense_col - 1].value = matched_expense
+        # Resolve ticker
+        resolved_ticker = ""
+        if best_match and best_match in ticker_map:
+            resolved_ticker = ticker_map[best_match]
+        else:
+            for k, v in (fund_tickers or {}).items():
+                if norm(k) in inv_norm or inv_norm in norm(k):
+                    resolved_ticker = v
+                    break
+        if resolved_ticker and ticker_col:
+            ws.cell(row=inv_cell.row, column=ticker_col, value=resolved_ticker)
 
-        # Optionally, you could add an IPS watch status indicator in a new column
-        watch_status = ips_watch_map.get(n_inv, "")
-        if watch_status:
-            # place it in a column after existing or create dedicated column
-            # here: write into column after Expense Ratio if empty
-            target_col = expense_col + 1
-            ws.cell(row=inv_option_cell.row, column=target_col, value=watch_status)
+        # Resolve expense ratio
+        resolved_expense = ""
+        if best_match and best_match in expense_map:
+            resolved_expense = expense_map[best_match]
+        if resolved_expense and expense_col:
+            ws.cell(row=inv_cell.row, column=expense_col, value=resolved_expense)
 
-    # Save filled workbook
-    wb.save(output_path)
+        # IPS status
+        status_val = ""
+        if best_match and best_match in ips_status_map:
+            status_val = ips_status_map[best_match]
+        else:
+            for fname, status in ips_status_map.items():
+                if fname in inv_norm or inv_norm in fname:
+                    status_val = status
+                    break
+        if status_val and ips_col:
+            ws.cell(row=inv_cell.row, column=ips_col, value=status_val)
+
+    # Save workbook
+    try:
+        wb.save(output_path)
+    except Exception as e:
+        st.error(f"Failed saving populated workbook: {e}")
+        return None
+
+    st.success(f"Template populated and saved to {output_path}")
     return output_path
+
 
 #───Main App──────────────────────────────────────────────────────────────────
 
@@ -1438,14 +1499,15 @@ def run():
         # Step 15: Populate template
         try:
             filled_path = step15_populate_excel_template(
-                template_path="invesment_metrics_template.xlsx",
+            filled_path = step15_populate_excel_template(
+                template_path="assets/investment_metrics_template.xlsx",
                 output_path="filled_investment_metrics.xlsx",
                 fund_factsheets_data=st.session_state.get("fund_factsheets_data", []),
                 fund_tickers=st.session_state.get("fund_tickers", {}),
                 ips_icon_df=st.session_state.get("ips_icon_table")
             )
-            st.success(f"Excel template populated and saved to {filled_path}")
-            st.markdown(f"[Download the populated Excel]({filled_path})")
+            if filled_path:
+                st.markdown(f"[Download populated Excel]({filled_path})")
         except Exception as e:
             st.error(f"Step 15 failed: {e}")
 
