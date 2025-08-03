@@ -1288,14 +1288,30 @@ def extract_proposed_scorecard_blocks(pdf):
             "Matched Line": best_line if found else ""
         })
 
-    df = pd.DataFrame(results)
-    st.session_state["proposed_funds_matched_existing_df"] = df
 
-    st.subheader("Proposed Funds (matched from existing performance list)")
-    st.markdown("### Which of the known funds appear on the Proposed Funds scorecard page")
-    st.dataframe(df.sort_values(by="Match Score", ascending=False), use_container_width=True)
+    df_matches = match_existing_funds_to_proposed(pdf)
+    
+    # Keep only those found on the Proposed Funds page
+    df_only_matched = df_matches[df_matches["Found on Proposed"] == "✅"].copy()
+    
+    # Optional: clean up columns for display
+    display_df = df_only_matched[[
+        "Fund Scorecard Name",
+        "Ticker",
+        "Match Score",
+        "Matched Line"
+    ]].rename(columns={
+        "Fund Scorecard Name": "Fund",
+        "Match Score": "Score",
+        "Matched Line": "Context Line"
+    })
+    
+    st.subheader("Proposed Funds (confirmed matches)")
+    if display_df.empty:
+        st.write("No confirmed proposed funds found.")
+    else:
+        st.table(display_df)
 
-    return df
 
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
