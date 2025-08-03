@@ -2145,7 +2145,7 @@ def run():
         # Step 14.5: IPS Fail Table
         step14_5_ips_fail_table()
 
-        step14_7_extract_proposed_fund_names_from_manager_tenure(pdf)
+        extract_proposed_scorecard_blocks(pdf, scorecard_proposed_page)
         
         # Step 15: View Single Fund Details
         with st.expander("Single Fund Write Up", expanded=False):
