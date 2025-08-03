@@ -2207,49 +2207,113 @@ def step17_export_to_ppt():
     # --- Fill Slide 2 ---
     slide2 = prs.slides[3]
     fill_text_placeholder_preserving_format(slide2, "[Category]", category)
-    # Table 1
+    
+    # Determine number of proposals (already computed earlier)
+    confirmed_proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    proposed = []
+    if not confirmed_proposed_df.empty:
+        for _, row in confirmed_proposed_df.iterrows():
+            name = row.get("Fund Scorecard Name", "")
+            ticker = row.get("Ticker", "")
+            label = f"{name} ({ticker})" if ticker else name
+            proposed.append(label)
+    proposed = proposed[:2]  # at most two
+    
+    # Table 1: Net Expense Ratio
     if df_slide2_table1 is None:
         st.warning("Slide 2 Table 1 data not found.")
     else:
         for shape in slide2.shapes:
             if shape.has_table and len(shape.table.columns) == len(df_slide2_table1.columns):
-                fill_table_with_styles(shape.table, df_slide2_table1)
+                table = shape.table
+                fill_table_with_styles(table, df_slide2_table1)
+                # If only one proposed fund, collapse the extra (third) row if it exists
+                if len(proposed) == 1:
+                    # Assuming row order is: selected, proposed, (extra placeholder), benchmark?
+                    # Find the extra blank/placeholder row: it's the third data row (index 2)
+                    if len(table.rows) > 3:
+                        extra_row = table.rows[2]
+                        for cell in extra_row.cells:
+                            cell.text = ""
+                        try:
+                            extra_row.height = Pt(2)  # shrink to minimal; adjust if needed
+                        except Exception:
+                            pass
                 break
-    # Table 2 (with header adjustment)
+    
+    # Table 2: Returns (selected, proposed(s), benchmark)
     quarter_label = st.session_state.get("report_date", "QTD")
-    for shape in slide2.shapes:
-        if shape.has_table and len(shape.table.columns) == len(df_slide2_table2.columns):
-            table = shape.table
-            # second cell header
-            table.cell(0, 1).text = quarter_label
-            for c in range(len(table.columns)):
-                cell = table.cell(0, c)
-                for para in cell.text_frame.paragraphs:
-                    para.alignment = PP_ALIGN.CENTER
-                    for run in para.runs:
-                        run.font.name = "Cambria"
-                        run.font.size = Pt(11)
-                        run.font.color.rgb = RGBColor(255, 255, 255)
-                        run.font.bold = True
-            fill_table_with_styles(table, df_slide2_table2, bold_row_idx=len(proposed))  # bold benchmark if it's last
-            break
-    # Table 3 (calendar year)
-    for shape in slide2.shapes:
-        if shape.has_table and df_slide2_table3 is not None and len(shape.table.columns) == len(df_slide2_table3.columns):
-            table = shape.table
-            # replace headers
-            for c, col in enumerate(df_slide2_table3.columns):
-                cell = table.cell(0, c)
-                cell.text = str(col)
-                for para in cell.text_frame.paragraphs:
-                    para.alignment = PP_ALIGN.CENTER
-                    for run in para.runs:
-                        run.font.name = "Cambria"
-                        run.font.size = Pt(11)
-                        run.font.color.rgb = RGBColor(255, 255, 255)
-                        run.font.bold = True
-            fill_table_with_styles(table, df_slide2_table3, bold_row_idx=len(proposed))  # benchmark bottom
-            break
+    if df_slide2_table2 is None:
+        st.warning("Slide 2 Table 2 data not found.")
+    else:
+        for shape in slide2.shapes:
+            if shape.has_table and len(shape.table.columns) == len(df_slide2_table2.columns):
+                table = shape.table
+                # Header adjustment
+                table.cell(0, 1).text = quarter_label
+                for c in range(len(table.columns)):
+                    cell = table.cell(0, c)
+                    for para in cell.text_frame.paragraphs:
+                        para.alignment = PP_ALIGN.CENTER
+                        for run in para.runs:
+                            run.font.name = "Cambria"
+                            run.font.size = Pt(11)
+                            run.font.color.rgb = RGBColor(255, 255, 255)
+                            run.font.bold = True
+                fill_table_with_styles(table, df_slide2_table2, bold_row_idx=len(proposed))  # benchmark assumed last
+                if len(proposed) == 1:
+                    # collapse any extra middle row beyond selected, one proposed, benchmark
+                    # e.g., if there is a stray placeholder row before benchmark at index 2
+                    # we expect data rows: header(0), selected(1), proposed(2), benchmark(3)
+                    # so extra would be if rows > 4: collapse row index 2 if empty-ish
+                    # heuristically blank the row that isn't selected/proposed/benchmark
+                    data_rows = [r for r in table.rows[1:]]  # exclude header
+                    if len(data_rows) >= 4:
+                        # attempt to detect the empty placeholder row (middle)
+                        placeholder_row = table.rows[2]
+                        texts = [cell.text.strip() for cell in placeholder_row.cells]
+                        if all(t == "" or t in ("—", "?", "N/A") for t in texts):
+                            for cell in placeholder_row.cells:
+                                cell.text = ""
+                            try:
+                                placeholder_row.height = Pt(2)
+                            except Exception:
+                                pass
+                break
+    
+    # Table 3: Calendar Year Returns (selected, proposed(s), benchmark)
+    if df_slide2_table3 is None:
+        st.warning("Slide 2 Table 3 data not found.")
+    else:
+        for shape in slide2.shapes:
+            if shape.has_table and len(shape.table.columns) == len(df_slide2_table3.columns):
+                table = shape.table
+                # Header styling / replacement
+                for c, col in enumerate(df_slide2_table3.columns):
+                    cell = table.cell(0, c)
+                    cell.text = str(col)
+                    for para in cell.text_frame.paragraphs:
+                        para.alignment = PP_ALIGN.CENTER
+                        for run in para.runs:
+                            run.font.name = "Cambria"
+                            run.font.size = Pt(11)
+                            run.font.color.rgb = RGBColor(255, 255, 255)
+                            run.font.bold = True
+                fill_table_with_styles(table, df_slide2_table3, bold_row_idx=len(proposed))  # benchmark bottom
+                if len(proposed) == 1:
+                    # same heuristic: collapse stray placeholder row if present
+                    if len(table.rows) > 1 + len(proposed) + 2:  # header + selected + proposed + benchmark = 1 +1+1+1 =4
+                        possible_extra = table.rows[2]
+                        texts = [cell.text.strip() for cell in possible_extra.cells]
+                        if all(t == "" or t in ("—", "?", "N/A") for t in texts):
+                            for cell in possible_extra.cells:
+                                cell.text = ""
+                            try:
+                                possible_extra.height = Pt(2)
+                            except Exception:
+                                pass
+                break
+
 
     # --- Replacement placeholders for proposed funds ---
     slide_repl1 = prs.slides[1]
@@ -2266,18 +2330,52 @@ def step17_export_to_ppt():
             pass  # safe fallback
 
     # --- Fill Slide 3 ---
-    slide3 = prs.slides[4 if len(proposed) > 1 else 3]  # index shifts if slide 2 removed
+    # Note: slide index logic depends on whether you kept the earlier slide removal; adjust if needed.
+    slide3 = prs.slides[4 if len(proposed) > 1 else 3]
     fill_text_placeholder_preserving_format(slide3, "[Category]", category)
-    if df_slide3_table1 is None or df_slide3_table2 is None:
+    
+    if (df_slide3_table1 is None) or (df_slide3_table2 is None):
         st.warning("Slide 3 table data not found.")
     else:
         tables = [shape.table for shape in slide3.shapes if shape.has_table]
+    
+        # Table 1: MPT Statistics Summary
         if len(tables) >= 1 and df_slide3_table1 is not None:
-            if len(df_slide3_table1.columns) == len(tables[0].columns):
-                fill_table_with_styles(tables[0], df_slide3_table1)
+            table = tables[0]
+            if len(df_slide3_table1.columns) == len(table.columns):
+                fill_table_with_styles(table, df_slide3_table1)
+                # If only one proposed fund, collapse extra placeholder row (heuristic: third data row)
+                if len(proposed) == 1 and len(table.rows) > 3:
+                    extra_row = table.rows[2]
+                    texts = [cell.text.strip() for cell in extra_row.cells]
+                    if all(t == "" or t in ("—", "?", "N/A") for t in texts):
+                        for cell in extra_row.cells:
+                            cell.text = ""
+                        try:
+                            extra_row.height = Pt(2)
+                        except Exception:
+                            pass
+            else:
+                st.warning("Slide 3 Table 1 headers do not match.")
+    
+        # Table 2: Risk-Adjusted Returns / Peer Ranking %
         if len(tables) >= 2 and df_slide3_table2 is not None:
-            if len(df_slide3_table2.columns) == len(tables[1].columns):
-                fill_table_with_styles(tables[1], df_slide3_table2)
+            table = tables[1]
+            if len(df_slide3_table2.columns) == len(table.columns):
+                fill_table_with_styles(table, df_slide3_table2)
+                if len(proposed) == 1 and len(table.rows) > 3:
+                    extra_row = table.rows[2]
+                    texts = [cell.text.strip() for cell in extra_row.cells]
+                    if all(t == "" or t in ("—", "?", "N/A") for t in texts):
+                        for cell in extra_row.cells:
+                            cell.text = ""
+                        try:
+                            extra_row.height = Pt(2)
+                        except Exception:
+                            pass
+            else:
+                st.warning("Slide 3 Table 2 headers do not match.")
+
 
     # --- Fill Slide 4 ---
     slide4_index = 5 if len(proposed) > 1 else 4
@@ -2286,16 +2384,48 @@ def step17_export_to_ppt():
     qualitative_replacement = f"{category} - Qualitative Factors"
     if not fill_text_placeholder_preserving_format(slide4, qualitative_placeholder, qualitative_replacement):
         st.warning(f"Could not find placeholder '{qualitative_placeholder}' on Slide 4.")
+    
+    # Table 1: Qualitative / Manager Tenure style (df_slide4_table1)
     if df_slide4_table1 is not None:
-        for shape in slide4.shapes:
-            if shape.has_table and len(shape.table.columns) == len(df_slide4_table1.columns):
-                fill_table_with_styles(shape.table, df_slide4_table1)
-                break
+        tables = [shape.table for shape in slide4.shapes if shape.has_table]
+        if tables:
+            table = tables[0]
+            if len(df_slide4_table1.columns) == len(table.columns):
+                fill_table_with_styles(table, df_slide4_table1)
+                # if only one proposed fund, collapse any extra empty placeholder row
+                if len(proposed) == 1 and len(table.rows) > 3:
+                    extra_row = table.rows[2]
+                    texts = [cell.text.strip() for cell in extra_row.cells]
+                    if all(t == "" or t in ("—", "?", "N/A") for t in texts):
+                        for cell in extra_row.cells:
+                            cell.text = ""
+                        try:
+                            extra_row.height = Pt(2)
+                        except Exception:
+                            pass
+            else:
+                st.warning("Slide 4 Table 1 headers do not match.")
+    
+    # Table 2: Assets (df_slide4_table2)
     if df_slide4_table2 is not None:
-        for shape in slide4.shapes:
-            if shape.has_table and len(shape.table.columns) == len(df_slide4_table2.columns):
-                fill_table_with_styles(shape.table, df_slide4_table2)
-                break
+        tables = [shape.table for shape in slide4.shapes if shape.has_table]
+        if len(tables) >= 2:
+            table = tables[1]
+            if len(df_slide4_table2.columns) == len(table.columns):
+                fill_table_with_styles(table, df_slide4_table2)
+                if len(proposed) == 1 and len(table.rows) > 3:
+                    extra_row = table.rows[2]
+                    texts = [cell.text.strip() for cell in extra_row.cells]
+                    if all(t == "" or t in ("—", "?", "N/A") for t in texts):
+                        for cell in extra_row.cells:
+                            cell.text = ""
+                        try:
+                            extra_row.height = Pt(2)
+                        except Exception:
+                            pass
+            else:
+                st.warning("Slide 4 Table 2 headers do not match.")
+
 
     # --- Save and offer download ---
     output = BytesIO()
