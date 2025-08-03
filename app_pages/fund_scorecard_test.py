@@ -1244,18 +1244,41 @@ from pathlib import Path
 
 def step15_populate_excel():
     """
-    Opens the Excel template at assets/investment_metrics_template,
-    writes the 'prepared_for' value into cell AB4, and returns the workbook bytes.
+    Opens the Excel template at assets/investment_metrics_template.xlsx,
+    writes 'prepared_for' into AB4 and the quarter (Q1–Q4) into AB5, then returns the workbook bytes.
     """
     prepared_for = st.session_state.get("prepared_for", "")
     if not prepared_for:
         st.error("❌ Cannot populate Excel: 'prepared_for' is missing in session state.")
         return None
 
+    report_date = st.session_state.get("report_date", "") or ""
+    quarter_str = ""
+    # Try to extract explicit quarter like "2nd QTR, 2024"
+    m = re.match(r"([1-4])(?:st|nd|rd|th)\s+QTR", report_date)
+    if m:
+        quarter_str = f"Q{m.group(1)}"
+    else:
+        # Fallback: parse "As of Month Day, Year" and infer quarter from month
+        m2 = re.match(r"As of\s+([A-Za-z]+)\s+(\d{1,2}),\s*(20\d{2})", report_date)
+        if m2:
+            month_name_str = m2.group(1)
+            try:
+                month_num = list(month_name).index(month_name_str)
+                if month_num >= 1:
+                    qnum = ((month_num - 1) // 3) + 1
+                    quarter_str = f"Q{qnum}"
+            except ValueError:
+                quarter_str = ""
+    # if still empty, fall back to session_state stored quarter digit if present
+    if not quarter_str:
+        # earlier in run() you stored quarter as digit under local variable; attempt session fallback
+        q = st.session_state.get("Quarter")
+        if q:
+            quarter_str = f"Q{q}"
+
     template_path = Path("assets") / "investment_metrics_template.xlsx"
-    # Try common extensions if not explicit
     if template_path.is_dir():
-        # find a file inside if user gave directory
         candidates = list(template_path.glob("*.xlsx"))
         if not candidates:
             st.error(f"❌ No .xlsx file found in {template_path}.")
@@ -1273,18 +1296,18 @@ def step15_populate_excel():
         st.error(f"❌ Failed to load Excel template: {e}")
         return None
 
-    # Assume first sheet unless you need a specific one
     ws = wb.active
     ws["AB4"] = prepared_for
+    if quarter_str:
+        ws["AB5"] = quarter_str
+    else:
+        ws["AB5"] = ""  # leave blank if unable to infer
 
-    # Save to in-memory buffer so you can offer download or further processing
     from io import BytesIO
     out = BytesIO()
     wb.save(out)
     out.seek(0)
     return out
-
-
 
 #───Main App──────────────────────────────────────────────────────────────────
 
@@ -1372,7 +1395,7 @@ def run():
         # Step 14.5: IPS Fail Table
         step14_5_ips_fail_table()
 
-        # Step 15: Populate template (button is inside function)
+    
         # Step 15: Populate template (button is inside function)
         st.markdown("### Step 15: Populate Excel Template")
         if st.button("Populate Excel"):
@@ -1385,9 +1408,6 @@ def run():
                     file_name="investment_metrics_filled.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-
-
-
 
 
 if __name__ == "__main__":
