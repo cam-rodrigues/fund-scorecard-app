@@ -1255,16 +1255,15 @@ def step14_7_extract_proposed_fund_names_from_manager_tenure(pdf):
         txt = pdf.pages[pnum].extract_text() or ""
         page_lines = [ln.strip() for ln in txt.splitlines() if ln.strip()]
         all_lines.extend(page_lines)
-        # boundary: stop if we reach a section that clearly follows proposed funds
         if any(re.search(pat, " ".join(page_lines), re.IGNORECASE)
-               for pat in ["FUND FACTS", "FUND CORRELATION MATRIX", "Single Fund Write Up", "Bullet Points", "Export to Powerpoint"]):
+               for pat in ["FUND CORRELATION MATRIX", "Single Fund Write Up", "Bullet Points", "Export to Powerpoint"]):
             break
 
     if not all_lines:
         st.warning("No text found on Proposed Funds page.")
         return []
 
-    # 2. Find start of the Proposed Funds block
+    # Locate the start of the Proposed Funds block
     start_idx = 0
     for i, ln in enumerate(all_lines):
         if re.search(r"Proposed Funds", ln, re.IGNORECASE):
@@ -1272,40 +1271,51 @@ def step14_7_extract_proposed_fund_names_from_manager_tenure(pdf):
             break
     slice_lines = all_lines[start_idx:]
 
-    # 3. Define noise to skip when walking backward
-    noise_keywords = [
-        "proposed funds", "manager tenure", "excess performance", "peer return rank",
-        "expense ratio rank", "sharpe ratio", "r-squared", "sortino ratio",
-        "tracking error", "criteria", "threshold", "pass", "review"
+    # Helpers to identify junk
+    junk_terms = [
+        "proposed funds", "investment options", "fund facts", "3 year rolling style",
+        "asset loadings", "returns-based", "correlation matrix", "write up", "bullet points",
+        "export to powerpoint"
     ]
-    header_noise_regex = re.compile(r"^(FUND FACTS\b|3 YEAR ROLLING STYLE\b|ASSET LOADINGS\b|CORRELATION MATRIX\b|WRITE UP\b|BULLET POINTS\b)", re.IGNORECASE)
+    metric_or_threshold = [
+        "manager tenure", "excess performance", "peer return rank", "expense ratio rank",
+        "sharpe ratio", "r-squared", "sortino ratio", "tracking error", "criteria", "threshold",
+        "pass", "review", "fund scorecard"
+    ]
+
+    def is_junk_line(line):
+        low = line.lower()
+        if any(term in low for term in junk_terms):
+            return True
+        if any(term in low for term in metric_or_threshold):
+            return True
+        # All-caps short headers like "INVESTMENT OPTIONS"
+        words = line.split()
+        if line.upper() == line and len(words) <= 3:
+            return True
+        return False
 
     proposed_names = []
     for idx, line in enumerate(slice_lines):
         if re.search(r"manager tenure", line, re.IGNORECASE):
-            # Walk backwards to find the first plausible fund name
+            # Walk backwards to find the first non-junk line that looks like a fund name
             j = idx - 1
+            candidate = None
             while j >= 0:
-                candidate = slice_lines[j].strip()
-                if not candidate:
+                prev = slice_lines[j].strip()
+                if not prev:
                     j -= 1
                     continue
-                low = candidate.lower()
-                # Skip if candidate is clearly noise/metric or section header
-                if any(kw in low for kw in noise_keywords):
+                if is_junk_line(prev):
                     j -= 1
                     continue
-                if header_noise_regex.search(candidate):
-                    j -= 1
-                    continue
-                # Heuristic: skip if candidate is all uppercase and very short (likely a label)
-                words = candidate.split()
-                if candidate.isupper() and len(words) <= 2:
-                    j -= 1
-                    continue
-                # Found a plausible fund name
+                # Heuristic: fund names usually have at least two words and are not purely numeric
+                if len(prev.split()) >= 2 and not re.fullmatch(r"[\d\W]+", prev):
+                    candidate = prev
+                    break
+                j -= 1
+            if candidate:
                 proposed_names.append(candidate)
-                break
 
     # Deduplicate while preserving order
     seen = set()
@@ -1315,10 +1325,8 @@ def step14_7_extract_proposed_fund_names_from_manager_tenure(pdf):
             seen.add(name)
             deduped.append(name)
 
-    # Save to session (raw names)
     st.session_state["proposed_funds_list"] = deduped
 
-    # Display
     st.subheader("Proposed Funds (Step 14.7) - Names from above Manager Tenure")
     if deduped:
         for n in deduped:
@@ -1327,6 +1335,7 @@ def step14_7_extract_proposed_fund_names_from_manager_tenure(pdf):
         st.write("No proposed fund names found via Manager Tenure anchor in the expected section.")
 
     return deduped
+
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
 
