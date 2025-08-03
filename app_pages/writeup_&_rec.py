@@ -2020,7 +2020,6 @@ def step17_export_to_ppt():
         return replaced
 
     def fill_bullet_points(slide, placeholder="[Bullet Point 1]", bullets=None):
-        # Stronger replacement: find the paragraph containing the placeholder, clear entire text frame, and add fresh bullets.
         if bullets is None:
             bullets = st.session_state.get("bullet_points", [])
         if not bullets:
@@ -2030,9 +2029,7 @@ def step17_export_to_ppt():
             if not shape.has_text_frame:
                 continue
             tf = shape.text_frame
-            # Look for placeholder anywhere in any paragraph
             if any(placeholder in p.text for p in tf.paragraphs):
-                # Clear existing content
                 tf.clear()
                 for b in bullets:
                     p_new = tf.add_paragraph()
@@ -2042,10 +2039,11 @@ def step17_export_to_ppt():
                     p_new.font.name = "Cambria"
                     p_new.font.size = Pt(11)
                     p_new.font.color.rgb = RGBColor(0, 0, 0)
-                    p_new.font.bold = True
+                    p_new.font.bold = False  # <-- no longer forcing bold
                 replaced = True
                 break
         return replaced
+
 
 
     # Gather session data
