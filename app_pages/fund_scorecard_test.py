@@ -1242,10 +1242,13 @@ def step14_5_ips_fail_table():
 import openpyxl
 from pathlib import Path
 
+import datetime
+
 def step15_populate_excel():
     """
     Opens the Excel template at assets/investment_metrics_template.xlsx,
-    writes 'prepared_for' into AB4 and the quarter (Q1–Q4) into AB5, then returns the workbook bytes.
+    writes 'prepared_for' into AB4, the quarter (Q1–Q4) into AB5,
+    and the actual report date into AB6, then returns the workbook bytes.
     """
     prepared_for = st.session_state.get("prepared_for", "")
     if not prepared_for:
@@ -1254,28 +1257,47 @@ def step15_populate_excel():
 
     report_date = st.session_state.get("report_date", "") or ""
     quarter_str = ""
+    actual_date = None
+
     # Try to extract explicit quarter like "2nd QTR, 2024"
-    m = re.match(r"([1-4])(?:st|nd|rd|th)\s+QTR", report_date)
+    m = re.match(r"([1-4])(?:st|nd|rd|th)\s+QTR,\s*(20\d{2})", report_date)
     if m:
-        quarter_str = f"Q{m.group(1)}"
+        qnum = int(m.group(1))
+        year = int(m.group(2))
+        quarter_str = f"Q{qnum}"
+        # Map quarter to its end date
+        quarter_end_map = {1: (3, 31), 2: (6, 30), 3: (9, 30), 4: (12, 31)}
+        mon, day = quarter_end_map.get(qnum)
+        actual_date = datetime.date(year, mon, day)
     else:
-        # Fallback: parse "As of Month Day, Year" and infer quarter from month
+        # Fallback: parse "As of Month Day, Year"
         m2 = re.match(r"As of\s+([A-Za-z]+)\s+(\d{1,2}),\s*(20\d{2})", report_date)
         if m2:
             month_name_str = m2.group(1)
+            day = int(m2.group(2))
+            year = int(m2.group(3))
             try:
                 month_num = list(month_name).index(month_name_str)
                 if month_num >= 1:
+                    actual_date = datetime.date(year, month_num, day)
+                    # infer quarter from month
                     qnum = ((month_num - 1) // 3) + 1
                     quarter_str = f"Q{qnum}"
             except ValueError:
-                quarter_str = ""
-    # if still empty, fall back to session_state stored quarter digit if present
+                actual_date = None
+
+    # if still missing actual_date, fallback to today
+    if actual_date is None:
+        actual_date = datetime.date.today()
+
+    # if still missing quarter_str, try fallback from session_state["Quarter"]
     if not quarter_str:
-        # earlier in run() you stored quarter as digit under local variable; attempt session fallback
         q = st.session_state.get("Quarter")
         if q:
             quarter_str = f"Q{q}"
+
+    # Format actual date as MM/DD/YYYY
+    date_str = actual_date.strftime("%m/%d/%Y")
 
     template_path = Path("assets") / "investment_metrics_template.xlsx"
     if template_path.is_dir():
@@ -1298,16 +1320,15 @@ def step15_populate_excel():
 
     ws = wb.active
     ws["AB4"] = prepared_for
-    if quarter_str:
-        ws["AB5"] = quarter_str
-    else:
-        ws["AB5"] = ""  # leave blank if unable to infer
+    ws["AB5"] = quarter_str if quarter_str else ""
+    ws["AB6"] = date_str
 
     from io import BytesIO
     out = BytesIO()
     wb.save(out)
     out.seek(0)
     return out
+
 
 #───Main App──────────────────────────────────────────────────────────────────
 
