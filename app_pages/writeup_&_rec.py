@@ -1240,7 +1240,7 @@ def step14_5_ips_fail_table():
 
 #───Step 14.7: Proposal──────────────────────────────────────────────────────────────────
 
-def step14_7_list_proposed_funds_only(pdf):
+def step14_7_list_proposed_fund_names_only(pdf):
     import re
     import streamlit as st
 
@@ -1249,13 +1249,13 @@ def step14_7_list_proposed_funds_only(pdf):
         st.error("❌ 'Fund Scorecard: Proposed Funds' page number not found in TOC.")
         return []
 
+    # Collect lines starting at the proposed funds page; stop if a different major section appears.
     collected_lines = []
     for pnum in range(prop_page - 1, len(pdf.pages)):
         txt = pdf.pages[pnum].extract_text() or ""
         lines = [ln.strip() for ln in txt.splitlines() if ln.strip()]
-        # stop if a new unrelated major section appears
         if pnum > prop_page - 1 and any(re.search(pat, " ".join(lines), re.IGNORECASE)
-                                       for pat in ["Fund Factsheets", "Fund Performance", "IPS Screening"]):
+                                       for pat in ["Fund Factsheets", "Fund Performance", "IPS Screening", "Scorecard Metrics"]):
             break
         collected_lines.extend(lines)
 
@@ -1263,45 +1263,49 @@ def step14_7_list_proposed_funds_only(pdf):
         st.warning("No text found on Proposed Funds page.")
         return []
 
-    # Identify proposed fund names:
-    # Heuristic: a line that is followed soon by any metric indicator, but exclude
-    # the section title, criteria/threshold headers, and the word "Investment Options".
-    metric_indicators = [
-        "Manager Tenure", "Excess Performance", "Peer Return Rank", "Expense Ratio Rank",
-        "Sharpe Ratio Rank", "R-Squared", "Sortino Ratio Rank", "Tracking Error Rank"
+    # Exclude anything that is obviously not a fund name
+    exclude_pattern_terms = [
+        r"manager tenure", r"excess performance", r"peer return rank", r"expense ratio rank",
+        r"sharpe ratio", r"r-squared", r"sortino ratio", r"tracking error", r"criteria", r"threshold",
+        r"investment options", r"fund scorecard: proposed funds", r"\d{4}",  # years
+        r"%", r"\bpass\b", r"\breview\b"
     ]
-    metric_indicators_lower = [m.lower() for m in metric_indicators]
-    exclude_patterns = ["criteria", "threshold", "investment options", "fund scorecard: proposed funds"]
+    exclude_regex = re.compile("|".join(exclude_pattern_terms), re.IGNORECASE)
 
-    proposed_names = []
-    for idx, line in enumerate(collected_lines):
-        low = line.lower()
-        if any(ex in low for ex in exclude_patterns):
-            continue  # skip headers or unwanted lines
+    candidate_names = []
+    for line in collected_lines:
+        if not line:
+            continue
+        if exclude_regex.search(line):
+            continue  # skip metrics, descriptions, years, statuses
+        # Skip short garbage and lines that are mostly numeric
+        if len(line) < 5:
+            continue
+        if re.fullmatch(r"[\d\.\-\s/]+", line):
+            continue
+        # Heuristic: fund names often have multiple words, title-like; avoid lines that look like full sentences (too many lowercase endings)
+        # Accept if there's at least two capitalized words or typical fund naming patterns
+        candidate_names.append(line)
 
-        lookahead = " ".join(collected_lines[idx + 1 : idx + 6]).lower()
-        if any(ind in lookahead for ind in metric_indicators_lower):
-            proposed_names.append(line)
-
-    # Deduplicate while preserving order
+    # Deduplicate preserving order
     seen = set()
-    deduped = []
-    for name in proposed_names:
-        if name not in seen:
-            seen.add(name)
-            deduped.append(name)
+    fund_names = []
+    for name in candidate_names:
+        if name in seen:
+            continue
+        seen.add(name)
+        fund_names.append(name)
 
-    st.session_state["proposed_funds_list"] = deduped
-
-    st.subheader("Proposed Funds (Step 14.7)")
-    if deduped:
-        for name in deduped:
-            st.write(f"- {name}")
+    # Save and display
+    st.session_state["proposed_funds_list"] = fund_names
+    st.subheader("Proposed Funds (names only)")
+    if fund_names:
+        for n in fund_names:
+            st.write(f"- {n}")
     else:
-        st.write("No proposed fund names found.")
+        st.write("No proposed fund names detected.")
 
-    return deduped
-
+    return fund_names
 
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
