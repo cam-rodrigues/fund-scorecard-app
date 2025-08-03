@@ -177,15 +177,6 @@ def process_toc(text):
     fs_page       = int(fs.group(1)) if fs else None
     fs_prop_page  = int(fs_prop.group(1)) if fs_prop else None
 
-    st.write['performance_page'] = perf_page
-    st.write['calendar_year_page'] = cy_page
-    st.write['r3yr_page'] = r3yr_page
-    st.write['r5yr_page'] = r5yr_page
-    st.write['scorecard_page'] = sc_page
-    st.write['scorecard_proposed_page'] = sc_prop_page
-    st.write['factsheets_page'] = fs_page
-    st.write['factsheets_proposed_page'] = fs_prop_page
-
     # Store in session state for downstream use
     st.session_state['performance_page'] = perf_page
     st.session_state['calendar_year_page'] = cy_page
@@ -1258,20 +1249,14 @@ def extract_proposed_scorecard_blocks(pdf):
         st.error("❌ 'Fund Scorecard: Proposed Funds' page number not found in TOC.")
         return []
 
-    # 1. Collect lines from the Proposed Funds section (stop at next major section)
-    all_lines = []
-    for pnum in range(prop_page - 1, len(pdf.pages)):
-        txt = pdf.pages[pnum].extract_text() or ""
-        page_lines = [ln.strip() for ln in txt.splitlines() if ln.strip()]
-        all_lines.extend(page_lines)
-        if any(re.search(pat, " ".join(page_lines), re.IGNORECASE)
-               for pat in ["FUND CORRELATION MATRIX", "Single Fund Write Up", "Bullet Points", "Export to Powerpoint"]):
-            break
-    if not all_lines:
-        st.warning("No text found on Proposed Funds page.")
+    # 1. Only pull text from the proposed funds scorecard page (no bleed into regular scorecard)
+    page = pdf.pages[prop_page - 1]
+    lines = [ln.strip() for ln in (page.extract_text() or "").splitlines() if ln.strip()]
+    if not lines:
+        st.warning("No text found on the Proposed Funds scorecard page.")
         return []
 
-    # 2. Prepare the list of candidate funds from performance section (name + ticker)
+    # 2. Prepare candidate funds from performance/scorecard extraction
     perf_data = st.session_state.get("fund_performance_data", [])
     candidate_funds = []
     for item in perf_data:
@@ -1280,22 +1265,21 @@ def extract_proposed_scorecard_blocks(pdf):
         if name:
             candidate_funds.append({"Fund Name": name, "Ticker": ticker})
 
-    # 3. For each candidate, fuzzy-match against each line in proposed section
+    # 3. Fuzzy-match each candidate against the lines on the proposed funds page
     results = []
     for fund in candidate_funds:
         name = fund["Fund Name"]
         ticker = fund["Ticker"]
         best_score = 0
         best_line = ""
-        for line in all_lines:
-            # score both against name and ticker if present
+        for line in lines:
             score_name = fuzz.token_sort_ratio(name.lower(), line.lower())
             score_ticker = fuzz.token_sort_ratio(ticker.lower(), line.lower()) if ticker else 0
             score = max(score_name, score_ticker)
             if score > best_score:
                 best_score = score
                 best_line = line
-        found = best_score >= 70  # threshold you can adjust
+        found = best_score >= 70  # adjust threshold if needed
         results.append({
             "Fund Scorecard Name": name,
             "Ticker": ticker,
@@ -1308,10 +1292,11 @@ def extract_proposed_scorecard_blocks(pdf):
     st.session_state["proposed_funds_matched_existing_df"] = df
 
     st.subheader("Proposed Funds (matched from existing performance list)")
-    st.markdown("### Detection of which known funds appear on the Proposed Funds scorecard section")
+    st.markdown("### Which of the known funds appear on the Proposed Funds scorecard page")
     st.dataframe(df.sort_values(by="Match Score", ascending=False), use_container_width=True)
 
     return df
+
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
 
