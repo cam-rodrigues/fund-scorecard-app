@@ -1974,8 +1974,6 @@ def step16_3_selected_overview_lookup(pdf, context_lines=3, min_score=50):
 
     
 #───Bullet Points──────────────────────────────────────────────────────────────────
-
-def step16_bullet_points(pdf=None):
 def step16_bullet_points(pdf=None):
     import streamlit as st
     import re
