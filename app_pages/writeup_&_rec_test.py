@@ -1927,83 +1927,105 @@ from rapidfuzz import fuzz
 
 def step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_score=60):
     import streamlit as st
+    import re
 
-    proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
-    if proposed_df is None or proposed_df.empty:
-        st.warning("No confirmed proposed funds to locate factsheets for.")
+    confirmed = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    if confirmed.empty:
+        st.warning("No proposed funds confirmed; cannot locate their factsheet.")
         return
 
-    facts_start = st.session_state.get("factsheets_page")
-    if not facts_start:
-        st.error("❌ 'Fund Factsheets' page number not found in TOC.")
-        return
+    # Build map of fund name / ticker to their target factsheet page
+    # We'll reuse the logic from step6_process_factsheets to find matching factsheet pages
+    performance_map = st.session_state.get("fund_performance_data", [])
+    tickers = {p.get("Fund Scorecard Name"): p.get("Ticker", "") for p in performance_map}
 
-    # Precompute header-ish text per factsheet page
-    page_candidates = []
-    for pnum in range(facts_start - 1, len(pdf.pages)):
-        page = pdf.pages[pnum]
-        full_text = page.extract_text() or ""
-        lines = [ln.strip() for ln in full_text.splitlines() if ln.strip()]
-        header_preview = " ".join(lines[:2])  # first couple lines as header context
-        page_candidates.append({
-            "page_num": pnum + 1,
-            "lines": lines,
-            "header_preview": header_preview,
-            "full_text": full_text
-        })
+    found_overviews = []
 
-    results = []
-    for _, row in proposed_df.iterrows():
-        name = row.get("Fund Scorecard Name", "").strip()
-        ticker = (row.get("Ticker", "") or "").strip().upper()
-        best_score = 0
-        best_page = None
+    # Precompute all factsheet pages (you might narrow to factsheets_page start)
+    factsheet_start = st.session_state.get("factsheets_page", 1)
+    # iterate through each confirmed proposed fund
+    for _, row in confirmed.iterrows():
+        fund_name = row.get("Fund Scorecard Name", "").strip()
+        ticker = (row.get("Ticker") or "").strip().upper()
+        target_label = f"{fund_name} {ticker}".strip()
 
-        # Fuzzy-match on header preview
-        for ph in page_candidates:
-            score_name = fuzz.token_sort_ratio(name.lower(), ph["header_preview"].lower()) if ph["header_preview"] else 0
-            score_ticker = fuzz.token_sort_ratio(ticker.lower(), ph["header_preview"].lower()) if ticker and ph["header_preview"] else 0
-            score = max(score_name, score_ticker)
-            if score > best_score:
-                best_score = score
-                best_page = ph
+        best_match = {"page": None, "score": 0, "header": "", "fund_name_raw": ""}
+        # search candidate factsheet-like pages: from factsheet_start to end
+        for pnum in range(factsheet_start - 1, len(pdf.pages)):
+            page = pdf.pages[pnum]
+            # heuristics: grab top header-like text via extract_words with small top value
+            words = page.extract_words(use_text_flow=True)
+            header_words = [w for w in words if w.get("top", 0) < 120]  # adjust threshold if necessary
+            header_text = " ".join(w["text"] for w in header_words).strip()
+            if not header_text:
+                continue
+            score = max(
+                fuzz.token_sort_ratio(fund_name.lower(), header_text.lower()),
+                fuzz.token_sort_ratio(ticker.lower(), header_text.lower())
+            )
+            if score > best_match["score"]:
+                best_match.update({
+                    "page": pnum + 1,
+                    "score": score,
+                    "header": header_text,
+                    "fund_name_raw": header_text
+                })
 
-        matched_flag = "✅" if best_score >= min_score else "❌"
-        matched_page = best_page["page_num"] if best_page else None
+        if best_match["score"] < min_score or not best_match["page"]:
+            st.warning(f"Could not confidently locate factsheet for proposed fund '{fund_name}' ({ticker}), best score {best_match['score']}.")
+            continue
 
-        # Search for INVESTMENT OVERVIEW line
+        # Now on that page, look for "INVESTMENT OVERVIEW"
+        page_obj = pdf.pages[best_match["page"] - 1]
+        # Approach A: use extract_words and try to detect bold if font info is available
+        words = page_obj.extract_words(extra_attrs=["fontname", "size"], use_text_flow=True)
+        # Look for sequence of words forming INVESTMENT OVERVIEW (case-insensitive)
+        joined = " ".join(w["text"] for w in words)
         overview_found = False
-        overview_text = ""
-        overview_line_index = None
+        overview_context = ""
+        # First, try to find nearby lines from extract_text
+        lines = [(ln.strip()) for ln in (page_obj.extract_text() or "").splitlines() if ln.strip()]
+        for idx, ln in enumerate(lines):
+            if "INVESTMENT OVERVIEW" in ln.upper():
+                overview_found = True
+                start = max(0, idx - context_lines)
+                end = min(len(lines), idx + 1 + context_lines)
+                snippet = "\n".join(lines[start:end])
+                overview_context = snippet
+                break
 
-        if best_page:
-            # Find line containing phrase (case-insensitive)
-            for idx, ln in enumerate(best_page["lines"]):
-                if "INVESTMENT OVERVIEW" in ln.upper():
+        # If not found by line match, fallback to word-sequence search
+        if not overview_found:
+            sequence = "INVESTMENT OVERVIEW"
+            # Reconstruct sliding window over words to match the phrase
+            texts = [w["text"] for w in words]
+            for i in range(len(texts) - 1):
+                combo = f"{texts[i]} {texts[i+1]}".upper()
+                if sequence == combo:
                     overview_found = True
-                    overview_line_index = idx
-                    # Collect the following context_lines lines as the snippet
-                    snippet_lines = []
-                    for j in range(idx + 1, min(idx + 1 + context_lines, len(best_page["lines"]))):
-                        snippet_lines.append(best_page["lines"][j])
-                    overview_text = " ".join(snippet_lines).strip()
+                    # approximate context: take surrounding words
+                    start = max(0, i - 10)
+                    end = min(len(texts), i + 12)
+                    overview_context = " ".join(texts[start:end])
                     break
 
-        results.append({
-            "Fund Scorecard Name": name,
+        if not overview_found:
+            st.warning(f"'INVESTMENT OVERVIEW' heading not found on page {best_match['page']} for '{fund_name}'.")
+        else:
+            st.success(f"Found 'INVESTMENT OVERVIEW' for '{fund_name}' on page {best_match['page']} (match score {best_match['score']}).")
+            st.text_area(f"Overview context for {fund_name} (page {best_match['page']})", overview_context, height=180)
+
+        found_overviews.append({
+            "Fund": fund_name,
             "Ticker": ticker,
-            "Matched Factsheet Page": matched_page,
-            "Header Match Score": best_score,
-            "Matched": matched_flag,
-            "Investment Overview Found": "✅" if overview_found else "❌",
-            "Overview Line Index": overview_line_index if overview_found else "",
-            "Overview Snippet": overview_text if overview_found else "",
+            "Factsheet Page": best_match["page"],
+            "Match Score": best_match["score"],
+            "Overview Found": overview_found,
+            "Overview Snippet": overview_context
         })
 
-    st.session_state["proposed_factsheet_matches"] = results
-    df = pd.DataFrame(results)
-    st.subheader("Step 16.5: Proposed Fund Factsheet + Investment Overview Detection (line-based fallback)")
-    st.dataframe(df, use_container_width=True)
+    st.session_state["step16_5_overview_search"] = found_overviews
+    return found_overviews
 
 
 #───Build Powerpoint─────────────────────────────────────────────────────────────────
@@ -2383,8 +2405,8 @@ def run():
         with st.expander("Bullet Points", expanded=False):
             step16_bullet_points()
             
-        with st.expander("Bullet Points", expanded=False):
-            step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_score=60)
+        with st.expander("Proposed Fund Investment Overview", expanded=False):
+            step16.5_results = step16.5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_score=60)
 
         with st.expander("Export to Powerpoint", expanded=False):
             step17_export_to_ppt()
