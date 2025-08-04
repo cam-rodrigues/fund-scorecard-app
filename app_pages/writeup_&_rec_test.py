@@ -2344,7 +2344,7 @@ def run():
             step16_bullet_points()
 
         with st.expander("Proposed Bullet Points", expanded=False):
-            extract_investment_overview_for_fund()
+            extract_investment_overview_for_fund(pdf,page_num)
 
 
         # PowerPoint
