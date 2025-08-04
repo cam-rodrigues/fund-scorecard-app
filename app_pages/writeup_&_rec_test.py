@@ -2923,9 +2923,30 @@ def run():
         # --- Replaced: show Step 16 & 16.5 as side-by-side cards ---
         render_step16_and_16_5_cards(pdf)
 
-        # --- Export to PowerPoint ---
-        with st.expander("Export to Powerpoint", expanded=False):
-            step17_export_to_ppt()
+        # --- Export to PowerPoint (always visible styled card) ---
+        st.markdown(f"""
+            <div style="
+                background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
+                color: #244369;
+                border-radius: 1.5rem;
+                box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
+                padding: 1.2rem 1.6rem;
+                border: 1.2px solid #b5d0eb;
+                margin-bottom: 1.2rem;
+                font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
+            ">
+                <div style="font-size:1rem; font-weight:700; margin-bottom:4px;">Generate Writeup PowerPoint</div>
+                <div style="margin-bottom:8px; font-size:0.85rem;">
+                    Click the button below to build and download the writeup & recommendation PowerPoint.
+                </div>
+                <div id="pptx-button-container">
+                    <!-- placeholder for download button -->
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # call the export function to prepare the presentation and expose download data
+        step17_export_to_ppt()
 
 
 if __name__ == "__main__":
