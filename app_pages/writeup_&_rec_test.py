@@ -1944,65 +1944,45 @@ def step16_bullet_points():
 
 #───Proposed Fund Bullet Points───────────────────────────────────────────────────────
 
-# Step 16.5: Extract and Display "Investment Overview" for Proposed Fund(s)
 
-import streamlit as st
+import pdfplumber
+import re
 
-def extract_investment_overview_for_fund(pdf, page_num):
-    """Extracts the Investment Overview paragraph from the given factsheet page."""
-    if not page_num or page_num > len(pdf.pages):
-        return ""
-    page = pdf.pages[page_num - 1]
-    lines = [ln.strip() for ln in (page.extract_text() or "").splitlines()]
-    try:
-        idx = next(i for i, ln in enumerate(lines) if "Investment Overview" in ln)
-    except StopIteration:
-        return ""  # Not found
+def extract_investment_overview(pdf_path, start_page, end_page):
+    overviews = {}
+    with pdfplumber.open(pdf_path) as pdf:
+        for i in range(start_page-1, end_page):  # PDF page numbers are 0-based
+            text = pdf.pages[i].extract_text()
+            if not text:
+                continue
 
-    # Grab lines after header until next all-caps header, blank, or section divider
-    overview_lines = []
-    for ln in lines[idx + 1:]:
-        if not ln.strip():
-            break
-        if ln.isupper() or ln.endswith(":"):
-            break
-        overview_lines.append(ln)
-    return " ".join(overview_lines).strip()
+            # Simple: Find each fund on the page
+            fund_blocks = re.split(r'\n(?=[A-Z].+\nTicker: )', text)
+            for block in fund_blocks:
+                m_fund = re.search(r'^(.*?)\nTicker: (\w+)', block)
+                if not m_fund:
+                    continue
+                fund_name = m_fund.group(1).strip()
+                ticker = m_fund.group(2).strip()
 
-def step16_5_display_investment_overview(pdf):
-    """
-    Finds proposed fund(s) and displays their 'Investment Overview' from factsheet pages.
-    """
-    proposed_df = st.session_state.get("proposed_funds_confirmed_df", None)
-    facts_data = st.session_state.get("fund_factsheets_data", None)
+                # Find Investment Overview section
+                m_overview = re.search(
+                    r'Investment Overview\n(.+?)(?=\n[A-Z][A-Za-z ]{2,20}\n)',  # stops at next Title Case heading
+                    block,
+                    re.DOTALL
+                )
+                overview = m_overview.group(1).strip() if m_overview else "(No Investment Overview found on factsheet page)"
+                overviews[ticker] = {
+                    "fund_name": fund_name,
+                    "overview": overview
+                }
+    return overviews
 
-    if proposed_df is None or facts_data is None or proposed_df.empty or not facts_data:
-        st.info("No proposed funds or factsheet data available. Run previous steps first.")
-        return
-
-    proposed_names = proposed_df["Fund Scorecard Name"].tolist()
-
-    st.markdown("### 📝 Investment Overview (Proposed Fund(s))")
-    found_any = False
-
-    for fund_name in proposed_names:
-        # Find the factsheet record for this fund
-        rec = next((row for row in facts_data if row.get("Matched Fund Name") == fund_name), None)
-        page_num = rec.get("Page #") if rec else None
-
-        if page_num is not None:
-            overview_text = extract_investment_overview_for_fund(pdf, page_num)
-        else:
-            overview_text = ""
-
-        if overview_text:
-            st.markdown(f"- **{fund_name}:** {overview_text}")
-            found_any = True
-        else:
-            st.markdown(f"- **{fund_name}:** _(No Investment Overview found on factsheet page)_")
-
-    if not found_any:
-        st.info("No 'Investment Overview' section found for any proposed fund.")
+# Example usage:
+pdf_path = "MPI(Element).pdf"
+investment_overviews = extract_investment_overview(pdf_path, start_page=60, end_page=61)  # adjust end_page as needed
+for ticker, info in investment_overviews.items():
+    print(f"{info['fund_name']} ({ticker}):\n{info['overview']}\n")
 
 
 #───Build Powerpoint──────────────────────────────────────────────────────────────────
@@ -2382,7 +2362,7 @@ def run():
 
         # NEW: Proposed Fund Investment Overview section
         with st.expander("Investment Overview (Proposed Funds)", expanded=False):
-            step16_5_display_investment_overview(pdf)
+            extract_investment_overview(pdf_path, start_page, end_page)
 
         # PowerPoint
         with st.expander("Export to Powerpoint", expanded=False):
