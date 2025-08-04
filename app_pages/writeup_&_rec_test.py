@@ -759,15 +759,14 @@ def run():
             process_toc(toc_text)
 
         # 1. IPS Investment Screening
-        with st.expander("IPS Investment Screening", expanded=True):
-            sp = st.session_state.get('scorecard_page')
-            tot = st.session_state.get('total_options')
-            pp = st.session_state.get('performance_page')
-            factsheets_page = st.session_state.get('factsheets_page')
-            if sp and tot is not None and pp:
-                step3_5_6_scorecard_and_ips(pdf, sp, pp, factsheets_page, tot)
-            else:
-                st.error("Missing scorecard, performance page, or total options")
+        sp = st.session_state.get('scorecard_page')
+        tot = st.session_state.get('total_options')
+        pp = st.session_state.get('performance_page')
+        factsheets_page = st.session_state.get('factsheets_page')
+        if sp and tot is not None and pp:
+            step3_5_6_scorecard_and_ips(pdf, sp, pp, factsheets_page, tot)
+        else:
+            st.error("Missing scorecard, performance page, or total options")
 
 
         # Step 14.5: IPS Fail Table
