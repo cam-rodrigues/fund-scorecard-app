@@ -1944,11 +1944,14 @@ def step16_bullet_points():
 
 #───Proposed Fund Bullet Points───────────────────────────────────────────────────────
 
+# Step 16.5: Extract and Display "Investment Overview" for Proposed Fund(s)
+
+import streamlit as st
+
 def extract_investment_overview_for_fund(pdf, page_num):
-    """
-    Given a pdf and a page number, extract the 'Investment Overview' paragraph from the factsheet page.
-    Returns the paragraph as a string (or empty string if not found).
-    """
+    """Extracts the Investment Overview paragraph from the given factsheet page."""
+    if not page_num or page_num > len(pdf.pages):
+        return ""
     page = pdf.pages[page_num - 1]
     lines = [ln.strip() for ln in (page.extract_text() or "").splitlines()]
     try:
@@ -1956,16 +1959,50 @@ def extract_investment_overview_for_fund(pdf, page_num):
     except StopIteration:
         return ""  # Not found
 
-    # Extract lines after the header, until a new header (all-caps or bold style) or empty line
+    # Grab lines after header until next all-caps header, blank, or section divider
     overview_lines = []
     for ln in lines[idx + 1:]:
         if not ln.strip():
-            break  # stop at first blank line
-        # Heuristic: stop at next obvious section header
+            break
         if ln.isupper() or ln.endswith(":"):
             break
         overview_lines.append(ln)
     return " ".join(overview_lines).strip()
+
+def step16_5_display_investment_overview(pdf):
+    """
+    Finds proposed fund(s) and displays their 'Investment Overview' from factsheet pages.
+    """
+    proposed_df = st.session_state.get("proposed_funds_confirmed_df", None)
+    facts_data = st.session_state.get("fund_factsheets_data", None)
+
+    if proposed_df is None or facts_data is None or proposed_df.empty or not facts_data:
+        st.info("No proposed funds or factsheet data available. Run previous steps first.")
+        return
+
+    proposed_names = proposed_df["Fund Scorecard Name"].tolist()
+
+    st.markdown("### 📝 Investment Overview (Proposed Fund(s))")
+    found_any = False
+
+    for fund_name in proposed_names:
+        # Find the factsheet record for this fund
+        rec = next((row for row in facts_data if row.get("Matched Fund Name") == fund_name), None)
+        page_num = rec.get("Page #") if rec else None
+
+        if page_num is not None:
+            overview_text = extract_investment_overview_for_fund(pdf, page_num)
+        else:
+            overview_text = ""
+
+        if overview_text:
+            st.markdown(f"- **{fund_name}:** {overview_text}")
+            found_any = True
+        else:
+            st.markdown(f"- **{fund_name}:** _(No Investment Overview found on factsheet page)_")
+
+    if not found_any:
+        st.info("No 'Investment Overview' section found for any proposed fund.")
 
 
 #───Build Powerpoint──────────────────────────────────────────────────────────────────
@@ -2343,9 +2380,8 @@ def run():
         with st.expander("Bullet Points", expanded=False):
             step16_bullet_points()
 
-        with st.expander("Proposed Bullet Points", expanded=False):
-            extract_investment_overview_for_fund(pdf,page_num)
-
+        with pdfplumber.open(uploaded_pdf) as pdf:
+            step16_5_display_investment_overview(pdf)
 
         # PowerPoint
         with st.expander("Export to Powerpoint", expanded=False):
