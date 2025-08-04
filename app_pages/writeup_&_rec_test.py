@@ -25,8 +25,7 @@ def extract_performance_table(pdf, performance_page, fund_names, end_page=None):
         item = {"Fund Scorecard Name": name}
         idx = next((i for i, ln in enumerate(lines) if name in ln), None)
         if idx is None:
-            scores = [(i, fuzz.token_sort_ratio(name.lower(), ln.lower()))
-                      for i, ln in enumerate(lines)]
+            scores = [(i, fuzz.token_sort_ratio(name.lower(), ln.lower())) for i, ln in enumerate(lines)]
             best_i, best_score = max(scores, key=lambda x: x[1])
             if best_score > 60:
                 idx = best_i
@@ -128,7 +127,7 @@ def process_toc(text):
     st.session_state['factsheets_page'] = int(fs.group(1)) if fs else None
     st.session_state['factsheets_proposed_page'] = int(fs_prop.group(1)) if fs_prop else None
 
-# ─── IPS Investment Screening ───────────────────────────────────────────────
+# ─── IPS Investment Screening ──────────────────────────────────────────────
 
 def infer_fund_type_guess(ticker):
     try:
@@ -158,7 +157,7 @@ def extract_scorecard_blocks(pdf, scorecard_page):
         "Tracking Error Rank (3Yr)", "Tracking Error Rank (5Yr)"
     ]
     pages, fund_blocks, fund_name, metrics = [], [], None, []
-    for p in pdf.pages[scorecard_page - 1:]:
+    for p in pdf.pages[scorecard_page-1:]:
         pages.append(p.extract_text() or "")
     lines = "\n".join(pages).splitlines()
     for line in lines:
@@ -303,14 +302,17 @@ def watch_status_color(val):
     return ""
 
 def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheets_page, total_options):
+    # --- 1. Extract scorecard blocks ---
     fund_blocks = extract_scorecard_blocks(pdf, scorecard_page)
     fund_names = [fund["Fund Name"] for fund in fund_blocks]
     if not fund_blocks:
         st.error("Could not extract fund scorecard blocks. Check the PDF and page number.")
         return
 
+    # --- 2. Extract tickers ---
     tickers = extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page)
 
+    # --- Prepare inferred fund type guesses/defaults ---
     inferred_guesses = []
     for name in fund_names:
         guess = ""
@@ -355,8 +357,10 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     else:
         fund_types = {name: inferred_guesses[i] for i, name in enumerate(fund_names)}
 
+    # --- 4. IPS conversion ---
     df_icon, df_raw = scorecard_to_ips(fund_blocks, fund_types, tickers)
 
+    # --- IPS Results ---
     st.subheader("IPS Screening Results")
     st.markdown(
         '<div style="display:flex; gap:1rem; margin-bottom:0.5rem;">'
@@ -400,33 +404,26 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
         styled = compact_df.style.applymap(watch_style, subset=["IPS Watch Status"])
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
+    # --- Persist state downstream ---
     st.session_state["fund_blocks"] = fund_blocks
     st.session_state["fund_types"] = fund_types
     st.session_state["fund_tickers"] = tickers
     st.session_state["ips_icon_table"] = df_icon
     st.session_state["ips_raw_table"] = df_raw
 
-    perf_data = extract_performance_table(
-        pdf,
-        performance_page,
-        fund_names,
-        factsheets_page
-    )
+    perf_data = extract_performance_table(pdf, performance_page, fund_names, factsheets_page)
     for itm in perf_data:
         itm["Ticker"] = tickers.get(itm["Fund Scorecard Name"], "")
-
     st.session_state["fund_performance_data"] = perf_data
-    st.session_state["tickers"] = tickers  # legacy compatibility
+    st.session_state["tickers"] = tickers
 
-# ─── Side-by-side Info Card Functions ───────────────────────────────────────────
+# ─── Side-by-side Info Card Functions ──────────────────────────────────────────
 
 def get_ips_fail_card_html():
     df = st.session_state.get("ips_icon_table")
     if df is None or df.empty:
         return "", ""
-    fail_df = df[df["IPS Watch Status"].isin(["FW", "IW"])][["Fund Name", "IPS Watch Status"]].copy()
-    # clean trailing dots/spaces in fund name for display
-    fail_df["Fund Name"] = fail_df["Fund Name"].str.replace(r'\s*\.\s*$', '', regex=True)
+    fail_df = df[df["IPS Watch Status"].isin(["FW", "IW"])][["Fund Name", "IPS Watch Status"]]
     if fail_df.empty:
         return "", ""
     table_html = fail_df.rename(columns={
@@ -444,7 +441,7 @@ def get_ips_fail_card_html():
         font-size:1rem;
         max-width:100%;
         margin-bottom:1.2rem;
-        '>
+    '>
         <div style='font-weight:700; color:#23395d; font-size:1.15rem; margin-bottom:0.5rem; letter-spacing:-0.5px;'>
             Funds on Watch
         </div>
@@ -487,19 +484,28 @@ def get_proposed_fund_card_html():
     df = st.session_state.get("proposed_funds_confirmed_df")
     if df is None or df.empty:
         card_html = """
-        <div style="
-            background: linear-gradient(120deg, #fff8f0 85%, #ffe9d8 100%);
-            color: #8a5a2b;
-            border-radius: 1.2rem;
-            padding: 1rem 1.5rem;
-            border: 1px solid #f0d4b5;
+        <div style='
+            background: linear-gradient(120deg, #e6f0fb 85%, #c8e0f6 100%);
+            color: #23395d;
+            border-radius: 1.3rem;
+            box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
+            padding: 1.6rem 2.0rem;
+            border: 1.5px solid #b5d0eb;
             font-size:1rem;
-        ">
-            No confirmed proposed funds were found on the Proposed Funds scorecard page.
+            max-width:100%;
+            margin-bottom:1.2rem;
+        '>
+            <div style='font-weight:700; color:#23395d; font-size:1.15rem; margin-bottom:0.5rem; letter-spacing:-0.5px;'>
+                Confirmed Proposed Funds
+            </div>
+            <div style='font-size:1rem; margin-bottom:1rem; color:#23395d;'>
+                No confirmed proposed funds were found on the Proposed Funds scorecard page.
+            </div>
         </div>
         """
         css = ""
         return card_html, css
+
     display_df = df[["Fund Scorecard Name", "Ticker"]].rename(columns={
         "Fund Scorecard Name": "Fund",
     })
@@ -515,7 +521,7 @@ def get_proposed_fund_card_html():
         font-size:1rem;
         max-width:100%;
         margin-bottom:1.2rem;
-        '>
+    '>
         <div style='font-weight:700; color:#23395d; font-size:1.15rem; margin-bottom:0.5rem; letter-spacing:-0.5px;'>
             Confirmed Proposed Funds
         </div>
@@ -571,7 +577,7 @@ def get_watch_summary_card_html():
         border-radius: 1.2rem;
         box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
         padding: 1.3rem 2rem 1.1rem 2rem;
-        margin-bottom: 1rem;
+        margin-bottom: 2rem;
         font-size: 1.07rem;
         border: 1.2px solid #b5d0eb;
         max-width: 520px;
@@ -652,14 +658,17 @@ def run():
         return
 
     with pdfplumber.open(uploaded) as pdf:
+        # Step 1
         first = pdf.pages[0].extract_text() or ""
         process_page1(first)
         show_report_summary()
 
+        # Step 2
         with st.expander("Table of Contents", expanded=False):
             toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
             process_toc(toc_text)
 
+        # IPS Screening
         sp = st.session_state.get('scorecard_page')
         tot = st.session_state.get('total_options')
         pp = st.session_state.get('performance_page')
@@ -669,22 +678,24 @@ def run():
         else:
             st.error("Missing scorecard, performance page, or total options")
 
+        # Proposed & Fail cards
         extract_proposed_scorecard_blocks(pdf)
-        # Left: proposed + watch summary; Right: funds on watch
-        col_left, col_right = st.columns([1, 1.2], gap="large")
+        fail_card_html, fail_css = get_ips_fail_card_html()
         proposed_card_html, proposed_css = get_proposed_fund_card_html()
         watch_summary_card_html, watch_summary_css = get_watch_summary_card_html()
-        fail_card_html, fail_css = get_ips_fail_card_html()
-        with col_left:
+
+        col1, col2 = st.columns(2, gap="large")
+        with col1:
             if proposed_card_html:
                 st.markdown(proposed_card_html, unsafe_allow_html=True)
             if watch_summary_card_html:
                 st.markdown(watch_summary_card_html, unsafe_allow_html=True)
-        with col_right:
+        with col2:
             if fail_card_html:
                 st.markdown(fail_card_html, unsafe_allow_html=True)
-        # Single block of CSS
-        st.markdown(f"{proposed_css}\n{watch_summary_css}\n{fail_css}", unsafe_allow_html=True)
+
+        # CSS injection once
+        st.markdown(f"{fail_css}\n{proposed_css}\n{watch_summary_css}", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     run()
