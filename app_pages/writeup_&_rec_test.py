@@ -2694,23 +2694,23 @@ def render_step16_and_16_5_cards(pdf):
 
     # Build selected fund card
     bullets_html = "".join(
-        f"<div style='margin-bottom:6px; line-height:1.2;'>{markdown_bold_to_html(bp)}</div>"
+        f"<div style='margin-bottom:6px; line-height:1.2; font-size:0.75rem;'>{markdown_bold_to_html(bp)}</div>"
         for bp in bullet_points
-    ) or "<div>No bullet points available.</div>"
-    
+    ) or "<div style='font-size:0.75rem;'>No bullet points available.</div>"
+
     ips_status = ""
     ips_icon_table = st.session_state.get("ips_icon_table")
     if ips_icon_table is not None and not ips_icon_table.empty:
         row = ips_icon_table[ips_icon_table["Fund Name"] == selected_fund]
         if not row.empty:
             ips_status = row.iloc[0].get("IPS Watch Status", "")
-    
+
     status_display = {
         "NW": "No Watch",
         "IW": "Informal Watch",
         "FW": "Formal Watch"
     }.get(ips_status, "")
-    
+
     status_badge = ""
     if status_display:
         if ips_status == "NW":
@@ -2722,25 +2722,34 @@ def render_step16_and_16_5_cards(pdf):
         else:
             badge_style = ""
         status_badge = (
-            f"<span style='margin-left:8px; font-size:0.75rem; padding:4px 10px; border-radius:12px; "
+            f"<span style='margin-left:8px; font-size:0.55rem; padding:4px 10px; border-radius:12px; "
             f"font-weight:600; display:inline-block; vertical-align:middle; {badge_style}'>"
             f"{html.escape(status_display)}</span>"
         )
-    
+
+    # Shared card style variables for consistency and smaller font
+    CARD_BG = "linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%)"
+    CARD_BORDER = "1.2px solid #b5d0eb"
+    FONT_FAMILY = "system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif"
+    HEADING_COLOR = "#1f3f72"
+    TEXT_COLOR = "#244369"
+    LINE_HEIGHT = "1.3"
+
     selected_card = f"""
     <div style="
-        background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
-        color: #244369;
+        background: {CARD_BG};
+        color: {TEXT_COLOR};
         border-radius: 1.5rem;
         box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
-        padding: 1.4rem 1.8rem;
-        border: 1.2px solid #b5d0eb;
-        font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
-        line-height:1.3;
+        padding: 1.2rem 1.4rem;
+        border: {CARD_BORDER};
+        font-family: {FONT_FAMILY};
+        line-height: {LINE_HEIGHT};
         max-width:100%;
+        font-size: 0.75rem;
     ">
         <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
-            <div style="font-size:0.9rem; font-weight:700; color:#1f3f72;">
+            <div style="font-size:0.85rem; font-weight:700; color:{HEADING_COLOR};">
                 {html.escape(selected_fund)}
             </div>
             {status_badge}
@@ -2752,26 +2761,26 @@ def render_step16_and_16_5_cards(pdf):
     # Build proposed fund overview card(s)
     proposed_cards = ""
     if not proposed_overview:
-        proposed_cards = """
+        proposed_cards = f"""
         <div style="
-            background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
-            color: #244369;
+            background: {CARD_BG};
+            color: {TEXT_COLOR};
             border-radius: 1.5rem;
             box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
-            padding: 1.4rem 1.8rem;
-            border: 1.2px solid #b5d0eb;
-            font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
-            line-height:1.3;
+            padding: 1.2rem 1.4rem;
+            border: {CARD_BORDER};
+            font-family: {FONT_FAMILY};
+            line-height: {LINE_HEIGHT};
             max-width:100%;
+            font-size:0.75rem;
         ">
-            <div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">
+            <div style="font-size:0.85rem; font-weight:700; margin-bottom:6px; color:{HEADING_COLOR};">
                 Proposed Fund Investment Overviews
             </div>
-            <div style="font-size:0.9rem;">No proposed funds or overview data available.</div>
+            <div style="font-size:0.75rem;">No proposed funds or overview data available.</div>
         </div>
         """
     else:
-        # each fund its own mini-card inside container
         for fund, info in proposed_overview.items():
             ticker = info.get("Ticker", "")
             name_label = f"{fund} ({ticker})" if ticker else fund
@@ -2779,24 +2788,24 @@ def render_step16_and_16_5_cards(pdf):
             if not paragraph:
                 snippet = "_No overview paragraph extracted._"
             else:
-                # convert **bold** to strong but leave rest as plain text (escape to avoid raw HTML injection)
                 snippet = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html.escape(paragraph))
 
             proposed_cards += f"""
             <div style="
-                background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
-                color: #244369;
+                background: {CARD_BG};
+                color: {TEXT_COLOR};
                 border-radius: 1.5rem;
                 box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
-                padding: 1.2rem 1.6rem;
-                border: 1.2px solid #b5d0eb;
-                font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
-                line-height:1.3;
+                padding: 1rem 1.3rem;
+                border: {CARD_BORDER};
+                font-family: {FONT_FAMILY};
+                line-height: {LINE_HEIGHT};
                 margin-bottom:1rem;
                 max-width:100%;
+                font-size:0.75rem;
             ">
-                <div style="font-weight:700; font-size:1.15rem; margin-bottom:4px; color:#1f3f72;">{html.escape(name_label)}</div>
-                <div style="font-size:0.85rem; line-height:1.3;">{snippet}</div>
+                <div style="font-weight:700; font-size:0.85rem; margin-bottom:4px; color:{HEADING_COLOR};">{html.escape(name_label)}</div>
+                <div style="font-size:0.7rem; line-height:1.25;">{snippet}</div>
             </div>
             """
 
@@ -2805,7 +2814,6 @@ def render_step16_and_16_5_cards(pdf):
         st.markdown(selected_card, unsafe_allow_html=True)
     with col2:
         st.markdown(proposed_cards, unsafe_allow_html=True)
-
 
 
 # –– Main App –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
