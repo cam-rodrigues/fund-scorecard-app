@@ -2382,8 +2382,9 @@ def run():
 
         with st.expander("Bullet Points", expanded=False):
             step16_bullet_points()
-
-        step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_score=60):
+            
+        with st.expander("Bullet Points", expanded=False):
+            step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_score=60):
 
         with st.expander("Export to Powerpoint", expanded=False):
             step17_export_to_ppt()
