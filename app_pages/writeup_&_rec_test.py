@@ -1851,40 +1851,73 @@ def step15_display_selected_fund():
 def step16_3_selected_overview_lookup(pdf, context_lines=3, min_score=50):
     import streamlit as st
     from rapidfuzz import fuzz
+    import re
 
     selected_fund = st.session_state.get("selected_fund")
     if not selected_fund:
         return {}
 
-    lookup = {}  # result dict to be stored
-    norm_target = re.sub(r"\s*\(.*\)$", "", selected_fund).strip().lower()
-    factsheets_start = st.session_state.get("factsheets_page") or 1
-
-    # Preload candidate pages starting at factsheets
-    best_candidate = {"page": None, "score": 0}
-    for i in range(factsheets_start - 1, len(pdf.pages)):
-        page = pdf.pages[i]
-        text = (page.extract_text() or "")
-        score = fuzz.token_sort_ratio(re.sub(r"[^A-Za-z0-9 ]+", "", norm_target),
-                                     re.sub(r"[^A-Za-z0-9 ]+", "", text.lower()))
-        if score > best_candidate["score"]:
-            best_candidate = {"page": i + 1, "score": score}
-
-    result = {
+    lookup = {
         "Fund": selected_fund,
-        "Best Page": best_candidate["page"],
-        "Match Score": best_candidate["score"],
+        "Best Page": None,
+        "Match Score": 0,
         "Found Investment Overview": False,
         "Overview Paragraph": "",
         "Overview Context": "",
     }
 
-    if best_candidate["page"] is None or best_candidate["score"] < min_score:
-        st.warning(f"Could not confidently locate factsheet for selected fund '{selected_fund}'. Best score {best_candidate['score']}.")
-        st.session_state["step16_3_selected_overview_lookup"] = result
-        return result
+    # Normalize helper
+    def normalize(s):
+        return re.sub(r"[^A-Za-z0-9 ]+", "", (s or "").lower()).strip()
 
-    page_obj = pdf.pages[best_candidate["page"] - 1]
+    norm_target = re.sub(r"\s*\(.*\)$", "", selected_fund).strip()
+    norm_target_clean = normalize(norm_target)
+
+    # 1) If factsheet data already has a match for this fund, use its page
+    factsheets = st.session_state.get("fund_factsheets_data", [])
+    best_page = None
+    best_score = 0
+    if factsheets:
+        # Try to find the row where Matched Fund Name equals selected_fund (allow fuzzy)
+        for f in factsheets:
+            name = f.get("Matched Fund Name", "")
+            page_no = f.get("Page #")
+            if not name or not page_no:
+                continue
+            score = fuzz.token_sort_ratio(normalize(name), normalize(selected_fund))
+            if score > best_score:
+                best_score = score
+                best_page = page_no
+
+    # 2) If we didn't get a confident page from existing factsheets, scan pages starting at factsheets_page
+    if best_page is None or best_score < 80:  # allow fallback if existing was weak
+        factsheets_start = st.session_state.get("factsheets_page") or 1
+        for i in range(factsheets_start - 1, len(pdf.pages)):
+            page = pdf.pages[i]
+            text = (page.extract_text() or "").lower()
+            name_score = fuzz.token_sort_ratio(norm_target_clean, normalize(text))
+            # also consider ticker if available
+            ticker = ""
+            perf_data = st.session_state.get("fund_performance_data", [])
+            item = next((x for x in perf_data if x.get("Fund Scorecard Name") == selected_fund), {})
+            ticker = (item.get("Ticker") or "").upper().strip()
+            ticker_score = 0
+            if ticker:
+                ticker_score = 100 if re.search(rf"\b{re.escape(ticker.lower())}\b", text) else 0
+            combined_score = max(name_score, ticker_score)
+            if combined_score > best_score:
+                best_score = combined_score
+                best_page = i + 1
+
+    lookup["Best Page"] = best_page
+    lookup["Match Score"] = best_score
+
+    if best_page is None:
+        st.warning(f"Could not locate any candidate page for '{selected_fund}'.")
+        st.session_state["step16_3_selected_overview_lookup"] = lookup
+        return lookup
+
+    page_obj = pdf.pages[best_page - 1]
     raw_lines = (page_obj.extract_text() or "").splitlines()
 
     # Find heading
@@ -1895,17 +1928,17 @@ def step16_3_selected_overview_lookup(pdf, context_lines=3, min_score=50):
             break
 
     if heading_idx is None:
-        st.warning(f"'INVESTMENT OVERVIEW' heading not found on page {best_candidate['page']} for selected fund '{selected_fund}'.")
-        st.session_state["step16_3_selected_overview_lookup"] = result
-        return result
+        st.warning(f"'INVESTMENT OVERVIEW' heading not found on page {best_page} for selected fund '{selected_fund}'. Best score {best_score}.")
+        st.session_state["step16_3_selected_overview_lookup"] = lookup
+        return lookup
 
     # Context snippet
     start_ctx = max(0, heading_idx - context_lines)
     end_ctx = min(len(raw_lines), heading_idx + context_lines + 1)
     context_snippet = "\n".join(raw_lines[start_ctx:end_ctx])
-    result["Overview Context"] = context_snippet
+    lookup["Overview Context"] = context_snippet
 
-    # Collect paragraph beneath heading until new heading-like line or blank after collecting
+    # Collect paragraph beneath heading
     def is_new_section_heading(line):
         stripped = line.strip()
         if not stripped:
@@ -1921,8 +1954,7 @@ def step16_3_selected_overview_lookup(pdf, context_lines=3, min_score=50):
         if not ln.strip():
             if collected:
                 break
-            else:
-                continue
+            continue
         if is_new_section_heading(ln):
             break
         collected.append(ln.strip())
@@ -1934,11 +1966,12 @@ def step16_3_selected_overview_lookup(pdf, context_lines=3, min_score=50):
     overview_paragraph = " ".join(sentences[:3]).strip() if sentences else full_text.strip()
 
     if overview_paragraph:
-        result["Found Investment Overview"] = True
-        result["Overview Paragraph"] = overview_paragraph
+        lookup["Found Investment Overview"] = True
+        lookup["Overview Paragraph"] = overview_paragraph
 
-    st.session_state["step16_3_selected_overview_lookup"] = result
-    return result
+    st.session_state["step16_3_selected_overview_lookup"] = lookup
+    return lookup
+
     
 #───Bullet Points──────────────────────────────────────────────────────────────────
 
@@ -2095,70 +2128,40 @@ def step16_bullet_points(pdf=None):
 
 
 #───Bullet Points 2──────────────────────────────────────────────────────────────────
-
 from rapidfuzz import fuzz
 import re
 import streamlit as st
+import pandas as pd
 
 def step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_score=60):
     """
-    For each confirmed proposed fund, find its best matching factsheet page and on that page
-    look for the subheading 'INVESTMENT OVERVIEW', preferring bold instances if possible.
-    Extracts up to the first three sentences under that heading, stopping if a new heading-style
-    line is encountered. Returns a dict per fund with page, match score, heading detection info,
-    and the extracted overview paragraph.
+    For each confirmed proposed fund, locate its best matching factsheet page and extract the
+    first few sentences under the 'INVESTMENT OVERVIEW' heading. Returns per-fund metadata,
+    confidence scores, context snippet, and extracted overview paragraph.
     """
-    results = {}
-    confirmed = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
-    factsheets_start = st.session_state.get("factsheets_page") or 1
+    def normalize(text: str) -> str:
+        return re.sub(r"[^A-Za-z0-9 ]+", "", (text or "").lower()).strip()
 
-    # Preload all relevant pages once
-    all_pages_text = []
-    for i in range(factsheets_start - 1, len(pdf.pages)):
-        page = pdf.pages[i]
-        text = page.extract_text() or ""
-        all_pages_text.append((i + 1, text, page))  # (1-based page no, raw text, pdfplumber page)
-
-    def normalize(name):
-        return re.sub(r"[^A-Za-z0-9 ]+", "", name or "").strip().lower()
-        
-    def split_into_sentences(text):
-        # Protect common abbreviations so they don't get treated as sentence boundaries
+    def split_into_sentences(text: str) -> list[str]:
         abbrev_map = {
-            "U.S.": "__US__",
-            "U.S": "__US__",
-            "U.K.": "__UK__",
-            "U.K": "__UK__",
-            "e.g.": "__EG__",
-            "e.g": "__EG__",
-            "i.e.": "__IE__",
-            "i.e": "__IE__",
-            "etc.": "__ETC__",
-            "etc": "__ETC__",
+            "U.S.": "__US__", "U.S": "__US__", "U.K.": "__UK__", "U.K": "__UK__",
+            "e.g.": "__EG__", "e.g": "__EG__", "i.e.": "__IE__", "i.e": "__IE__",
+            "etc.": "__ETC__", "etc": "__ETC__",
         }
         protected = text
         for k, v in abbrev_map.items():
             protected = protected.replace(k, v)
-
-        # naive sentence splitter, splitting on [.?!] followed by whitespace
         sentences = re.split(r'(?<=[\.!?])\s+', protected.strip())
-
-        # restore abbreviations in each sentence
         def restore(s):
             for k, v in abbrev_map.items():
                 s = s.replace(v, k)
             return s
+        return [restore(s).strip() for s in sentences if s.strip()]
 
-        sentences = [restore(s).strip() for s in sentences if s.strip()]
-        return sentences
-
-
-    def is_new_section_heading(line):
+    def is_new_section_heading(line: str) -> bool:
         stripped = line.strip()
         if not stripped:
             return False
-        # heuristic: short all-caps or title-case without terminal punctuation, fewer than e.g. 7 words,
-        # and not dominated by numbers (to avoid dates/tables)
         word_count = len(stripped.split())
         if word_count > 7:
             return False
@@ -2167,27 +2170,34 @@ def step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_
             return True
         return False
 
+    confirmed = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    factsheets_start = st.session_state.get("factsheets_page") or 1
+    results: dict[str, dict] = {}
+
+    # Preload pages once
+    pages_cache = []
+    for i in range(factsheets_start - 1, len(pdf.pages)):
+        page_obj = pdf.pages[i]
+        raw_text = page_obj.extract_text() or ""
+        pages_cache.append((i + 1, raw_text, page_obj))  # 1-based page number
+
     for _, row in confirmed.iterrows():
-        fund_name_raw = row.get("Fund Scorecard Name", "")
+        raw_name = row.get("Fund Scorecard Name", "")
         ticker = (row.get("Ticker") or "").upper().strip()
-        fund_key = fund_name_raw.strip().rstrip(".")
+        fund_key = raw_name.strip().rstrip(".")
         norm_expected = normalize(fund_key)
-        best_candidate = {
-            "page": None,
-            "score": 0,
-            "match_type": None,  # "ticker" or "name"
-        }
 
-        # First pass: exact ticker match
+        best_candidate = {"page": None, "score": 0, "match_type": None}
+        # 1) Strong match via exact ticker presence
         if ticker:
-            for page_num, text, page_obj in all_pages_text:
-                if re.search(rf"\b{re.escape(ticker)}\b", text):
+            for page_num, text, page_obj in pages_cache:
+                if re.search(rf"\b{re.escape(ticker.lower())}\b", (text or "").lower()):
                     best_candidate = {"page": page_num, "score": 100, "match_type": "ticker"}
-                    break  # strong match
+                    break
 
-        # Second pass: fuzzy fund name if ticker didn't yield a page
+        # 2) Fallback fuzzy name match
         if best_candidate["page"] is None:
-            for page_num, text, page_obj in all_pages_text:
+            for page_num, text, page_obj in pages_cache:
                 score = fuzz.token_sort_ratio(norm_expected, normalize(text))
                 if score > best_candidate["score"]:
                     best_candidate = {"page": page_num, "score": score, "match_type": "name"}
@@ -2205,92 +2215,90 @@ def step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_
         }
 
         if best_candidate["page"] is None or best_candidate["score"] < min_score:
-            st.warning(f"Could not confidently locate factsheet for proposed fund '{fund_key}' ({ticker}), best score {best_candidate['score']}.")
+            st.warning(
+                f"Could not confidently locate factsheet for proposed fund '{fund_key}' "
+                f"({ticker}), best score {best_candidate['score']}."
+            )
             results[fund_key] = fund_result
             continue
 
         page_obj = pdf.pages[best_candidate["page"] - 1]
-        raw_text_lines = (page_obj.extract_text() or "").splitlines()
+        raw_lines = (page_obj.extract_text() or "").splitlines()
         words = page_obj.extract_words(use_text_flow=True, extra_attrs=["fontname"])
 
-        # Locate "INVESTMENT OVERVIEW" as a heading
-        target_regex = re.compile(r"INVESTMENT\s+OVERVIEW", re.IGNORECASE)
+        # Locate heading "INVESTMENT OVERVIEW"
+        target_re = re.compile(r"INVESTMENT\s+OVERVIEW", re.IGNORECASE)
         heading_idx = None
         bold_detected = False
 
-        # First try via word pairs to capture formatting and bold heuristics
-        for i in range(len(words)):
-            w = words[i]["text"]
-            if i + 1 < len(words):
-                pair = f"{w} {words[i + 1]['text']}"
-                if target_regex.fullmatch(re.sub(r"\s+", " ", pair).strip()):
-                    # find line containing that phrase
-                    heading_line = None
-                    lowered_pair = pair.lower()
-                    for li, ln in enumerate(raw_text_lines):
-                        if re.search(r"investment\s+overview", ln, re.IGNORECASE):
-                            heading_line = ln
-                            heading_idx = li
-                            break
-                    # detect bold heuristically from fontname
-                    fontnames = (words[i].get("fontname","") or "").lower() + " " + (words[i+1].get("fontname","") or "").lower()
-                    bold_detected = any(b in fontnames for b in ["bold", "bd", "black"])
-                    break
+        # Try via word-pair heuristic to detect bold heading
+        for i in range(len(words) - 1):
+            pair = f"{words[i]['text']} {words[i + 1]['text']}"
+            if target_re.fullmatch(re.sub(r"\s+", " ", pair).strip()):
+                # Find the line containing the phrase
+                for li, ln in enumerate(raw_lines):
+                    if re.search(r"investment\s+overview", ln, re.IGNORECASE):
+                        heading_idx = li
+                        break
+                fontnames = (words[i].get("fontname", "") or "").lower() + " " + (words[i+1].get("fontname", "") or "").lower()
+                if any(b in fontnames for b in ["bold", "bd", "black"]):
+                    bold_detected = True
+                break
 
-        # Fallback: line-wise search if not found via word pairing
+        # Fallback: line-wise search
         if heading_idx is None:
-            for li, ln in enumerate(raw_text_lines):
+            for li, ln in enumerate(raw_lines):
                 if re.search(r"investment\s+overview", ln, re.IGNORECASE):
                     heading_idx = li
                     break
 
         if heading_idx is None:
-            st.warning(f"‘INVESTMENT OVERVIEW’ heading not found on page {best_candidate['page']} for proposed fund '{fund_key}' ({ticker}).")
+            st.warning(
+                f"'INVESTMENT OVERVIEW' heading not found on page {best_candidate['page']} "
+                f"for proposed fund '{fund_key}' ({ticker})."
+            )
             results[fund_key] = fund_result
             continue
 
-        # Collect context: lines around heading for diagnostics
+        # Context snippet for diagnostics
         start_ctx = max(0, heading_idx - context_lines)
-        end_ctx = min(len(raw_text_lines), heading_idx + context_lines + 1)
-        context_snippet = "\n".join(raw_text_lines[start_ctx:end_ctx])
-        fund_result["Overview Context"] = context_snippet
+        end_ctx = min(len(raw_lines), heading_idx + context_lines + 1)
+        fund_result["Overview Context"] = "\n".join(raw_lines[start_ctx:end_ctx])
         fund_result["Overview Bold Detected"] = bold_detected
 
-        # Now collect paragraph beneath heading, stopping at new heading-style line or blank after content
+        # Extract paragraph below heading
         collected = []
-        for ln in raw_text_lines[heading_idx + 1:]:
+        for ln in raw_lines[heading_idx + 1:]:
             if not ln.strip():
                 if collected:
-                    break  # end of paragraph
+                    break
                 else:
-                    continue  # skip leading blanks
+                    continue
             if is_new_section_heading(ln):
                 break
             collected.append(ln.strip())
-            if len(collected) >= 60:  # safety cap to avoid runaway
+            if len(collected) >= 60:
                 break
 
         full_text = " ".join(collected)
         sentences = split_into_sentences(full_text)
-        overview_paragraph = " ".join(sentences[:3]).strip() if sentences else ""
+        paragraph = " ".join(sentences[:3]).strip() if sentences else ""
 
-        # Fallbacks
-        if not overview_paragraph:
-            # if we at least have collected text, use first couple of lines joined
+        # Fallback hierarchy
+        if not paragraph:
             if full_text:
-                overview_paragraph = full_text
+                paragraph = full_text
             else:
-                # ultimate fallback: next non-empty line
-                next_line = next((l for l in raw_text_lines[heading_idx + 1:] if l.strip()), "")
-                overview_paragraph = next_line.strip()
+                next_nonempty = next((l for l in raw_lines[heading_idx + 1:] if l.strip()), "")
+                paragraph = next_nonempty.strip()
 
-        fund_result["Overview Paragraph"] = overview_paragraph
-        fund_result["Found Investment Overview"] = True
-
+        fund_result["Overview Paragraph"] = paragraph
+        fund_result["Found Investment Overview"] = bool(paragraph)
         results[fund_key] = fund_result
 
     st.session_state["step16_5_proposed_overview_lookup"] = results
     return results
+
 
 #───Build Powerpoint─────────────────────────────────────────────────────────────────
 def step17_export_to_ppt():
@@ -2698,27 +2706,32 @@ def run():
         return
 
     with pdfplumber.open(uploaded) as pdf:
+        # --- Initial metadata extraction ---
         first = pdf.pages[0].extract_text() or ""
         process_page1(first)
         show_report_summary()
 
+        # --- TOC ---
         with st.expander("Table of Contents", expanded=False):
             toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
             process_toc(toc_text)
 
+        # --- All Fund Details ---
         with st.expander("All Fund Details", expanded=True):
+            # IPS / Scorecard
             with st.expander("IPS Investment Screening", expanded=True):
-                sp = st.session_state.get('scorecard_page')
-                tot = st.session_state.get('total_options')
-                pp = st.session_state.get('performance_page')
-                factsheets_page = st.session_state.get('factsheets_page')
+                sp = st.session_state.get("scorecard_page")
+                tot = st.session_state.get("total_options")
+                pp = st.session_state.get("performance_page")
+                factsheets_page = st.session_state.get("factsheets_page")
                 if sp and tot is not None and pp:
                     step3_5_6_scorecard_and_ips(pdf, sp, pp, factsheets_page, tot)
                 else:
                     st.error("Missing scorecard, performance page, or total options")
 
+            # Factsheets
             with st.expander("Fund Factsheets", expanded=True):
-                names = [b['Fund Name'] for b in st.session_state.get('fund_blocks', [])]
+                names = [b.get("Fund Name") for b in st.session_state.get("fund_blocks", [])]
                 step6_process_factsheets(pdf, names)
 
             with st.expander("Fund Facts (sub-headings)", expanded=False):
@@ -2737,15 +2750,21 @@ def run():
                 step13_process_risk_adjusted_returns(pdf)
                 step14_extract_peer_risk_adjusted_return_rank(pdf)
 
-        # Derive bullet context
+        # --- Derive bullet context fields once (safe defaults) ---
         report_date = st.session_state.get("report_date", "")
-        m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date)
+        m = re.match(r"(\d)(?:st|nd|rd|th)\s+QTR,\s*(\d{4})", report_date or "")
         quarter = m.group(1) if m else ""
         year = m.group(2) if m else ""
 
         for itm in st.session_state.get("fund_performance_data", []):
-            qtd = float(itm.get("QTD") or 0)
-            bench_qtd = float(itm.get("Bench QTD") or 0)
+            try:
+                qtd = float(itm.get("QTD") or 0)
+            except:
+                qtd = 0.0
+            try:
+                bench_qtd = float(itm.get("Bench QTD") or 0)
+            except:
+                bench_qtd = 0.0
             itm["Perf Direction"] = "overperformed" if qtd >= bench_qtd else "underperformed"
             itm["Quarter"] = quarter
             itm["Year"] = year
@@ -2762,7 +2781,7 @@ def run():
                 "[Year] by [QTD_bps_diff] bps ([QTD_vs])."
             ]
 
-        # Replace previous inline fail/proposed/watch summary rendering with card layout
+        # --- Cards (proposed / watch / fail) ---
         extract_proposed_scorecard_blocks(pdf)
         fail_card_html, fail_css = get_ips_fail_card_html()
         proposed_card_html, proposed_css = get_proposed_fund_card_html()
@@ -2779,22 +2798,24 @@ def run():
                 st.markdown(fail_card_html, unsafe_allow_html=True)
         st.markdown(f"{fail_css}\n{proposed_css}\n{watch_summary_css}", unsafe_allow_html=True)
 
-        # Single Fund Writeup
+        # --- Single Fund Writeup ---
         with st.expander("Single Fund Write Up", expanded=False):
             step15_display_selected_fund()
 
+        # --- Bullet Points (ensure overview lookup for selected fund) ---
         with st.expander("Bullet Points", expanded=False):
             step16_bullet_points(pdf)
 
+        # --- Proposed Fund Investment Overview (precompute before showing) ---
+        proposed_overview = step16_5_locate_proposed_factsheets_with_overview(
+            pdf, context_lines=3, min_score=60
+        )
         with st.expander("Proposed Fund Investment Overview", expanded=False):
-            step16_5_results = step16_5_locate_proposed_factsheets_with_overview(
-                pdf, context_lines=3, min_score=60
-            )
-            if not step16_5_results:
+            if not proposed_overview:
                 st.warning("No proposed fund overview lookup results.")
             else:
                 st.subheader("Extracted Investment Overview Paragraphs")
-                for fund, info in step16_5_results.items():
+                for fund, info in proposed_overview.items():
                     ticker = info.get("Ticker", "")
                     st.markdown(f"**{fund} ({ticker})**")
                     para = info.get("Overview Paragraph", "")
@@ -2803,8 +2824,7 @@ def run():
                     else:
                         st.write("_No paragraph found beneath the heading._")
 
-
-
+        # --- Export to PowerPoint ---
         with st.expander("Export to Powerpoint", expanded=False):
             step17_export_to_ppt()
 
