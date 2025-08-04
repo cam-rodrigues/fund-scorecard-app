@@ -1924,108 +1924,119 @@ def step16_bullet_points():
 #───Bullet Points 2──────────────────────────────────────────────────────────────────
 
 from rapidfuzz import fuzz
+import re
+import streamlit as st
 
 def step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_score=60):
-    import streamlit as st
-    import re
-
+    """
+    For each confirmed proposed fund, find its best matching factsheet page and on that page
+    look for the subheading 'INVESTMENT OVERVIEW', preferring bold instances if possible.
+    Returns a dict per fund with page, match score, and whether the heading was found.
+    """
+    results = {}
     confirmed = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
-    if confirmed.empty:
-        st.warning("No proposed funds confirmed; cannot locate their factsheet.")
-        return
+    factsheets_start = st.session_state.get("factsheets_page") or 1
+    all_pages_text = []
+    # Preload all relevant pages once
+    for i in range(factsheets_start - 1, len(pdf.pages)):
+        page = pdf.pages[i]
+        text = page.extract_text() or ""
+        all_pages_text.append((i + 1, text, page))  # (1-based page no, raw text, pdfplumber page)
 
-    # Build map of fund name / ticker to their target factsheet page
-    # We'll reuse the logic from step6_process_factsheets to find matching factsheet pages
-    performance_map = st.session_state.get("fund_performance_data", [])
-    tickers = {p.get("Fund Scorecard Name"): p.get("Ticker", "") for p in performance_map}
+    def normalize(name):
+        return re.sub(r"[^A-Za-z0-9 ]+", "", name or "").strip().lower()
 
-    found_overviews = []
-
-    # Precompute all factsheet pages (you might narrow to factsheets_page start)
-    factsheet_start = st.session_state.get("factsheets_page", 1)
-    # iterate through each confirmed proposed fund
     for _, row in confirmed.iterrows():
-        fund_name = row.get("Fund Scorecard Name", "").strip()
-        ticker = (row.get("Ticker") or "").strip().upper()
-        target_label = f"{fund_name} {ticker}".strip()
+        fund_name_raw = row.get("Fund Scorecard Name", "")
+        ticker = (row.get("Ticker") or "").upper().strip()
+        fund_key = fund_name_raw.strip().rstrip(".")  # remove trailing dot if any
+        norm_expected = normalize(fund_key)
+        best_candidate = {
+            "page": None,
+            "score": 0,
+            "match_type": None,  # "ticker", "name"
+        }
 
-        best_match = {"page": None, "score": 0, "header": "", "fund_name_raw": ""}
-        # search candidate factsheet-like pages: from factsheet_start to end
-        for pnum in range(factsheet_start - 1, len(pdf.pages)):
-            page = pdf.pages[pnum]
-            # heuristics: grab top header-like text via extract_words with small top value
-            words = page.extract_words(use_text_flow=True)
-            header_words = [w for w in words if w.get("top", 0) < 120]  # adjust threshold if necessary
-            header_text = " ".join(w["text"] for w in header_words).strip()
-            if not header_text:
-                continue
-            score = max(
-                fuzz.token_sort_ratio(fund_name.lower(), header_text.lower()),
-                fuzz.token_sort_ratio(ticker.lower(), header_text.lower())
-            )
-            if score > best_match["score"]:
-                best_match.update({
-                    "page": pnum + 1,
-                    "score": score,
-                    "header": header_text,
-                    "fund_name_raw": header_text
-                })
+        # First pass: exact ticker match in page text or words
+        if ticker:
+            for page_num, text, page_obj in all_pages_text:
+                if re.search(rf"\b{re.escape(ticker)}\b", text):
+                    best_candidate = {"page": page_num, "score": 100, "match_type": "ticker"}
+                    break  # exact strong match
+        # Second pass: fuzzy fund name
+        if best_candidate["page"] is None:
+            for page_num, text, page_obj in all_pages_text:
+                score = fuzz.token_sort_ratio(norm_expected, normalize(text))
+                if score > best_candidate["score"]:
+                    best_candidate = {"page": page_num, "score": score, "match_type": "name"}
 
-        if best_match["score"] < min_score or not best_match["page"]:
-            st.warning(f"Could not confidently locate factsheet for proposed fund '{fund_name}' ({ticker}), best score {best_match['score']}.")
+        fund_result = {
+            "Fund": fund_key,
+            "Ticker": ticker,
+            "Best Page": best_candidate["page"],
+            "Match Score": best_candidate["score"],
+            "Match Type": best_candidate["match_type"],
+            "Found Investment Overview": False,
+            "Overview Context": "",
+        }
+
+        if best_candidate["page"] is None or best_candidate["score"] < min_score:
+            st.warning(f"Could not confidently locate factsheet for proposed fund '{fund_key}' ({ticker}), best score {best_candidate['score']}.")
+            results[fund_key] = fund_result
             continue
 
-        # Now on that page, look for "INVESTMENT OVERVIEW"
-        page_obj = pdf.pages[best_match["page"] - 1]
-        # Approach A: use extract_words and try to detect bold if font info is available
-        words = page_obj.extract_words(extra_attrs=["fontname", "size"], use_text_flow=True)
-        # Look for sequence of words forming INVESTMENT OVERVIEW (case-insensitive)
-        joined = " ".join(w["text"] for w in words)
-        overview_found = False
-        overview_context = ""
-        # First, try to find nearby lines from extract_text
-        lines = [(ln.strip()) for ln in (page_obj.extract_text() or "").splitlines() if ln.strip()]
-        for idx, ln in enumerate(lines):
-            if "INVESTMENT OVERVIEW" in ln.upper():
-                overview_found = True
-                start = max(0, idx - context_lines)
-                end = min(len(lines), idx + 1 + context_lines)
-                snippet = "\n".join(lines[start:end])
-                overview_context = snippet
-                break
-
-        # If not found by line match, fallback to word-sequence search
-        if not overview_found:
-            sequence = "INVESTMENT OVERVIEW"
-            # Reconstruct sliding window over words to match the phrase
-            texts = [w["text"] for w in words]
-            for i in range(len(texts) - 1):
-                combo = f"{texts[i]} {texts[i+1]}".upper()
-                if sequence == combo:
-                    overview_found = True
-                    # approximate context: take surrounding words
-                    start = max(0, i - 10)
-                    end = min(len(texts), i + 12)
-                    overview_context = " ".join(texts[start:end])
+        # Now scan the selected page for "INVESTMENT OVERVIEW"
+        page_obj = pdf.pages[best_candidate["page"] - 1]
+        words = page_obj.extract_words(use_text_flow=True, extra_attrs=["fontname"])
+        # Build sequence of words to detect the phrase, tracking bold if possible
+        target_regex = re.compile(r"INVESTMENT\s+OVERVIEW", re.IGNORECASE)
+        found = False
+        context_snippet = ""
+        for i in range(len(words)):
+            w = words[i]["text"]
+            # try to assemble two-word window
+            if i + 1 < len(words):
+                pair = f"{w} {words[i+1]['text']}"
+                if target_regex.fullmatch(re.sub(r"\s+", " ", pair).strip()):
+                    # check if either word has bold-like font
+                    fontnames = (words[i].get("fontname","") or "").lower() + " " + (words[i+1].get("fontname","") or "").lower()
+                    is_bold = any(b in fontnames for b in ["bold", "bd", "black"])  # heuristics
+                    found = True
+                    # capture some context lines: extract full text lines and grab surrounding
+                    raw_lines = (page_obj.extract_text() or "").splitlines()
+                    # locate line containing the phrase (case-insensitive)
+                    line_idx = next((li for li, ln in enumerate(raw_lines)
+                                     if re.search(r"investment\s+overview", ln, re.IGNORECASE)), None)
+                    if line_idx is not None:
+                        start = max(0, line_idx - context_lines)
+                        end = min(len(raw_lines), line_idx + context_lines + 1)
+                        context_snippet = "\n".join(raw_lines[start:end])
+                    fund_result["Found Investment Overview"] = True
+                    fund_result["Overview Bold Detected"] = is_bold
+                    fund_result["Overview Context"] = context_snippet
+                    break
+        if not found:
+            # fallback: search line-wise for the phrase in all-caps or case-insensitive
+            raw_lines = (page_obj.extract_text() or "").splitlines()
+            for li, ln in enumerate(raw_lines):
+                if re.search(r"investment\s+overview", ln, re.IGNORECASE):
+                    found = True
+                    start = max(0, li - context_lines)
+                    end = min(len(raw_lines), li + context_lines + 1)
+                    context_snippet = "\n".join(raw_lines[start:end])
+                    fund_result["Found Investment Overview"] = True
+                    fund_result["Overview Bold Detected"] = False
+                    fund_result["Overview Context"] = context_snippet
                     break
 
-        if not overview_found:
-            st.warning(f"'INVESTMENT OVERVIEW' heading not found on page {best_match['page']} for '{fund_name}'.")
-        else:
-            st.success(f"Found 'INVESTMENT OVERVIEW' for '{fund_name}' on page {best_match['page']} (match score {best_match['score']}).")
-            st.text_area(f"Overview context for {fund_name} (page {best_match['page']})", overview_context, height=180)
+        if not fund_result["Found Investment Overview"]:
+            st.warning(f"'INVESTMENT OVERVIEW' not found on page {best_candidate['page']} for proposed fund '{fund_key}' ({ticker}).")
+        results[fund_key] = fund_result
 
-        found_overviews.append({
-            "Fund": fund_name,
-            "Ticker": ticker,
-            "Factsheet Page": best_match["page"],
-            "Match Score": best_match["score"],
-            "Overview Found": overview_found,
-            "Overview Snippet": overview_context
-        })
+    # persist if needed
+    st.session_state["step16_5_proposed_overview_lookup"] = results
+    return results
 
-    st.session_state["step16_5_overview_search"] = found_overviews
-    return found_overviews
 
 
 #───Build Powerpoint─────────────────────────────────────────────────────────────────
