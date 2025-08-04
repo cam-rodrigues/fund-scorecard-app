@@ -1942,16 +1942,24 @@ def step16_3_selected_overview_lookup(pdf, context_lines=3, min_score=50):
     
 #───Bullet Points──────────────────────────────────────────────────────────────────
 
-def step16_bullet_points():
+def step16_bullet_points(pdf=None):
     import streamlit as st
+    import re
 
     selected_fund = st.session_state.get("selected_fund")
     if not selected_fund:
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
 
+    # Ensure overview lookup has been performed so the overview bullet can be inserted
+    if pdf is not None:
+        # only run if we don't already have a lookup or it's for a different fund
+        existing = st.session_state.get("step16_3_selected_overview_lookup", {})
+        if existing.get("Fund") != selected_fund:
+            step16_3_selected_overview_lookup(pdf, context_lines=3, min_score=50)
+
     perf_data = st.session_state.get("fund_performance_data", [])
-    item = next((x for x in perf_data if x["Fund Scorecard Name"] == selected_fund), None)
+    item = next((x for x in perf_data if x.get("Fund Scorecard Name") == selected_fund), None)
     if not item:
         st.error(f"❌ Performance data for '{selected_fund}' not found.")
         return
@@ -1985,7 +1993,6 @@ def step16_bullet_points():
             ips_status or "on watch"
         )
 
-        # Safely coerce and default to 0
         def to_float(x):
             try:
                 return float(x)
@@ -1999,7 +2006,6 @@ def step16_bullet_points():
         bps3 = round((three - bench3) * 100, 1)
         bps5 = round((five  - bench5) * 100, 1)
 
-        # Peer rank logic
         peer = st.session_state.get("step14_peer_rank_table", [])
         raw3 = next((r.get("Sharpe Ratio 3Yr") or r.get("Sharpe Ratio Rank 3Yr") for r in peer
                      if r.get("Fund Name") == selected_fund), None)
@@ -2023,17 +2029,35 @@ def step16_bullet_points():
         bullets.append(b2)
         st.markdown(b2)
 
-    # --- New: Investment Overview for selected fund (inserted between bullet 2 and 3) ---
-    overview_info = st.session_state.get("step16_3_selected_overview_lookup", {})
-    overview_paragraph = overview_info.get("Overview Paragraph", "") if overview_info else ""
+    # --- Investment Overview bullet (between 2 and 3) ---
+    overview_info = st.session_state.get("step16_3_selected_overview_lookup", {}) or {}
+    overview_paragraph = overview_info.get("Overview Paragraph", "")
     if overview_paragraph:
-        # use safe_split_sentences if available, fallback naive split otherwise
-        try:
-            from __main__ import safe_split_sentences  # assumes safe_split_sentences is in global scope
-        except ImportError:
-            def safe_split_sentences(text):
-                return [s.strip() for s in re.split(r'(?<=[.!?])\s+', text.strip()) if s.strip()]
-        sentences = safe_split_sentences(overview_paragraph)
+        # safe sentence splitting with fallback
+        def safe_split_sentences_local(text):
+            abbrev_map = {
+                "U.S.": "__US__",
+                "U.S": "__US__",
+                "U.K.": "__UK__",
+                "U.K": "__UK__",
+                "e.g.": "__EG__",
+                "e.g": "__EG__",
+                "i.e.": "__IE__",
+                "i.e": "__IE__",
+                "etc.": "__ETC__",
+                "etc": "__ETC__",
+            }
+            protected = text
+            for k, v in abbrev_map.items():
+                protected = protected.replace(k, v)
+            sentences = re.split(r'(?<=[\.!?])\s+', protected.strip())
+            def restore(s):
+                for k, v in abbrev_map.items():
+                    s = s.replace(v, k)
+                return s
+            return [restore(s).strip() for s in sentences if s.strip()]
+
+        sentences = safe_split_sentences_local(overview_paragraph)
         overview_bullet = " ".join(sentences[:3]) if sentences else overview_paragraph
         b_overview = f"- Investment Overview: {overview_bullet}"
         bullets.append(b_overview)
@@ -2055,8 +2079,19 @@ def step16_bullet_points():
         bullets.append(b3)
         st.markdown(b3)
 
-    # Persist updated bullets so export uses current ones
+    # Optional: show diagnostics / full overview lookup detail
+    if overview_info:
+        st.markdown("**Investment Overview Lookup Details**")
+        para = overview_info.get("Overview Paragraph", "")
+        ctx = overview_info.get("Overview Context", "")
+        st.write("Paragraph:", para if para else "_none found_")
+        st.code(ctx or "_no context_")
+        if not overview_info.get("Found Investment Overview"):
+            st.warning("Investment Overview heading was located but no usable paragraph extracted.")
+
+    # Persist updated bullets
     st.session_state["bullet_points"] = bullets
+
 
 
 #───Bullet Points 2──────────────────────────────────────────────────────────────────
@@ -2749,7 +2784,7 @@ def run():
             step15_display_selected_fund()
 
         with st.expander("Bullet Points", expanded=False):
-            step16_bullet_points()
+            step16_bullet_points(pdf)
 
         with st.expander("Proposed Fund Investment Overview", expanded=False):
             step16_5_results = step16_5_locate_proposed_factsheets_with_overview(
