@@ -2382,72 +2382,86 @@ def step17_export_to_ppt():
         except Exception:
             pass
 
-    # --- NEW: Inject first proposed fund's truncated Investment Overview into its replacement slide ---
-    import re  # ensure this is available in this scope if not already
+    # --- Helpers for overview injection with safe sentence splitting ---
+    def safe_split_sentences(text):
+        # protect common abbreviations so they don't split as sentence boundaries
+        abbrev_map = {
+            "U.S.": "__US__",
+            "U.S": "__US__",
+            "U.K.": "__UK__",
+            "U.K": "__UK__",
+            "e.g.": "__EG__",
+            "e.g": "__EG__",
+            "i.e.": "__IE__",
+            "i.e": "__IE__",
+            "etc.": "__ETC__",
+            "etc": "__ETC__",
+        }
+        protected = text
+        for k, v in abbrev_map.items():
+            protected = protected.replace(k, v)
+        sentences = re.split(r'(?<=[\.!?])\s+', protected.strip())
+        def restore(s):
+            for k, v in abbrev_map.items():
+                s = s.replace(v, k)
+            return s
+        return [restore(s).strip() for s in sentences if s.strip()]
 
-    def inject_overview_into_placeholder(slide, overview):
-        if not overview:
+    def inject_overview_into_placeholder(slide, overview_sentences):
+        if not overview_sentences:
             return False
-        # Split into sentences and take up to 3
-        sentences = re.split(r'(?<=[.!?])\s+', overview.strip())
-        bullets = sentences[:3] if sentences else [overview.strip()]
         for shape in slide.shapes:
             if not shape.has_text_frame:
                 continue
-            # detect the placeholder box by presence of any of the original markers
             text_content = "".join(run.text for para in shape.text_frame.paragraphs for run in para.runs)
             if any(ph in text_content for ph in ["[Bullet Point 1]", "[Bullet Point 2]", "[Optional Bullet Point 3]"]):
                 tf = shape.text_frame
                 tf.clear()
-                for b in bullets:
+                for sent in overview_sentences:
                     p = tf.add_paragraph()
-                    p.text = b
+                    p.text = sent
                     p.level = 0
-                    # styling
                     for run in p.runs:
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
+                        run.font.color.rgb = RGBColor(0, 0, 0)
                         run.font.bold = False
                 return True
         return False
 
-    # --- NEW: Inject first proposed fund's truncated Investment Overview into its replacement slide ---
+    # --- Inject proposed fund overview(s) ---
     if proposed:
         lookup = st.session_state.get("step16_5_proposed_overview_lookup", {})
+        # First proposed fund
         first_proposed_label = proposed[0]  # e.g., "Fund Name (TICK)"
         paragraph = lookup_overview_paragraph(first_proposed_label, lookup) or ""
         truncated = truncate_to_n_sentences(paragraph, n=3)
         if truncated:
-            # Replacement slide 1 is expected at index 1
-            try:
-                slide_repl1 = prs.slides[1]
-                injected = inject_overview_into_placeholder(slide_repl1, truncated)
-                if not injected:
-                    st.warning(f"Could not find the placeholder textbox on Replacement 1 slide to inject overview for '{first_proposed_label}'.")
-                # Also replace the placeholder "[Replacement 1]" if present
-                fill_text_placeholder_preserving_format(slide_repl1, "[Replacement 1]", first_proposed_label)
-            except Exception as e:
-                st.warning(f"Error injecting overview into Replacement 1 slide: {e}")
+            sentences = safe_split_sentences(truncated)[:3]
+            injected = inject_overview_into_placeholder(slide_repl1, sentences)
+            if not injected:
+                st.warning(f"Could not find the bullet placeholder textbox on Replacement 1 slide to inject overview for '{first_proposed_label}'.")
+            fill_text_placeholder_preserving_format(slide_repl1, "[Replacement 1]", first_proposed_label)
         else:
             st.warning(f"No overview paragraph found to insert for proposed fund '{first_proposed_label}'.")
 
-        # Second proposed fund (if any)
+        # Second proposed fund if present
         if len(proposed) > 1:
             second_label = proposed[1]
             paragraph2 = lookup_overview_paragraph(second_label, lookup) or ""
             truncated2 = truncate_to_n_sentences(paragraph2, n=3)
             if truncated2:
+                sentences2 = safe_split_sentences(truncated2)[:3]
                 try:
                     slide_repl2 = prs.slides[2]
-                    injected2 = inject_overview_into_placeholder(slide_repl2, truncated2)
+                    injected2 = inject_overview_into_placeholder(slide_repl2, sentences2)
                     if not injected2:
-                        st.warning(f"Could not find the placeholder textbox on Replacement 2 slide to inject overview for '{second_label}'.")
+                        st.warning(f"Could not find the bullet placeholder textbox on Replacement 2 slide to inject overview for '{second_label}'.")
                     fill_text_placeholder_preserving_format(slide_repl2, "[Replacement 2]", second_label)
                 except Exception:
-                    st.warning("Could not find or update Replacement 2 slide for second proposed fund.")
+                    st.warning(f"Could not update Replacement 2 slide for '{second_label}'.")
             else:
                 st.warning(f"No overview paragraph found to insert for proposed fund '{second_label}'.")
-
 
     # --- Fill Slide 3 ---
     slide3 = prs.slides[4 if len(proposed) > 1 else 3]
