@@ -2693,25 +2693,39 @@ def render_step16_and_16_5_cards(pdf):
     bullet_points = st.session_state.get("bullet_points", [])
 
     # Build selected fund card
-    bullets_html = "".join(f"<li>{markdown_bold_to_html(bp)}</li>" for bp in bullet_points) or "<li>No bullet points available.</li>"
+    bullets_html = "".join(
+        f"<div style='margin-bottom:6px; line-height:1.2;'>{markdown_bold_to_html(bp)}</div>"
+        for bp in bullet_points
+    ) or "<div>No bullet points available.</div>"
+    
     ips_status = ""
     ips_icon_table = st.session_state.get("ips_icon_table")
     if ips_icon_table is not None and not ips_icon_table.empty:
         row = ips_icon_table[ips_icon_table["Fund Name"] == selected_fund]
         if not row.empty:
             ips_status = row.iloc[0].get("IPS Watch Status", "")
+    
     status_display = {
         "NW": "No Watch",
         "IW": "Informal Watch",
         "FW": "Formal Watch"
-    }.get(ips_status, ips_status or "")
+    }.get(ips_status, "")
     
-    status_badge = (
-        f"<span style='margin-left:8px; font-size:0.8rem; padding:4px 10px; border-radius:12px; "
-        f"font-weight:600; display:inline-block; vertical-align:middle; "
-        f"{'background:#d6f5df; color:#217a3e;' if ips_status=='NW' else ('background:#fff3cd; color:#B87333;' if ips_status=='IW' else ('background:#f8d7da; color:#c30000;' if ips_status=='FW' else '') )}'>"
-        f"{html.escape(status_display)}</span>"
-    ) if status_display else ""
+    status_badge = ""
+    if status_display:
+        if ips_status == "NW":
+            badge_style = "background:#d6f5df; color:#217a3e;"
+        elif ips_status == "IW":
+            badge_style = "background:#fff3cd; color:#B87333;"
+        elif ips_status == "FW":
+            badge_style = "background:#f8d7da; color:#c30000;"
+        else:
+            badge_style = ""
+        status_badge = (
+            f"<span style='margin-left:8px; font-size:0.75rem; padding:4px 10px; border-radius:12px; "
+            f"font-weight:600; display:inline-block; vertical-align:middle; {badge_style}'>"
+            f"{html.escape(status_display)}</span>"
+        )
     
     selected_card = f"""
     <div style="
@@ -2731,12 +2745,9 @@ def render_step16_and_16_5_cards(pdf):
             </div>
             {status_badge}
         </div>
-        <ul style="padding-left:1.1rem; margin-top:4px; font-size:0.9rem; margin-bottom:0;">
-            {bullets_html}
-        </ul>
+        {bullets_html}
     </div>
     """
-
 
     # Build proposed fund overview card(s)
     proposed_cards = ""
