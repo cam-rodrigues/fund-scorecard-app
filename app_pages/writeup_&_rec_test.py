@@ -2677,6 +2677,108 @@ def step17_export_to_ppt():
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
 
+# –– Cards ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+def render_step16_and_16_5_cards(pdf):
+    # Ensure the lookups / bullets are up to date
+    step16_bullet_points(pdf)
+    proposed_overview = step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_score=60)
+
+    selected_fund = st.session_state.get("selected_fund", "—")
+    bullet_points = st.session_state.get("bullet_points", [])
+
+    # Build selected fund card
+    bullets_html = "".join(f"<li>{bp}</li>" for bp in bullet_points) or "<li>No bullet points available.</li>"
+    ips_status = ""
+    ips_icon_table = st.session_state.get("ips_icon_table")
+    if ips_icon_table is not None and not ips_icon_table.empty:
+        row = ips_icon_table[ips_icon_table["Fund Name"] == selected_fund]
+        if not row.empty:
+            ips_status = row.iloc[0].get("IPS Watch Status", "")
+    status_display = {
+        "NW": "No Watch",
+        "IW": "Informal Watch",
+        "FW": "Formal Watch"
+    }.get(ips_status, ips_status or "N/A")
+
+    selected_card = f"""
+    <div style="
+        background: white;
+        border-radius: 1.2rem;
+        padding: 1.4rem 1.8rem;
+        box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);
+        border:1px solid #e2eaf7;
+        font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
+        line-height:1.3;
+    ">
+        <div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">
+            Selected Fund: {selected_fund}
+        </div>
+        <div style="margin-bottom:8px; font-size:0.95rem;">
+            <b>IPS Status:</b> {status_display}
+        </div>
+        <div style="margin-bottom:6px;">
+            <b>Key Bullet Points:</b>
+        </div>
+        <ul style="padding-left:1.1rem; margin-top:4px; font-size:0.9rem;">
+            {bullets_html}
+        </ul>
+    </div>
+    """
+
+    # Build proposed fund overview card
+    if not proposed_overview:
+        proposed_card = """
+        <div style="
+            background: white;
+            border-radius: 1.2rem;
+            padding: 1.4rem 1.8rem;
+            box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);
+            border:1px solid #e2eaf7;
+            font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
+            line-height:1.3;
+        ">
+            <div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">
+                Proposed Fund Investment Overviews
+            </div>
+            <div style="font-size:0.9rem;">No proposed funds or overview data available.</div>
+        </div>
+        """
+    else:
+        inner = ""
+        for fund, info in proposed_overview.items():
+            ticker = info.get("Ticker", "")
+            name_label = f"{fund} ({ticker})" if ticker else fund
+            paragraph = info.get("Overview Paragraph", "")
+            snippet = paragraph if paragraph else "_No overview paragraph extracted._"
+            inner += f"""
+                <div style="margin-bottom:1rem;">
+                    <div style="font-weight:600; font-size:1rem; margin-bottom:4px; color:#1f3f72;">{name_label}</div>
+                    <div style="font-size:0.85rem; line-height:1.25;">{snippet}</div>
+                </div>
+            """
+        proposed_card = f"""
+        <div style="
+            background: white;
+            border-radius: 1.2rem;
+            padding: 1.4rem 1.8rem;
+            box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);
+            border:1px solid #e2eaf7;
+            font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
+            line-height:1.3;
+        ">
+            <div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">
+                Proposed Fund Investment Overviews
+            </div>
+            {inner}
+        </div>
+        """
+
+    col1, col2 = st.columns(2, gap="large")
+    with col1:
+        st.markdown(selected_card, unsafe_allow_html=True)
+    with col2:
+        st.markdown(proposed_card, unsafe_allow_html=True)
+
 #───Main App──────────────────────────────────────────────────────────────────
 
 def run():
@@ -2782,27 +2884,8 @@ def run():
         with st.expander("Single Fund Write Up", expanded=False):
             step15_display_selected_fund()
 
-        # --- Bullet Points (ensure overview lookup for selected fund) ---
-        with st.expander("Bullet Points", expanded=False):
-            step16_bullet_points(pdf)
-
-        # --- Proposed Fund Investment Overview (precompute before showing) ---
-        proposed_overview = step16_5_locate_proposed_factsheets_with_overview(
-            pdf, context_lines=3, min_score=60
-        )
-        with st.expander("Proposed Fund Investment Overview", expanded=False):
-            if not proposed_overview:
-                st.warning("No proposed fund overview lookup results.")
-            else:
-                st.subheader("Extracted Investment Overview Paragraphs")
-                for fund, info in proposed_overview.items():
-                    ticker = info.get("Ticker", "")
-                    st.markdown(f"**{fund} ({ticker})**")
-                    para = info.get("Overview Paragraph", "")
-                    if para:
-                        st.write(para)
-                    else:
-                        st.write("_No paragraph found beneath the heading._")
+        # --- Replaced: show Step 16 & 16.5 as side-by-side cards ---
+        render_step16_and_16_5_cards(pdf)
 
         # --- Export to PowerPoint ---
         with st.expander("Export to Powerpoint", expanded=False):
