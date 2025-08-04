@@ -1243,6 +1243,7 @@ import openpyxl
 import datetime
 from openpyxl.styles import PatternFill
 from openpyxl.utils import get_column_letter
+from pathlib import Path
 
 def step15_populate_excel():
     """
@@ -1328,8 +1329,7 @@ def step15_populate_excel():
             header_to_col[str(cell.value).strip()] = cell.column  # numeric index
 
     # Source data
-    df_icon = st.session_state.get("ips_icon_table")  # should have iconified criteria (after transformation)
-    fund_types = st.session_state.get("fund_types", {})
+    df_icon = st.session_state.get("ips_icon_table")
     facts = st.session_state.get("step12_fund_facts_table", [])
     expense_lookup = {rec.get("Fund Name", ""): rec.get("Expense Ratio", "") for rec in (facts or [])}
 
@@ -1341,28 +1341,18 @@ def step15_populate_excel():
         non_tr = df_icon[~tr_mask]
 
         if not tr_group.empty:
-            # Representative from Income Fund if present
             income_row = tr_group[tr_group["Fund Name"].str.contains("Income Fund", case=False, na=False)]
-            if not income_row.empty:
-                rep = income_row.iloc[0]
-            else:
-                rep = tr_group.iloc[0]
-            rep_ticker = rep.get("Ticker", "")
-            rep_watch_status = rep.get("IPS Watch Status", "")
-            rep_fund_type = rep.get("Fund Type", "")
-            # Build combined row
+            rep = income_row.iloc[0] if not income_row.empty else tr_group.iloc[0]
             combined_row = {
                 "Fund Name": "Target Retirement",
-                "Ticker": rep_ticker,
-                "Fund Type": rep_fund_type,
-                "IPS Watch Status": rep_watch_status,
+                "Ticker": rep.get("Ticker", ""),
+                "Fund Type": rep.get("Fund Type", ""),
+                "IPS Watch Status": rep.get("IPS Watch Status", "")
             }
-            # Copy criteria 1..11 (assuming df_icon uses numeric column names after your earlier transformation)
             for i in range(1, 12):
                 combined_row[str(i)] = rep.get(str(i), "")
             processed_rows.append(combined_row)
 
-        # Append non-Target Retirement rows as-is
         for _, r in non_tr.iterrows():
             processed_rows.append(r.to_dict())
     else:
@@ -1370,9 +1360,9 @@ def step15_populate_excel():
 
     # Define fills for Current Quarter Status
     fill_map = {
-        "NW": PatternFill(fill_type="solid", start_color="C8EFD0", end_color="C8EFD0"),  # light green
-        "IW": PatternFill(fill_type="solid", start_color="FFE8B0", end_color="FFE8B0"),  # light orange
-        "FW": PatternFill(fill_type="solid", start_color="F8D7DA", end_color="F8D7DA"),  # light red/pink
+        "NW": PatternFill(fill_type="solid", start_color="C8EFD0", end_color="C8EFD0"),
+        "IW": PatternFill(fill_type="solid", start_color="FFE8B0", end_color="FFE8B0"),
+        "FW": PatternFill(fill_type="solid", start_color="F8D7DA", end_color="F8D7DA"),
     }
 
     # Write processed rows starting at row 5
@@ -1407,9 +1397,8 @@ def step15_populate_excel():
             key = str(i)
             if key in header_to_col:
                 col = get_column_letter(header_to_col[key])
-                val = row.get(key, "")
-                ws[f"{col}{excel_row}"] = val
-        # Current Quarter Status with coloring
+                ws[f"{col}{excel_row}"] = row.get(key, "")
+        # Current Quarter Status
         if "Current Quarter Status" in header_to_col:
             col = get_column_letter(header_to_col["Current Quarter Status"])
             cell = ws[f"{col}{excel_row}"]
@@ -1419,7 +1408,7 @@ def step15_populate_excel():
 
         num_written += 1
 
-    # Remove extra rows after last populated row up to 180
+    # Delete leftover rows after last populated up to row 180
     if num_written > 0:
         last_filled_row = start_row + num_written - 1
     else:
@@ -1429,12 +1418,12 @@ def step15_populate_excel():
         count = 180 - last_filled_row
         ws.delete_rows(to_delete_start, count)
 
-    # Save into buffer
     from io import BytesIO
     out = BytesIO()
     wb.save(out)
     out.seek(0)
     return out
+
 
 
 #───Main App──────────────────────────────────────────────────────────────────
