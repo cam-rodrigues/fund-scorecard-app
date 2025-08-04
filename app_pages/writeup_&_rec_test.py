@@ -2432,16 +2432,20 @@ def step17_export_to_ppt():
     # --- Inject proposed fund overview(s) ---
     if proposed:
         lookup = st.session_state.get("step16_5_proposed_overview_lookup", {})
+
         # First proposed fund
-        first_proposed_label = proposed[0]  # e.g., "Fund Name (TICK)"
+        first_proposed_label = proposed[0]
         paragraph = lookup_overview_paragraph(first_proposed_label, lookup) or ""
-        truncated = truncate_to_n_sentences(paragraph, n=3)
-        if truncated:
-            sentences = safe_split_sentences(truncated)[:3]
-            injected = inject_overview_into_placeholder(slide_repl1, sentences)
-            if not injected:
-                st.warning(f"Could not find the bullet placeholder textbox on Replacement 1 slide to inject overview for '{first_proposed_label}'.")
-            fill_text_placeholder_preserving_format(slide_repl1, "[Replacement 1]", first_proposed_label)
+        if paragraph:
+            sentences = safe_split_sentences(paragraph)
+            overview_sentences = sentences[:3] if sentences else []
+            if overview_sentences:
+                injected = inject_overview_into_placeholder(slide_repl1, overview_sentences)
+                if not injected:
+                    st.warning(f"Could not find the bullet placeholder textbox on Replacement 1 slide to inject overview for '{first_proposed_label}'.")
+                fill_text_placeholder_preserving_format(slide_repl1, "[Replacement 1]", first_proposed_label)
+            else:
+                st.warning(f"No sentences extracted for proposed fund '{first_proposed_label}'.")
         else:
             st.warning(f"No overview paragraph found to insert for proposed fund '{first_proposed_label}'.")
 
@@ -2449,14 +2453,15 @@ def step17_export_to_ppt():
         if len(proposed) > 1:
             second_label = proposed[1]
             paragraph2 = lookup_overview_paragraph(second_label, lookup) or ""
-            truncated2 = truncate_to_n_sentences(paragraph2, n=3)
-            if truncated2:
-                sentences2 = safe_split_sentences(truncated2)[:3]
+            if paragraph2:
+                sentences2 = safe_split_sentences(paragraph2)
+                overview_sentences2 = sentences2[:3] if sentences2 else []
                 try:
                     slide_repl2 = prs.slides[2]
-                    injected2 = inject_overview_into_placeholder(slide_repl2, sentences2)
-                    if not injected2:
-                        st.warning(f"Could not find the bullet placeholder textbox on Replacement 2 slide to inject overview for '{second_label}'.")
+                    if overview_sentences2:
+                        injected2 = inject_overview_into_placeholder(slide_repl2, overview_sentences2)
+                        if not injected2:
+                            st.warning(f"Could not find the bullet placeholder textbox on Replacement 2 slide to inject overview for '{second_label}'.")
                     fill_text_placeholder_preserving_format(slide_repl2, "[Replacement 2]", second_label)
                 except Exception:
                     st.warning(f"Could not update Replacement 2 slide for '{second_label}'.")
