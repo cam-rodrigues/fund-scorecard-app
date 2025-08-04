@@ -2471,25 +2471,19 @@ def run():
             step16_5_results = step16_5_locate_proposed_factsheets_with_overview(
                 pdf, context_lines=3, min_score=60
             )
-            if step16_5_results:
-                st.subheader("Overview Lookup Summary")
-                df = pd.DataFrame.from_dict(step16_5_results, orient="index")
-                st.dataframe(
-                    df[[
-                        "Fund", "Ticker", "Best Page", "Match Score", "Match Type",
-                        "Found Investment Overview", "Overview Bold Detected"
-                    ]],
-                    use_container_width=True
-                )
-        
+            if not step16_5_results:
+                st.warning("No proposed fund overview lookup results.")
+            else:
                 st.subheader("Extracted Investment Overview Paragraphs")
                 for fund, info in step16_5_results.items():
-                    st.markdown(f"**{fund} ({info.get('Ticker','')})**")
+                    ticker = info.get("Ticker", "")
+                    st.markdown(f"**{fund} ({ticker})**")
                     para = info.get("Overview Paragraph", "")
                     if para:
                         st.write(para)
                     else:
                         st.write("_No paragraph found beneath the heading._")
+
 
 
         with st.expander("Export to Powerpoint", expanded=False):
