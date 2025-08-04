@@ -1921,9 +1921,79 @@ def step16_bullet_points():
     # Persist updated bullets so export uses current ones
     st.session_state["bullet_points"] = bullets
 
+#───Bullet Points 2──────────────────────────────────────────────────────────────────
+
+def step16_5_locate_proposed_factsheets(pdf, min_score=60):
+    import re
+    from rapidfuzz import fuzz
+    import streamlit as st
+    import pandas as pd
+
+    proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    if proposed_df is None or proposed_df.empty:
+        st.warning("No confirmed proposed funds to locate factsheets for.")
+        return
+
+    facts_start = st.session_state.get("factsheets_page")
+    if not facts_start:
+        st.error("❌ 'Fund Factsheets' page number not found in TOC.")
+        return
+
+    # Build reference strings for proposed funds
+    candidates = []
+    for _, row in proposed_df.iterrows():
+        name = row.get("Fund Scorecard Name", "").strip()
+        ticker = row.get("Ticker", "").strip().upper()
+        if not name:
+            continue
+        ref = f"{name} {ticker}".strip()
+        candidates.append({"Fund": name, "Ticker": ticker, "Ref": ref})
+
+    # Scan through factsheet pages and capture header lines
+    page_headers = []  # {page: int, header_text: str}
+    for pnum in range(facts_start - 1, len(pdf.pages)):
+        page = pdf.pages[pnum]
+        words = page.extract_words(use_text_flow=True)
+        # Heuristic: take words near top as header
+        header_words = [w["text"] for w in words if w["top"] < 100]
+        header_text = " ".join(header_words).strip()
+        if not header_text:
+            continue
+        page_headers.append({"page": pnum + 1, "text": header_text})
+
+    results = []
+    for cand in candidates:
+        best_score = 0
+        best_page = None
+        best_header = ""
+        for ph in page_headers:
+            # compare both on name and ticker
+            score_name = fuzz.token_sort_ratio(cand["Fund"].lower(), ph["text"].lower())
+            score_ticker = fuzz.token_sort_ratio(cand["Ticker"].lower(), ph["text"].lower()) if cand["Ticker"] else 0
+            score_combined = max(score_name, score_ticker)
+            if score_combined > best_score:
+                best_score = score_combined
+                best_page = ph["page"]
+                best_header = ph["text"]
+        match_label = "✅" if best_score >= min_score else "❌"
+        results.append({
+            "Fund Scorecard Name": cand["Fund"],
+            "Ticker": cand["Ticker"],
+            "Matched Factsheet Page": best_page if best_page else None,
+            "Match Score": best_score,
+            "Matched Header": best_header if match_label == "✅" else "",
+            "Matched": match_label
+        })
+
+    st.session_state["proposed_factsheet_matches"] = results
+
+    # Optional display summary
+    df = pd.DataFrame(results)
+    st.subheader("Proposed Fund Factsheet Matches (Step 16.5)")
+    st.dataframe(df, use_container_width=True)
 
 
-#───Build Powerpoint──────────────────────────────────────────────────────────────────
+#───Build Powerpoint─────────────────────────────────────────────────────────────────
 def step17_export_to_ppt():
     import streamlit as st
     from pptx import Presentation
@@ -2299,6 +2369,8 @@ def run():
 
         with st.expander("Bullet Points", expanded=False):
             step16_bullet_points()
+
+        step16_5_locate_proposed_factsheets(pdf, min_score=60)
 
         with st.expander("Export to Powerpoint", expanded=False):
             step17_export_to_ppt()
