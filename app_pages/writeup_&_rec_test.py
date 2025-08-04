@@ -2108,7 +2108,37 @@ def step17_export_to_ppt():
         if len(sentences) <= n:
             return " ".join(sentences).strip()
         return " ".join(sentences[:n]).strip()
-        
+
+    def lookup_overview_paragraph(label, lookup_dict):
+        """
+        Given a proposed label like "Fund Name (TICK)" find best matching key in lookup_dict
+        (which was populated in step16_5_proposed_overview_lookup) using fuzzy matching,
+        then return the Overview Paragraph.
+        """
+        import re
+        from rapidfuzz import fuzz
+    
+        # canonicalize: strip ticker parenthesis and punctuation
+        base_name = re.sub(r"\s*\(.*\)$", "", label).strip()
+        def normalize(s):
+            return re.sub(r"[^A-Za-z0-9 ]+", "", s or "").strip().lower()
+    
+        target = normalize(base_name)
+        best_key = None
+        best_score = -1
+        for key in lookup_dict.keys():
+            score = fuzz.token_sort_ratio(target, normalize(key))
+            if score > best_score:
+                best_score = score
+                best_key = key
+    
+        if best_key and best_score >= 60:  # threshold you can tweak
+            return lookup_dict.get(best_key, {}).get("Overview Paragraph", "")
+        # fallback: try exact base_name
+        return lookup_dict.get(base_name, {}).get("Overview Paragraph", "")
+
+
+    
     selected = st.session_state.get("selected_fund")
     if not selected:
         st.error("❌ No fund selected. Please select a fund in Step 15.")
@@ -2328,60 +2358,14 @@ def step17_export_to_ppt():
 
     # --- NEW: Inject first proposed fund's truncated Investment Overview into its replacement slide ---
     if proposed:
-        # pull overview paragraph for first proposed fund
         lookup = st.session_state.get("step16_5_proposed_overview_lookup", {})
-        # fund_key stored earlier without ticker parentheses
         first_proposed_label = proposed[0]  # e.g., "Fund Name (TICK)"
-        # extract name part before " (" if present
-        fund_key = re.sub(r"\s*\(.*\)$", "", first_proposed_label).strip()
-        info = lookup.get(fund_key, {})
-        paragraph = info.get("Overview Paragraph", "") or ""
+        paragraph = lookup_overview_paragraph(first_proposed_label, lookup) or ""
         truncated = truncate_to_n_sentences(paragraph, n=3)
         if truncated:
-            # Remove any tables on this slide so only paragraph appears
-            for shape in list(slide_repl1.shapes):
-                if shape.has_table:
-                    # workaround: set height to zero or remove; python-pptx doesn't have direct delete public API
-                    try:
-                        sp = shape._element
-                        sp.getparent().remove(sp)
-                    except Exception:
-                        pass
-
-            # Find a text frame to put the overview; prefer existing placeholder containing "Overview" or bullet placeholder
-            placed = False
-            for shape in slide_repl1.shapes:
-                if not shape.has_text_frame:
-                    continue
-                tf = shape.text_frame
-                # clear existing content and insert overview as single bullet
-                tf.clear()
-                p = tf.add_paragraph()
-                p.text = truncated
-                p.level = 0
-                p.font.name = "Cambria"
-                p.font.size = Pt(12)
-                p.font.bold = False
-                p.font.color.rgb = RGBColor(0, 0, 0)
-                placed = True
-                break
-            if not placed:
-                # fallback: add a new textbox
-                left = Inches(1)
-                top = Inches(2)
-                width = Inches(8)
-                height = Inches(2)
-                textbox = slide_repl1.shapes.add_textbox(left, top, width, height)
-                tf = textbox.text_frame
-                tf.word_wrap = True
-                p = tf.paragraphs[0]
-                p.text = truncated
-                p.font.name = "Cambria"
-                p.font.size = Pt(12)
-                p.font.color.rgb = RGBColor(0, 0, 0)
+            ...
         else:
-            st.warning(f"No overview paragraph found to insert for proposed fund '{fund_key}'.")
-
+            st.warning(f"No overview paragraph found to insert for proposed fund '{first_proposed_label}'.")
 
 
     # --- Fill Slide 3 ---
