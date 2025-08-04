@@ -1976,6 +1976,7 @@ def step16_3_selected_overview_lookup(pdf, context_lines=3, min_score=50):
 #───Bullet Points──────────────────────────────────────────────────────────────────
 
 def step16_bullet_points(pdf=None):
+def step16_bullet_points(pdf=None):
     import streamlit as st
     import re
 
@@ -1986,7 +1987,6 @@ def step16_bullet_points(pdf=None):
 
     # Ensure overview lookup has been performed so the overview bullet can be inserted
     if pdf is not None:
-        # only run if we don't already have a lookup or it's for a different fund
         existing = st.session_state.get("step16_3_selected_overview_lookup", {})
         if existing.get("Fund") != selected_fund:
             step16_3_selected_overview_lookup(pdf, context_lines=3, min_score=50)
@@ -2112,20 +2112,25 @@ def step16_bullet_points(pdf=None):
         bullets.append(b3)
         st.markdown(b3)
 
-    # Optional: show diagnostics / full overview lookup detail
-    if overview_info:
-        st.markdown("**Investment Overview Lookup Details**")
-        para = overview_info.get("Overview Paragraph", "")
-        ctx = overview_info.get("Overview Context", "")
-        st.write("Paragraph:", para if para else "_none found_")
-        st.code(ctx or "_no context_")
+    # --- Unified diagnostics / overview rendering ---
+    def render_overview_block(title, overview_info):
+        para = overview_info.get("Overview Paragraph", "") or ""
+        ctx = overview_info.get("Overview Context", "") or ""
+        st.markdown(f"**{title}**")
+        if para:
+            st.write(para)
+        else:
+            st.write("_No paragraph found beneath the heading._")
+        if ctx.strip():
+            with st.expander("Diagnostic Context", expanded=False):
+                st.code(ctx)
         if not overview_info.get("Found Investment Overview"):
             st.warning("Investment Overview heading was located but no usable paragraph extracted.")
 
+    render_overview_block("Investment Overview Lookup Details", overview_info)
+
     # Persist updated bullets
     st.session_state["bullet_points"] = bullets
-
-
 
 #───Bullet Points 2──────────────────────────────────────────────────────────────────
 from rapidfuzz import fuzz
