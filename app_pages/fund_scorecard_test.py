@@ -1243,12 +1243,17 @@ import openpyxl
 from pathlib import Path
 import datetime
 
+import datetime
+import openpyxl
+from openpyxl.utils import get_column_letter
+
 def step15_populate_excel():
     """
     Opens the Excel template at assets/investment_metrics_template.xlsx,
     writes 'prepared_for' into AB4, the quarter into AB5, the actual date into AB6,
-    and fills the fund table (Category, Investment Option, Ticker, Expense Ratio,
-    IPS criteria 1..11, and Current Quarter Status) starting at row 5.
+    fills the fund table (Category, Investment Option, Ticker, Expense Ratio,
+    IPS criteria 1..11, and Current Quarter Status) starting at row 5,
+    and deletes any leftover rows after the last populated row up to row 180.
     """
     prepared_for = st.session_state.get("prepared_for", "")
     if not prepared_for:
@@ -1323,11 +1328,9 @@ def step15_populate_excel():
     for cell in ws[header_row]:
         if cell.value:
             val = str(cell.value).strip()
-            header_to_col[val] = cell.column  # gives numeric index
+            header_to_col[val] = cell.column  # numeric
 
-    # Required headers mapping expected
-    # We expect headers named exactly: Category, Investment Option, Ticker, Expense Ratio,
-    # "1".."11", and "Current Quarter Status"
+    # Expected headers
     required_headers = [
         "Category",
         "Investment Option",
@@ -1336,23 +1339,21 @@ def step15_populate_excel():
         *[str(i) for i in range(1, 12)],
         "Current Quarter Status"
     ]
-
     missing = [h for h in required_headers if h not in header_to_col]
     if missing:
         st.warning(f"Some expected headers not found in row {header_row}: {missing}")
 
-    # Prepare source data
-    df_icon = st.session_state.get("ips_icon_table")  # iconified (✔/✗) version
+    # Source data
+    df_icon = st.session_state.get("ips_icon_table")  # iconified version with numeric columns if displayed that way
     fund_types = st.session_state.get("fund_types", {})  # for Category
-    # Expense Ratio: try to pull from step12 fund facts table
     facts = st.session_state.get("step12_fund_facts_table", [])
     expense_lookup = {}
     for rec in facts:
         name = rec.get("Fund Name") or ""
         expense_lookup[name] = rec.get("Expense Ratio", "")
 
-    # Iterate and write rows starting at row 5
     start_row = 5
+    num_written = 0
     if df_icon is None or df_icon.empty:
         st.warning("No IPS icon table found; skipping table population.")
     else:
@@ -1362,44 +1363,54 @@ def step15_populate_excel():
             ticker = row.get("Ticker", "")
             fund_type = row.get("Fund Type", "")
             watch_status = row.get("IPS Watch Status", "")
-            # Category = fund_type
+            # Category
             if "Category" in header_to_col:
-                col = openpyxl.utils.get_column_letter(header_to_col["Category"])
-                ws[f"{col}{excel_row}"] = fund_type
-            # Investment Option = Fund Name
+                col_letter = get_column_letter(header_to_col["Category"])
+                ws[f"{col_letter}{excel_row}"] = fund_type
+            # Investment Option
             if "Investment Option" in header_to_col:
-                col = openpyxl.utils.get_column_letter(header_to_col["Investment Option"])
-                ws[f"{col}{excel_row}"] = fund_name
+                col_letter = get_column_letter(header_to_col["Investment Option"])
+                ws[f"{col_letter}{excel_row}"] = fund_name
             # Ticker
             if "Ticker" in header_to_col:
-                col = openpyxl.utils.get_column_letter(header_to_col["Ticker"])
-                ws[f"{col}{excel_row}"] = ticker
+                col_letter = get_column_letter(header_to_col["Ticker"])
+                ws[f"{col_letter}{excel_row}"] = ticker
             # Expense Ratio
             exp_val = expense_lookup.get(fund_name, "")
             if "Expense Ratio" in header_to_col:
-                col = openpyxl.utils.get_column_letter(header_to_col["Expense Ratio"])
-                ws[f"{col}{excel_row}"] = exp_val
+                col_letter = get_column_letter(header_to_col["Expense Ratio"])
+                ws[f"{col_letter}{excel_row}"] = exp_val
             # IPS criteria 1..11
             for i in range(1, 12):
                 key = str(i)
                 if key in header_to_col:
-                    col = openpyxl.utils.get_column_letter(header_to_col[key])
-                    # original df_icon had columns renamed earlier; the source icons are in df_icon but with numeric column names?
-                    # If df_icon has original "IPS Investment Criteria X" names, we need to map them:
-                    # The display used mapping to "1","2",... so assume df_icon already has iconified under those numbers
+                    col_letter = get_column_letter(header_to_col[key])
                     val = row.get(key, "")
-                    ws[f"{col}{excel_row}"] = val
+                    ws[f"{col_letter}{excel_row}"] = val
             # Current Quarter Status
             if "Current Quarter Status" in header_to_col:
-                col = openpyxl.utils.get_column_letter(header_to_col["Current Quarter Status"])
-                ws[f"{col}{excel_row}"] = watch_status
+                col_letter = get_column_letter(header_to_col["Current Quarter Status"])
+                ws[f"{col_letter}{excel_row}"] = watch_status
+            num_written += 1
 
-    # Save to buffer
+    # Delete leftover rows after last filled up to row 180
+    if num_written > 0:
+        last_filled_row = start_row + num_written - 1
+    else:
+        last_filled_row = start_row - 1  # nothing written
+
+    if last_filled_row < 180:
+        # delete rows from last_filled_row+1 through 180
+        to_delete_start = last_filled_row + 1
+        count = 180 - last_filled_row
+        ws.delete_rows(to_delete_start, count)
+
     from io import BytesIO
     out = BytesIO()
     wb.save(out)
     out.seek(0)
     return out
+
 
 
 #───Main App──────────────────────────────────────────────────────────────────
