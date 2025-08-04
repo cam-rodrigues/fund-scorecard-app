@@ -2739,8 +2739,8 @@ def render_step16_and_16_5_cards(pdf):
         line-height:1.3;
         max-width:100%;
     ">
-        <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px;">
-            <div style="font-size:1.3rem; font-weight:700; color:#1f3f72;">
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+            <div style="font-size:0.9rem; font-weight:700; color:#1f3f72;">
                 {html.escape(selected_fund)}
             </div>
             {status_badge}
