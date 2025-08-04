@@ -2380,7 +2380,8 @@ def run():
         with st.expander("Bullet Points", expanded=False):
             step16_bullet_points()
 
-        with pdfplumber.open(uploaded_pdf) as pdf:
+        # NEW: Proposed Fund Investment Overview section
+        with st.expander("Investment Overview (Proposed Funds)", expanded=False):
             step16_5_display_investment_overview(pdf)
 
         # PowerPoint
