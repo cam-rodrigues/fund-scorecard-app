@@ -2356,16 +2356,86 @@ def step17_export_to_ppt():
         except Exception:
             pass
 
-    # --- NEW: Inject first proposed fund's truncated Investment Overview into its replacement slide ---
+    # --- NEW: Inject proposed funds' truncated Investment Overview into their replacement slides ---
     if proposed:
-        lookup = st.session_state.get("step16_5_proposed_overview_lookup", {})
-        first_proposed_label = proposed[0]  # e.g., "Fund Name (TICK)"
-        paragraph = lookup_overview_paragraph(first_proposed_label, lookup) or ""
-        truncated = truncate_to_n_sentences(paragraph, n=3)
-        if truncated:
-            ...
-        else:
-            st.warning(f"No overview paragraph found to insert for proposed fund '{first_proposed_label}'.")
+        lookup = st.session_state.get("step16_5_proposed_overview_lookup", {}) or {}
+
+        def lookup_overview_paragraph(label, lookup_dict, threshold=50):
+            import re
+            from rapidfuzz import fuzz
+            base_name = re.sub(r"\s*\(.*\)$", "", label).strip()
+            def normalize(s):
+                return re.sub(r"[^A-Za-z0-9 ]+", "", s or "").strip().lower()
+            target = normalize(base_name)
+            best_key = None
+            best_score = -1
+            for key in lookup_dict.keys():
+                score = fuzz.token_sort_ratio(target, normalize(key))
+                if score > best_score:
+                    best_score = score
+                    best_key = key
+            if best_key and best_score >= threshold:
+                st.warning(f"Proposed fund label '{label}' matched to overview key '{best_key}' with score {best_score}.")  # diagnostic
+                return lookup_dict.get(best_key, {}).get("Overview Paragraph", "")
+            # fallback exact
+            if base_name in lookup_dict:
+                st.warning(f"Using exact fallback match for '{base_name}'.")  # diagnostic
+                return lookup_dict.get(base_name, {}).get("Overview Paragraph", "")
+            return ""
+
+        for idx, proposed_label in enumerate(proposed[:2]):
+            slide_idx = 1 + idx  # replacement slides assumed at index 1 and 2
+            try:
+                slide_repl = prs.slides[slide_idx]
+            except Exception:
+                st.warning(f"Could not access replacement slide at index {slide_idx} for '{proposed_label}'.")
+                continue
+
+            paragraph = lookup_overview_paragraph(proposed_label, lookup) or ""
+            truncated = truncate_to_n_sentences(paragraph, n=3)
+            if not truncated:
+                st.warning(f"No overview paragraph available to insert for proposed fund '{proposed_label}'.")
+                continue
+
+            # Find a text placeholder to replace or else add a textbox
+            replaced = False
+            # Try replacing placeholder like "[Replacement Overview]" if exists
+            for shape in slide_repl.shapes:
+                if not shape.has_text_frame:
+                    continue
+                tf = shape.text_frame
+                # if it's essentially empty or contains a known placeholder, overwrite
+                text_content = "".join(p.text for p in tf.paragraphs).strip()
+                if not text_content or "Replacement" in text_content or "Overview" in text_content:
+                    tf.clear()
+                    p = tf.add_paragraph()
+                    p.text = truncated
+                    p.level = 0
+                    p.font.name = "Cambria"
+                    p.font.size = Pt(12)
+                    try:
+                        p.font.color.rgb = RGBColor(0, 0, 0)
+                    except:
+                        pass
+                    replaced = True
+                    break
+            if not replaced:
+                # fallback: create a new textbox
+                left = Inches(1)
+                top = Inches(2)
+                width = Inches(8)
+                height = Inches(2)
+                textbox = slide_repl.shapes.add_textbox(left, top, width, height)
+                tf = textbox.text_frame
+                tf.word_wrap = True
+                p = tf.paragraphs[0]
+                p.text = truncated
+                p.font.name = "Cambria"
+                p.font.size = Pt(12)
+                try:
+                    p.font.color.rgb = RGBColor(0, 0, 0)
+                except:
+                    pass
 
 
     # --- Fill Slide 3 ---
