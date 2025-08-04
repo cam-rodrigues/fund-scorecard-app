@@ -1241,14 +1241,14 @@ def step14_5_ips_fail_table():
 #───Step 15 - Excel──────────────────────────────────────────────────────────────────
 import openpyxl
 from pathlib import Path
-
 import datetime
 
 def step15_populate_excel():
     """
     Opens the Excel template at assets/investment_metrics_template.xlsx,
-    writes 'prepared_for' into AB4, the quarter (Q1–Q4) into AB5,
-    and the actual report date into AB6, then returns the workbook bytes.
+    writes 'prepared_for' into AB4, the quarter into AB5, the actual date into AB6,
+    and fills the fund table (Category, Investment Option, Ticker, Expense Ratio,
+    IPS criteria 1..11, and Current Quarter Status) starting at row 5.
     """
     prepared_for = st.session_state.get("prepared_for", "")
     if not prepared_for:
@@ -1259,18 +1259,16 @@ def step15_populate_excel():
     quarter_str = ""
     actual_date = None
 
-    # Try to extract explicit quarter like "2nd QTR, 2024"
+    # Extract quarter and actual date
     m = re.match(r"([1-4])(?:st|nd|rd|th)\s+QTR,\s*(20\d{2})", report_date)
     if m:
         qnum = int(m.group(1))
         year = int(m.group(2))
         quarter_str = f"Q{qnum}"
-        # Map quarter to its end date
         quarter_end_map = {1: (3, 31), 2: (6, 30), 3: (9, 30), 4: (12, 31)}
         mon, day = quarter_end_map.get(qnum)
         actual_date = datetime.date(year, mon, day)
     else:
-        # Fallback: parse "As of Month Day, Year"
         m2 = re.match(r"As of\s+([A-Za-z]+)\s+(\d{1,2}),\s*(20\d{2})", report_date)
         if m2:
             month_name_str = m2.group(1)
@@ -1280,25 +1278,21 @@ def step15_populate_excel():
                 month_num = list(month_name).index(month_name_str)
                 if month_num >= 1:
                     actual_date = datetime.date(year, month_num, day)
-                    # infer quarter from month
                     qnum = ((month_num - 1) // 3) + 1
                     quarter_str = f"Q{qnum}"
             except ValueError:
                 actual_date = None
 
-    # if still missing actual_date, fallback to today
     if actual_date is None:
         actual_date = datetime.date.today()
-
-    # if still missing quarter_str, try fallback from session_state["Quarter"]
     if not quarter_str:
         q = st.session_state.get("Quarter")
         if q:
             quarter_str = f"Q{q}"
 
-    # Format actual date as MM/DD/YYYY
     date_str = actual_date.strftime("%m/%d/%Y")
 
+    # Load workbook
     template_path = Path("assets") / "investment_metrics_template.xlsx"
     if template_path.is_dir():
         candidates = list(template_path.glob("*.xlsx"))
@@ -1323,6 +1317,84 @@ def step15_populate_excel():
     ws["AB5"] = quarter_str if quarter_str else ""
     ws["AB6"] = date_str
 
+    # Locate header row (row 4) columns by their titles
+    header_row = 4
+    header_to_col = {}
+    for cell in ws[header_row]:
+        if cell.value:
+            val = str(cell.value).strip()
+            header_to_col[val] = cell.column  # gives numeric index
+
+    # Required headers mapping expected
+    # We expect headers named exactly: Category, Investment Option, Ticker, Expense Ratio,
+    # "1".."11", and "Current Quarter Status"
+    required_headers = [
+        "Category",
+        "Investment Option",
+        "Ticker",
+        "Expense Ratio",
+        *[str(i) for i in range(1, 12)],
+        "Current Quarter Status"
+    ]
+
+    missing = [h for h in required_headers if h not in header_to_col]
+    if missing:
+        st.warning(f"Some expected headers not found in row {header_row}: {missing}")
+
+    # Prepare source data
+    df_icon = st.session_state.get("ips_icon_table")  # iconified (✔/✗) version
+    fund_types = st.session_state.get("fund_types", {})  # for Category
+    # Expense Ratio: try to pull from step12 fund facts table
+    facts = st.session_state.get("step12_fund_facts_table", [])
+    expense_lookup = {}
+    for rec in facts:
+        name = rec.get("Fund Name") or ""
+        expense_lookup[name] = rec.get("Expense Ratio", "")
+
+    # Iterate and write rows starting at row 5
+    start_row = 5
+    if df_icon is None or df_icon.empty:
+        st.warning("No IPS icon table found; skipping table population.")
+    else:
+        for idx, row in df_icon.iterrows():
+            excel_row = start_row + idx
+            fund_name = row.get("Fund Name", "")
+            ticker = row.get("Ticker", "")
+            fund_type = row.get("Fund Type", "")
+            watch_status = row.get("IPS Watch Status", "")
+            # Category = fund_type
+            if "Category" in header_to_col:
+                col = openpyxl.utils.get_column_letter(header_to_col["Category"])
+                ws[f"{col}{excel_row}"] = fund_type
+            # Investment Option = Fund Name
+            if "Investment Option" in header_to_col:
+                col = openpyxl.utils.get_column_letter(header_to_col["Investment Option"])
+                ws[f"{col}{excel_row}"] = fund_name
+            # Ticker
+            if "Ticker" in header_to_col:
+                col = openpyxl.utils.get_column_letter(header_to_col["Ticker"])
+                ws[f"{col}{excel_row}"] = ticker
+            # Expense Ratio
+            exp_val = expense_lookup.get(fund_name, "")
+            if "Expense Ratio" in header_to_col:
+                col = openpyxl.utils.get_column_letter(header_to_col["Expense Ratio"])
+                ws[f"{col}{excel_row}"] = exp_val
+            # IPS criteria 1..11
+            for i in range(1, 12):
+                key = str(i)
+                if key in header_to_col:
+                    col = openpyxl.utils.get_column_letter(header_to_col[key])
+                    # original df_icon had columns renamed earlier; the source icons are in df_icon but with numeric column names?
+                    # If df_icon has original "IPS Investment Criteria X" names, we need to map them:
+                    # The display used mapping to "1","2",... so assume df_icon already has iconified under those numbers
+                    val = row.get(key, "")
+                    ws[f"{col}{excel_row}"] = val
+            # Current Quarter Status
+            if "Current Quarter Status" in header_to_col:
+                col = openpyxl.utils.get_column_letter(header_to_col["Current Quarter Status"])
+                ws[f"{col}{excel_row}"] = watch_status
+
+    # Save to buffer
     from io import BytesIO
     out = BytesIO()
     wb.save(out)
