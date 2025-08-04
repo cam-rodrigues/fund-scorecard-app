@@ -773,7 +773,8 @@ def run():
         # Step 14.5: IPS Fail Table
         step14_5_ips_fail_table()
 
-
+        # Proposed
+        extract_proposed_scorecard_blocks(pdf)
 
 if __name__ == "__main__":
     run()
