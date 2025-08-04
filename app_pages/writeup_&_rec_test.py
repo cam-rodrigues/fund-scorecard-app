@@ -2733,9 +2733,10 @@ def render_step16_and_16_5_cards(pdf):
     </div>
     """
 
-    # Build proposed fund overview card with matching styling
+    # Build proposed fund overview card(s)
+    proposed_cards = ""
     if not proposed_overview:
-        proposed_card = """
+        proposed_cards = """
         <div style="
             background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
             color: #244369;
@@ -2754,50 +2755,41 @@ def render_step16_and_16_5_cards(pdf):
         </div>
         """
     else:
-        inner_pieces = []
+        # each fund its own mini-card inside container
         for fund, info in proposed_overview.items():
             ticker = info.get("Ticker", "")
             name_label = f"{fund} ({ticker})" if ticker else fund
-            paragraph = info.get("Overview Paragraph", "")
-            snippet = paragraph if paragraph else "_No overview paragraph extracted._"
+            paragraph = info.get("Overview Paragraph", "").strip()
+            if not paragraph:
+                snippet = "_No overview paragraph extracted._"
+            else:
+                # convert **bold** to strong but leave rest as plain text (escape to avoid raw HTML injection)
+                snippet = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html.escape(paragraph))
 
-            # convert **bold** but allow rest to render
-            def convert_bold(raw: str) -> str:
-                escaped = html.escape(raw)
-                return re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', escaped)
-            snippet_html = convert_bold(snippet)
-
-            inner_pieces.append(f"""
-                <div style="margin-bottom:1rem;">
-                    <div style="font-weight:600; font-size:1rem; margin-bottom:4px; color:#1f3f72;">{html.escape(name_label)}</div>
-                    <div style="font-size:0.85rem; line-height:1.25;">{snippet_html}</div>
-                </div>
-            """)
-        inner = "\n".join(inner_pieces)
-        proposed_card = f"""
-        <div style="
-            background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
-            color: #244369;
-            border-radius: 1.5rem;
-            box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
-            padding: 1.4rem 1.8rem;
-            border: 1.2px solid #b5d0eb;
-            font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
-            line-height:1.3;
-            max-width:100%;
-        ">
-            <div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">
-                Proposed Fund Investment Overviews
+            proposed_cards += f"""
+            <div style="
+                background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
+                color: #244369;
+                border-radius: 1.5rem;
+                box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
+                padding: 1.2rem 1.6rem;
+                border: 1.2px solid #b5d0eb;
+                font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
+                line-height:1.3;
+                margin-bottom:1rem;
+                max-width:100%;
+            ">
+                <div style="font-weight:700; font-size:1.15rem; margin-bottom:4px; color:#1f3f72;">{html.escape(name_label)}</div>
+                <div style="font-size:0.85rem; line-height:1.3;">{snippet}</div>
             </div>
-            {inner}
-        </div>
-        """
+            """
 
     col1, col2 = st.columns(2, gap="large")
     with col1:
         st.markdown(selected_card, unsafe_allow_html=True)
     with col2:
-        st.markdown(proposed_card, unsafe_allow_html=True)
+        st.markdown(proposed_cards, unsafe_allow_html=True)
+
 
 
 # –– Main App –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
