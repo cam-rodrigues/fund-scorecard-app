@@ -493,81 +493,52 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
         # --- Summary badges (in a single info card) ---
-        def summarize_watch(df):
-            counts = df["IPS Watch Status"].value_counts().to_dict()
-            return {
-                "No Watch": counts.get("NW", 0),
-                "Informal Watch": counts.get("IW", 0),
-                "Formal Watch": counts.get("FW", 0),
-            }
 
-        summary = summarize_watch(df_icon)
-        st.markdown("---")
+# ... (Your existing functions here: extract_performance_table, extract_report_date, process_page1, show_report_summary, process_toc, infer_fund_type_guess, extract_scorecard_blocks, extract_fund_tickers, scorecard_to_ips, watch_status_color, step3_5_6_scorecard_and_ips, extract_proposed_scorecard_blocks) ...
 
-        st.markdown(f"""
-        <div style="
-            background: linear-gradient(120deg, #e6f0fb 82%, #d0ebfa 100%);
-            color: #244369;
-            border-radius: 1.2rem;
-            box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
-            padding: 1.3rem 2rem 1.1rem 2rem;
-            margin-bottom: 2rem;
-            font-size: 1.07rem;
-            border: 1.2px solid #b5d0eb;
-            max-width: 520px;
-        ">
-          <div style="font-size:1.13rem; font-weight:700; color:#223d63; margin-bottom:0.7rem;">
-            Watch Summary
-          </div>
-          <div style="display:flex; gap:1.5rem; align-items:center; justify-content: flex-start; margin-bottom:0.3rem;">
-            <div style="background:#d6f5df; color:#217a3e; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
-                No Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["No Watch"]}</span>
-            </div>
-            <div style="background:#fff3cd; color:#B87333; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
-                Informal Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["Informal Watch"]}</span>
-            </div>
-            <div style="background:#f8d7da; color:#c30000; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
-                Formal Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["Formal Watch"]}</span>
-            </div>
-          </div>
+# ----- Watch Summary Card (NEW) -----
+def get_watch_summary_card_html():
+    df = st.session_state.get("ips_icon_table")
+    if df is None or df.empty:
+        return "", ""
+    counts = df["IPS Watch Status"].value_counts().to_dict()
+    summary = {
+        "No Watch": counts.get("NW", 0),
+        "Informal Watch": counts.get("IW", 0),
+        "Formal Watch": counts.get("FW", 0),
+    }
+    card_html = f"""
+    <div style="
+        background: linear-gradient(120deg, #e6f0fb 82%, #d0ebfa 100%);
+        color: #244369;
+        border-radius: 1.2rem;
+        box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
+        padding: 1.3rem 2rem 1.1rem 2rem;
+        margin-bottom: 2rem;
+        font-size: 1.07rem;
+        border: 1.2px solid #b5d0eb;
+        max-width: 520px;
+    ">
+      <div style="font-size:1.13rem; font-weight:700; color:#223d63; margin-bottom:0.7rem;">
+        Watch Summary
+      </div>
+      <div style="display:flex; gap:1.5rem; align-items:center; justify-content: flex-start; margin-bottom:0.3rem;">
+        <div style="background:#d6f5df; color:#217a3e; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
+            No Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["No Watch"]}</span>
         </div>
-        """, unsafe_allow_html=True)
+        <div style="background:#fff3cd; color:#B87333; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
+            Informal Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["Informal Watch"]}</span>
+        </div>
+        <div style="background:#f8d7da; color:#c30000; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
+            Formal Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["Formal Watch"]}</span>
+        </div>
+      </div>
+    </div>
+    """
+    css = ""
+    return card_html, css
 
-
-    # --- Persist state downstream ---
-    st.session_state["fund_blocks"] = fund_blocks
-    st.session_state["fund_types"] = fund_types
-    st.session_state["fund_tickers"] = tickers
-    st.session_state["ips_icon_table"] = df_icon
-    st.session_state["ips_raw_table"] = df_raw
-
-    # --- Performance extraction ---
-    perf_data = extract_performance_table(
-        pdf,
-        performance_page,
-        fund_names,
-        factsheets_page
-    )
-    for itm in perf_data:
-        itm["Ticker"] = tickers.get(itm["Fund Scorecard Name"], "")
-
-    st.session_state["fund_performance_data"] = perf_data
-    st.session_state["tickers"] = tickers  # legacy compatibility
-
-
-#───IPS Fail Table──────────────────────────────────────────────────────────────────
-import re
-import streamlit as st
-import pdfplumber
-from calendar import month_name
-import pandas as pd
-from rapidfuzz import fuzz
-import yfinance as yf
-
-# ... (all your existing utility, extraction, and IPS functions unchanged) ...
-
-# --- Side-by-side Info Card Functions ---
-
+# ----- Funds on Watch Card -----
 def get_ips_fail_card_html():
     df = st.session_state.get("ips_icon_table")
     if df is None or df.empty:
@@ -579,7 +550,6 @@ def get_ips_fail_card_html():
         "Fund Name": "Fund",
         "IPS Watch Status": "Watch Status"
     }).to_html(index=False, border=0, justify="center", classes="ips-fail-table")
-
     card_html = f"""
     <div style='
         background: linear-gradient(120deg, #e6f0fb 85%, #c8e0f6 100%);
@@ -630,6 +600,7 @@ def get_ips_fail_card_html():
     """
     return card_html, css
 
+# ----- Confirmed Proposed Funds Card -----
 def get_proposed_fund_card_html():
     df = st.session_state.get("proposed_funds_confirmed_df")
     if df is None or df.empty:
@@ -701,69 +672,7 @@ def get_proposed_fund_card_html():
     """
     return card_html, css
 
-
-def extract_proposed_scorecard_blocks(pdf):
-    import pandas as pd
-    from rapidfuzz import fuzz
-
-    prop_page = st.session_state.get("scorecard_proposed_page")
-    if not prop_page:
-        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
-        return pd.DataFrame()
-
-    # 1. Extract lines from just the Proposed Funds scorecard page
-    page = pdf.pages[prop_page - 1]
-    lines = [ln.strip() for ln in (page.extract_text() or "").splitlines() if ln.strip()]
-    if not lines:
-        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
-        return pd.DataFrame()
-
-    # 2. Build candidate list from already-extracted funds (performance/scorecard)
-    perf_data = st.session_state.get("fund_performance_data", [])
-    if not perf_data:
-        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
-        return pd.DataFrame()
-
-    candidate_funds = []
-    for item in perf_data:
-        name = item.get("Fund Scorecard Name", "").strip()
-        ticker = item.get("Ticker", "").strip().upper()
-        if name:
-            candidate_funds.append({"Fund Scorecard Name": name, "Ticker": ticker})
-
-    # 3. Fuzzy-match each candidate against the lines on the proposed page
-    results = []
-    for fund in candidate_funds:
-        name = fund["Fund Scorecard Name"]
-        ticker = fund["Ticker"]
-        best_score = 0
-        best_line = ""
-        for line in lines:
-            score_name = fuzz.token_sort_ratio(name.lower(), line.lower())
-            score_ticker = fuzz.token_sort_ratio(ticker.lower(), line.lower()) if ticker else 0
-            score = max(score_name, score_ticker)
-            if score > best_score:
-                best_score = score
-                best_line = line
-        found = best_score >= 70  # threshold; adjust if needed
-        results.append({
-            "Fund Scorecard Name": name,
-            "Ticker": ticker,
-            "Found on Proposed": "✅" if found else "❌",
-            "Match Score": best_score,
-            "Matched Line": best_line if found else ""
-        })
-
-    df = pd.DataFrame(results)
-
-    # 4. Keep only confirmed proposed funds and persist independently of selection
-    df_confirmed = df[df["Found on Proposed"] == "✅"].copy()
-    st.session_state["proposed_funds_confirmed_df"] = df_confirmed
-
-    return df_confirmed
-
-
-#───Main App──────────────────────────────────────────────────────────────────
+# ----- Main App -----
 def run():
     st.title("IPS")
     uploaded = st.file_uploader("Upload MPI PDF to Generate Writup PPTX", type="pdf")
@@ -791,10 +700,13 @@ def run():
         else:
             st.error("Missing scorecard, performance page, or total options")
 
-        # Step 14.5: IPS Fail Table & Proposed Funds as side-by-side cards
-        extract_proposed_scorecard_blocks(pdf)  # populates session state for proposed funds
+        # Populate proposed funds dataframe for session state
+        extract_proposed_scorecard_blocks(pdf)
+
+        # --- CARD LAYOUT ---
         fail_card_html, fail_css = get_ips_fail_card_html()
         proposed_card_html, proposed_css = get_proposed_fund_card_html()
+        watch_summary_card_html, watch_summary_css = get_watch_summary_card_html()
         col1, col2 = st.columns(2, gap="large")
         with col1:
             if fail_card_html:
@@ -802,10 +714,9 @@ def run():
         with col2:
             if proposed_card_html:
                 st.markdown(proposed_card_html, unsafe_allow_html=True)
-        # Display all CSS only once at the end
-        st.markdown(f"{fail_css}\n{proposed_css}", unsafe_allow_html=True)
+            if watch_summary_card_html:
+                st.markdown(watch_summary_card_html, unsafe_allow_html=True)
+        st.markdown(f"{fail_css}\n{proposed_css}\n{watch_summary_css}", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     run()
-
-
