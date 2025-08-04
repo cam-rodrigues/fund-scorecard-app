@@ -2083,7 +2083,7 @@ def step16_bullet_points(pdf=None):
 
         sentences = safe_split_sentences_local(overview_paragraph)
         overview_bullet = " ".join(sentences[:3]) if sentences else overview_paragraph
-        b_overview = f"- Investment Overview: {overview_bullet}"
+        b_overview = overview_bullet  # no prefix
         bullets.append(b_overview)
         st.markdown(b_overview)
 
