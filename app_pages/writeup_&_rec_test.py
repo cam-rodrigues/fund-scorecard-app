@@ -1978,12 +1978,6 @@ def extract_investment_overview(pdf_path, start_page, end_page):
                 }
     return overviews
 
-# Example usage:
-pdf_path = "MPI(Element).pdf"
-investment_overviews = extract_investment_overview(pdf_path, start_page=60, end_page=61)  # adjust end_page as needed
-for ticker, info in investment_overviews.items():
-    print(f"{info['fund_name']} ({ticker}):\n{info['overview']}\n")
-
 
 #───Build Powerpoint──────────────────────────────────────────────────────────────────
 def step17_export_to_ppt():
