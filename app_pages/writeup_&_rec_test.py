@@ -1925,12 +1925,7 @@ def step16_bullet_points():
 
 from rapidfuzz import fuzz
 
-def step16_5_locate_proposed_factsheets_with_overview(pdf, min_score=70):
-    """
-    For each confirmed proposed fund, find its best matching factsheet page (by header fuzzy match),
-    then on that page scan for the phrase "INVESTMENT OVERVIEW" in bold. Falls back to non-bold if needed.
-    Results are stored in session_state['proposed_factsheet_matches'].
-    """
+def step16_5_locate_proposed_factsheets_with_overview(pdf, min_score=30):
     import streamlit as st
 
     proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
@@ -1943,31 +1938,31 @@ def step16_5_locate_proposed_factsheets_with_overview(pdf, min_score=70):
         st.error("❌ 'Fund Factsheets' page number not found in TOC.")
         return
 
-    # Precompute header-like text from each candidate factsheet page
     page_headers = []
     for pnum in range(facts_start - 1, len(pdf.pages)):
         page = pdf.pages[pnum]
-        # extract words with font info
-        words = page.extract_words(use_text_flow=True, extra_attrs=["fontname"])
-        # header heuristic: words near top (e.g., top < 100)
+        # get words with font metadata
+        words = page.extract_words(use_text_flow=True, extra_attrs=["fontname", "size", "upright"])
+        # header candidate: words near top
         header_words = [w for w in words if w.get("top", 0) < 100]
         header_text = " ".join(w["text"] for w in header_words).strip()
-        full_text = " ".join(w["text"] for w in words).strip()
+        full_text = " ".join(w["text"] for w in words)
         page_headers.append({
             "page": pnum + 1,
             "header_text": header_text,
             "full_text": full_text,
-            "words": words
+            "words": words,
+            "page_obj": page
         })
 
     results = []
     for _, row in proposed_df.iterrows():
         name = row.get("Fund Scorecard Name", "").strip()
         ticker = row.get("Ticker", "").strip().upper()
-        ref_label = f"{name} {ticker}".strip()
         best_score = 0
         best_ph = None
 
+        # fuzzy match to pick factsheet page
         for ph in page_headers:
             score_name = fuzz.token_sort_ratio(name.lower(), ph["header_text"].lower()) if ph["header_text"] else 0
             score_ticker = fuzz.token_sort_ratio(ticker.lower(), ph["header_text"].lower()) if ticker and ph["header_text"] else 0
@@ -1980,23 +1975,59 @@ def step16_5_locate_proposed_factsheets_with_overview(pdf, min_score=70):
         matched_page = best_ph["page"] if best_ph else None
         matched_header = best_ph["header_text"] if best_ph and matched_flag == "✅" else ""
 
-        # Now scan matched page for bold "INVESTMENT OVERVIEW"
+        # Search for "INVESTMENT OVERVIEW" on that page
         overview_found = False
-        overview_context = ""
+        overview_confident = False  # bold detection
+        overview_text = ""
+        overview_bbox = None
+
         if best_ph:
-            # Words with fontname containing 'bold' (case-insensitive)
-            bold_words = [w for w in best_ph["words"] if "fontname" in w and "bold" in w["fontname"].lower()]
-            # Build ordered sequence of bold texts (sorted by vertical then horizontal)
-            sorted_bold = sorted(bold_words, key=lambda x: (x.get("top", 0), x.get("x0", 0)))
-            joined_bold = " ".join(w["text"] for w in sorted_bold).upper()
-            if "INVESTMENT OVERVIEW" in joined_bold:
-                overview_found = True
-                overview_context = "Found in bold words."
-            else:
-                # fallback to any occurrence on page
+            words = best_ph["words"]
+            # Normalize and find sequences matching INVESTMENT OVERVIEW
+            target = "INVESTMENT OVERVIEW"
+            # Build list of indices where word text matches parts
+            # Find spans where consecutive words compose the phrase (case-insensitive)
+            lowered = [w["text"].upper() for w in words]
+            for i in range(len(lowered) - 1):
+                if lowered[i] == "INVESTMENT" and lowered[i+1] == "OVERVIEW":
+                    # Determine if either word is bold via fontname heuristic
+                    is_bold = False
+                    if "fontname" in words[i] and "bold" in words[i]["fontname"].lower():
+                        is_bold = True
+                    if "fontname" in words[i+1] and "bold" in words[i+1]["fontname"].lower():
+                        is_bold = True
+                    overview_found = True
+                    overview_confident = is_bold
+                    # bounding box covering both words
+                    x0 = min(words[i]["x0"], words[i+1]["x0"])
+                    x1 = max(words[i]["x1"], words[i+1]["x1"])
+                    top = min(words[i]["top"], words[i+1]["top"])
+                    bottom = max(words[i]["bottom"], words[i+1]["bottom"])
+                    overview_bbox = (x0, top, x1, bottom)
+                    # Extract the paragraph below: collect words whose top is just below heading and within x-span
+                    paragraph_words = [
+                        w for w in words
+                        if w["top"] > bottom and w["top"] < bottom + 100  # heuristic: next ~100 pts down
+                        and w["x0"] >= x0 - 5 and w["x1"] <= x1 + 5
+                    ]
+                    # sort by vertical then horizontal
+                    paragraph_words = sorted(paragraph_words, key=lambda w: (w["top"], w["x0"]))
+                    # join into string until a double newline or large gap (simple: first 100 words)
+                    overview_text = " ".join(w["text"] for w in paragraph_words[:100])
+                    break
+
+            # fallback if not found in word-level phrase
+            if not overview_found:
                 if "INVESTMENT OVERVIEW" in best_ph["full_text"].upper():
                     overview_found = True
-                    overview_context = "Found on page but not in detectable bold (fallback)."
+                    overview_confident = False
+                    # crude extraction: take text after phrase in full_text
+                    idx = best_ph["full_text"].upper().find("INVESTMENT OVERVIEW")
+                    snippet = best_ph["full_text"][idx:]
+                    # grab up to first double newline or 300 chars
+                    after = snippet[len("INVESTMENT OVERVIEW"):]
+                    # naive split
+                    overview_text = after.strip().split("\n\n")[0][:300]
 
         results.append({
             "Fund Scorecard Name": name,
@@ -2006,15 +2037,15 @@ def step16_5_locate_proposed_factsheets_with_overview(pdf, min_score=70):
             "Matched Header": matched_header,
             "Matched": matched_flag,
             "Investment Overview Found": "✅" if overview_found else "❌",
-            "Overview Context": overview_context
+            "Overview Confident (bold)": "✅" if overview_confident else "❌",
+            "Overview Text Snippet": overview_text,
+            "Overview BBox": overview_bbox or ""
         })
 
     st.session_state["proposed_factsheet_matches"] = results
     df = pd.DataFrame(results)
-    st.subheader("Step 16.5: Proposed Fund Factsheet + Investment Overview Detection")
+    st.subheader("Step 16.5: Proposed Fund Factsheet + Investment Overview Detection") 
     st.dataframe(df, use_container_width=True)
-
-
 
 #───Build Powerpoint─────────────────────────────────────────────────────────────────
 def step17_export_to_ppt():
