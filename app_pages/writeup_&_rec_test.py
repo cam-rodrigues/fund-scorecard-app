@@ -2677,21 +2677,22 @@ def step17_export_to_ppt():
     )
 
 # –– Cards ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-import html
-import streamlit as st
-
-
 def render_step16_and_16_5_cards(pdf):
     import streamlit as st
+    import html
+    import re
 
-    # Ensure the lookups / bullets are up to date
-    step16_bullet_points(pdf)
-    proposed_overview = step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_score=60)
+    def markdown_bold_to_html(text: str) -> str:
+        escaped = html.escape(text)
+        return re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', escaped)
 
     selected_fund = st.session_state.get("selected_fund", "—")
+    # refresh bullets & overview
+    step16_bullet_points(pdf)
+    proposed_overview = step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_score=60)
     bullet_points = st.session_state.get("bullet_points", [])
 
-    # Build selected fund card (with converted bold)
+    # Build selected fund card
     bullets_html = "".join(f"<li>{markdown_bold_to_html(bp)}</li>" for bp in bullet_points) or "<li>No bullet points available.</li>"
     ips_status = ""
     ips_icon_table = st.session_state.get("ips_icon_table")
@@ -2707,13 +2708,15 @@ def render_step16_and_16_5_cards(pdf):
 
     selected_card = f"""
     <div style="
-        background: white;
-        border-radius: 1.2rem;
+        background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
+        color: #244369;
+        border-radius: 1.5rem;
+        box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
         padding: 1.4rem 1.8rem;
-        box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);
-        border:1px solid #e2eaf7;
+        border: 1.2px solid #b5d0eb;
         font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
         line-height:1.3;
+        max-width:100%;
     ">
         <div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">
             Selected Fund: {html.escape(selected_fund)}
@@ -2730,17 +2733,19 @@ def render_step16_and_16_5_cards(pdf):
     </div>
     """
 
-    # Build proposed fund overview card
+    # Build proposed fund overview card with matching styling
     if not proposed_overview:
         proposed_card = """
         <div style="
-            background: white;
-            border-radius: 1.2rem;
+            background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
+            color: #244369;
+            border-radius: 1.5rem;
+            box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
             padding: 1.4rem 1.8rem;
-            box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);
-            border:1px solid #e2eaf7;
+            border: 1.2px solid #b5d0eb;
             font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
             line-height:1.3;
+            max-width:100%;
         ">
             <div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">
                 Proposed Fund Investment Overviews
@@ -2749,29 +2754,37 @@ def render_step16_and_16_5_cards(pdf):
         </div>
         """
     else:
-        inner = ""
+        inner_pieces = []
         for fund, info in proposed_overview.items():
             ticker = info.get("Ticker", "")
             name_label = f"{fund} ({ticker})" if ticker else fund
             paragraph = info.get("Overview Paragraph", "")
             snippet = paragraph if paragraph else "_No overview paragraph extracted._"
-            # render bold if present
-            snippet_html = markdown_bold_to_html(snippet)
-            inner += f"""
+
+            # convert **bold** but allow rest to render
+            def convert_bold(raw: str) -> str:
+                escaped = html.escape(raw)
+                return re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', escaped)
+            snippet_html = convert_bold(snippet)
+
+            inner_pieces.append(f"""
                 <div style="margin-bottom:1rem;">
                     <div style="font-weight:600; font-size:1rem; margin-bottom:4px; color:#1f3f72;">{html.escape(name_label)}</div>
                     <div style="font-size:0.85rem; line-height:1.25;">{snippet_html}</div>
                 </div>
-            """
+            """)
+        inner = "\n".join(inner_pieces)
         proposed_card = f"""
         <div style="
-            background: white;
-            border-radius: 1.2rem;
+            background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
+            color: #244369;
+            border-radius: 1.5rem;
+            box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
             padding: 1.4rem 1.8rem;
-            box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);
-            border:1px solid #e2eaf7;
+            border: 1.2px solid #b5d0eb;
             font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
             line-height:1.3;
+            max-width:100%;
         ">
             <div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">
                 Proposed Fund Investment Overviews
@@ -2787,8 +2800,7 @@ def render_step16_and_16_5_cards(pdf):
         st.markdown(proposed_card, unsafe_allow_html=True)
 
 
-
-# –– Main App ––––––––––––––––
+# –– Main App –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 def run():
     st.title("Writeup & Rec")
     uploaded = st.file_uploader("Upload MPI PDF to Generate Writup & Rec PPTX", type="pdf")
