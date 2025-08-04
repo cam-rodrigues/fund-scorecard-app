@@ -1925,7 +1925,7 @@ def step16_bullet_points():
 
 from rapidfuzz import fuzz
 
-def step16_5_locate_proposed_factsheets_with_overview(pdf, min_score=30):
+def step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_score=60):
     import streamlit as st
 
     proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
@@ -1938,114 +1938,73 @@ def step16_5_locate_proposed_factsheets_with_overview(pdf, min_score=30):
         st.error("❌ 'Fund Factsheets' page number not found in TOC.")
         return
 
-    page_headers = []
+    # Precompute header-ish text per factsheet page
+    page_candidates = []
     for pnum in range(facts_start - 1, len(pdf.pages)):
         page = pdf.pages[pnum]
-        # get words with font metadata
-        words = page.extract_words(use_text_flow=True, extra_attrs=["fontname", "size", "upright"])
-        # header candidate: words near top
-        header_words = [w for w in words if w.get("top", 0) < 100]
-        header_text = " ".join(w["text"] for w in header_words).strip()
-        full_text = " ".join(w["text"] for w in words)
-        page_headers.append({
-            "page": pnum + 1,
-            "header_text": header_text,
-            "full_text": full_text,
-            "words": words,
-            "page_obj": page
+        full_text = page.extract_text() or ""
+        lines = [ln.strip() for ln in full_text.splitlines() if ln.strip()]
+        header_preview = " ".join(lines[:2])  # first couple lines as header context
+        page_candidates.append({
+            "page_num": pnum + 1,
+            "lines": lines,
+            "header_preview": header_preview,
+            "full_text": full_text
         })
 
     results = []
     for _, row in proposed_df.iterrows():
         name = row.get("Fund Scorecard Name", "").strip()
-        ticker = row.get("Ticker", "").strip().upper()
+        ticker = (row.get("Ticker", "") or "").strip().upper()
         best_score = 0
-        best_ph = None
+        best_page = None
 
-        # fuzzy match to pick factsheet page
-        for ph in page_headers:
-            score_name = fuzz.token_sort_ratio(name.lower(), ph["header_text"].lower()) if ph["header_text"] else 0
-            score_ticker = fuzz.token_sort_ratio(ticker.lower(), ph["header_text"].lower()) if ticker and ph["header_text"] else 0
+        # Fuzzy-match on header preview
+        for ph in page_candidates:
+            score_name = fuzz.token_sort_ratio(name.lower(), ph["header_preview"].lower()) if ph["header_preview"] else 0
+            score_ticker = fuzz.token_sort_ratio(ticker.lower(), ph["header_preview"].lower()) if ticker and ph["header_preview"] else 0
             score = max(score_name, score_ticker)
             if score > best_score:
                 best_score = score
-                best_ph = ph
+                best_page = ph
 
         matched_flag = "✅" if best_score >= min_score else "❌"
-        matched_page = best_ph["page"] if best_ph else None
-        matched_header = best_ph["header_text"] if best_ph and matched_flag == "✅" else ""
+        matched_page = best_page["page_num"] if best_page else None
 
-        # Search for "INVESTMENT OVERVIEW" on that page
+        # Search for INVESTMENT OVERVIEW line
         overview_found = False
-        overview_confident = False  # bold detection
         overview_text = ""
-        overview_bbox = None
+        overview_line_index = None
 
-        if best_ph:
-            words = best_ph["words"]
-            # Normalize and find sequences matching INVESTMENT OVERVIEW
-            target = "INVESTMENT OVERVIEW"
-            # Build list of indices where word text matches parts
-            # Find spans where consecutive words compose the phrase (case-insensitive)
-            lowered = [w["text"].upper() for w in words]
-            for i in range(len(lowered) - 1):
-                if lowered[i] == "INVESTMENT" and lowered[i+1] == "OVERVIEW":
-                    # Determine if either word is bold via fontname heuristic
-                    is_bold = False
-                    if "fontname" in words[i] and "bold" in words[i]["fontname"].lower():
-                        is_bold = True
-                    if "fontname" in words[i+1] and "bold" in words[i+1]["fontname"].lower():
-                        is_bold = True
+        if best_page:
+            # Find line containing phrase (case-insensitive)
+            for idx, ln in enumerate(best_page["lines"]):
+                if "INVESTMENT OVERVIEW" in ln.upper():
                     overview_found = True
-                    overview_confident = is_bold
-                    # bounding box covering both words
-                    x0 = min(words[i]["x0"], words[i+1]["x0"])
-                    x1 = max(words[i]["x1"], words[i+1]["x1"])
-                    top = min(words[i]["top"], words[i+1]["top"])
-                    bottom = max(words[i]["bottom"], words[i+1]["bottom"])
-                    overview_bbox = (x0, top, x1, bottom)
-                    # Extract the paragraph below: collect words whose top is just below heading and within x-span
-                    paragraph_words = [
-                        w for w in words
-                        if w["top"] > bottom and w["top"] < bottom + 100  # heuristic: next ~100 pts down
-                        and w["x0"] >= x0 - 5 and w["x1"] <= x1 + 5
-                    ]
-                    # sort by vertical then horizontal
-                    paragraph_words = sorted(paragraph_words, key=lambda w: (w["top"], w["x0"]))
-                    # join into string until a double newline or large gap (simple: first 100 words)
-                    overview_text = " ".join(w["text"] for w in paragraph_words[:100])
+                    overview_line_index = idx
+                    # Collect the following context_lines lines as the snippet
+                    snippet_lines = []
+                    for j in range(idx + 1, min(idx + 1 + context_lines, len(best_page["lines"]))):
+                        snippet_lines.append(best_page["lines"][j])
+                    overview_text = " ".join(snippet_lines).strip()
                     break
-
-            # fallback if not found in word-level phrase
-            if not overview_found:
-                if "INVESTMENT OVERVIEW" in best_ph["full_text"].upper():
-                    overview_found = True
-                    overview_confident = False
-                    # crude extraction: take text after phrase in full_text
-                    idx = best_ph["full_text"].upper().find("INVESTMENT OVERVIEW")
-                    snippet = best_ph["full_text"][idx:]
-                    # grab up to first double newline or 300 chars
-                    after = snippet[len("INVESTMENT OVERVIEW"):]
-                    # naive split
-                    overview_text = after.strip().split("\n\n")[0][:300]
 
         results.append({
             "Fund Scorecard Name": name,
             "Ticker": ticker,
             "Matched Factsheet Page": matched_page,
-            "Match Score": best_score,
-            "Matched Header": matched_header,
+            "Header Match Score": best_score,
             "Matched": matched_flag,
             "Investment Overview Found": "✅" if overview_found else "❌",
-            "Overview Confident (bold)": "✅" if overview_confident else "❌",
-            "Overview Text Snippet": overview_text,
-            "Overview BBox": overview_bbox or ""
+            "Overview Line Index": overview_line_index if overview_found else "",
+            "Overview Snippet": overview_text if overview_found else "",
         })
 
     st.session_state["proposed_factsheet_matches"] = results
     df = pd.DataFrame(results)
-    st.subheader("Step 16.5: Proposed Fund Factsheet + Investment Overview Detection") 
+    st.subheader("Step 16.5: Proposed Fund Factsheet + Investment Overview Detection (line-based fallback)")
     st.dataframe(df, use_container_width=True)
+
 
 #───Build Powerpoint─────────────────────────────────────────────────────────────────
 def step17_export_to_ppt():
@@ -2424,7 +2383,7 @@ def run():
         with st.expander("Bullet Points", expanded=False):
             step16_bullet_points()
 
-        step16_5_locate_proposed_factsheets_with_overview(pdf, min_score=30)
+        step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_score=60):
 
         with st.expander("Export to Powerpoint", expanded=False):
             step17_export_to_ppt()
