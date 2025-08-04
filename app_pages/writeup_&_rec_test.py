@@ -2678,6 +2678,9 @@ def step17_export_to_ppt():
     )
 
 # –– Cards ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+import html
+import streamlit as st
+
 def render_step16_and_16_5_cards(pdf):
     # Ensure the lookups / bullets are up to date
     step16_bullet_points(pdf)
@@ -2687,7 +2690,7 @@ def render_step16_and_16_5_cards(pdf):
     bullet_points = st.session_state.get("bullet_points", [])
 
     # Build selected fund card
-    bullets_html = "".join(f"<li>{bp}</li>" for bp in bullet_points) or "<li>No bullet points available.</li>"
+    bullets_html = "".join(f"<li>{html.escape(bp)}</li>" for bp in bullet_points) or "<li>No bullet points available.</li>"
     ips_status = ""
     ips_icon_table = st.session_state.get("ips_icon_table")
     if ips_icon_table is not None and not ips_icon_table.empty:
@@ -2700,78 +2703,69 @@ def render_step16_and_16_5_cards(pdf):
         "FW": "Formal Watch"
     }.get(ips_status, ips_status or "N/A")
 
-    selected_card = f"""
-    <div style="
-        background: white;
-        border-radius: 1.2rem;
-        padding: 1.4rem 1.8rem;
-        box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);
-        border:1px solid #e2eaf7;
-        font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
-        line-height:1.3;
-    ">
-        <div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">
-            Selected Fund: {selected_fund}
-        </div>
-        <div style="margin-bottom:8px; font-size:0.95rem;">
-            <b>IPS Status:</b> {status_display}
-        </div>
-        <div style="margin-bottom:6px;">
-            <b>Key Bullet Points:</b>
-        </div>
-        <ul style="padding-left:1.1rem; margin-top:4px; font-size:0.9rem;">
-            {bullets_html}
-        </ul>
-    </div>
-    """
+    selected_card = (
+        '<div style="'
+        'background: white;'
+        'border-radius: 1.2rem;'
+        'padding: 1.4rem 1.8rem;'
+        'box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);'
+        'border:1px solid #e2eaf7;'
+        'font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;'
+        'line-height:1.3;'
+        '">'
+        f'<div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">Selected Fund: {html.escape(selected_fund)}</div>'
+        f'<div style="margin-bottom:8px; font-size:0.95rem;"><b>IPS Status:</b> {html.escape(status_display)}</div>'
+        '<div style="margin-bottom:6px;"><b>Key Bullet Points:</b></div>'
+        f'<ul style="padding-left:1.1rem; margin-top:4px; font-size:0.9rem;">{bullets_html}</ul>'
+        '</div>'
+    )
 
     # Build proposed fund overview card
     if not proposed_overview:
-        proposed_card = """
-        <div style="
-            background: white;
-            border-radius: 1.2rem;
-            padding: 1.4rem 1.8rem;
-            box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);
-            border:1px solid #e2eaf7;
-            font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
-            line-height:1.3;
-        ">
-            <div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">
-                Proposed Fund Investment Overviews
-            </div>
-            <div style="font-size:0.9rem;">No proposed funds or overview data available.</div>
-        </div>
-        """
+        proposed_card = (
+            '<div style="'
+            'background: white;'
+            'border-radius: 1.2rem;'
+            'padding: 1.4rem 1.8rem;'
+            'box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);'
+            'border:1px solid #e2eaf7;'
+            'font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;'
+            'line-height:1.3;'
+            '">'
+            '<div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">Proposed Fund Investment Overviews</div>'
+            '<div style="font-size:0.9rem;">No proposed funds or overview data available.</div>'
+            '</div>'
+        )
     else:
-        inner = ""
+        inner_parts = []
         for fund, info in proposed_overview.items():
             ticker = info.get("Ticker", "")
             name_label = f"{fund} ({ticker})" if ticker else fund
             paragraph = info.get("Overview Paragraph", "")
-            snippet = paragraph if paragraph else "_No overview paragraph extracted._"
-            inner += f"""
-                <div style="margin-bottom:1rem;">
-                    <div style="font-weight:600; font-size:1rem; margin-bottom:4px; color:#1f3f72;">{name_label}</div>
-                    <div style="font-size:0.85rem; line-height:1.25;">{snippet}</div>
-                </div>
-            """
-        proposed_card = f"""
-        <div style="
-            background: white;
-            border-radius: 1.2rem;
-            padding: 1.4rem 1.8rem;
-            box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);
-            border:1px solid #e2eaf7;
-            font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
-            line-height:1.3;
-        ">
-            <div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">
-                Proposed Fund Investment Overviews
-            </div>
-            {inner}
-        </div>
-        """
+            # If the paragraph is user/content text, escape to prevent injection; if you expect safe HTML, skip escape.
+            safe_paragraph = html.escape(paragraph)
+            block = (
+                '<div style="margin-bottom:1rem;">'
+                f'<div style="font-weight:600; font-size:1rem; margin-bottom:4px; color:#1f3f72;">{html.escape(name_label)}</div>'
+                f'<div style="font-size:0.85rem; line-height:1.25;">{safe_paragraph}</div>'
+                '</div>'
+            )
+            inner_parts.append(block)
+        inner = "".join(inner_parts)
+        proposed_card = (
+            '<div style="'
+            'background: white;'
+            'border-radius: 1.2rem;'
+            'padding: 1.4rem 1.8rem;'
+            'box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);'
+            'border:1px solid #e2eaf7;'
+            'font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;'
+            'line-height:1.3;'
+            '">'
+            '<div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">Proposed Fund Investment Overviews</div>'
+            f'{inner}'
+            '</div>'
+        )
 
     col1, col2 = st.columns(2, gap="large")
     with col1:
@@ -2780,6 +2774,7 @@ def render_step16_and_16_5_cards(pdf):
         st.markdown(proposed_card, unsafe_allow_html=True)
 
 
+# –– Main App ––––––––––––––––
 def run():
     st.title("Writeup & Rec")
     uploaded = st.file_uploader("Upload MPI PDF to Generate Writup & Rec PPTX", type="pdf")
