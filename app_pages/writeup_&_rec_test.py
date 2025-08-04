@@ -2060,23 +2060,16 @@ def step16_bullet_points(pdf=None):
         bullets.append(b2)
         st.markdown(b2)
 
-    # --- Investment Overview bullet (between 2 and 3) ---
+    # --- Investment Overview bullet ---
     overview_info = st.session_state.get("step16_3_selected_overview_lookup", {}) or {}
     overview_paragraph = overview_info.get("Overview Paragraph", "")
     if overview_paragraph:
         # safe sentence splitting with fallback
         def safe_split_sentences_local(text):
             abbrev_map = {
-                "U.S.": "__US__",
-                "U.S": "__US__",
-                "U.K.": "__UK__",
-                "U.K": "__UK__",
-                "e.g.": "__EG__",
-                "e.g": "__EG__",
-                "i.e.": "__IE__",
-                "i.e": "__IE__",
-                "etc.": "__ETC__",
-                "etc": "__ETC__",
+                "U.S.": "__US__", "U.S": "__US__", "U.K.": "__UK__", "U.K": "__UK__",
+                "e.g.": "__EG__", "e.g": "__EG__", "i.e.": "__IE__", "i.e": "__IE__",
+                "etc.": "__ETC__", "etc": "__ETC__",
             }
             protected = text
             for k, v in abbrev_map.items():
@@ -2110,25 +2103,9 @@ def step16_bullet_points(pdf=None):
         bullets.append(b3)
         st.markdown(b3)
 
-    # --- Unified diagnostics / overview rendering ---
-    def render_overview_block(title, overview_info):
-        para = overview_info.get("Overview Paragraph", "") or ""
-        ctx = overview_info.get("Overview Context", "") or ""
-        st.markdown(f"**{title}**")
-        if para:
-            st.write(para)
-        else:
-            st.write("_No paragraph found beneath the heading._")
-        if ctx.strip():
-            with st.expander("Diagnostic Context", expanded=False):
-                st.code(ctx)
-        if not overview_info.get("Found Investment Overview"):
-            st.warning("Investment Overview heading was located but no usable paragraph extracted.")
-
-    render_overview_block("Investment Overview Lookup Details", overview_info)
-
     # Persist updated bullets
     st.session_state["bullet_points"] = bullets
+
 
 #───Bullet Points 2──────────────────────────────────────────────────────────────────
 from rapidfuzz import fuzz
