@@ -2326,18 +2326,25 @@ def run():
                 pdf, context_lines=3, min_score=60
             )
             if step16_5_results:
-                df = pd.DataFrame.from_dict(step16_5_results, orient="index")
                 st.subheader("Overview Lookup Summary")
-                st.dataframe(df.drop(columns=["Overview Context"], errors="ignore"), use_container_width=True)
+                df = pd.DataFrame.from_dict(step16_5_results, orient="index")
+                st.dataframe(
+                    df[[
+                        "Fund", "Ticker", "Best Page", "Match Score", "Match Type",
+                        "Found Investment Overview", "Overview Bold Detected"
+                    ]],
+                    use_container_width=True
+                )
         
                 st.subheader("Extracted Investment Overview Paragraphs")
                 for fund, info in step16_5_results.items():
-                    para = info.get("Overview Paragraph", "")
                     st.markdown(f"**{fund} ({info.get('Ticker','')})**")
+                    para = info.get("Overview Paragraph", "")
                     if para:
                         st.write(para)
                     else:
                         st.write("_No paragraph found beneath the heading._")
+
 
         with st.expander("Export to Powerpoint", expanded=False):
             step17_export_to_ppt()
