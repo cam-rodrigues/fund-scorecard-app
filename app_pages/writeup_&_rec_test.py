@@ -492,7 +492,7 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
         styled = compact_df.style.applymap(watch_style, subset=["IPS Watch Status"])
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
-        # --- Summary badges (bottom) ---
+        # --- Summary badges (in a single info card) ---
         def summarize_watch(df):
             counts = df["IPS Watch Status"].value_counts().to_dict()
             return {
@@ -503,14 +503,36 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
 
         summary = summarize_watch(df_icon)
         st.markdown("---")
-        st.markdown("### Watch Summary")
-        b1, b2, b3 = st.columns(3, gap="small")
-        with b1:
-            st.metric("No Watch", summary["No Watch"])
-        with b2:
-            st.metric("Informal Watch", summary["Informal Watch"])
-        with b3:
-            st.metric("Formal Watch", summary["Formal Watch"])
+
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(120deg, #e6f0fb 82%, #d0ebfa 100%);
+            color: #244369;
+            border-radius: 1.2rem;
+            box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
+            padding: 1.3rem 2rem 1.1rem 2rem;
+            margin-bottom: 2rem;
+            font-size: 1.07rem;
+            border: 1.2px solid #b5d0eb;
+            max-width: 520px;
+        ">
+          <div style="font-size:1.13rem; font-weight:700; color:#223d63; margin-bottom:0.7rem;">
+            Watch Summary
+          </div>
+          <div style="display:flex; gap:1.5rem; align-items:center; justify-content: flex-start; margin-bottom:0.3rem;">
+            <div style="background:#d6f5df; color:#217a3e; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
+                No Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["No Watch"]}</span>
+            </div>
+            <div style="background:#fff3cd; color:#B87333; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
+                Informal Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["Informal Watch"]}</span>
+            </div>
+            <div style="background:#f8d7da; color:#c30000; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
+                Formal Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["Formal Watch"]}</span>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
 
     # --- Persist state downstream ---
     st.session_state["fund_blocks"] = fund_blocks
