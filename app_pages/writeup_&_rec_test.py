@@ -1974,9 +1974,13 @@ def step16_3_selected_overview_lookup(pdf, context_lines=3, min_score=50):
 
     
 #───Bullet Points──────────────────────────────────────────────────────────────────
+def markdown_bold_to_html(text: str) -> str:
+    # escape to avoid injection, then convert **bold** to <strong>...</strong>
+    escaped = html.escape(text)
+    return re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', escaped)
+
 def step16_bullet_points(pdf=None):
     import streamlit as st
-    import re
 
     selected_fund = st.session_state.get("selected_fund")
     if not selected_fund:
@@ -2003,7 +2007,6 @@ def step16_bullet_points(pdf=None):
     for fld, val in item.items():
         b1 = b1.replace(f"[{fld}]", str(val))
     bullets.append(b1)
-    st.markdown(f"{b1}")
 
     # Get IPS status
     ips_icon_table = st.session_state.get("ips_icon_table")
@@ -2016,7 +2019,6 @@ def step16_bullet_points(pdf=None):
     if ips_status == "NW":
         b2 = "- This fund is **not on watch**."
         bullets.append(b2)
-        st.markdown(b2)
     else:
         status_label = (
             "Formal Watch" if ips_status == "FW" else
@@ -2058,7 +2060,6 @@ def step16_bullet_points(pdf=None):
             f"and the {pos5} half of its 5-Yr Sharpe ranks."
         )
         bullets.append(b2)
-        st.markdown(b2)
 
     # --- Investment Overview bullet ---
     overview_info = st.session_state.get("step16_3_selected_overview_lookup", {}) or {}
@@ -2085,7 +2086,6 @@ def step16_bullet_points(pdf=None):
         overview_bullet = " ".join(sentences[:3]) if sentences else overview_paragraph
         b_overview = overview_bullet  # no prefix
         bullets.append(b_overview)
-        st.markdown(b_overview)
 
     # Bullet 3: Action for Formal Watch only
     if ips_status == "FW":
@@ -2101,7 +2101,6 @@ def step16_bullet_points(pdf=None):
         replacement = ", ".join(proposals) if proposals else "a proposed fund"
         b3 = f"**Action:** Consider replacing this fund with {replacement}."
         bullets.append(b3)
-        st.markdown(b3)
 
     # Persist updated bullets
     st.session_state["bullet_points"] = bullets
@@ -2681,7 +2680,10 @@ def step17_export_to_ppt():
 import html
 import streamlit as st
 
+
 def render_step16_and_16_5_cards(pdf):
+    import streamlit as st
+
     # Ensure the lookups / bullets are up to date
     step16_bullet_points(pdf)
     proposed_overview = step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_score=60)
@@ -2689,8 +2691,8 @@ def render_step16_and_16_5_cards(pdf):
     selected_fund = st.session_state.get("selected_fund", "—")
     bullet_points = st.session_state.get("bullet_points", [])
 
-    # Build selected fund card
-    bullets_html = "".join(f"<li>{html.escape(bp)}</li>" for bp in bullet_points) or "<li>No bullet points available.</li>"
+    # Build selected fund card (with converted bold)
+    bullets_html = "".join(f"<li>{markdown_bold_to_html(bp)}</li>" for bp in bullet_points) or "<li>No bullet points available.</li>"
     ips_status = ""
     ips_icon_table = st.session_state.get("ips_icon_table")
     if ips_icon_table is not None and not ips_icon_table.empty:
@@ -2703,75 +2705,87 @@ def render_step16_and_16_5_cards(pdf):
         "FW": "Formal Watch"
     }.get(ips_status, ips_status or "N/A")
 
-    selected_card = (
-        '<div style="'
-        'background: white;'
-        'border-radius: 1.2rem;'
-        'padding: 1.4rem 1.8rem;'
-        'box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);'
-        'border:1px solid #e2eaf7;'
-        'font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;'
-        'line-height:1.3;'
-        '">'
-        f'<div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">Selected Fund: {html.escape(selected_fund)}</div>'
-        f'<div style="margin-bottom:8px; font-size:0.95rem;"><b>IPS Status:</b> {html.escape(status_display)}</div>'
-        '<div style="margin-bottom:6px;"><b>Key Bullet Points:</b></div>'
-        f'<ul style="padding-left:1.1rem; margin-top:4px; font-size:0.9rem;">{bullets_html}</ul>'
-        '</div>'
-    )
+    selected_card = f"""
+    <div style="
+        background: white;
+        border-radius: 1.2rem;
+        padding: 1.4rem 1.8rem;
+        box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);
+        border:1px solid #e2eaf7;
+        font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
+        line-height:1.3;
+    ">
+        <div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">
+            Selected Fund: {html.escape(selected_fund)}
+        </div>
+        <div style="margin-bottom:8px; font-size:0.95rem;">
+            <b>IPS Status:</b> {html.escape(status_display)}
+        </div>
+        <div style="margin-bottom:6px;">
+            <b>Key Bullet Points:</b>
+        </div>
+        <ul style="padding-left:1.1rem; margin-top:4px; font-size:0.9rem;">
+            {bullets_html}
+        </ul>
+    </div>
+    """
 
     # Build proposed fund overview card
     if not proposed_overview:
-        proposed_card = (
-            '<div style="'
-            'background: white;'
-            'border-radius: 1.2rem;'
-            'padding: 1.4rem 1.8rem;'
-            'box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);'
-            'border:1px solid #e2eaf7;'
-            'font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;'
-            'line-height:1.3;'
-            '">'
-            '<div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">Proposed Fund Investment Overviews</div>'
-            '<div style="font-size:0.9rem;">No proposed funds or overview data available.</div>'
-            '</div>'
-        )
+        proposed_card = """
+        <div style="
+            background: white;
+            border-radius: 1.2rem;
+            padding: 1.4rem 1.8rem;
+            box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);
+            border:1px solid #e2eaf7;
+            font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
+            line-height:1.3;
+        ">
+            <div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">
+                Proposed Fund Investment Overviews
+            </div>
+            <div style="font-size:0.9rem;">No proposed funds or overview data available.</div>
+        </div>
+        """
     else:
-        inner_parts = []
+        inner = ""
         for fund, info in proposed_overview.items():
             ticker = info.get("Ticker", "")
             name_label = f"{fund} ({ticker})" if ticker else fund
             paragraph = info.get("Overview Paragraph", "")
-            # If the paragraph is user/content text, escape to prevent injection; if you expect safe HTML, skip escape.
-            safe_paragraph = html.escape(paragraph)
-            block = (
-                '<div style="margin-bottom:1rem;">'
-                f'<div style="font-weight:600; font-size:1rem; margin-bottom:4px; color:#1f3f72;">{html.escape(name_label)}</div>'
-                f'<div style="font-size:0.85rem; line-height:1.25;">{safe_paragraph}</div>'
-                '</div>'
-            )
-            inner_parts.append(block)
-        inner = "".join(inner_parts)
-        proposed_card = (
-            '<div style="'
-            'background: white;'
-            'border-radius: 1.2rem;'
-            'padding: 1.4rem 1.8rem;'
-            'box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);'
-            'border:1px solid #e2eaf7;'
-            'font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;'
-            'line-height:1.3;'
-            '">'
-            '<div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">Proposed Fund Investment Overviews</div>'
-            f'{inner}'
-            '</div>'
-        )
+            snippet = paragraph if paragraph else "_No overview paragraph extracted._"
+            # render bold if present
+            snippet_html = markdown_bold_to_html(snippet)
+            inner += f"""
+                <div style="margin-bottom:1rem;">
+                    <div style="font-weight:600; font-size:1rem; margin-bottom:4px; color:#1f3f72;">{html.escape(name_label)}</div>
+                    <div style="font-size:0.85rem; line-height:1.25;">{snippet_html}</div>
+                </div>
+            """
+        proposed_card = f"""
+        <div style="
+            background: white;
+            border-radius: 1.2rem;
+            padding: 1.4rem 1.8rem;
+            box-shadow: 0 8px 30px rgba(44,85,130,0.06), 0 4px 16px rgba(36,67,105,0.04);
+            border:1px solid #e2eaf7;
+            font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
+            line-height:1.3;
+        ">
+            <div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">
+                Proposed Fund Investment Overviews
+            </div>
+            {inner}
+        </div>
+        """
 
     col1, col2 = st.columns(2, gap="large")
     with col1:
         st.markdown(selected_card, unsafe_allow_html=True)
     with col2:
         st.markdown(proposed_card, unsafe_allow_html=True)
+
 
 
 # –– Main App ––––––––––––––––
