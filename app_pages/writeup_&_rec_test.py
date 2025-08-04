@@ -2704,8 +2704,15 @@ def render_step16_and_16_5_cards(pdf):
         "NW": "No Watch",
         "IW": "Informal Watch",
         "FW": "Formal Watch"
-    }.get(ips_status, ips_status or "N/A")
-
+    }.get(ips_status, ips_status or "")
+    
+    status_badge = (
+        f"<span style='margin-left:8px; font-size:0.8rem; padding:4px 10px; border-radius:12px; "
+        f"font-weight:600; display:inline-block; vertical-align:middle; "
+        f"{'background:#d6f5df; color:#217a3e;' if ips_status=='NW' else ('background:#fff3cd; color:#B87333;' if ips_status=='IW' else ('background:#f8d7da; color:#c30000;' if ips_status=='FW' else '') )}'>"
+        f"{html.escape(status_display)}</span>"
+    ) if status_display else ""
+    
     selected_card = f"""
     <div style="
         background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
@@ -2718,20 +2725,18 @@ def render_step16_and_16_5_cards(pdf):
         line-height:1.3;
         max-width:100%;
     ">
-        <div style="font-size:1.2rem; font-weight:700; margin-bottom:6px; color:#1f3f72;">
-            Selected Fund: {html.escape(selected_fund)}
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px;">
+            <div style="font-size:1.3rem; font-weight:700; color:#1f3f72;">
+                {html.escape(selected_fund)}
+            </div>
+            {status_badge}
         </div>
-        <div style="margin-bottom:8px; font-size:0.95rem;">
-            <b>IPS Status:</b> {html.escape(status_display)}
-        </div>
-        <div style="margin-bottom:6px;">
-            <b>Key Bullet Points:</b>
-        </div>
-        <ul style="padding-left:1.1rem; margin-top:4px; font-size:0.9rem;">
+        <ul style="padding-left:1.1rem; margin-top:4px; font-size:0.9rem; margin-bottom:0;">
             {bullets_html}
         </ul>
     </div>
     """
+
 
     # Build proposed fund overview card(s)
     proposed_cards = ""
