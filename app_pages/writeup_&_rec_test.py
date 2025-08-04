@@ -1948,11 +1948,37 @@ def step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_
 
     def normalize(name):
         return re.sub(r"[^A-Za-z0-9 ]+", "", name or "").strip().lower()
-
+        
     def split_into_sentences(text):
-        # naive sentence splitter; could be improved if necessary
-        sentences = re.split(r'(?<=[\.!?])\s+', text.strip())
-        return [s.strip() for s in sentences if s.strip()]
+        # Protect common abbreviations so they don't get treated as sentence boundaries
+        abbrev_map = {
+            "U.S.": "__US__",
+            "U.S": "__US__",
+            "U.K.": "__UK__",
+            "U.K": "__UK__",
+            "e.g.": "__EG__",
+            "e.g": "__EG__",
+            "i.e.": "__IE__",
+            "i.e": "__IE__",
+            "etc.": "__ETC__",
+            "etc": "__ETC__",
+        }
+        protected = text
+        for k, v in abbrev_map.items():
+            protected = protected.replace(k, v)
+
+        # naive sentence splitter, splitting on [.?!] followed by whitespace
+        sentences = re.split(r'(?<=[\.!?])\s+', protected.strip())
+
+        # restore abbreviations in each sentence
+        def restore(s):
+            for k, v in abbrev_map.items():
+                s = s.replace(v, k)
+            return s
+
+        sentences = [restore(s).strip() for s in sentences if s.strip()]
+        return sentences
+
 
     def is_new_section_heading(line):
         stripped = line.strip()
