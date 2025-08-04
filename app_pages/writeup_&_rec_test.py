@@ -2003,7 +2003,7 @@ def step16_bullet_points(pdf=None):
     for fld, val in item.items():
         b1 = b1.replace(f"[{fld}]", str(val))
     bullets.append(b1)
-    st.markdown(f"- {b1}")
+    st.markdown(f"{b1}")
 
     # Get IPS status
     ips_icon_table = st.session_state.get("ips_icon_table")
@@ -2052,7 +2052,7 @@ def step16_bullet_points(pdf=None):
             pos5 = "bottom"
 
         b2 = (
-            f"- The fund is now on **{status_label}**. Its 3-year return trails the benchmark by "
+            f"The fund is now on **{status_label}**. Its 3-year return trails the benchmark by "
             f"{bps3} bps ({three:.2f}% vs. {bench3:.2f}%) and its 5-year return trails by "
             f"{bps5} bps ({five:.2f}% vs. {bench5:.2f}%). Its 3-Yr Sharpe ranks in the {pos3} half of peers "
             f"and the {pos5} half of its 5-Yr Sharpe ranks."
@@ -2099,7 +2099,7 @@ def step16_bullet_points(pdf=None):
                     seen.add(display)
                     proposals.append(display)
         replacement = ", ".join(proposals) if proposals else "a proposed fund"
-        b3 = f"- **Action:** Consider replacing this fund with {replacement}."
+        b3 = f"**Action:** Consider replacing this fund with {replacement}."
         bullets.append(b3)
         st.markdown(b3)
 
