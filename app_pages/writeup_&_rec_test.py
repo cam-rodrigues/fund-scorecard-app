@@ -711,7 +711,7 @@ def extract_proposed_scorecard_blocks(pdf):
         for line in lines:
             score_name = fuzz.token_sort_ratio(name.lower(), line.lower())
             score_ticker = fuzz.token_sort_ratio(ticker.lower(), line.lower()) if ticker else 0
-            score = max(s
+            score = max(s)
 
 
 # ----- Main App -----
