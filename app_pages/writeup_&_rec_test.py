@@ -2357,65 +2357,70 @@ def step17_export_to_ppt():
             pass
 
     # --- NEW: Inject first proposed fund's truncated Investment Overview into its replacement slide ---
+    import re  # ensure this is available in this scope if not already
+
+    def inject_overview_into_placeholder(slide, overview):
+        if not overview:
+            return False
+        # Split into sentences and take up to 3
+        sentences = re.split(r'(?<=[.!?])\s+', overview.strip())
+        bullets = sentences[:3] if sentences else [overview.strip()]
+        for shape in slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            # detect the placeholder box by presence of any of the original markers
+            text_content = "".join(run.text for para in shape.text_frame.paragraphs for run in para.runs)
+            if any(ph in text_content for ph in ["[Bullet Point 1]", "[Bullet Point 2]", "[Optional Bullet Point 3]"]):
+                tf = shape.text_frame
+                tf.clear()
+                for b in bullets:
+                    p = tf.add_paragraph()
+                    p.text = b
+                    p.level = 0
+                    # styling
+                    for run in p.runs:
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(11)
+                        run.font.bold = False
+                return True
+        return False
+
+    # --- NEW: Inject first proposed fund's truncated Investment Overview into its replacement slide ---
     if proposed:
         lookup = st.session_state.get("step16_5_proposed_overview_lookup", {})
         first_proposed_label = proposed[0]  # e.g., "Fund Name (TICK)"
         paragraph = lookup_overview_paragraph(first_proposed_label, lookup) or ""
         truncated = truncate_to_n_sentences(paragraph, n=3)
         if truncated:
-            # Determine which slide holds Replacement 1 (it was slide 1 in template)
-            slide_repl1 = prs.slides[1]
-            # After the existing placeholders, add an "Investment Overview" box with the paragraph
-            from pptx.util import Inches
-            # Title box
-            title_box = slide_repl1.shapes.add_textbox(Inches(0.5), Inches(3.5), Inches(4.5), Inches(0.4))
-            tf_title = title_box.text_frame
-            tf_title.text = "Investment Overview"
-            for para in tf_title.paragraphs:
-                para.font.name = "Cambria"
-                para.font.size = Pt(14)
-                para.font.bold = True
-                para.alignment = PP_ALIGN.LEFT
-            # Paragraph box
-            para_box = slide_repl1.shapes.add_textbox(Inches(0.5), Inches(4.0), Inches(8), Inches(1.5))
-            tf_para = para_box.text_frame
-            tf_para.text = truncated
-            for para in tf_para.paragraphs:
-                para.font.name = "Cambria"
-                para.font.size = Pt(11)
-                para.font.bold = False
-                para.alignment = PP_ALIGN.LEFT
+            # Replacement slide 1 is expected at index 1
+            try:
+                slide_repl1 = prs.slides[1]
+                injected = inject_overview_into_placeholder(slide_repl1, truncated)
+                if not injected:
+                    st.warning(f"Could not find the placeholder textbox on Replacement 1 slide to inject overview for '{first_proposed_label}'.")
+                # Also replace the placeholder "[Replacement 1]" if present
+                fill_text_placeholder_preserving_format(slide_repl1, "[Replacement 1]", first_proposed_label)
+            except Exception as e:
+                st.warning(f"Error injecting overview into Replacement 1 slide: {e}")
         else:
             st.warning(f"No overview paragraph found to insert for proposed fund '{first_proposed_label}'.")
 
-        # If there's a second proposed fund, do same on Replacement 2 slide (if it exists)
+        # Second proposed fund (if any)
         if len(proposed) > 1:
             second_label = proposed[1]
             paragraph2 = lookup_overview_paragraph(second_label, lookup) or ""
             truncated2 = truncate_to_n_sentences(paragraph2, n=3)
             if truncated2:
-                # Replacement 2 is slide index 2 unless it was removed; guard safely
                 try:
                     slide_repl2 = prs.slides[2]
-                    title_box = slide_repl2.shapes.add_textbox(Inches(0.5), Inches(3.5), Inches(4.5), Inches(0.4))
-                    tf_title = title_box.text_frame
-                    tf_title.text = "Investment Overview"
-                    for para in tf_title.paragraphs:
-                        para.font.name = "Cambria"
-                        para.font.size = Pt(14)
-                        para.font.bold = True
-                        para.alignment = PP_ALIGN.LEFT
-                    para_box = slide_repl2.shapes.add_textbox(Inches(0.5), Inches(4.0), Inches(8), Inches(1.5))
-                    tf_para = para_box.text_frame
-                    tf_para.text = truncated2
-                    for para in tf_para.paragraphs:
-                        para.font.name = "Cambria"
-                        para.font.size = Pt(11)
-                        para.font.bold = False
-                        para.alignment = PP_ALIGN.LEFT
+                    injected2 = inject_overview_into_placeholder(slide_repl2, truncated2)
+                    if not injected2:
+                        st.warning(f"Could not find the placeholder textbox on Replacement 2 slide to inject overview for '{second_label}'.")
+                    fill_text_placeholder_preserving_format(slide_repl2, "[Replacement 2]", second_label)
                 except Exception:
                     st.warning("Could not find or update Replacement 2 slide for second proposed fund.")
-
+            else:
+                st.warning(f"No overview paragraph found to insert for proposed fund '{second_label}'.")
 
 
     # --- Fill Slide 3 ---
