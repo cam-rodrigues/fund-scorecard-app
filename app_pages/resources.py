@@ -2,104 +2,27 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 def run():
+    # ── Page setup ────────────────────────────────────────────────────────────
     st.set_page_config(page_title="Resources", layout="wide")
 
-    # Shared CSS for everything on the page
-    st.markdown("""
-    <style>
-        .card-container {
-            display: flex;
-            flex-direction: column;
-            gap: 2.2rem;
-            margin-top: 2.4rem;
-            max-width: 1050px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        .info-card {
-            background: #f7fafd;
-            border: 1.5px solid #d6e1f3;
-            border-radius: 1.6rem;
-            box-shadow: 0 2px 12px rgba(66,120,170,0.07);
-            padding: 2.15rem 2.3rem 1.3rem 2.3rem;
-            margin-bottom: 0.6rem;
-            position: relative;
-            transition: box-shadow 0.14s;
-        }
-        .info-card h2 {
-            font-size: 1.45rem;
-            font-weight: 900;
-            color: #164170;
-            margin-bottom: 0.45em;
-            margin-top: 0;
-        }
-        .info-card .subtle-tip {
-            font-size: 1.03rem;
-            color: #48618c;
-            margin-bottom: 0.4em;
-            margin-top: -0.7em;
-        }
-        .category-card {
-            background: #f9fbfe;
-            border: 1px solid #dae5f5;
-            border-radius: 1.1rem;
-            padding: 1.8rem 1.7rem 1.1rem 1.7rem;
-            margin-bottom: 0.5rem;
-        }
-        .category-card h3 {
-            font-size: 1.13rem;
-            font-weight: 800;
-            color: #215084;
-            margin-bottom: 1.1em;
-            margin-top: 0.2em;
-            letter-spacing: 0.02em;
-        }
-        .logo-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 1.15rem;
-            margin-bottom: 0.7rem;
-        }
-        .logo-box {
-            background: #f0f4fa;
-            border: 1px solid #cbd5e1;
-            border-radius: 0.75rem;
-            padding: 0.7rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.19s, border-color 0.19s;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
-            height: 85px;
-        }
-        .logo-box:hover {
-            transform: scale(1.055);
-            border-color: #285593;
-            cursor: pointer;
-        }
-        .logo-box img {
-            max-width: 80%;
-            max-height: 62px;
-            height: auto;
-        }
-        .divider {
-            border: none;
-            border-top: 1.2px solid #d6e2ee;
-            margin: 1.4rem 0 1.8rem 0;
-        }
-        .bottom-callout {
-            margin-top: 1.8rem;
-            padding: 1.1rem 1.3rem 1.1rem 1.3rem;
-            background: #f6f9fd;
-            border: 1px solid #d6e2ee;
-            border-radius: 0.7rem;
-            font-size: 0.98rem;
-            color: #37445a;
-        }
-    </style>
-    """, unsafe_allow_html=True)
+    # Reduce the large default gap above st.title()
+    st.markdown(
+        """
+        <style>
+            /* Trim top padding under the navbar / header */
+            section.main > div {
+                padding-top: 1rem !important;   /* tighter: adjust as you like */
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
-    # Trusted-site categories
+    # ── Heading & intro ───────────────────────────────────────────────────────
+    st.title("Resources")
+    st.markdown("Click any logo to open the site in a new tab.")
+
+    # ── Trusted-site categories ───────────────────────────────────────────────
     categories = {
         "Financial News": [
             {"name": "Bloomberg", "url": "https://www.bloomberg.com", "logo": "https://logo.clearbit.com/bloomberg.com"},
@@ -151,44 +74,75 @@ def run():
         ],
     }
 
-    st.markdown('<div class="card-container">', unsafe_allow_html=True)
+    # ── Shared CSS for grids and cards ───────────────────────────────────────
+    css = """
+    <style>
+        .logo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        .logo-box {
+            background: #f0f4fa;
+            border: 1px solid #cbd5e1;
+            border-radius: 0.75rem;
+            padding: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease, border-color 0.2s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+            height: 85px;
+        }
+        .logo-box:hover {
+            transform: scale(1.06);
+            border-color: #1c2e4a;
+            cursor: pointer;
+        }
+        .logo-box img {
+            max-width: 80%;
+            max-height: 60px;
+            height: auto;
+        }
+        .divider {
+            border: none;
+            border-top: 1px solid #d6e2ee;
+            margin: 1.5rem 0 2rem 0;
+        }
+    </style>
+    """
 
-    # Title and tip card
-    st.markdown('''
-        <div class="info-card">
-            <h2>Resources</h2>
-            <div class="subtle-tip">Click any logo below to open the site in a new tab.</div>
-        </div>
-    ''', unsafe_allow_html=True)
-
-    # Each category in a card with a grid
+    # ── Render each category ────────────────────────────────────────────────
     for i, (category, sites) in enumerate(categories.items()):
-        st.markdown(f'''
-            <div class="category-card">
-                <h3>{category}</h3>
-                <div class="logo-grid">
-        ''', unsafe_allow_html=True)
+        st.markdown(f"### {category}")
 
+        # build the grid HTML
+        html_block = css + '<div class="logo-grid">'
         for site in sites:
-            # Note: Using components.html to allow <a target="_blank">
-            logo_html = (
+            html_block += (
                 f'<a href="{site["url"]}" target="_blank" class="logo-box">'
                 f'  <img src="{site["logo"]}" alt="{site["name"]} logo" title="{site["name"]}">'
                 f'</a>'
             )
-            components.html(logo_html, height=92, scrolling=False)
+        html_block += '</div>'
 
-        st.markdown('</div></div>', unsafe_allow_html=True)
+        # dynamic height calculation (tweak row/offset as needed)
+        rows = (len(sites) + 3) // 4
+        height = 200 + rows * 110
+        components.html(html_block, height=height, scrolling=False)
 
         if i < len(categories) - 1:
             st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
-    # Bottom callout
-    st.markdown('''
-        <div class="bottom-callout">
-            Looking for a site that’s not listed here?<br>
-            Please submit a <strong>user request</strong> and we’ll add it to the trusted resources.
+    # ── Bottom callout ──────────────────────────────────────────────────────
+    st.markdown(
+        """
+        <div style="margin-top: 2rem; padding: 1.2rem; background-color: #f9fbfe;
+                    border: 1px solid #d6e2ee; border-radius: 0.5rem; font-size: 0.93rem;">
+            Looking for a site that’s not listed here?
+            <br>Please submit a <strong>user request</strong> and we’ll add it to the trusted resources.
         </div>
-    ''', unsafe_allow_html=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)
+        """,
+        unsafe_allow_html=True,
+    )
