@@ -2665,15 +2665,71 @@ def step17_export_to_ppt():
                 fill_table_with_styles(shape.table, df_slide4_table2)
                 break
 
-    # --- Save and offer download ---
+    # --- Save to memory buffer ---
     output = BytesIO()
     prs.save(output)
-    st.success("Powerpoint Generated")
+    ppt_bytes = output.getvalue()
+
+    # --- Unified card with generation status and download button ---
+    generated = bool(ppt_bytes)
+    status_badge = ""
+    if generated:
+        status_badge = """
+        <div style="
+            background:#d6f5df;
+            color:#217a3e;
+            padding:8px 16px;
+            border-radius:8px;
+            font-weight:600;
+            display:inline-block;
+            margin-left:8px;
+            font-size:0.9rem;
+        ">
+            PowerPoint Generated
+        </div>
+        """
+
+    st.markdown(f"""
+    <div style="
+        display:flex;
+        flex-wrap:wrap;
+        gap:16px;
+        align-items:center;
+        background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
+        color: #244369;
+        border-radius: 1.5rem;
+        box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
+        padding: 1.2rem 1.6rem;
+        border: 1.2px solid #b5d0eb;
+        margin-top: 1rem;
+        font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
+    ">
+        <div style="flex:1; min-width:220px;">
+            <div style="font-size:1rem; font-weight:700; margin-bottom:4px;">
+                Generate Writeup PowerPoint
+            </div>
+            <div style="font-size:0.85rem; line-height:1.3;">
+                Click below to build and download the writeup & recommendation PowerPoint.
+            </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            {status_badge}
+            <div>
+                <!-- styled Streamlit download button will appear below; wrapper for spacing -->
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # download button (styled via args; keep it visually distinct)
     st.download_button(
         label="Download Writeup PowerPoint",
-        data=output.getvalue(),
+        data=ppt_bytes,
         file_name=f"{selected} Writeup.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        use_container_width=False,
+        key="download_writeup_pptx",
+        args=None,
     )
 
 # –– Cards ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
@@ -2926,29 +2982,8 @@ def run():
         # --- Replaced: show Step 16 & 16.5 as side-by-side cards ---
         render_step16_and_16_5_cards(pdf)
 
-        # --- Export to PowerPoint (always visible styled card with integrated button) ---
-        export_col1, export_col2 = st.columns([3, 1], gap="small")
-        with export_col1:
-            st.markdown(f"""
-                <div style="
-                    background: linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%);
-                    color: #244369;
-                    border-radius: 1.5rem;
-                    box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
-                    padding: 1.2rem 1.6rem;
-                    border: 1.2px solid #b5d0eb;
-                    margin-bottom: 1rem;
-                    font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
-                ">
-                    <div style="font-size:1rem; font-weight:700; margin-bottom:4px;">Generate Writeup PowerPoint</div>
-                    <div style="font-size:0.85rem; margin-bottom:8px;">
-                        Click below to build and download the writeup & recommendation PowerPoint.
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-        with export_col2:
-            # trigger generation & show styled download button
-            step17_export_to_ppt()
+        # --- Export to PowerPoint (always visible, clean UI) ---
+        step17_export_to_ppt()
 
 
 
