@@ -2406,7 +2406,7 @@ def run():
             step16_bullet_points()
             
         with st.expander("Proposed Fund Investment Overview", expanded=False):
-            step16.5_results = step16.5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_score=60)
+            step16_5_results = step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_score=60)
 
         with st.expander("Export to Powerpoint", expanded=False):
             step17_export_to_ppt()
