@@ -672,6 +672,48 @@ def get_proposed_fund_card_html():
     """
     return card_html, css
 
+def extract_proposed_scorecard_blocks(pdf):
+    import pandas as pd
+    from rapidfuzz import fuzz
+
+    prop_page = st.session_state.get("scorecard_proposed_page")
+    if not prop_page:
+        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
+        return pd.DataFrame()
+
+    # 1. Extract lines from just the Proposed Funds scorecard page
+    page = pdf.pages[prop_page - 1]
+    lines = [ln.strip() for ln in (page.extract_text() or "").splitlines() if ln.strip()]
+    if not lines:
+        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
+        return pd.DataFrame()
+
+    # 2. Build candidate list from already-extracted funds (performance/scorecard)
+    perf_data = st.session_state.get("fund_performance_data", [])
+    if not perf_data:
+        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
+        return pd.DataFrame()
+
+    candidate_funds = []
+    for item in perf_data:
+        name = item.get("Fund Scorecard Name", "").strip()
+        ticker = item.get("Ticker", "").strip().upper()
+        if name:
+            candidate_funds.append({"Fund Scorecard Name": name, "Ticker": ticker})
+
+    # 3. Fuzzy-match each candidate against the lines on the proposed page
+    results = []
+    for fund in candidate_funds:
+        name = fund["Fund Scorecard Name"]
+        ticker = fund["Ticker"]
+        best_score = 0
+        best_line = ""
+        for line in lines:
+            score_name = fuzz.token_sort_ratio(name.lower(), line.lower())
+            score_ticker = fuzz.token_sort_ratio(ticker.lower(), line.lower()) if ticker else 0
+            score = max(s
+
+
 # ----- Main App -----
 def run():
     st.title("IPS")
