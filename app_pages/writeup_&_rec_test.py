@@ -23,10 +23,7 @@ def extract_performance_table(pdf, performance_page, fund_names, end_page=None):
     perf_data = []
     for name in fund_names:
         item = {"Fund Scorecard Name": name}
-        idx = next(
-            (i for i, ln in enumerate(lines) if name in ln),
-            None
-        )
+        idx = next((i for i, ln in enumerate(lines) if name in ln), None)
         if idx is None:
             scores = [(i, fuzz.token_sort_ratio(name.lower(), ln.lower()))
                       for i, ln in enumerate(lines)]
@@ -161,7 +158,7 @@ def extract_scorecard_blocks(pdf, scorecard_page):
         "Tracking Error Rank (3Yr)", "Tracking Error Rank (5Yr)"
     ]
     pages, fund_blocks, fund_name, metrics = [], [], None, []
-    for p in pdf.pages[scorecard_page-1:]:
+    for p in pdf.pages[scorecard_page - 1:]:
         pages.append(p.extract_text() or "")
     lines = "\n".join(pages).splitlines()
     for line in lines:
@@ -403,45 +400,6 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
         styled = compact_df.style.applymap(watch_style, subset=["IPS Watch Status"])
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
-        def summarize_watch(df):
-            counts = df["IPS Watch Status"].value_counts().to_dict()
-            return {
-                "No Watch": counts.get("NW", 0),
-                "Informal Watch": counts.get("IW", 0),
-                "Formal Watch": counts.get("FW", 0),
-            }
-
-        summary = summarize_watch(df_icon)
-        st.markdown("---")
-        st.markdown(f"""
-        <div style="
-            background: linear-gradient(120deg, #e6f0fb 82%, #d0ebfa 100%);
-            color: #244369;
-            border-radius: 1.2rem;
-            box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
-            padding: 1.3rem 2rem 1.1rem 2rem;
-            margin-bottom: 2rem;
-            font-size: 1.07rem;
-            border: 1.2px solid #b5d0eb;
-            max-width: 520px;
-        ">
-          <div style="font-size:1.13rem; font-weight:700; color:#223d63; margin-bottom:0.7rem;">
-            Watch Summary
-          </div>
-          <div style="display:flex; gap:1rem; align-items:center; justify-content: flex-start; margin-bottom:0.3rem;">
-            <div class="watch-badge" style="background:#d6f5df; color:#217a3e;">
-                No Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["No Watch"]}</span>
-            </div>
-            <div class="watch-badge" style="background:#fff3cd; color:#B87333;">
-                Informal Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["Informal Watch"]}</span>
-            </div>
-            <div class="watch-badge" style="background:#f8d7da; color:#c30000;">
-                Formal Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["Formal Watch"]}</span>
-            </div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
     st.session_state["fund_blocks"] = fund_blocks
     st.session_state["fund_types"] = fund_types
     st.session_state["fund_tickers"] = tickers
@@ -460,20 +418,21 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     st.session_state["fund_performance_data"] = perf_data
     st.session_state["tickers"] = tickers  # legacy compatibility
 
-# ─── Side-by-side Info Card Functions ────────────────────────────────────────
+# ─── Side-by-side Info Card Functions ───────────────────────────────────────────
 
 def get_ips_fail_card_html():
     df = st.session_state.get("ips_icon_table")
     if df is None or df.empty:
         return "", ""
-    fail_df = df[df["IPS Watch Status"].isin(["FW", "IW"])][["Fund Name", "IPS Watch Status"]]
+    fail_df = df[df["IPS Watch Status"].isin(["FW", "IW"])][["Fund Name", "IPS Watch Status"]].copy()
+    # clean trailing dots/spaces in fund name for display
+    fail_df["Fund Name"] = fail_df["Fund Name"].str.replace(r'\s*\.\s*$', '', regex=True)
     if fail_df.empty:
         return "", ""
     table_html = fail_df.rename(columns={
         "Fund Name": "Fund",
         "IPS Watch Status": "Watch Status"
     }).to_html(index=False, border=0, justify="center", classes="ips-fail-table")
-
     card_html = f"""
     <div style='
         background: linear-gradient(120deg, #e6f0fb 85%, #c8e0f6 100%);
@@ -505,12 +464,9 @@ def get_ips_fail_card_html():
     }
     .ips-fail-table th, .ips-fail-table td {
         border: none;
-        padding: 0.65em 1.1em;
+        padding: 0.48em 1.1em;
         text-align: left;
         font-size: 1.07em;
-        white-space: normal;
-        word-break: break-word;
-        line-height: 1.2;
     }
     .ips-fail-table th {
         background: #244369;
@@ -521,22 +477,8 @@ def get_ips_fail_card_html():
     .ips-fail-table td {
         color: #244369;
     }
-    .ips-fail-table tr:nth-child(even) {background: #eef6fc;}
-    .ips-fail-table tr:nth-child(odd)  {background: #f7fbfe;}
-    .watch-badge {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        min-width: 100px;
-        padding: 0.5rem 0.9rem;
-        border-radius: 8px;
-        font-weight: 600;
-    }
-    .proposed-fund-table th, .proposed-fund-table td {
-        white-space: normal;
-        word-break: break-word;
-    }
+    .ips-fail-table tr:nth-child(even) {background: #e6f0fb;}
+    .ips-fail-table tr:nth-child(odd)  {background: #f8fafc;}
     </style>
     """
     return card_html, css
@@ -558,14 +500,9 @@ def get_proposed_fund_card_html():
         """
         css = ""
         return card_html, css
-
-    def clean_display_name(name):
-        return " ".join(part for part in name.replace(".", "").split())
-
-    display_df = df[["Fund Scorecard Name", "Ticker"]].copy()
-    display_df["Fund"] = display_df["Fund Scorecard Name"].apply(clean_display_name)
-    display_df = display_df[["Fund", "Ticker"]]
-
+    display_df = df[["Fund Scorecard Name", "Ticker"]].rename(columns={
+        "Fund Scorecard Name": "Fund",
+    })
     table_html = display_df.to_html(index=False, border=0, justify="center", classes="proposed-fund-table")
     card_html = f"""
     <div style='
@@ -642,20 +579,20 @@ def get_watch_summary_card_html():
       <div style="font-size:1.13rem; font-weight:700; color:#223d63; margin-bottom:0.7rem;">
         Watch Summary
       </div>
-      <div style="display:flex; gap:1rem; align-items:center; justify-content: flex-start; margin-bottom:0.3rem;">
-        <div class="watch-badge" style="background:#d6f5df; color:#217a3e;">
+      <div style="display:flex; gap:1.5rem; align-items:center; justify-content: flex-start; margin-bottom:0.3rem;">
+        <div style="background:#d6f5df; color:#217a3e; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
             No Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["No Watch"]}</span>
         </div>
-        <div class="watch-badge" style="background:#fff3cd; color:#B87333;">
+        <div style="background:#fff3cd; color:#B87333; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
             Informal Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["Informal Watch"]}</span>
         </div>
-        <div class="watch-badge" style="background:#f8d7da; color:#c30000;">
+        <div style="background:#f8d7da; color:#c30000; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
             Formal Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["Formal Watch"]}</span>
         </div>
       </div>
     </div>
     """
-    css = ""  # badge styling is included in fail card CSS for reuse
+    css = ""
     return card_html, css
 
 # ─── Proposed Funds Extraction ─────────────────────────────────────────────
@@ -706,7 +643,7 @@ def extract_proposed_scorecard_blocks(pdf):
     st.session_state["proposed_funds_confirmed_df"] = df_confirmed
     return df_confirmed
 
-# ─── Main App ────────────────────────────────────────────────────────────────
+# ─── Main App ───────────────────────────────────────────────────────────────
 
 def run():
     st.title("IPS")
@@ -733,24 +670,21 @@ def run():
             st.error("Missing scorecard, performance page, or total options")
 
         extract_proposed_scorecard_blocks(pdf)
-        fail_card_html, fail_css = get_ips_fail_card_html()
+        # Left: proposed + watch summary; Right: funds on watch
+        col_left, col_right = st.columns([1, 1.2], gap="large")
         proposed_card_html, proposed_css = get_proposed_fund_card_html()
         watch_summary_card_html, watch_summary_css = get_watch_summary_card_html()
-
-        # --- CARD LAYOUT (proposed + summary left, funds on watch right) ---
-        left_col, right_col = st.columns([1, 1], gap="large")
-        with left_col:
+        fail_card_html, fail_css = get_ips_fail_card_html()
+        with col_left:
             if proposed_card_html:
                 st.markdown(proposed_card_html, unsafe_allow_html=True)
             if watch_summary_card_html:
-                # reduce vertical dead space a bit
-                st.markdown(watch_summary_card_html.replace("margin-bottom: 1rem;", "margin:0.5rem 0 1rem 0;"), unsafe_allow_html=True)
-        with right_col:
+                st.markdown(watch_summary_card_html, unsafe_allow_html=True)
+        with col_right:
             if fail_card_html:
                 st.markdown(fail_card_html, unsafe_allow_html=True)
-
-        # Consolidated CSS
-        st.markdown(f"{fail_css}\n{proposed_css}\n{watch_summary_css}", unsafe_allow_html=True)
+        # Single block of CSS
+        st.markdown(f"{proposed_css}\n{watch_summary_css}\n{fail_css}", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     run()
