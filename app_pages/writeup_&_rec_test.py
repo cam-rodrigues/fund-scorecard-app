@@ -2779,7 +2779,6 @@ def render_step16_and_16_5_cards(pdf):
     with col2:
         st.markdown(proposed_card, unsafe_allow_html=True)
 
-#───Main App──────────────────────────────────────────────────────────────────
 
 def run():
     st.title("Writeup & Rec")
@@ -2890,6 +2889,7 @@ def run():
         # --- Export to PowerPoint ---
         with st.expander("Export to Powerpoint", expanded=False):
             step17_export_to_ppt()
+
 
 if __name__ == "__main__":
     run()
