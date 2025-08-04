@@ -2670,55 +2670,15 @@ def step17_export_to_ppt():
     prs.save(output)
     ppt_data = output.getvalue()
 
-    # Unified card with status badge + spacing before download button
-    col1, col2 = st.columns([3, 1], gap="large")
-    with col1:
-        st.markdown(
-            """
-            <div style="
-                background: linear-gradient(120deg,#e6f0fb 80%,#c8e0f6 100%);
-                border-radius:1.5rem;
-                padding:1rem 1.5rem;
-                display:flex;
-                align-items:center;
-                gap:12px;
-                box-shadow:0 8px 30px rgba(44,85,130,0.06),0 4px 16px rgba(36,67,105,0.04);
-                margin-bottom:0.75rem;
-            ">
-                <div style="flex:1;">
-                    <div style="font-size:1.1rem; font-weight:700; color:#1f3f72; margin-bottom:4px;">
-                        Generate Writeup PowerPoint
-                    </div>
-                    <div style="font-size:0.9rem; color:#223d63;">
-                        Click below to build and download the writeup & recommendation PowerPoint.
-                    </div>
-                </div>
-                <div style="
-                    background:#d6f5df;
-                    color:#217a3e;
-                    padding:8px 16px;
-                    border-radius:8px;
-                    font-weight:600;
-                    font-size:0.85rem;
-                    white-space: nowrap;
-                ">
-                    PowerPoint Generated
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        # extra vertical spacing between card and fund box if needed
-        st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
-    with col2:
-        st.download_button(
-            label="Download Writeup PowerPoint",
-            data=ppt_data,
-            file_name=f"{selected} Writeup.pptx",
-            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            use_container_width=True,
-            key="download_writeup_pptx",
-        )
+
+    st.download_button(
+        label="Download Writeup PowerPoint",
+        data=ppt_data,
+        file_name=f"{selected} Writeup.pptx",
+        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        use_container_width=True,
+        key="download_writeup_pptx",
+    )
 
 
 # –– Cards ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
