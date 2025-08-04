@@ -516,7 +516,8 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     st.session_state["fund_blocks"] = fund_blocks
     st.session_state["fund_types"] = fund_types
     st.session_state["fund_tickers"] = tickers
-    st.session_state["ips_icon_table"] = df_icon
+    # Persist the compactified/iconified table for downstream Excel use
+    st.session_state["ips_icon_table"] = compact_df.copy()
     st.session_state["ips_raw_table"] = df_raw
 
     # --- Performance extraction ---
@@ -1253,7 +1254,12 @@ from openpyxl.utils import get_column_letter
 
 def step15_populate_excel():
     """
-    Same as before but now colors Current Quarter Status: NW=green, IW=orange, FW=red.
+    Populates the Excel template with:
+      - Prepared For (AB4), quarter (AB5), actual date (AB6)
+      - Category / Investment Option / Ticker / Expense Ratio
+      - IPS criteria 1..11 (handles either compact "1"-"11" or full headers)
+      - Current Quarter Status with coloring
+      - Deletes extra rows after last used row up to row 180
     """
     prepared_for = st.session_state.get("prepared_for", "")
     if not prepared_for:
@@ -1264,6 +1270,7 @@ def step15_populate_excel():
     quarter_str = ""
     actual_date = None
 
+    # Parse quarter and date
     m = re.match(r"([1-4])(?:st|nd|rd|th)\s+QTR,\s*(20\d{2})", report_date)
     if m:
         qnum = int(m.group(1))
@@ -1296,6 +1303,7 @@ def step15_populate_excel():
 
     date_str = actual_date.strftime("%m/%d/%Y")
 
+    # Load workbook
     template_path = Path("assets") / "investment_metrics_template.xlsx"
     if template_path.is_dir():
         candidates = list(template_path.glob("*.xlsx"))
@@ -1320,22 +1328,22 @@ def step15_populate_excel():
     ws["AB5"] = quarter_str if quarter_str else ""
     ws["AB6"] = date_str
 
-    # Locate headers in row 4
+    # Map headers in row 4 to column indices
     header_row = 4
     header_to_col = {}
     for cell in ws[header_row]:
         if cell.value:
-            header_to_col[str(cell.value).strip()] = cell.column  # numeric
+            header_to_col[str(cell.value).strip()] = cell.column  # numeric index
 
-    df_icon = st.session_state.get("ips_icon_table")
-    fund_types = st.session_state.get("fund_types", {})
+    # Source data
+    df_icon = st.session_state.get("ips_icon_table")  # should be compactified (1..11)
     facts = st.session_state.get("step12_fund_facts_table", [])
     expense_lookup = {rec.get("Fund Name", ""): rec.get("Expense Ratio", "") for rec in (facts or [])}
 
     start_row = 5
     num_written = 0
 
-    # Define fills
+    # Coloring fills
     fill_map = {
         "NW": PatternFill(fill_type="solid", start_color="C8EFD0", end_color="C8EFD0"),  # light green
         "IW": PatternFill(fill_type="solid", start_color="FFE8B0", end_color="FFE8B0"),  # light orange
@@ -1352,53 +1360,67 @@ def step15_populate_excel():
             fund_type = row.get("Fund Type", "")
             watch_status = row.get("IPS Watch Status", "")
 
-            # Category
+            # Category = Fund Type
             if "Category" in header_to_col:
                 col = get_column_letter(header_to_col["Category"])
                 ws[f"{col}{excel_row}"] = fund_type
-            # Investment Option
+
+            # Investment Option = Fund Name
             if "Investment Option" in header_to_col:
                 col = get_column_letter(header_to_col["Investment Option"])
                 ws[f"{col}{excel_row}"] = fund_name
+
             # Ticker
             if "Ticker" in header_to_col:
                 col = get_column_letter(header_to_col["Ticker"])
                 ws[f"{col}{excel_row}"] = ticker
+
             # Expense Ratio
             exp_val = expense_lookup.get(fund_name, "")
             if "Expense Ratio" in header_to_col:
                 col = get_column_letter(header_to_col["Expense Ratio"])
                 ws[f"{col}{excel_row}"] = exp_val
-            # IPS criteria 1..11
+
+            # IPS criteria 1..11, using numeric keys first then falling back
             for i in range(1, 12):
-                key = str(i)
-                if key in header_to_col:
-                    col = get_column_letter(header_to_col[key])
-                    val = row.get(key, "")
-                    ws[f"{col}{excel_row}"] = val
-            # Current Quarter Status with color
+                compact_key = str(i)
+                full_key = f"IPS Investment Criteria {i}"
+                value = ""
+                if compact_key in row and row.get(compact_key) not in (None, ""):
+                    value = row.get(compact_key)
+                elif full_key in row and row.get(full_key) not in (None, ""):
+                    value = row.get(full_key)
+                if compact_key in header_to_col:
+                    col = get_column_letter(header_to_col[compact_key])
+                    ws[f"{col}{excel_row}"] = value
+                elif full_key in header_to_col:
+                    col = get_column_letter(header_to_col[full_key])
+                    ws[f"{col}{excel_row}"] = value
+
+            # Current Quarter Status with coloring
             if "Current Quarter Status" in header_to_col:
                 col = get_column_letter(header_to_col["Current Quarter Status"])
                 cell = ws[f"{col}{excel_row}"]
                 cell.value = watch_status
-                # Apply fill based on status (default no fill if unexpected)
-                fill = fill_map.get(watch_status)
-                if fill:
-                    cell.fill = fill
+                if watch_status in fill_map:
+                    cell.fill = fill_map[watch_status]
 
             num_written += 1
 
+    # Delete extra rows after last filled up to row 180
     last_filled_row = (start_row + num_written - 1) if num_written > 0 else start_row - 1
     if last_filled_row < 180:
         to_delete_start = last_filled_row + 1
         count = 180 - last_filled_row
         ws.delete_rows(to_delete_start, count)
 
+    # Save and return
     from io import BytesIO
     out = BytesIO()
     wb.save(out)
     out.seek(0)
     return out
+
 
 #───Main App──────────────────────────────────────────────────────────────────
 
