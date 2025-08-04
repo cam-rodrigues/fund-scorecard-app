@@ -622,18 +622,16 @@ def run():
             toc_text = "".join((pdf.pages[i].extract_text() or "") for i in range(min(3, len(pdf.pages))))
             process_toc(toc_text)
 
-        # --- Combined core details grouped ---
-        with st.expander("All Fund Details", expanded=True):
-            # 1. IPS Investment Screening
-            with st.expander("IPS Investment Screening", expanded=True):
-                sp = st.session_state.get('scorecard_page')
-                tot = st.session_state.get('total_options')
-                pp = st.session_state.get('performance_page')
-                factsheets_page = st.session_state.get('factsheets_page')
-                if sp and tot is not None and pp:
-                    step3_5_6_scorecard_and_ips(pdf, sp, pp, factsheets_page, tot)
-                else:
-                    st.error("Missing scorecard, performance page, or total options")
+        # 1. IPS Investment Screening
+        with st.expander("IPS Investment Screening", expanded=True):
+            sp = st.session_state.get('scorecard_page')
+            tot = st.session_state.get('total_options')
+            pp = st.session_state.get('performance_page')
+            factsheets_page = st.session_state.get('factsheets_page')
+            if sp and tot is not None and pp:
+                step3_5_6_scorecard_and_ips(pdf, sp, pp, factsheets_page, tot)
+            else:
+                st.error("Missing scorecard, performance page, or total options")
 
 
         # Step 14.5: IPS Fail Table
