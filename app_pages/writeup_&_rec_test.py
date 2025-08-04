@@ -2102,7 +2102,13 @@ def step17_export_to_ppt():
     from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     from io import BytesIO
     import pandas as pd
-
+    
+    def truncate_to_n_sentences(text, n=3):
+        sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+        if len(sentences) <= n:
+            return " ".join(sentences).strip()
+        return " ".join(sentences[:n]).strip()
+        
     selected = st.session_state.get("selected_fund")
     if not selected:
         st.error("❌ No fund selected. Please select a fund in Step 15.")
@@ -2192,8 +2198,6 @@ def step17_export_to_ppt():
                 replaced = True
                 break
         return replaced
-
-
 
     # Gather session data
     facts = st.session_state.get("fund_factsheets_data", [])
@@ -2321,6 +2325,64 @@ def step17_export_to_ppt():
             prs.slides._sldIdLst.remove(prs.slides._sldIdLst[2])
         except Exception:
             pass
+
+    # --- NEW: Inject first proposed fund's truncated Investment Overview into its replacement slide ---
+    if proposed:
+        # pull overview paragraph for first proposed fund
+        lookup = st.session_state.get("step16_5_proposed_overview_lookup", {})
+        # fund_key stored earlier without ticker parentheses
+        first_proposed_label = proposed[0]  # e.g., "Fund Name (TICK)"
+        # extract name part before " (" if present
+        fund_key = re.sub(r"\s*\(.*\)$", "", first_proposed_label).strip()
+        info = lookup.get(fund_key, {})
+        paragraph = info.get("Overview Paragraph", "") or ""
+        truncated = truncate_to_n_sentences(paragraph, n=3)
+        if truncated:
+            # Remove any tables on this slide so only paragraph appears
+            for shape in list(slide_repl1.shapes):
+                if shape.has_table:
+                    # workaround: set height to zero or remove; python-pptx doesn't have direct delete public API
+                    try:
+                        sp = shape._element
+                        sp.getparent().remove(sp)
+                    except Exception:
+                        pass
+
+            # Find a text frame to put the overview; prefer existing placeholder containing "Overview" or bullet placeholder
+            placed = False
+            for shape in slide_repl1.shapes:
+                if not shape.has_text_frame:
+                    continue
+                tf = shape.text_frame
+                # clear existing content and insert overview as single bullet
+                tf.clear()
+                p = tf.add_paragraph()
+                p.text = truncated
+                p.level = 0
+                p.font.name = "Cambria"
+                p.font.size = Pt(12)
+                p.font.bold = False
+                p.font.color.rgb = RGBColor(0, 0, 0)
+                placed = True
+                break
+            if not placed:
+                # fallback: add a new textbox
+                left = Inches(1)
+                top = Inches(2)
+                width = Inches(8)
+                height = Inches(2)
+                textbox = slide_repl1.shapes.add_textbox(left, top, width, height)
+                tf = textbox.text_frame
+                tf.word_wrap = True
+                p = tf.paragraphs[0]
+                p.text = truncated
+                p.font.name = "Cambria"
+                p.font.size = Pt(12)
+                p.font.color.rgb = RGBColor(0, 0, 0)
+        else:
+            st.warning(f"No overview paragraph found to insert for proposed fund '{fund_key}'.")
+
+
 
     # --- Fill Slide 3 ---
     slide3 = prs.slides[4 if len(proposed) > 1 else 3]
