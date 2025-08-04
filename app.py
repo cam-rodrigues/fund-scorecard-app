@@ -135,8 +135,8 @@ with st.sidebar.expander("MPI Tools", expanded=False):
     nav_button("Writeup & Rec", "writeup_&_rec.py")
 
 with st.sidebar.expander("Under Construction", expanded=False):
-    nav_button("Fund Scorecard Test", "fund_scorecard_test.py")
-    nav_button("Writeup & Rec Test", "writeup_&_rec_test.py")
+nav_button("Fund Scorecard Test", "fund_scorecard_test.py")
+nav_button("Writeup & Rec Test", "writeup_&_rec_test.py")
 
 # ========== PAGE ROUTER ==============
 query_params = st.query_params
