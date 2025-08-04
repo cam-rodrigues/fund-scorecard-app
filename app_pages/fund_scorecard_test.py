@@ -1427,7 +1427,7 @@ def step15_populate_excel():
 def run():
     import re
     st.title("Fund Scorecard Generator")
-    uploaded = st.file_uploader("Upload MPI PDF to Generate Writup PPTX", type="pdf")
+    uploaded = st.file_uploader("Upload MPI PDF to Generate Metrics XLSX", type="pdf")
     if not uploaded:
         return
 
