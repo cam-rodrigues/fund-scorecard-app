@@ -1923,11 +1923,15 @@ def step16_bullet_points():
 
 #───Bullet Points 2──────────────────────────────────────────────────────────────────
 
-def step16_5_locate_proposed_factsheets(pdf, min_score=60):
-    import re
-    from rapidfuzz import fuzz
+from rapidfuzz import fuzz
+
+def step16_5_locate_proposed_factsheets_with_overview(pdf, min_score=70):
+    """
+    For each confirmed proposed fund, find its best matching factsheet page (by header fuzzy match),
+    then on that page scan for the phrase "INVESTMENT OVERVIEW" in bold. Falls back to non-bold if needed.
+    Results are stored in session_state['proposed_factsheet_matches'].
+    """
     import streamlit as st
-    import pandas as pd
 
     proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
     if proposed_df is None or proposed_df.empty:
@@ -1939,58 +1943,77 @@ def step16_5_locate_proposed_factsheets(pdf, min_score=60):
         st.error("❌ 'Fund Factsheets' page number not found in TOC.")
         return
 
-    # Build reference strings for proposed funds
-    candidates = []
+    # Precompute header-like text from each candidate factsheet page
+    page_headers = []
+    for pnum in range(facts_start - 1, len(pdf.pages)):
+        page = pdf.pages[pnum]
+        # extract words with font info
+        words = page.extract_words(use_text_flow=True, extra_attrs=["fontname"])
+        # header heuristic: words near top (e.g., top < 100)
+        header_words = [w for w in words if w.get("top", 0) < 100]
+        header_text = " ".join(w["text"] for w in header_words).strip()
+        full_text = " ".join(w["text"] for w in words).strip()
+        page_headers.append({
+            "page": pnum + 1,
+            "header_text": header_text,
+            "full_text": full_text,
+            "words": words
+        })
+
+    results = []
     for _, row in proposed_df.iterrows():
         name = row.get("Fund Scorecard Name", "").strip()
         ticker = row.get("Ticker", "").strip().upper()
-        if not name:
-            continue
-        ref = f"{name} {ticker}".strip()
-        candidates.append({"Fund": name, "Ticker": ticker, "Ref": ref})
-
-    # Scan through factsheet pages and capture header lines
-    page_headers = []  # {page: int, header_text: str}
-    for pnum in range(facts_start - 1, len(pdf.pages)):
-        page = pdf.pages[pnum]
-        words = page.extract_words(use_text_flow=True)
-        # Heuristic: take words near top as header
-        header_words = [w["text"] for w in words if w["top"] < 100]
-        header_text = " ".join(header_words).strip()
-        if not header_text:
-            continue
-        page_headers.append({"page": pnum + 1, "text": header_text})
-
-    results = []
-    for cand in candidates:
+        ref_label = f"{name} {ticker}".strip()
         best_score = 0
-        best_page = None
-        best_header = ""
+        best_ph = None
+
         for ph in page_headers:
-            # compare both on name and ticker
-            score_name = fuzz.token_sort_ratio(cand["Fund"].lower(), ph["text"].lower())
-            score_ticker = fuzz.token_sort_ratio(cand["Ticker"].lower(), ph["text"].lower()) if cand["Ticker"] else 0
-            score_combined = max(score_name, score_ticker)
-            if score_combined > best_score:
-                best_score = score_combined
-                best_page = ph["page"]
-                best_header = ph["text"]
-        match_label = "✅" if best_score >= min_score else "❌"
+            score_name = fuzz.token_sort_ratio(name.lower(), ph["header_text"].lower()) if ph["header_text"] else 0
+            score_ticker = fuzz.token_sort_ratio(ticker.lower(), ph["header_text"].lower()) if ticker and ph["header_text"] else 0
+            score = max(score_name, score_ticker)
+            if score > best_score:
+                best_score = score
+                best_ph = ph
+
+        matched_flag = "✅" if best_score >= min_score else "❌"
+        matched_page = best_ph["page"] if best_ph else None
+        matched_header = best_ph["header_text"] if best_ph and matched_flag == "✅" else ""
+
+        # Now scan matched page for bold "INVESTMENT OVERVIEW"
+        overview_found = False
+        overview_context = ""
+        if best_ph:
+            # Words with fontname containing 'bold' (case-insensitive)
+            bold_words = [w for w in best_ph["words"] if "fontname" in w and "bold" in w["fontname"].lower()]
+            # Build ordered sequence of bold texts (sorted by vertical then horizontal)
+            sorted_bold = sorted(bold_words, key=lambda x: (x.get("top", 0), x.get("x0", 0)))
+            joined_bold = " ".join(w["text"] for w in sorted_bold).upper()
+            if "INVESTMENT OVERVIEW" in joined_bold:
+                overview_found = True
+                overview_context = "Found in bold words."
+            else:
+                # fallback to any occurrence on page
+                if "INVESTMENT OVERVIEW" in best_ph["full_text"].upper():
+                    overview_found = True
+                    overview_context = "Found on page but not in detectable bold (fallback)."
+
         results.append({
-            "Fund Scorecard Name": cand["Fund"],
-            "Ticker": cand["Ticker"],
-            "Matched Factsheet Page": best_page if best_page else None,
+            "Fund Scorecard Name": name,
+            "Ticker": ticker,
+            "Matched Factsheet Page": matched_page,
             "Match Score": best_score,
-            "Matched Header": best_header if match_label == "✅" else "",
-            "Matched": match_label
+            "Matched Header": matched_header,
+            "Matched": matched_flag,
+            "Investment Overview Found": "✅" if overview_found else "❌",
+            "Overview Context": overview_context
         })
 
     st.session_state["proposed_factsheet_matches"] = results
-
-    # Optional display summary
     df = pd.DataFrame(results)
-    st.subheader("Proposed Fund Factsheet Matches (Step 16.5)")
+    st.subheader("Step 16.5: Proposed Fund Factsheet + Investment Overview Detection")
     st.dataframe(df, use_container_width=True)
+
 
 
 #───Build Powerpoint─────────────────────────────────────────────────────────────────
