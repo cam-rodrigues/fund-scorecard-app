@@ -1927,7 +1927,9 @@ def step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_
     """
     For each confirmed proposed fund, find its best matching factsheet page and on that page
     look for the subheading 'INVESTMENT OVERVIEW', preferring bold instances if possible.
-    Also extract the paragraph immediately below the heading, stopping before table-like content.
+    Then extract the full paragraph under that heading, stopping at blank lines, table-like content,
+    or a new heading (heuristic: short/all-caps line).
+    Returns a dict per fund with page, match score, heading detection info, and extracted paragraph.
     """
     import re
     from rapidfuzz import fuzz
@@ -1937,27 +1939,33 @@ def step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_
         return re.sub(r"[^A-Za-z0-9 ]+", "", name or "").strip().lower()
 
     def is_table_like(line):
-        if not line or not line.strip():
+        # heuristic: lots of numbers/percentages or many consecutive uppercase acronyms
+        if re.search(r"\d{2,}|\d+%|\b[A-Z]{2,}\b", line):
+            # but don't treat a normal sentence of uppercase start as table
+            num_tokens = len(line.split())
+            if sum(1 for t in line.split() if re.fullmatch(r"[A-Z]{2,}", t)) >= 2 or re.search(r"\d", line):
+                return True
+        return False
+
+    def is_new_heading(line):
+        stripped = line.strip()
+        if not stripped:
             return False
-        # too many numeric or percent-like tokens suggests table
-        if len(re.findall(r"[%\d]{1,}", line)) >= 3:
-            return True
-        tokens = line.strip().split()
-        # short all-caps line likely header/label
-        if tokens and all(tok.isupper() or re.fullmatch(r"[A-Z0-9\.\-]+", tok) for tok in tokens) and len(tokens) <= 10:
-            return True
+        # All caps, not too long (likely a heading), and not a regular sentence (no trailing period)
+        if stripped.upper() == stripped and len(stripped.split()) <= 8 and not stripped.endswith("."):
+            # Exclude cases that look like data labels with numbers
+            if not re.search(r"\d", stripped):
+                return True
         return False
 
     results = {}
     confirmed = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
     factsheets_start = st.session_state.get("factsheets_page") or 1
-
-    # preload pages once
     all_pages_text = []
     for i in range(factsheets_start - 1, len(pdf.pages)):
         page = pdf.pages[i]
         text = page.extract_text() or ""
-        all_pages_text.append((i + 1, text, page))  # 1-based
+        all_pages_text.append((i + 1, text, page))  # 1-based page, raw text, page object
 
     for _, row in confirmed.iterrows():
         fund_name_raw = row.get("Fund Scorecard Name", "")
@@ -1966,15 +1974,13 @@ def step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_
         norm_expected = normalize(fund_key)
 
         best_candidate = {"page": None, "score": 0, "match_type": None}
-
-        # exact ticker first
+        # First pass: exact ticker match
         if ticker:
             for page_num, text, page_obj in all_pages_text:
                 if re.search(rf"\b{re.escape(ticker)}\b", text):
                     best_candidate = {"page": page_num, "score": 100, "match_type": "ticker"}
                     break
-
-        # fuzzy name fallback
+        # Fuzzy name fallback
         if best_candidate["page"] is None:
             for page_num, text, page_obj in all_pages_text:
                 score = fuzz.token_sort_ratio(norm_expected, normalize(text))
@@ -1999,14 +2005,37 @@ def step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_
             continue
 
         page_obj = pdf.pages[best_candidate["page"] - 1]
+        # Try to detect heading with word-level info to prefer bold
+        words = page_obj.extract_words(use_text_flow=True, extra_attrs=["fontname"])
+        target_regex = re.compile(r"INVESTMENT\s+OVERVIEW", re.IGNORECASE)
+        heading_idx = None
+        bold_detected = False
+
+        # Build a line-wise representation
         raw_text_lines = (page_obj.extract_text() or "").splitlines()
 
-        # locate heading line index (first occurrence)
-        heading_idx = next(
-            (i for i, ln in enumerate(raw_text_lines)
-             if re.search(r"investment\s+overview", ln, re.IGNORECASE)),
-            None
-        )
+        # First, look for the phrase via word pairs to see if bold-like font appears
+        for i in range(len(words) - 1):
+            pair = f"{words[i]['text']} {words[i+1]['text']}"
+            if target_regex.fullmatch(re.sub(r"\s+", " ", pair).strip()):
+                # Determine line containing this phrase
+                # Find the line index containing that phrase (case-insensitive)
+                for li, ln in enumerate(raw_text_lines):
+                    if re.search(r"investment\s+overview", ln, re.IGNORECASE):
+                        heading_idx = li
+                        break
+                # Check for bold heuristics
+                fontnames = (words[i].get("fontname", "") or "").lower() + " " + (words[i+1].get("fontname", "") or "").lower()
+                if any(b in fontnames for b in ["bold", "bd", "black", "semibold"]):
+                    bold_detected = True
+                break
+
+        # Fallback: line-wise search if not found above
+        if heading_idx is None:
+            for li, ln in enumerate(raw_text_lines):
+                if re.search(r"investment\s+overview", ln, re.IGNORECASE):
+                    heading_idx = li
+                    break
 
         if heading_idx is None:
             st.warning(f"'INVESTMENT OVERVIEW' heading not found on page {best_candidate['page']} for '{fund_key}'.")
@@ -2014,48 +2043,33 @@ def step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_
             continue
 
         fund_result["Found Investment Overview"] = True
-
-        # attempt to detect bold via word-level font heuristics if available
-        words = page_obj.extract_words(use_text_flow=True, extra_attrs=["fontname"])
-        bold_detected = False
-        target_regex = re.compile(r"INVESTMENT\s+OVERVIEW", re.IGNORECASE)
-        for i in range(len(words) - 1):
-            pair = f"{words[i]['text']} {words[i+1]['text']}"
-            if target_regex.fullmatch(re.sub(r"\s+", " ", pair).strip()):
-                fontnames = (words[i].get("fontname","") or "").lower() + " " + (words[i+1].get("fontname","") or "").lower()
-                if any(b in fontnames for b in ["bold", "bd", "black"]):
-                    bold_detected = True
-                    break
         fund_result["Overview Bold Detected"] = bold_detected
 
-        # Build overview context (surrounding lines)
+        # Capture context (surrounding lines) for debugging / display
         start_ctx = max(0, heading_idx - context_lines)
         end_ctx = min(len(raw_text_lines), heading_idx + context_lines + 1)
         fund_result["Overview Context"] = "\n".join(raw_text_lines[start_ctx:end_ctx])
 
-        # Extract the paragraph immediately under the heading with heuristics
+        # Now extract the full paragraph below the heading
         para_lines = []
         for ln in raw_text_lines[heading_idx + 1:]:
             if not ln.strip():
-                break  # blank line boundary
+                break  # paragraph boundary
             if is_table_like(ln):
-                break  # likely moved into table/header
-            para_lines.append(ln.strip())
-            if len(para_lines) >= 5:  # guard cap
                 break
-        # Optionally truncate at first sentence-end punctuation for cleanliness
+            if is_new_heading(ln):
+                break
+            para_lines.append(ln.strip())
+            if len(para_lines) >= 25:  # safety cap
+                break
         para_text = " ".join(para_lines).strip()
-        if "." in para_text:
-            # keep up to first sentence (including)
-            first_sent = para_text.split(".", 1)[0].strip()
-            if first_sent:
-                para_text = first_sent + "."
         fund_result["Overview Paragraph"] = para_text
 
         results[fund_key] = fund_result
 
     st.session_state["step16_5_proposed_overview_lookup"] = results
     return results
+
 
 
 #───Build Powerpoint─────────────────────────────────────────────────────────────────
