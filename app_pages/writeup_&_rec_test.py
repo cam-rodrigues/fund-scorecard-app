@@ -556,8 +556,6 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
 
 
 #───IPS Fail Table──────────────────────────────────────────────────────────────────
-
-def step14_5_ips_fail_table():
 import re
 import streamlit as st
 import pdfplumber
