@@ -2356,86 +2356,66 @@ def step17_export_to_ppt():
         except Exception:
             pass
 
-    # --- NEW: Inject proposed funds' truncated Investment Overview into their replacement slides ---
+    # --- NEW: Inject first proposed fund's truncated Investment Overview into its replacement slide ---
     if proposed:
-        lookup = st.session_state.get("step16_5_proposed_overview_lookup", {}) or {}
+        lookup = st.session_state.get("step16_5_proposed_overview_lookup", {})
+        first_proposed_label = proposed[0]  # e.g., "Fund Name (TICK)"
+        paragraph = lookup_overview_paragraph(first_proposed_label, lookup) or ""
+        truncated = truncate_to_n_sentences(paragraph, n=3)
+        if truncated:
+            # Determine which slide holds Replacement 1 (it was slide 1 in template)
+            slide_repl1 = prs.slides[1]
+            # After the existing placeholders, add an "Investment Overview" box with the paragraph
+            from pptx.util import Inches
+            # Title box
+            title_box = slide_repl1.shapes.add_textbox(Inches(0.5), Inches(3.5), Inches(4.5), Inches(0.4))
+            tf_title = title_box.text_frame
+            tf_title.text = "Investment Overview"
+            for para in tf_title.paragraphs:
+                para.font.name = "Cambria"
+                para.font.size = Pt(14)
+                para.font.bold = True
+                para.alignment = PP_ALIGN.LEFT
+            # Paragraph box
+            para_box = slide_repl1.shapes.add_textbox(Inches(0.5), Inches(4.0), Inches(8), Inches(1.5))
+            tf_para = para_box.text_frame
+            tf_para.text = truncated
+            for para in tf_para.paragraphs:
+                para.font.name = "Cambria"
+                para.font.size = Pt(11)
+                para.font.bold = False
+                para.alignment = PP_ALIGN.LEFT
+        else:
+            st.warning(f"No overview paragraph found to insert for proposed fund '{first_proposed_label}'.")
 
-        def lookup_overview_paragraph(label, lookup_dict, threshold=50):
-            import re
-            from rapidfuzz import fuzz
-            base_name = re.sub(r"\s*\(.*\)$", "", label).strip()
-            def normalize(s):
-                return re.sub(r"[^A-Za-z0-9 ]+", "", s or "").strip().lower()
-            target = normalize(base_name)
-            best_key = None
-            best_score = -1
-            for key in lookup_dict.keys():
-                score = fuzz.token_sort_ratio(target, normalize(key))
-                if score > best_score:
-                    best_score = score
-                    best_key = key
-            if best_key and best_score >= threshold:
-                st.warning(f"Proposed fund label '{label}' matched to overview key '{best_key}' with score {best_score}.")  # diagnostic
-                return lookup_dict.get(best_key, {}).get("Overview Paragraph", "")
-            # fallback exact
-            if base_name in lookup_dict:
-                st.warning(f"Using exact fallback match for '{base_name}'.")  # diagnostic
-                return lookup_dict.get(base_name, {}).get("Overview Paragraph", "")
-            return ""
-
-        for idx, proposed_label in enumerate(proposed[:2]):
-            slide_idx = 1 + idx  # replacement slides assumed at index 1 and 2
-            try:
-                slide_repl = prs.slides[slide_idx]
-            except Exception:
-                st.warning(f"Could not access replacement slide at index {slide_idx} for '{proposed_label}'.")
-                continue
-
-            paragraph = lookup_overview_paragraph(proposed_label, lookup) or ""
-            truncated = truncate_to_n_sentences(paragraph, n=3)
-            if not truncated:
-                st.warning(f"No overview paragraph available to insert for proposed fund '{proposed_label}'.")
-                continue
-
-            # Find a text placeholder to replace or else add a textbox
-            replaced = False
-            # Try replacing placeholder like "[Replacement Overview]" if exists
-            for shape in slide_repl.shapes:
-                if not shape.has_text_frame:
-                    continue
-                tf = shape.text_frame
-                # if it's essentially empty or contains a known placeholder, overwrite
-                text_content = "".join(p.text for p in tf.paragraphs).strip()
-                if not text_content or "Replacement" in text_content or "Overview" in text_content:
-                    tf.clear()
-                    p = tf.add_paragraph()
-                    p.text = truncated
-                    p.level = 0
-                    p.font.name = "Cambria"
-                    p.font.size = Pt(12)
-                    try:
-                        p.font.color.rgb = RGBColor(0, 0, 0)
-                    except:
-                        pass
-                    replaced = True
-                    break
-            if not replaced:
-                # fallback: create a new textbox
-                left = Inches(1)
-                top = Inches(2)
-                width = Inches(8)
-                height = Inches(2)
-                textbox = slide_repl.shapes.add_textbox(left, top, width, height)
-                tf = textbox.text_frame
-                tf.word_wrap = True
-                p = tf.paragraphs[0]
-                p.text = truncated
-                p.font.name = "Cambria"
-                p.font.size = Pt(12)
+        # If there's a second proposed fund, do same on Replacement 2 slide (if it exists)
+        if len(proposed) > 1:
+            second_label = proposed[1]
+            paragraph2 = lookup_overview_paragraph(second_label, lookup) or ""
+            truncated2 = truncate_to_n_sentences(paragraph2, n=3)
+            if truncated2:
+                # Replacement 2 is slide index 2 unless it was removed; guard safely
                 try:
-                    p.font.color.rgb = RGBColor(0, 0, 0)
-                except:
-                    pass
+                    slide_repl2 = prs.slides[2]
+                    title_box = slide_repl2.shapes.add_textbox(Inches(0.5), Inches(3.5), Inches(4.5), Inches(0.4))
+                    tf_title = title_box.text_frame
+                    tf_title.text = "Investment Overview"
+                    for para in tf_title.paragraphs:
+                        para.font.name = "Cambria"
+                        para.font.size = Pt(14)
+                        para.font.bold = True
+                        para.alignment = PP_ALIGN.LEFT
+                    para_box = slide_repl2.shapes.add_textbox(Inches(0.5), Inches(4.0), Inches(8), Inches(1.5))
+                    tf_para = para_box.text_frame
+                    tf_para.text = truncated2
+                    for para in tf_para.paragraphs:
+                        para.font.name = "Cambria"
+                        para.font.size = Pt(11)
+                        para.font.bold = False
+                        para.alignment = PP_ALIGN.LEFT
+                except Exception:
+                    st.warning("Could not find or update Replacement 2 slide for second proposed fund.")
+
 
 
     # --- Fill Slide 3 ---
