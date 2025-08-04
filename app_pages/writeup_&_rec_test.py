@@ -11,6 +11,34 @@ from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
 from io import BytesIO
 import yfinance as yf
 
+#───safer sentence splitting that protects common abbreviations like U.S.──────────────────────────────────────────────────────────────────
+_ABBREV_PROTECT = {
+    "U.S.": "__US__",
+    "U.S": "__US__",
+    "U.K.": "__UK__",
+    "U.K": "__UK__",
+    "e.g.": "__EG__",
+    "e.g": "__EG__",
+    "i.e.": "__IE__",
+    "i.e": "__IE__",
+    "etc.": "__ETC__",
+    "etc": "__ETC__",
+}
+
+def safe_split_sentences(text):
+    if not text:
+        return []
+    protected = text
+    for k, v in _ABBREV_PROTECT.items():
+        protected = protected.replace(k, v)
+    sentences = re.split(r'(?<=[\.!?])\s+', protected.strip())
+    def restore(s):
+        for k, v in _ABBREV_PROTECT.items():
+            s = s.replace(v, k)
+        return s
+    return [restore(s).strip() for s in sentences if s.strip()]
+
+
 #───Performance Table──────────────────────────────────────────────────────────────────
 
 def extract_performance_table(pdf, performance_page, fund_names, end_page=None):
@@ -1820,6 +1848,99 @@ def step15_display_selected_fund():
     st.dataframe(df_slide4_2, use_container_width=True)
 
 #───Bullet Points──────────────────────────────────────────────────────────────────
+def step16_3_selected_overview_lookup(pdf, context_lines=3, min_score=50):
+    import streamlit as st
+    from rapidfuzz import fuzz
+
+    selected_fund = st.session_state.get("selected_fund")
+    if not selected_fund:
+        return {}
+
+    lookup = {}  # result dict to be stored
+    norm_target = re.sub(r"\s*\(.*\)$", "", selected_fund).strip().lower()
+    factsheets_start = st.session_state.get("factsheets_page") or 1
+
+    # Preload candidate pages starting at factsheets
+    best_candidate = {"page": None, "score": 0}
+    for i in range(factsheets_start - 1, len(pdf.pages)):
+        page = pdf.pages[i]
+        text = (page.extract_text() or "")
+        score = fuzz.token_sort_ratio(re.sub(r"[^A-Za-z0-9 ]+", "", norm_target),
+                                     re.sub(r"[^A-Za-z0-9 ]+", "", text.lower()))
+        if score > best_candidate["score"]:
+            best_candidate = {"page": i + 1, "score": score}
+
+    result = {
+        "Fund": selected_fund,
+        "Best Page": best_candidate["page"],
+        "Match Score": best_candidate["score"],
+        "Found Investment Overview": False,
+        "Overview Paragraph": "",
+        "Overview Context": "",
+    }
+
+    if best_candidate["page"] is None or best_candidate["score"] < min_score:
+        st.warning(f"Could not confidently locate factsheet for selected fund '{selected_fund}'. Best score {best_candidate['score']}.")
+        st.session_state["step16_3_selected_overview_lookup"] = result
+        return result
+
+    page_obj = pdf.pages[best_candidate["page"] - 1]
+    raw_lines = (page_obj.extract_text() or "").splitlines()
+
+    # Find heading
+    heading_idx = None
+    for idx, ln in enumerate(raw_lines):
+        if re.search(r"INVESTMENT\s+OVERVIEW", ln, re.IGNORECASE):
+            heading_idx = idx
+            break
+
+    if heading_idx is None:
+        st.warning(f"'INVESTMENT OVERVIEW' heading not found on page {best_candidate['page']} for selected fund '{selected_fund}'.")
+        st.session_state["step16_3_selected_overview_lookup"] = result
+        return result
+
+    # Context snippet
+    start_ctx = max(0, heading_idx - context_lines)
+    end_ctx = min(len(raw_lines), heading_idx + context_lines + 1)
+    context_snippet = "\n".join(raw_lines[start_ctx:end_ctx])
+    result["Overview Context"] = context_snippet
+
+    # Collect paragraph beneath heading until new heading-like line or blank after collecting
+    def is_new_section_heading(line):
+        stripped = line.strip()
+        if not stripped:
+            return False
+        word_count = len(stripped.split())
+        has_digit = bool(re.search(r"\d", stripped))
+        if (stripped.upper() == stripped or (stripped.istitle() and not stripped.endswith("."))) and word_count <= 7 and not has_digit:
+            return True
+        return False
+
+    collected = []
+    for ln in raw_lines[heading_idx + 1:]:
+        if not ln.strip():
+            if collected:
+                break
+            else:
+                continue
+        if is_new_section_heading(ln):
+            break
+        collected.append(ln.strip())
+        if len(collected) >= 80:
+            break
+
+    full_text = " ".join(collected)
+    sentences = safe_split_sentences(full_text)
+    overview_paragraph = " ".join(sentences[:3]).strip() if sentences else full_text.strip()
+
+    if overview_paragraph:
+        result["Found Investment Overview"] = True
+        result["Overview Paragraph"] = overview_paragraph
+
+    st.session_state["step16_3_selected_overview_lookup"] = result
+    return result
+    
+#───Bullet Points──────────────────────────────────────────────────────────────────
 
 def step16_bullet_points():
     import streamlit as st
@@ -1902,6 +2023,22 @@ def step16_bullet_points():
         bullets.append(b2)
         st.markdown(b2)
 
+    # --- New: Investment Overview for selected fund (inserted between bullet 2 and 3) ---
+    overview_info = st.session_state.get("step16_3_selected_overview_lookup", {})
+    overview_paragraph = overview_info.get("Overview Paragraph", "") if overview_info else ""
+    if overview_paragraph:
+        # use safe_split_sentences if available, fallback naive split otherwise
+        try:
+            from __main__ import safe_split_sentences  # assumes safe_split_sentences is in global scope
+        except ImportError:
+            def safe_split_sentences(text):
+                return [s.strip() for s in re.split(r'(?<=[.!?])\s+', text.strip()) if s.strip()]
+        sentences = safe_split_sentences(overview_paragraph)
+        overview_bullet = " ".join(sentences[:3]) if sentences else overview_paragraph
+        b_overview = f"- Investment Overview: {overview_bullet}"
+        bullets.append(b_overview)
+        st.markdown(b_overview)
+
     # Bullet 3: Action for Formal Watch only
     if ips_status == "FW":
         confirmed = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
@@ -1920,6 +2057,7 @@ def step16_bullet_points():
 
     # Persist updated bullets so export uses current ones
     st.session_state["bullet_points"] = bullets
+
 
 #───Bullet Points 2──────────────────────────────────────────────────────────────────
 
