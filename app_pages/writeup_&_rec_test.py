@@ -1942,6 +1942,30 @@ def step16_bullet_points():
     # Persist updated bullets so export uses current ones
     st.session_state["bullet_points"] = bullets
 
+#───Proposed Fund Bullet Points───────────────────────────────────────────────────────
+
+def extract_investment_overview_for_fund(pdf, page_num):
+    """
+    Given a pdf and a page number, extract the 'Investment Overview' paragraph from the factsheet page.
+    Returns the paragraph as a string (or empty string if not found).
+    """
+    page = pdf.pages[page_num - 1]
+    lines = [ln.strip() for ln in (page.extract_text() or "").splitlines()]
+    try:
+        idx = next(i for i, ln in enumerate(lines) if "Investment Overview" in ln)
+    except StopIteration:
+        return ""  # Not found
+
+    # Extract lines after the header, until a new header (all-caps or bold style) or empty line
+    overview_lines = []
+    for ln in lines[idx + 1:]:
+        if not ln.strip():
+            break  # stop at first blank line
+        # Heuristic: stop at next obvious section header
+        if ln.isupper() or ln.endswith(":"):
+            break
+        overview_lines.append(ln)
+    return " ".join(overview_lines).strip()
 
 
 #───Build Powerpoint──────────────────────────────────────────────────────────────────
@@ -2318,6 +2342,10 @@ def run():
         # Bullet Points
         with st.expander("Bullet Points", expanded=False):
             step16_bullet_points()
+
+        with st.expander("Proposed Bullet Points", expanded=False):
+            extract_investment_overview_for_fund()
+
 
         # PowerPoint
         with st.expander("Export to Powerpoint", expanded=False):
