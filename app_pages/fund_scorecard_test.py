@@ -1240,20 +1240,20 @@ def step14_5_ips_fail_table():
 
 #───Step 15 - Excel──────────────────────────────────────────────────────────────────
 import openpyxl
+from pathlib import Path
+import datetime
+
+import datetime
+import openpyxl
+from openpyxl.utils import get_column_letter
+
 import datetime
 from openpyxl.styles import PatternFill
 from openpyxl.utils import get_column_letter
-from pathlib import Path
-
 
 def step15_populate_excel():
     """
-    Opens the Excel template at assets/investment_metrics_template.xlsx,
-    writes 'prepared_for' into AB4, the quarter into AB5, the actual date into AB6,
-    collapses all 'Target Retirement' funds into one row (preferring the 'Income Fund' ticker),
-    fills the fund table (Category, Investment Option, Ticker, Expense Ratio,
-    IPS criteria 1..11, and Current Quarter Status with coloring) starting at row 5,
-    and deletes any leftover rows after the last populated row up to row 180.
+    Same as before but now colors Current Quarter Status: NW=green, IW=orange, FW=red.
     """
     prepared_for = st.session_state.get("prepared_for", "")
     if not prepared_for:
@@ -1264,7 +1264,6 @@ def step15_populate_excel():
     quarter_str = ""
     actual_date = None
 
-    # Extract quarter and actual date
     m = re.match(r"([1-4])(?:st|nd|rd|th)\s+QTR,\s*(20\d{2})", report_date)
     if m:
         qnum = int(m.group(1))
@@ -1297,7 +1296,6 @@ def step15_populate_excel():
 
     date_str = actual_date.strftime("%m/%d/%Y")
 
-    # Load workbook
     template_path = Path("assets") / "investment_metrics_template.xlsx"
     if template_path.is_dir():
         candidates = list(template_path.glob("*.xlsx"))
@@ -1327,117 +1325,80 @@ def step15_populate_excel():
     header_to_col = {}
     for cell in ws[header_row]:
         if cell.value:
-            header_to_col[str(cell.value).strip()] = cell.column  # numeric index
+            header_to_col[str(cell.value).strip()] = cell.column  # numeric
 
-    # Source data
-    df_icon = st.session_state.get("ips_icon_table")  # should have iconified criteria (after transformation)
+    df_icon = st.session_state.get("ips_icon_table")
     fund_types = st.session_state.get("fund_types", {})
     facts = st.session_state.get("step12_fund_facts_table", [])
     expense_lookup = {rec.get("Fund Name", ""): rec.get("Expense Ratio", "") for rec in (facts or [])}
 
-    # Combine "Target Retirement" funds into one row
-    processed_rows = []
-    if df_icon is not None and not df_icon.empty:
-        tr_mask = df_icon["Fund Name"].str.contains("Target Retirement", case=False, na=False)
-        tr_group = df_icon[tr_mask]
-        non_tr = df_icon[~tr_mask]
+    start_row = 5
+    num_written = 0
 
-        if not tr_group.empty:
-            # Representative from Income Fund if present
-            income_row = tr_group[tr_group["Fund Name"].str.contains("Income Fund", case=False, na=False)]
-            if not income_row.empty:
-                rep = income_row.iloc[0]
-            else:
-                rep = tr_group.iloc[0]
-            rep_ticker = rep.get("Ticker", "")
-            rep_watch_status = rep.get("IPS Watch Status", "")
-            rep_fund_type = rep.get("Fund Type", "")
-            # Build combined row
-            combined_row = {
-                "Fund Name": "Target Retirement",
-                "Ticker": rep_ticker,
-                "Fund Type": rep_fund_type,
-                "IPS Watch Status": rep_watch_status,
-            }
-            # Copy criteria 1..11 (assuming df_icon uses numeric column names after your earlier transformation)
-            for i in range(1, 12):
-                combined_row[str(i)] = rep.get(str(i), "")
-            processed_rows.append(combined_row)
-
-        # Append non-Target Retirement rows as-is
-        for _, r in non_tr.iterrows():
-            processed_rows.append(r.to_dict())
-    else:
-        st.warning("No IPS icon table found; skipping table population.")
-
-    # Define fills for Current Quarter Status
+    # Define fills
     fill_map = {
         "NW": PatternFill(fill_type="solid", start_color="C8EFD0", end_color="C8EFD0"),  # light green
         "IW": PatternFill(fill_type="solid", start_color="FFE8B0", end_color="FFE8B0"),  # light orange
         "FW": PatternFill(fill_type="solid", start_color="F8D7DA", end_color="F8D7DA"),  # light red/pink
     }
 
-    # Write processed rows starting at row 5
-    start_row = 5
-    num_written = 0
-    for idx, row in enumerate(processed_rows):
-        excel_row = start_row + idx
-        fund_name = row.get("Fund Name", "")
-        ticker = row.get("Ticker", "")
-        fund_type = row.get("Fund Type", "")
-        watch_status = row.get("IPS Watch Status", "")
-
-        # Category
-        if "Category" in header_to_col:
-            col = get_column_letter(header_to_col["Category"])
-            ws[f"{col}{excel_row}"] = fund_type
-        # Investment Option
-        if "Investment Option" in header_to_col:
-            col = get_column_letter(header_to_col["Investment Option"])
-            ws[f"{col}{excel_row}"] = fund_name
-        # Ticker
-        if "Ticker" in header_to_col:
-            col = get_column_letter(header_to_col["Ticker"])
-            ws[f"{col}{excel_row}"] = ticker
-        # Expense Ratio
-        exp_val = expense_lookup.get(fund_name, "")
-        if "Expense Ratio" in header_to_col:
-            col = get_column_letter(header_to_col["Expense Ratio"])
-            ws[f"{col}{excel_row}"] = exp_val
-        # IPS criteria 1..11
-        for i in range(1, 12):
-            key = str(i)
-            if key in header_to_col:
-                col = get_column_letter(header_to_col[key])
-                val = row.get(key, "")
-                ws[f"{col}{excel_row}"] = val
-        # Current Quarter Status with coloring
-        if "Current Quarter Status" in header_to_col:
-            col = get_column_letter(header_to_col["Current Quarter Status"])
-            cell = ws[f"{col}{excel_row}"]
-            cell.value = watch_status
-            if watch_status in fill_map:
-                cell.fill = fill_map[watch_status]
-
-        num_written += 1
-
-    # Remove extra rows after last populated row up to 180
-    if num_written > 0:
-        last_filled_row = start_row + num_written - 1
+    if df_icon is None or df_icon.empty:
+        st.warning("No IPS icon table found; skipping table population.")
     else:
-        last_filled_row = start_row - 1
+        for idx, row in df_icon.iterrows():
+            excel_row = start_row + idx
+            fund_name = row.get("Fund Name", "")
+            ticker = row.get("Ticker", "")
+            fund_type = row.get("Fund Type", "")
+            watch_status = row.get("IPS Watch Status", "")
+
+            # Category
+            if "Category" in header_to_col:
+                col = get_column_letter(header_to_col["Category"])
+                ws[f"{col}{excel_row}"] = fund_type
+            # Investment Option
+            if "Investment Option" in header_to_col:
+                col = get_column_letter(header_to_col["Investment Option"])
+                ws[f"{col}{excel_row}"] = fund_name
+            # Ticker
+            if "Ticker" in header_to_col:
+                col = get_column_letter(header_to_col["Ticker"])
+                ws[f"{col}{excel_row}"] = ticker
+            # Expense Ratio
+            exp_val = expense_lookup.get(fund_name, "")
+            if "Expense Ratio" in header_to_col:
+                col = get_column_letter(header_to_col["Expense Ratio"])
+                ws[f"{col}{excel_row}"] = exp_val
+            # IPS criteria 1..11
+            for i in range(1, 12):
+                key = str(i)
+                if key in header_to_col:
+                    col = get_column_letter(header_to_col[key])
+                    val = row.get(key, "")
+                    ws[f"{col}{excel_row}"] = val
+            # Current Quarter Status with color
+            if "Current Quarter Status" in header_to_col:
+                col = get_column_letter(header_to_col["Current Quarter Status"])
+                cell = ws[f"{col}{excel_row}"]
+                cell.value = watch_status
+                # Apply fill based on status (default no fill if unexpected)
+                fill = fill_map.get(watch_status)
+                if fill:
+                    cell.fill = fill
+
+            num_written += 1
+
+    last_filled_row = (start_row + num_written - 1) if num_written > 0 else start_row - 1
     if last_filled_row < 180:
         to_delete_start = last_filled_row + 1
         count = 180 - last_filled_row
         ws.delete_rows(to_delete_start, count)
 
-    # Save into buffer
     from io import BytesIO
     out = BytesIO()
     wb.save(out)
     out.seek(0)
     return out
-
 
 #───Main App──────────────────────────────────────────────────────────────────
 
@@ -1531,7 +1492,7 @@ def run():
         if st.button("Populate Excel"):
             excel_bytes = step15_populate_excel()
             if excel_bytes:
-                st.success("Excel template populated.")
+                st.success("Excel template populated with 'Prepared For'.")
                 st.download_button(
                     "Download Populated Excel",
                     data=excel_bytes,
