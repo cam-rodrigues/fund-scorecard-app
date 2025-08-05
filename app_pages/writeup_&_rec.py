@@ -2374,7 +2374,7 @@ def step17_export_to_ppt():
                 if status_idx is not None and j == status_idx and i == 1:
                     cell.fill.solid()
                     if txt == "NW":
-                        cell.fill.fore_color.rgb = RGBColor(0xC5, 0xE6, 0x9A)  # #c5e69a
+                        cell.fill.fore_color.rgb = RGBColor(0x21, 0x7A, 0x3E)  # #c5e69a
                     elif txt == "IW":
                         cell.fill.fore_color.rgb = RGBColor(0xFF, 0x95, 0x53)  # #ff9553
                     elif txt == "FW":
