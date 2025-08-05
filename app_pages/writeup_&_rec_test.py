@@ -802,13 +802,15 @@ def step8_calendar_returns(pdf):
     # 1) Figure out section bounds
     cy_page  = st.session_state.get("calendar_year_page")
     end_page = st.session_state.get("r3yr_page", len(pdf.pages) + 1)
+
+    # — Guard against missing page number —
     if cy_page is None:
-        st.error("❌ 'Fund Performance: Calendar Year' not found in TOC.")
+        st.error("❌ ‘Fund Performance: Calendar Year’ page number not found in TOC. Please run Step 2 to extract the TOC first.")
         return
 
     # 2) Pull every line from that section
     all_lines = []
-    for p in pdf.pages[cy_page-1 : end_page-1]:
+    for p in pdf.pages[cy_page - 1 : end_page - 1]:
         all_lines.extend((p.extract_text() or "").splitlines())
 
     # 3) Identify header & years
@@ -825,7 +827,7 @@ def step8_calendar_returns(pdf):
     for name, tk in fund_map.items():
         ticker = (tk or "").upper()
         idx    = next((i for i, ln in enumerate(all_lines) if ticker in ln.split()), None)
-        raw    = num_rx.findall(all_lines[idx-1]) if idx not in (None, 0) else []
+        raw    = num_rx.findall(all_lines[idx - 1]) if idx not in (None, 0) else []
         vals   = raw[:len(years)] + [None] * (len(years) - len(raw))
         rec    = {"Name": name, "Ticker": ticker}
         rec.update({years[i]: vals[i] for i in range(len(years))})
@@ -833,7 +835,7 @@ def step8_calendar_returns(pdf):
 
     df_fund = pd.DataFrame(fund_records)
     if not df_fund.empty:
-        st.markdown("**Fund Calendar‑Year Returns**")
+        st.markdown("**Fund Calendar-Year Returns**")
         st.dataframe(df_fund[["Name", "Ticker"] + years], use_container_width=True)
         st.session_state["step8_returns"] = fund_records
 
@@ -846,7 +848,6 @@ def step8_calendar_returns(pdf):
         if not bench_name:
             continue
 
-        # find the first line containing the benchmark name
         idx = next((i for i, ln in enumerate(all_lines) if bench_name in ln), None)
         if idx is None:
             continue
@@ -858,11 +859,12 @@ def step8_calendar_returns(pdf):
 
     df_bench = pd.DataFrame(bench_records)
     if not df_bench.empty:
-        st.markdown("**Benchmark Calendar‑Year Returns**")
+        st.markdown("**Benchmark Calendar-Year Returns**")
         st.dataframe(df_bench[["Name", "Ticker"] + years], use_container_width=True)
         st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
         st.warning("No benchmark returns extracted.")
+
 
 #───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
 
