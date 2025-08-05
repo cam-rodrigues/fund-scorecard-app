@@ -2356,7 +2356,7 @@ def step17_export_to_ppt():
                     run.font.name = "Cambria"
                     run.font.size = Pt(11)
 
-        # Color the IPS Status cell in that second row (last column)
+        # Color the IPS Status cell background in row 2, last column
         status = df_slide1.iloc[0, -1]
         color_map = {
             "NW": (0x21, 0x7A, 0x3E),  # green
@@ -2365,11 +2365,13 @@ def step17_export_to_ppt():
         }
         rgb = color_map.get(status, (0, 0, 0))
         status_cell = table.cell(2, len(df_slide1.columns) - 1)
-        for para in status_cell.text_frame.paragraphs:
-            for run in para.runs:
-                run.font.color.rgb = RGBColor(*rgb)
-
-        break  # done with slide1 table
+        # fill background
+        status_cell.fill.solid()
+        status_cell.fill.fore_color.rgb = RGBColor(*rgb)
+        # optional: make text white for contrast
+        for p in status_cell.text_frame.paragraphs:
+            for run in p.runs:
+                run.font.color.rgb = RGBColor(255, 255, 255)
 
 
 
