@@ -520,16 +520,21 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     st.session_state["ips_raw_table"] = df_raw
 
     # --- Performance extraction ---
-    perf_data = extract_performance_table(
-        pdf,
-        performance_page,
-        fund_names,
-        factsheets_page
-    )
+    if performance_page is None:
+        st.error("❌ ‘Fund Performance’ page number not found in TOC. Run Step 2 first.")
+        perf_data = []
+    else:
+        perf_data = extract_performance_table(
+            pdf,
+            performance_page,
+            fund_names,
+            factsheets_page
+        )
+
     for itm in perf_data:
         itm["Ticker"] = tickers.get(itm["Fund Scorecard Name"], "")
-
     st.session_state["fund_performance_data"] = perf_data
+
     st.session_state["tickers"] = tickers  # legacy compatibility
 
 
