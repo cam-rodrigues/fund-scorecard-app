@@ -2050,12 +2050,10 @@ def run():
             with st.expander("Fund Facts (sub-headings)", expanded=False):
                 step12_process_fund_facts(pdf)
                 
-            # 3. Returns (annualized + calendar)
             with st.expander("Returns", expanded=False):
                 step7_extract_returns(pdf)
                 step8_calendar_returns(pdf)
-
-            # 4. MPT Statistics Summary (requires risk analyses first)
+    
             with st.expander("MPT Statistics Summary", expanded=False):
                 step9_risk_analysis_3yr(pdf)
                 step10_risk_analysis_5yr(pdf)
