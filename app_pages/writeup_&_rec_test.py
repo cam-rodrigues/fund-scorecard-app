@@ -355,8 +355,10 @@ def extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page=None
 
 import pandas as pd
 
+import pandas as pd
+
 def scorecard_to_ips(fund_blocks, fund_types, tickers):
-    # the 14 labels you care about—leave style-drift out, it’s ignored
+    # 14 possible scorecard labels (we only map 11 of them to IPS)
     metrics_order = [
         "Manager Tenure",
         "Excess Performance (3Yr)",
@@ -374,64 +376,60 @@ def scorecard_to_ips(fund_blocks, fund_types, tickers):
         "Tracking Error Rank (5Yr)",
     ]
 
-    # these map each of the above 14 into your 11 IPS criteria
+    # These say which of the above 14 feed into each of the 11 IPS checks
     active_map  = [0,1,3,6,10,2,4,7,11,5,None]
     passive_map = [0,8,3,6,12,9,4,7,13,5,None]
 
     ips_labels = [f"IPS Investment Criteria {i+1}" for i in range(11)]
-    ips_results, raw_results = [], []
+    rows_icon, rows_raw = [], []
 
     for fund in fund_blocks:
         name = fund["Fund Name"]
         ftype = fund_types.get(name, 
-                "Passive" if "index" in name.lower() else "Active"
-            )
-        # build a lookup of metric_name → status
+                 "Passive" if "index" in name.lower() else "Active"
+               )
+        # 1) build a name→status map
         status_map = { m["Metric"]: m["Status"] for m in fund["Metrics"] }
 
-        # pick your map based on active/passive
+        # 2) choose the right index map
         idx_map = passive_map if ftype=="Passive" else active_map
 
-        # now for each IPS criterion, grab the correct metric
+        # 3) pull exactly the 11 statuses we need
         ips_status = []
         for idx in idx_map:
             if idx is None:
-                ips_status.append("Pass")       # or however you want to default
+                ips_status.append("Pass")
             else:
                 label = metrics_order[idx]
                 ips_status.append(status_map.get(label, None))
 
-        # count fails/reviews
-        review_fail = sum(1 for s in ips_status if s in ("Review","Fail"))
-        watch_status = (
-            "FW" if review_fail >= 6 else 
-            "IW" if review_fail >= 5 else 
-            "NW"
-        )
+        # 4) decide watch status
+        fails = sum(1 for s in ips_status if s in ("Review","Fail"))
+        watch = "FW" if fails>=6 else "IW" if fails>=5 else "NW"
 
-        def iconify(s):
-            return "✔" if s=="Pass" else "✗" if s in ("Review","Fail") else ""
+        # 5) iconify for the icon table
+        def ico(s): return "✔" if s=="Pass" else "✗" if s in ("Review","Fail") else ""
 
-        # build your rows
-        row_icon = {
+        icon_row = {
             "Fund Name": name,
-            "Ticker": tickers.get(name, ""),
+            "Ticker": tickers.get(name,""),
             "Fund Type": ftype,
-            **{ ips_labels[i]: iconify(ips_status[i]) for i in range(11) },
-            "IPS Watch Status": watch_status,
+            **{ips_labels[i]: ico(ips_status[i]) for i in range(11)},
+            "IPS Watch Status": watch
         }
-        row_raw = {
+        raw_row = {
             "Fund Name": name,
-            "Ticker": tickers.get(name, ""),
+            "Ticker": tickers.get(name,""),
             "Fund Type": ftype,
-            **{ ips_labels[i]: ips_status[i] for i in range(11) },
-            "IPS Watch Status": watch_status,
+            **{ips_labels[i]: ips_status[i] for i in range(11)},
+            "IPS Watch Status": watch
         }
 
-        ips_results.append(row_icon)
-        raw_results.append(row_raw)
+        rows_icon.append(icon_row)
+        rows_raw.append(raw_row)
 
-    return pd.DataFrame(ips_results), pd.DataFrame(raw_results)
+    return pd.DataFrame(rows_icon), pd.DataFrame(rows_raw)
+
 
 def watch_status_color(val):
     if val == "FW":
