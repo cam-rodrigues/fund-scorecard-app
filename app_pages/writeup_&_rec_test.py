@@ -217,31 +217,63 @@ def infer_fund_type_guess(ticker):
         return ""
 
 def extract_scorecard_blocks(pdf, scorecard_page):
+    import re
+
     metric_labels = [
-        "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
-        "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Stle Drift Score (3Yr)", "Expense Ratio Rank",
-        "Sharpe Ratio Rank (3Yr)", "Sharpe Ratio Rank (5Yr)", "R-Squared (3Yr)",
-        "R-Squared (5Yr)", "Sortino Ratio Rank (3Yr)", "Sortino Ratio Rank (5Yr)",
-        "Tracking Error Rank (3Yr)", "Tracking Error Rank (5Yr)"
+        "Manager Tenure",
+        "Excess Performance (3Yr)",
+        "Excess Performance (5Yr)",
+        "Peer Return Rank (3Yr)",
+        "Peer Return Rank (5Yr)",
+        "Style Drift Score (3Yr)",        # ← new, correctly spelled
+        "Expense Ratio Rank",
+        "Sharpe Ratio Rank (3Yr)",
+        "Sharpe Ratio Rank (5Yr)",
+        "R-Squared (3Yr)",
+        "R-Squared (5Yr)",
+        "Sortino Ratio Rank (3Yr)",
+        "Sortino Ratio Rank (5Yr)",
+        "Tracking Error Rank (3Yr)",
+        "Tracking Error Rank (5Yr)"
     ]
+
     pages, fund_blocks, fund_name, metrics = [], [], None, []
-    for p in pdf.pages[scorecard_page-1:]:
+
+    # gather all text from the scorecard pages
+    for p in pdf.pages[scorecard_page - 1:]:
         pages.append(p.extract_text() or "")
     lines = "\n".join(pages).splitlines()
+
     for line in lines:
+        # start of a new fund block: a non-metric line with content
         if not any(metric in line for metric in metric_labels) and line.strip():
             if fund_name and metrics:
                 fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
-            fund_name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed on watchlist for not meeting .* out of 14 criteria)", "", line.strip()).strip()
+            # strip off any watchlist suffix of the form "... out of N criteria"
+            fund_name = re.sub(
+                r'^(?:Fund\s+)?(?:Meets Watchlist Criteria|has been placed on watchlist for not meeting .*? out of \d+ criteria)\s*:?\s*',
+                "",
+                line.strip(),
+                flags=re.IGNORECASE
+            ).strip()
             metrics = []
+
+        # capture any metric/status lines
         for metric in metric_labels:
             if metric in line:
                 m = re.match(r"^(.*?)\s+(Pass|Review|Fail)\s*(.*)", line.strip())
                 if m:
                     metric_name, status, info = m.groups()
-                    metrics.append({"Metric": metric_name, "Status": status, "Info": info.strip()})
+                    metrics.append({
+                        "Metric": metric_name,
+                        "Status": status,
+                        "Info": info.strip()
+                    })
+
+    # append the last fund
     if fund_name and metrics:
         fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
+
     return fund_blocks
 
 def extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page=None):
