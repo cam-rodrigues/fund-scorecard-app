@@ -2353,52 +2353,47 @@ def step17_export_to_ppt():
     from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     
     def fill_table_with_styles(table, df_table, bold_row_idx=None, first_col_white=True):
-        # figure out which column is "IPS Status"
+        # locate the "IPS Status" column
         try:
             status_idx = df_table.columns.get_loc("IPS Status")
         except KeyError:
             status_idx = None
     
-        # df_table has N rows; ppt table has N+1 (header) rows
-        # we want to fill only rows 1..N
         for i in range(len(df_table)):
             row_vals = df_table.iloc[i]
             for j, col in enumerate(df_table.columns):
                 val = row_vals[col]
-                cell = table.cell(i+1, j)  # skip header row at index 0
+                cell = table.cell(i+1, j)  # skip header row
     
-                # 1) set text
-                text = str(val) if val is not None else ""
-                cell.text = text
+                # set text
+                txt = str(val) if val is not None else ""
+                cell.text = txt
                 cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
     
-                # 2) only paint background if this is the IPS Status column 
-                #    and we're on the real-data row (i == 1)
+                # only color the IPS Status cell on the data row (i==1)
                 if status_idx is not None and j == status_idx and i == 1:
                     cell.fill.solid()
-                    if text == "NW":
-                        cell.fill.fore_color.rgb = RGBColor(0x21, 0x7A, 0x3E)
-                    elif text == "IW":
-                        cell.fill.fore_color.rgb = RGBColor(0xB8, 0x73, 0x33)
-                    elif text == "FW":
-                        cell.fill.fore_color.rgb = RGBColor(0xC3, 0x00, 0x00)
+                    if txt == "NW":
+                        cell.fill.fore_color.rgb = RGBColor(0xC5, 0xE6, 0x9A)  # #c5e69a
+                    elif txt == "IW":
+                        cell.fill.fore_color.rgb = RGBColor(0xFF, 0x95, 0x53)  # #ff9553
+                    elif txt == "FW":
+                        cell.fill.fore_color.rgb = RGBColor(0xFF, 0x5D, 0x58)  # #ff5d58
     
-                # 3) style text
+                # style text
                 for para in cell.text_frame.paragraphs:
                     para.alignment = PP_ALIGN.CENTER
                     for run in para.runs:
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
-                        # first column special color logic
                         if j == 0:
                             run.font.color.rgb = RGBColor(255,255,255) if first_col_white else RGBColor(0,0,0)
-                        # IPS status text white on its colored background
                         elif status_idx is not None and j == status_idx:
                             run.font.color.rgb = RGBColor(255,255,255)
                         else:
                             run.font.color.rgb = RGBColor(0,0,0)
-                        # bold only if you’ve asked to bold that row
                         run.font.bold = (bold_row_idx is not None and i == bold_row_idx)
+
 
 
     def fill_text_placeholder_preserving_format(slide, placeholder_text, replacement_text):
