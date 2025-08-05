@@ -1910,10 +1910,15 @@ def step17_export_to_ppt():
             headers = ["Category", "Time Period", "Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
             df_slide1 = pd.DataFrame([table_data], columns=headers)
 
-    # Raw Slide 2 tables from session (they should already have selected, proposed(s), benchmark ordering)
+    # Raw Slide 2 tables from session
     df_slide2_table1 = st.session_state.get("slide2_table1_data")
     df_slide2_table2 = st.session_state.get("slide2_table2_data")
     df_slide2_table3 = st.session_state.get("slide2_table3_data")
+
+    # bring Slide 3 data into scope
+    df_slide3_table1 = st.session_state.get("slide3_table1_data")
+    df_slide3_table2 = st.session_state.get("slide3_table2_data")
+
     
      # --- Fill Slide 1 ---
     slide1 = prs.slides[0]
