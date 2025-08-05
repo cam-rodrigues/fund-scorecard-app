@@ -2443,78 +2443,74 @@ def step17_export_to_ppt():
     df_slide2_table2 = st.session_state.get("slide2_table2_data")
     df_slide2_table3 = st.session_state.get("slide2_table3_data")
 
-    # --- Fill Slide 1 ---
-    import re
+    # --- Slide 1: Title + IPS Table ---
+    import pandas as pd
     from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     from pptx.dml.color import RGBColor
     from pptx.util import Pt
-
-    slide1 = prs.slides[0]
-
-    # 1) Replace the [Fund Name] placeholder
-    for shape in slide1.shapes:
-        if shape.has_text_frame and "[Fund Name]" in shape.text:
-            shape.text = shape.text.replace("[Fund Name]", selected)
-
-    # 2) Build the DataFrame for Slide 1
+    
+    # 1) Build the DataFrame for Slide 1
     ips_icon = st.session_state.get("ips_icon_table", pd.DataFrame())
     row = ips_icon[ips_icon["Fund Name"] == selected].iloc[0]
-    display_cols = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
+    disp_map = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
+    
     table_data = {
         "Category":    st.session_state.get("fund_factsheets_data", [{}])[0].get("Category", ""),
         "Time Period": st.session_state.get("report_date", ""),
         "Plan Assets": "$",
-        **{ display_cols[k]: row[k] for k in row.index if k.startswith("IPS Investment Criteria ") },
+        **{disp_map[k]: row[k] for k in row.index if k.startswith("IPS Investment Criteria ")},
         "IPS Status":  row["IPS Watch Status"],
     }
-    headers = ["Category", "Time Period", "Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
+    
+    headers   = ["Category","Time Period","Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
     df_slide1 = pd.DataFrame([table_data], columns=headers)
-
-    # 3) Helper to style cells
-    def style_cell(cell, text):
-        cell.text = text
-        cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
-        for p in cell.text_frame.paragraphs:
-            p.alignment = PP_ALIGN.CENTER
-            for run in p.runs:
-                run.font.name = "Cambria"
-                run.font.size = Pt(11)
-
-    # 4) Locate the table and write into the second data row
+    
+    # 2) Grab Slide 1 and replace the [Fund Name] placeholder
+    slide1 = prs.slides[0]
+    for shape in slide1.shapes:
+        if shape.has_text_frame and "[Fund Name]" in shape.text:
+            shape.text = shape.text.replace("[Fund Name]", selected)
+    
+    # 3) Find the table, clear row 1, write into row 2, then color the status cell
     for shape in slide1.shapes:
         if not shape.has_table:
             continue
-        table = shape.table
-        if len(table.columns) != len(df_slide1.columns):
+        tbl = shape.table
+        if len(tbl.columns) != len(df_slide1.columns):
             continue
-
-        # Determine target row index (use row 2 if available, else row 1)
-        target_row = 2 if len(table.rows) > 2 else 1
-
-        # Clear the first data row (row index 1)
-        for c in range(len(table.columns)):
-            table.cell(1, c).text = ""
-
-        # Populate the target row
+    
+        # clear first data row
+        for c in range(len(tbl.columns)):
+            tbl.cell(1, c).text = ""
+    
+        # populate second data row
         for idx, col in enumerate(df_slide1.columns):
-            style_cell(table.cell(target_row, idx), str(df_slide1.iloc[0, idx]))
-
-        # Color the IPS Status cell background and make its text white
+            cell = tbl.cell(2, idx)
+            cell.text = str(df_slide1.iloc[0, idx])
+            cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
+            for p in cell.text_frame.paragraphs:
+                p.alignment = PP_ALIGN.CENTER
+                for run in p.runs:
+                    run.font.name = "Cambria"
+                    run.font.size = Pt(11)
+    
+        # color the IPS Status cell
         status = df_slide1.iloc[0, -1]
         color_map = {
             "NW": (0x21, 0x7A, 0x3E),  # green
             "IW": (0xB8, 0x73, 0x33),  # orange
             "FW": (0xC3, 0x00, 0x00),  # red
         }
-        rgb = color_map.get(status, (0, 0, 0))
-        status_cell = table.cell(target_row, len(df_slide1.columns) - 1)
+        rgb = color_map.get(status, (0,0,0))
+        status_cell = tbl.cell(2, len(df_slide1.columns)-1)
         status_cell.fill.solid()
         status_cell.fill.fore_color.rgb = RGBColor(*rgb)
         for p in status_cell.text_frame.paragraphs:
             for run in p.runs:
-                run.font.color.rgb = RGBColor(255, 255, 255)
-
-        break  # done with Slide 1
+                run.font.color.rgb = RGBColor(255,255,255)
+    
+        break  # only do the first matching table
+    
 
 
     # Table 2 (Returns)
