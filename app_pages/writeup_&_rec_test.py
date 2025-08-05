@@ -237,17 +237,9 @@ def extract_scorecard_blocks(pdf, scorecard_page):
         "Tracking Error Rank (5Yr)"
     ]
 
-    # a regex that matches lines like:
-    #   "Fund Meets Watchlist Criteria"
-    #   "has been placed on watchlist for not meeting X out of 15 criteria"
-    watchlist_only = re.compile(
-        r'^(?:Fund\s+)?(?:Meets Watchlist Criteria|has been placed on watchlist for not meeting .*? out of \d+ criteria)\s*$',
-        re.IGNORECASE
-    )
-
     pages, fund_blocks, fund_name, metrics = [], [], None, []
 
-    # collect all text starting at scorecard_page
+    # gather all text after scorecard page
     for p in pdf.pages[scorecard_page - 1:]:
         pages.append(p.extract_text() or "")
     lines = "\n".join(pages).splitlines()
@@ -255,37 +247,42 @@ def extract_scorecard_blocks(pdf, scorecard_page):
     for line in lines:
         text = line.strip()
 
-        # **1)** if this line is *only* a watchlist header, skip it entirely
-        if watchlist_only.match(text):
+        # 1) Skip any pure "watchlist" header lines
+        if "watchlist criteria" in text.lower():
             continue
 
-        # **2)** detect start of a new fund block: non-metric, non-blank line
-        if not any(lbl in text for lbl in metric_labels) and text:
-            # push previous fund if present
+        # 2) New fund name whenever it's a non-metric, non-blank line
+        if text and not any(lbl in text for lbl in metric_labels):
+            # push previous fund
             if fund_name and metrics:
                 fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
-            # strip off any leading "Fund " or watchlist suffix
+            # strip any leading "Fund " and any trailing watchlist suffix
             fund_name = re.sub(
-                r'^(?:Fund\s+)?(?:Meets Watchlist Criteria|has been placed on watchlist for not meeting .*? out of \d+ criteria)\s*:?\s*',
-                "",
+                r'^(?:Fund\s+)?(.*?)(?:\s*-\s*has been placed on watchlist.*|:\s*Meets Watchlist Criteria)?$',
+                r'\1',
                 text,
                 flags=re.IGNORECASE
             ).strip()
             metrics = []
 
-        # **3)** capture any metric lines
+        # 3) capture metric/status lines
         for lbl in metric_labels:
             if lbl in text:
                 m = re.match(r"^(.*?)\s+(Pass|Review|Fail)\s*(.*)$", text)
                 if m:
                     name, status, info = m.groups()
-                    metrics.append({"Metric": name, "Status": status, "Info": info.strip()})
+                    metrics.append({
+                        "Metric": name,
+                        "Status": status,
+                        "Info": info.strip()
+                    })
 
     # append last fund
     if fund_name and metrics:
         fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
 
     return fund_blocks
+
 
 
 def extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page=None):
