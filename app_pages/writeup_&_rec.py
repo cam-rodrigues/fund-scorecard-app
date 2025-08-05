@@ -1974,9 +1974,13 @@ def step16_3_selected_overview_lookup(pdf, context_lines=3, min_score=50):
 
     
 #───Bullet Points──────────────────────────────────────────────────────────────────
+def markdown_bold_to_html(text: str) -> str:
+    # escape to avoid injection, then convert **bold** to <strong>...</strong>
+    escaped = html.escape(text)
+    return re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', escaped)
+
 def step16_bullet_points(pdf=None):
     import streamlit as st
-    import re
 
     selected_fund = st.session_state.get("selected_fund")
     if not selected_fund:
@@ -2003,7 +2007,6 @@ def step16_bullet_points(pdf=None):
     for fld, val in item.items():
         b1 = b1.replace(f"[{fld}]", str(val))
     bullets.append(b1)
-    st.markdown(f"{b1}")
 
     # Get IPS status
     ips_icon_table = st.session_state.get("ips_icon_table")
@@ -2016,7 +2019,6 @@ def step16_bullet_points(pdf=None):
     if ips_status == "NW":
         b2 = "- This fund is **not on watch**."
         bullets.append(b2)
-        st.markdown(b2)
     else:
         status_label = (
             "Formal Watch" if ips_status == "FW" else
@@ -2058,7 +2060,6 @@ def step16_bullet_points(pdf=None):
             f"and the {pos5} half of its 5-Yr Sharpe ranks."
         )
         bullets.append(b2)
-        st.markdown(b2)
 
     # --- Investment Overview bullet ---
     overview_info = st.session_state.get("step16_3_selected_overview_lookup", {}) or {}
@@ -2085,7 +2086,6 @@ def step16_bullet_points(pdf=None):
         overview_bullet = " ".join(sentences[:3]) if sentences else overview_paragraph
         b_overview = overview_bullet  # no prefix
         bullets.append(b_overview)
-        st.markdown(b_overview)
 
     # Bullet 3: Action for Formal Watch only
     if ips_status == "FW":
@@ -2101,7 +2101,6 @@ def step16_bullet_points(pdf=None):
         replacement = ", ".join(proposals) if proposals else "a proposed fund"
         b3 = f"**Action:** Consider replacing this fund with {replacement}."
         bullets.append(b3)
-        st.markdown(b3)
 
     # Persist updated bullets
     st.session_state["bullet_points"] = bullets
@@ -2666,19 +2665,166 @@ def step17_export_to_ppt():
                 fill_table_with_styles(shape.table, df_slide4_table2)
                 break
 
-    # --- Save and offer download ---
+    # --- Save and offer download (clean UI) ---
     output = BytesIO()
     prs.save(output)
-    st.success("Powerpoint Generated")
+    ppt_data = output.getvalue()
+
+
     st.download_button(
         label="Download Writeup PowerPoint",
-        data=output.getvalue(),
+        data=ppt_data,
         file_name=f"{selected} Writeup.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        use_container_width=True,
+        key="download_writeup_pptx",
     )
 
-#───Main App──────────────────────────────────────────────────────────────────
 
+# –– Cards ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+def render_step16_and_16_5_cards(pdf):
+    import streamlit as st
+    import html
+    import re
+
+    def markdown_bold_to_html(text: str) -> str:
+        escaped = html.escape(text)
+        return re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', escaped)
+
+    selected_fund = st.session_state.get("selected_fund", "—")
+    # refresh bullets & overview
+    step16_bullet_points(pdf)
+    proposed_overview = step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_score=60)
+    bullet_points = st.session_state.get("bullet_points", [])
+
+    # Build selected fund card
+    bullets_html = "".join(
+        f"<div style='margin-bottom:6px; line-height:1.2; font-size:0.75rem;'>{markdown_bold_to_html(bp)}</div>"
+        for bp in bullet_points
+    ) or "<div style='font-size:0.75rem;'>No bullet points available.</div>"
+
+    ips_status = ""
+    ips_icon_table = st.session_state.get("ips_icon_table")
+    if ips_icon_table is not None and not ips_icon_table.empty:
+        row = ips_icon_table[ips_icon_table["Fund Name"] == selected_fund]
+        if not row.empty:
+            ips_status = row.iloc[0].get("IPS Watch Status", "")
+
+    status_display = {
+        "NW": "No Watch",
+        "IW": "Informal Watch",
+        "FW": "Formal Watch"
+    }.get(ips_status, "")
+
+    status_badge = ""
+    if status_display:
+        if ips_status == "NW":
+            badge_style = "background:#d6f5df; color:#217a3e;"
+        elif ips_status == "IW":
+            badge_style = "background:#fff3cd; color:#B87333;"
+        elif ips_status == "FW":
+            badge_style = "background:#f8d7da; color:#c30000;"
+        else:
+            badge_style = ""
+        status_badge = (
+            f"<span style='margin-left:8px; font-size:0.55rem; padding:4px 10px; border-radius:12px; "
+            f"font-weight:600; display:inline-block; vertical-align:middle; {badge_style}'>"
+            f"{html.escape(status_display)}</span>"
+        )
+
+    # Shared card style variables for consistency and smaller font
+    CARD_BG = "linear-gradient(120deg, #e6f0fb 80%, #c8e0f6 100%)"
+    CARD_BORDER = "1.2px solid #b5d0eb"
+    FONT_FAMILY = "system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif"
+    HEADING_COLOR = "#1f3f72"
+    TEXT_COLOR = "#244369"
+    LINE_HEIGHT = "1.3"
+
+    selected_card = f"""
+    <div style="
+        background: {CARD_BG};
+        color: {TEXT_COLOR};
+        border-radius: 1.5rem;
+        box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
+        padding: 1.2rem 1.4rem;
+        border: {CARD_BORDER};
+        font-family: {FONT_FAMILY};
+        line-height: {LINE_HEIGHT};
+        max-width:100%;
+        font-size: 0.75rem;
+    ">
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+            <div style="font-size:0.85rem; font-weight:700; color:{HEADING_COLOR};">
+                {html.escape(selected_fund)}
+            </div>
+            {status_badge}
+        </div>
+        {bullets_html}
+    </div>
+    """
+
+    # Build proposed fund overview card(s)
+    proposed_cards = ""
+    if not proposed_overview:
+        proposed_cards = f"""
+        <div style="
+            background: {CARD_BG};
+            color: {TEXT_COLOR};
+            border-radius: 1.5rem;
+            box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
+            padding: 1.2rem 1.4rem;
+            border: {CARD_BORDER};
+            font-family: {FONT_FAMILY};
+            line-height: {LINE_HEIGHT};
+            max-width:100%;
+            font-size:0.75rem;
+        ">
+            <div style="font-size:0.85rem; font-weight:700; margin-bottom:6px; color:{HEADING_COLOR};">
+                Proposed Fund Investment Overviews
+            </div>
+            <div style="font-size:0.75rem;">No proposed funds or overview data available.</div>
+        </div>
+        """
+    else:
+        for fund, info in proposed_overview.items():
+            ticker = info.get("Ticker", "")
+            name_label = f"{fund} ({ticker})" if ticker else fund
+            paragraph = info.get("Overview Paragraph", "").strip()
+            if not paragraph:
+                snippet = "_No overview paragraph extracted._"
+            else:
+                snippet = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html.escape(paragraph))
+
+            proposed_cards += f"""
+            <div style="
+                background: {CARD_BG};
+                color: {TEXT_COLOR};
+                border-radius: 1.5rem;
+                box-shadow: 0 4px 24px rgba(44,85,130,0.11), 0 2px 8px rgba(36,67,105,0.09);
+                padding: 1rem 1.3rem;
+                border: {CARD_BORDER};
+                font-family: {FONT_FAMILY};
+                line-height: {LINE_HEIGHT};
+                margin-bottom:1rem;
+                max-width:100%;
+                font-size:0.75rem;
+            ">
+                <div style="font-weight:700; font-size:0.85rem; margin-bottom:4px; color:{HEADING_COLOR};">{html.escape(name_label)}</div>
+                <div style="font-size:0.7rem; line-height:1.25;">{snippet}</div>
+            </div>
+            """
+
+    col1, col2 = st.columns(2, gap="large")
+    with col1:
+        st.markdown(selected_card, unsafe_allow_html=True)
+    with col2:
+        st.markdown(proposed_cards, unsafe_allow_html=True)
+
+
+    # Spacer
+    st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
+
+# –– Main App –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 def run():
     st.title("Writeup & Rec")
     uploaded = st.file_uploader("Upload MPI PDF to Generate Writup & Rec PPTX", type="pdf")
@@ -2782,31 +2928,13 @@ def run():
         with st.expander("Single Fund Write Up", expanded=False):
             step15_display_selected_fund()
 
-        # --- Bullet Points (ensure overview lookup for selected fund) ---
-        with st.expander("Bullet Points", expanded=False):
-            step16_bullet_points(pdf)
+        # --- Replaced: show Step 16 & 16.5 as side-by-side cards ---
+        render_step16_and_16_5_cards(pdf)
 
-        # --- Proposed Fund Investment Overview (precompute before showing) ---
-        proposed_overview = step16_5_locate_proposed_factsheets_with_overview(
-            pdf, context_lines=3, min_score=60
-        )
-        with st.expander("Proposed Fund Investment Overview", expanded=False):
-            if not proposed_overview:
-                st.warning("No proposed fund overview lookup results.")
-            else:
-                st.subheader("Extracted Investment Overview Paragraphs")
-                for fund, info in proposed_overview.items():
-                    ticker = info.get("Ticker", "")
-                    st.markdown(f"**{fund} ({ticker})**")
-                    para = info.get("Overview Paragraph", "")
-                    if para:
-                        st.write(para)
-                    else:
-                        st.write("_No paragraph found beneath the heading._")
+        # --- Export to PowerPoint (always visible, clean UI) ---
+        step17_export_to_ppt()
 
-        # --- Export to PowerPoint ---
-        with st.expander("Export to Powerpoint", expanded=False):
-            step17_export_to_ppt()
+
 
 if __name__ == "__main__":
     run()
