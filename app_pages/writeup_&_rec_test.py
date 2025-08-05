@@ -1915,9 +1915,16 @@ def step17_export_to_ppt():
     df_slide2_table2 = st.session_state.get("slide2_table2_data")
     df_slide2_table3 = st.session_state.get("slide2_table3_data")
 
+    # … after Slide 2 and Slide 3 retrieval …
+
     # bring Slide 3 data into scope
     df_slide3_table1 = st.session_state.get("slide3_table1_data")
     df_slide3_table2 = st.session_state.get("slide3_table2_data")
+
+    # bring Slide 4 data into scope
+    df_slide4_table1 = st.session_state.get("slide4")
+    df_slide4_table2 = st.session_state.get("slide4_table2_data")
+
 
     
      # --- Fill Slide 1 ---
