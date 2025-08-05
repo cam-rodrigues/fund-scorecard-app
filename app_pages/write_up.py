@@ -1746,28 +1746,71 @@ def step17_export_to_ppt():
     # Helper to get table header texts
     def get_table_header(table):
         return tuple(cell.text.strip() for cell in table.rows[0].cells)
-
-    # Fill table with styles; add option to choose first col font color white or black
+   
+    from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
+    from pptx.util import Pt
+    
     def fill_table_with_styles(table, df_table, bold_row_idx=None, first_col_white=True):
+        """
+        Fill a PPT table with df_table values, styling:
+          - First column font: white or black
+          - ✔ cells green text, ✗ cells red text
+          - IPS Status cell background per status (NW/IW/FW)
+          - Bold the specified data row
+        """
+        # Map IPS statuses to background colors
+        status_bg = {
+            "NW": RGBColor(0xC5, 0xE6, 0x9A),  # green
+            "IW": RGBColor(0xFF, 0x95, 0x53),  # orange
+            "FW": RGBColor(0xFF, 0x5D, 0x58),  # red
+        }
+    
         n_rows = min(len(df_table), len(table.rows) - 1)
         n_cols = min(len(df_table.columns), len(table.columns))
+    
+        # Find the column index for "IPS Status"
+        try:
+            status_col = list(df_table.columns).index("IPS Status")
+        except ValueError:
+            status_col = None
+    
         for i in range(n_rows):
             for j in range(n_cols):
                 val = df_table.iloc[i, j]
-                cell = table.cell(i + 1, j)
+                cell = table.cell(i + 1, j)  # data rows start at row 1
                 cell.text = str(val) if val is not None else ""
                 cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
+    
+                # If this is the IPS Status column on the (first) data row, color its background
+                if status_col is not None and j == status_col and i == 0:
+                    cell.fill.solid()
+                    bg_color = status_bg.get(str(val), None)
+                    if bg_color:
+                        cell.fill.fore_color.rgb = bg_color
+    
+                # Now style the text runs
                 for para in cell.text_frame.paragraphs:
                     para.alignment = PP_ALIGN.CENTER
                     for run in para.runs:
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
-                        # Conditionally set font color for first column
+    
+                        # first column font color
                         if j == 0:
-                            run.font.color.rgb = RGBColor(255, 255, 255) if first_col_white else RGBColor(0, 0, 0)
+                            run.font.color.rgb = RGBColor(255,255,255) if first_col_white else RGBColor(0,0,0)
                         else:
-                            run.font.color.rgb = RGBColor(0, 0, 0)
+                            # green ✔, red ✗, else black
+                            if run.text == "✔":
+                                run.font.color.rgb = RGBColor(0,128,0)
+                            elif run.text == "✗":
+                                run.font.color.rgb = RGBColor(255,0,0)
+                            else:
+                                run.font.color.rgb = RGBColor(0,0,0)
+    
+                        # bold entire row if requested
                         run.font.bold = (bold_row_idx is not None and i == bold_row_idx)
+
 
     # Replace placeholder text in slide, preserving formatting as best as possible
     def fill_text_placeholder_preserving_format(slide, placeholder_text, replacement_text):
