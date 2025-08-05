@@ -2442,47 +2442,42 @@ def step17_export_to_ppt():
     df_slide2_table1 = st.session_state.get("slide2_table1_data")
     df_slide2_table2 = st.session_state.get("slide2_table2_data")
     df_slide2_table3 = st.session_state.get("slide2_table3_data")
-
+    
     # --- Fill Slide 1 ---
     slide1 = prs.slides[0]
+    
+    # 1) Replace the [Fund Name] placeholder
     if not fill_text_placeholder_preserving_format(slide1, "[Fund Name]", selected):
         st.warning("Could not find the [Fund Name] placeholder on Slide 1.")
     
+    # 2) Build a two-row DataFrame: blank row + your real data row
     if df_slide1 is not None:
-        # 1) Identify columns
         cols = df_slide1.columns.tolist()
-        # first three are always filled
-        first_cols = cols[:3]
-        # the rest (metrics + IPS Status) we’ll blank out on row 1
-        blank_cols = cols[3:]
-    
-        # 2) Build the two body-rows:
-        #   – row1: copy only the first 3 columns, blank out metrics+status
-        row1 = {c: (df_slide1.iloc[0][c] if c in first_cols else "") for c in cols}
-        #   – row2: your full data row
-        row2 = df_slide1.iloc[0].to_dict()
-    
-        # 3) Assemble DataFrame — this will map to table.rows[1] and table.rows[2]
+        row1 = {c: "" for c in cols}                # completely blank
+        row2 = df_slide1.iloc[0].to_dict()           # full data
         df_body = pd.DataFrame([row1, row2], columns=cols)
     
-        # 4) Find the PPT table and fill both rows
+        # 3) Locate the table and fill it (row1 stays blank; row2 gets data+styles)
         filled = False
         for shape in slide1.shapes:
-            if not shape.has_table: 
+            if not shape.has_table:
                 continue
             tbl = shape.table
             if len(tbl.columns) != len(cols):
                 continue
     
-            # this helper will:
-            #  • leave tbl.rows[1] blank in the blank_cols
-            #  • fill tbl.rows[2] fully, and style the IPS Status cell
             fill_table_with_styles(tbl, df_body, first_col_white=False)
             filled = True
             break
     
         if not filled:
             st.warning("Could not find matching table on Slide 1 to fill.")
+    
+    # 4) Re-insert your bullet points exactly as before
+    bullets = st.session_state.get("bullet_points", [])
+    if not fill_bullet_points(slide1, "[Bullet Point 1]", bullets):
+        st.warning("Could not find bullet points placeholder on Slide 1.")
+
 
 
     # --- Fill Slide 2 ---
