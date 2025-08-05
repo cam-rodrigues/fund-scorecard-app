@@ -2327,26 +2327,12 @@ def step17_export_to_ppt():
 
     # --- Fill Slide 1 Table & Color Status Cell ---
     slide1 = prs.slides[0]
-
-    # 1) Replace "[Fund Name]" placeholder
+    # replace [Fund Name]
     for shape in slide1.shapes:
         if shape.has_text_frame and "[Fund Name]" in shape.text:
             shape.text = shape.text.replace("[Fund Name]", selected)
 
-    # 2) Build df_slide1 exactly as before
-    row = ips_icon[ips_icon["Fund Name"] == selected].iloc[0]
-    display_cols = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
-    table_data = {
-        "Category": fs_rec.get("Category", ""),
-        "Time Period": st.session_state.get("report_date", ""),
-        "Plan Assets": "$",
-        **{display_cols[k]: row[k] for k in row.index if k.startswith("IPS Investment Criteria ")},
-        "IPS Status": row["IPS Watch Status"],
-    }
-    headers = ["Category", "Time Period", "Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
-    df_slide1 = pd.DataFrame([table_data], columns=headers)
-
-    # 3) Find and fill the table
+    # find the table
     for shape in slide1.shapes:
         if not shape.has_table:
             continue
@@ -2354,11 +2340,11 @@ def step17_export_to_ppt():
         if len(table.columns) != len(df_slide1.columns):
             continue
 
-        # Clear first data‐row (row idx=1)
+        # Clear first data‐row (row index 1)
         for col_idx in range(len(table.columns)):
             table.cell(1, col_idx).text = ""
 
-        # Write into second data‐row (row idx=2)
+        # Write our values into second data‐row (row index 2)
         for col_idx, col_name in enumerate(df_slide1.columns):
             val = df_slide1.iloc[0, col_idx]
             cell = table.cell(2, col_idx)
@@ -2370,20 +2356,21 @@ def step17_export_to_ppt():
                     run.font.name = "Cambria"
                     run.font.size = Pt(11)
 
-        # Color the IPS Status cell in that second row
-        status = df_slide1.at[0, "IPS Status"]
+        # Color the IPS Status cell in that second row (last column)
+        status = df_slide1.iloc[0, -1]
         color_map = {
             "NW": (0x21, 0x7A, 0x3E),  # green
             "IW": (0xB8, 0x73, 0x33),  # orange
             "FW": (0xC3, 0x00, 0x00),  # red
         }
         rgb = color_map.get(status, (0, 0, 0))
-        status_cell = table.cell(2, len(headers) - 1)
+        status_cell = table.cell(2, len(df_slide1.columns) - 1)
         for para in status_cell.text_frame.paragraphs:
             for run in para.runs:
                 run.font.color.rgb = RGBColor(*rgb)
 
-        break  # done with the first table we find
+        break  # done with slide1 table
+
 
 
     # --- Fill Slide 2 ---
