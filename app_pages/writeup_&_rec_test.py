@@ -1721,7 +1721,7 @@ def step16_bullet_points():
     st.session_state["bullet_points"] = bullets
 
 
-#───Build Powerpoint─────────────────────────────────────────────────────────────────
+#───Build Powerpoint──────────────────────────────────────────────────────────────────
 def step17_export_to_ppt():
     import streamlit as st
     from pptx import Presentation
@@ -1730,114 +1730,89 @@ def step17_export_to_ppt():
     from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     from io import BytesIO
     import pandas as pd
-    
-    def truncate_to_n_sentences(text, n=3):
-        sentences = re.split(r'(?<=[.!?])\s+', text.strip())
-        if len(sentences) <= n:
-            return " ".join(sentences).strip()
-        return " ".join(sentences[:n]).strip()
 
-    def lookup_overview_paragraph(label, lookup_dict):
-        """
-        Given a proposed label like "Fund Name (TICK)" find best matching key in lookup_dict
-        (which was populated in step16_5_proposed_overview_lookup) using fuzzy matching,
-        then return the Overview Paragraph.
-        """
-        import re
-        from rapidfuzz import fuzz
-    
-        # canonicalize: strip ticker parenthesis and punctuation
-        base_name = re.sub(r"\s*\(.*\)$", "", label).strip()
-        def normalize(s):
-            return re.sub(r"[^A-Za-z0-9 ]+", "", s or "").strip().lower()
-    
-        target = normalize(base_name)
-        best_key = None
-        best_score = -1
-        for key in lookup_dict.keys():
-            score = fuzz.token_sort_ratio(target, normalize(key))
-            if score > best_score:
-                best_score = score
-                best_key = key
-    
-        if best_key and best_score >= 60:  # threshold you can tweak
-            return lookup_dict.get(best_key, {}).get("Overview Paragraph", "")
-        # fallback: try exact base_name
-        return lookup_dict.get(base_name, {}).get("Overview Paragraph", "")
-
-
-    
     selected = st.session_state.get("selected_fund")
     if not selected:
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
 
-    # Get confirmed proposed funds (name + ticker)
-    confirmed_proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
-    proposed = []
-    if not confirmed_proposed_df.empty:
-        for _, row in confirmed_proposed_df.iterrows():
-            name = row.get("Fund Scorecard Name", "")
-            ticker = row.get("Ticker", "")
-            label = f"{name} ({ticker})" if ticker else name
-            proposed.append(label)
-    proposed = proposed[:2]  # template supports up to two
-
-    template_path = "assets/writeup&rec_templates.pptx"
+    template_path = "assets/writeup_templates.pptx"  # Adjust path if needed
     try:
         prs = Presentation(template_path)
     except Exception as e:
         st.error(f"Could not load PowerPoint template: {e}")
         return
 
+    # Helper to get table header texts
+    def get_table_header(table):
+        return tuple(cell.text.strip() for cell in table.rows[0].cells)
+   
     from pptx.dml.color import RGBColor
-    from pptx.util import Pt
     from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
+    from pptx.util import Pt
     
     def fill_table_with_styles(table, df_table, bold_row_idx=None, first_col_white=True):
-        # locate the "IPS Status" column
+        """
+        Fill a PPT table with df_table values, styling:
+          - First column font: white or black
+          - ✔ cells green text, ✗ cells red text
+          - IPS Status cell background per status (NW/IW/FW)
+          - Bold the specified data row
+        """
+        # Map IPS statuses to background colors
+        status_bg = {
+            "NW": RGBColor(0xC5, 0xE6, 0x9A),  # green
+            "IW": RGBColor(0xFF, 0x95, 0x53),  # orange
+            "FW": RGBColor(0xFF, 0x5D, 0x58),  # red
+        }
+    
+        n_rows = min(len(df_table), len(table.rows) - 1)
+        n_cols = min(len(df_table.columns), len(table.columns))
+    
+        # Find the column index for "IPS Status"
         try:
-            status_idx = df_table.columns.get_loc("IPS Status")
-        except KeyError:
-            status_idx = None
+            status_col = list(df_table.columns).index("IPS Status")
+        except ValueError:
+            status_col = None
     
-        for i in range(len(df_table)):
-            row_vals = df_table.iloc[i]
-            for j, col in enumerate(df_table.columns):
-                val = row_vals[col]
-                cell = table.cell(i+1, j)  # skip header row
-    
-                # set text
-                txt = str(val) if val is not None else ""
-                cell.text = txt
+        for i in range(n_rows):
+            for j in range(n_cols):
+                val = df_table.iloc[i, j]
+                cell = table.cell(i + 1, j)  # data rows start at row 1
+                cell.text = str(val) if val is not None else ""
                 cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
     
-                # only color the IPS Status cell on the data row (i==1)
-                if status_idx is not None and j == status_idx and i == 1:
+                # If this is the IPS Status column on the (first) data row, color its background
+                if status_col is not None and j == status_col and i == 0:
                     cell.fill.solid()
-                    if txt == "NW":
-                        cell.fill.fore_color.rgb = RGBColor(0xC5, 0xE6, 0x9A)  # #c5e69a
-                    elif txt == "IW":
-                        cell.fill.fore_color.rgb = RGBColor(0xFF, 0x95, 0x53)  # #ff9553
-                    elif txt == "FW":
-                        cell.fill.fore_color.rgb = RGBColor(0xFF, 0x5D, 0x58)  # #ff5d58
+                    bg_color = status_bg.get(str(val), None)
+                    if bg_color:
+                        cell.fill.fore_color.rgb = bg_color
     
-                # style text
+                # Now style the text runs
                 for para in cell.text_frame.paragraphs:
                     para.alignment = PP_ALIGN.CENTER
                     for run in para.runs:
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
+    
+                        # first column font color
                         if j == 0:
                             run.font.color.rgb = RGBColor(255,255,255) if first_col_white else RGBColor(0,0,0)
-                        elif status_idx is not None and j == status_idx:
-                            run.font.color.rgb = RGBColor(255,255,255)
                         else:
-                            run.font.color.rgb = RGBColor(0,0,0)
+                            # green ✔, red ✗, else black
+                            if run.text == "✔":
+                                run.font.color.rgb = RGBColor(0,128,0)
+                            elif run.text == "✗":
+                                run.font.color.rgb = RGBColor(255,0,0)
+                            else:
+                                run.font.color.rgb = RGBColor(0,0,0)
+    
+                        # bold entire row if requested
                         run.font.bold = (bold_row_idx is not None and i == bold_row_idx)
 
 
-
+    # Replace placeholder text in slide, preserving formatting as best as possible
     def fill_text_placeholder_preserving_format(slide, placeholder_text, replacement_text):
         replaced = False
         for shape in slide.shapes:
@@ -1862,37 +1837,40 @@ def step17_export_to_ppt():
                     replaced = True
         return replaced
 
+    # Fill bullet points placeholder with a list of bullet strings
     def fill_bullet_points(slide, placeholder="[Bullet Point 1]", bullets=None):
+        import streamlit as st
         if bullets is None:
-            bullets = st.session_state.get("bullet_points", [])
+            bullets = st.session_state.get("bullet_points", None)
         if not bullets:
             bullets = ["Performance exceeded benchmark.", "No watch status.", "No action required."]
-        replaced = False
         for shape in slide.shapes:
             if not shape.has_text_frame:
                 continue
-            tf = shape.text_frame
-            if any(placeholder in p.text for p in tf.paragraphs):
-                tf.clear()
-                for b in bullets:
-                    p_new = tf.add_paragraph()
-                    clean_text = b.replace("**", "")
-                    p_new.text = clean_text
-                    p_new.level = 0
-                    p_new.font.name = "Cambria"
-                    p_new.font.size = Pt(11)
-                    p_new.font.color.rgb = RGBColor(0, 0, 0)
-                    p_new.font.bold = False  # <-- no longer forcing bold
-                replaced = True
-                break
-        return replaced
+            for p in shape.text_frame.paragraphs:
+                if placeholder in p.text:
+                    shape.text_frame.clear()
+                    for b in bullets:
+                        p = shape.text_frame.add_paragraph()
+                        # Remove markdown asterisks if any
+                        clean_text = b.replace("**", "")
+                        p.text = clean_text
+                        p.level = 0
+                        p.font.name = "Cambria"
+                        p.font.size = Pt(11)
+                        p.font.color.rgb = RGBColor(0, 0, 0)
+                        # Bold the entire paragraph if you want
+                        p.font.bold = True  # <-- makes the whole bullet bold
+                    return True
+        return False
 
-    # Gather session data
+
+    # Get actual category for placeholder replacement
     facts = st.session_state.get("fund_factsheets_data", [])
-    fs_rec = next((f for f in facts if f.get("Matched Fund Name") == selected), {})
+    fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected), {})
     category = fs_rec.get("Category", "N/A")
 
-    # IPS slide data
+    # Prepare Slide data from session_state
     df_slide1 = None
     ips_icon_table = st.session_state.get("ips_icon_table")
     if ips_icon_table is not None and not ips_icon_table.empty:
@@ -1910,61 +1888,40 @@ def step17_export_to_ppt():
             headers = ["Category", "Time Period", "Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
             df_slide1 = pd.DataFrame([table_data], columns=headers)
 
-    # Raw Slide 2 tables from session
     df_slide2_table1 = st.session_state.get("slide2_table1_data")
     df_slide2_table2 = st.session_state.get("slide2_table2_data")
     df_slide2_table3 = st.session_state.get("slide2_table3_data")
 
-    # … after Slide 2 and Slide 3 retrieval …
-
-    # bring Slide 3 data into scope
     df_slide3_table1 = st.session_state.get("slide3_table1_data")
     df_slide3_table2 = st.session_state.get("slide3_table2_data")
 
-    # bring Slide 4 data into scope
     df_slide4_table1 = st.session_state.get("slide4")
     df_slide4_table2 = st.session_state.get("slide4_table2_data")
 
-
-    
-     # --- Fill Slide 1 ---
+    # --- Fill Slide 1 ---
     slide1 = prs.slides[0]
-    
-    # 1) Replace the [Fund Name] placeholder
     if not fill_text_placeholder_preserving_format(slide1, "[Fund Name]", selected):
         st.warning("Could not find the [Fund Name] placeholder on Slide 1.")
-    
-    # 2) Build a two-row DataFrame:
-    #    • Row 1: only Category filled; all other columns blank
-    #    • Row 2: full data
+
     if df_slide1 is not None:
-        cols    = df_slide1.columns.tolist()
-        value0  = df_slide1.iloc[0].get("Category", "")
-        row1    = {c: (value0 if c == "Category" else "") for c in cols}
-        row2    = df_slide1.iloc[0].to_dict()
-        df_body = pd.DataFrame([row1, row2], columns=cols)
-    
-        # 3) Find and fill the PPT table—row 1 keeps only Category, row 2 gets everything
         filled = False
         for shape in slide1.shapes:
-            if not shape.has_table:
-                continue
-            tbl = shape.table
-            if len(tbl.columns) != len(cols):
-                continue
-    
-            fill_table_with_styles(tbl, df_body, first_col_white=False)
-            filled = True
-            break
-    
+            if shape.has_table:
+                table = shape.table
+                if len(table.columns) == len(df_slide1.columns):
+                    # Use first_col_white=False here to set first column font black for Slide 1 table
+                    fill_table_with_styles(table, df_slide1, first_col_white=False)
+                    filled = True
+                    break
         if not filled:
             st.warning("Could not find matching table on Slide 1 to fill.")
-    
-    # 4) Insert your bullet points just like before
-    bullets = st.session_state.get("bullet_points", [])
+    else:
+        st.warning("Slide 1 IPS data not found in session state.")
+
+    # Fill bullet points on Slide 1
+    bullets = st.session_state.get("bullet_points", None)
     if not fill_bullet_points(slide1, "[Bullet Point 1]", bullets):
         st.warning("Could not find bullet points placeholder on Slide 1.")
-    
 
     # --- Fill Slide 2 ---
     slide2 = prs.slides[1]
