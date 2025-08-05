@@ -2288,201 +2288,86 @@ def step17_export_to_ppt():
     from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     from io import BytesIO
     import pandas as pd
-    
-    def truncate_to_n_sentences(text, n=3):
-        sentences = re.split(r'(?<=[.!?])\s+', text.strip())
-        if len(sentences) <= n:
-            return " ".join(sentences).strip()
-        return " ".join(sentences[:n]).strip()
 
-    def lookup_overview_paragraph(label, lookup_dict):
-        """
-        Given a proposed label like "Fund Name (TICK)" find best matching key in lookup_dict
-        (which was populated in step16_5_proposed_overview_lookup) using fuzzy matching,
-        then return the Overview Paragraph.
-        """
-        import re
-        from rapidfuzz import fuzz
-    
-        # canonicalize: strip ticker parenthesis and punctuation
-        base_name = re.sub(r"\s*\(.*\)$", "", label).strip()
-        def normalize(s):
-            return re.sub(r"[^A-Za-z0-9 ]+", "", s or "").strip().lower()
-    
-        target = normalize(base_name)
-        best_key = None
-        best_score = -1
-        for key in lookup_dict.keys():
-            score = fuzz.token_sort_ratio(target, normalize(key))
-            if score > best_score:
-                best_score = score
-                best_key = key
-    
-        if best_key and best_score >= 60:  # threshold you can tweak
-            return lookup_dict.get(best_key, {}).get("Overview Paragraph", "")
-        # fallback: try exact base_name
-        return lookup_dict.get(base_name, {}).get("Overview Paragraph", "")
-
-
-    
     selected = st.session_state.get("selected_fund")
     if not selected:
         st.error("❌ No fund selected. Please select a fund in Step 15.")
         return
 
-    # Get confirmed proposed funds (name + ticker)
-    confirmed_proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
-    proposed = []
-    if not confirmed_proposed_df.empty:
-        for _, row in confirmed_proposed_df.iterrows():
-            name = row.get("Fund Scorecard Name", "")
-            ticker = row.get("Ticker", "")
-            label = f"{name} ({ticker})" if ticker else name
-            proposed.append(label)
-    proposed = proposed[:2]  # template supports up to two
-
-    template_path = "assets/writeup&rec_templates.pptx"
+    # Load your PPTX template
     try:
-        prs = Presentation(template_path)
+        prs = Presentation("assets/writeup_templates.pptx")
     except Exception as e:
         st.error(f"Could not load PowerPoint template: {e}")
         return
 
-    def fill_table_with_styles(table, df_table, bold_row_idx=None, first_col_white=True):
-        for i in range(min(len(df_table), len(table.rows) - 1)):
-            for j in range(min(len(df_table.columns), len(table.columns))):
-                val = df_table.iloc[i, j]
-                cell = table.cell(i + 1, j)
-                cell.text = str(val) if val is not None else ""
-                cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
-                for para in cell.text_frame.paragraphs:
-                    para.alignment = PP_ALIGN.CENTER
-                    for run in para.runs:
-                        run.font.name = "Cambria"
-                        run.font.size = Pt(11)
-                        if j == 0:
-                            run.font.color.rgb = RGBColor(255, 255, 255) if first_col_white else RGBColor(0, 0, 0)
-                        else:
-                            run.font.color.rgb = RGBColor(0, 0, 0)
-                        run.font.bold = (bold_row_idx is not None and i == bold_row_idx)
-
-    def fill_text_placeholder_preserving_format(slide, placeholder_text, replacement_text):
-        replaced = False
-        for shape in slide.shapes:
-            if not shape.has_text_frame:
-                continue
-            for paragraph in shape.text_frame.paragraphs:
-                full_text = "".join(run.text for run in paragraph.runs)
-                if placeholder_text in full_text:
-                    new_text = full_text.replace(placeholder_text, replacement_text)
-                    runs = paragraph.runs
-                    if len(runs) == 1:
-                        runs[0].text = new_text
-                    else:
-                        for run in runs:
-                            run.text = ""
-                        avg_len = len(new_text) // len(runs)
-                        idx = 0
-                        for run in runs[:-1]:
-                            run.text = new_text[idx:idx+avg_len]
-                            idx += avg_len
-                        runs[-1].text = new_text[idx:]
-                    replaced = True
-        return replaced
-
-    def fill_bullet_points(slide, placeholder="[Bullet Point 1]", bullets=None):
-        if bullets is None:
-            bullets = st.session_state.get("bullet_points", [])
-        if not bullets:
-            bullets = ["Performance exceeded benchmark.", "No watch status.", "No action required."]
-        replaced = False
-        for shape in slide.shapes:
-            if not shape.has_text_frame:
-                continue
-            tf = shape.text_frame
-            if any(placeholder in p.text for p in tf.paragraphs):
-                tf.clear()
-                for b in bullets:
-                    p_new = tf.add_paragraph()
-                    clean_text = b.replace("**", "")
-                    p_new.text = clean_text
-                    p_new.level = 0
-                    p_new.font.name = "Cambria"
-                    p_new.font.size = Pt(11)
-                    p_new.font.color.rgb = RGBColor(0, 0, 0)
-                    p_new.font.bold = False  # <-- no longer forcing bold
-                replaced = True
-                break
-        return replaced
-
-    # Gather session data
-    facts = st.session_state.get("fund_factsheets_data", [])
-    fs_rec = next((f for f in facts if f.get("Matched Fund Name") == selected), {})
-    category = fs_rec.get("Category", "N/A")
-
-
-    # prepare slide1 data
+    # Build the DataFrame for Slide 1
     ips_icon = st.session_state.get("ips_icon_table", pd.DataFrame())
     if ips_icon.empty or selected not in ips_icon["Fund Name"].values:
         st.warning("Slide 1 IPS data not found in session state.")
         return
 
     row = ips_icon[ips_icon["Fund Name"] == selected].iloc[0]
-    display_cols = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
+    disp_map = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
     table_data = {
-        "Category": st.session_state.get("fund_factsheets_data", [{}])[0].get("Category", ""),
+        "Category":    st.session_state.get("fund_factsheets_data", [{}])[0].get("Category", ""),
         "Time Period": st.session_state.get("report_date", ""),
         "Plan Assets": "$",
-        **{display_cols[k]: row[k] for k in row.index if k.startswith("IPS Investment Criteria ")},
-        "IPS Status": row["IPS Watch Status"],
+        **{ disp_map[k]: row[k] for k in row.index if k.startswith("IPS Investment Criteria ") },
+        "IPS Status":  row["IPS Watch Status"],
     }
-    headers = ["Category", "Time Period", "Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
+    headers = ["Category","Time Period","Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
     df_slide1 = pd.DataFrame([table_data], columns=headers)
 
-    # helper to color a cell
-    def color_cell(cell, rgb):
-        for para in cell.text_frame.paragraphs:
-            for run in para.runs:
+    # helper to recolor the text of a cell
+    def color_cell_text(cell, rgb):
+        for p in cell.text_frame.paragraphs:
+            for run in p.runs:
                 run.font.color.rgb = RGBColor(*rgb)
 
-    # fill Slide 1
+    # Fill Slide 1
     slide1 = prs.slides[0]
-    # replace [Fund Name]
+
+    # 1) Replace the [Fund Name] placeholder
     for shape in slide1.shapes:
         if shape.has_text_frame and "[Fund Name]" in shape.text:
             shape.text = shape.text.replace("[Fund Name]", selected)
 
-    # find the table
+    # 2) Find and populate the table
     for shape in slide1.shapes:
-        if not shape.has_table: continue
+        if not shape.has_table:
+            continue
         table = shape.table
         if len(table.columns) != len(df_slide1.columns):
             continue
 
-        # clear any existing data in first data‐row (row index 1)
+        # clear the first data row (index 1)
         for col in range(len(table.columns)):
             table.cell(1, col).text = ""
 
-        # write our values into *second* row (row index 2)
+        # write our values into the second data row (index 2)
         for j, col_name in enumerate(df_slide1.columns):
             val = df_slide1.iloc[0, j]
             cell = table.cell(2, j)
             cell.text = str(val) if val is not None else ""
             cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
-            for para in cell.text_frame.paragraphs:
-                para.alignment = PP_ALIGN.CENTER
-                for run in para.runs:
+            for p in cell.text_frame.paragraphs:
+                p.alignment = PP_ALIGN.CENTER
+                for run in p.runs:
                     run.font.name = "Cambria"
                     run.font.size = Pt(11)
 
-        # now color the IPS Status cell in row 2, last column
+        # color the IPS Status cell in row 2, last column
         status = df_slide1.iloc[0, -1]
-        rgb = {"NW": (0x21,0x7A,0x3E),   # green
-               "IW": (0xB8,0x73,0x33),   # orange
-               "FW": (0xC3,0x00,0x00)}.get(status, (0,0,0))
-        color_cell(table.cell(2, len(headers)-1), rgb)
+        color_map = {
+            "NW": (33, 122, 62),   # green
+            "IW": (184,115, 51),   # orange
+            "FW": (195,  0,  0),   # red
+        }
+        rgb = color_map.get(status, (0,0,0))
+        color_cell_text(table.cell(2, len(headers)-1), rgb)
 
-        break  # done with slide1 table
+        break  # done with slide 1 table
 
     # --- Fill Slide 2 ---
     slide2 = prs.slides[3]
