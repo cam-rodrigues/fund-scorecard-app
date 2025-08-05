@@ -802,16 +802,15 @@ def step8_calendar_returns(pdf):
     # 1) Figure out section bounds
     cy_page  = st.session_state.get("calendar_year_page")
     end_page = st.session_state.get("r3yr_page", len(pdf.pages) + 1)
-
-    # — Guard against missing page number —
     if cy_page is None:
-        st.error("❌ ‘Fund Performance: Calendar Year’ page number not found in TOC. Please run Step 2 to extract the TOC first.")
+        st.error("❌ 'Fund Performance: Calendar Year' not found in TOC.")
         return
 
     # 2) Pull every line from that section
     all_lines = []
-    for p in pdf.pages[cy_page - 1 : end_page - 1]:
-        all_lines.extend((p.extract_text() or "").splitlines())
+    for p in pdf.pages[cy_page-1 : end_page-1]:
+        txt = p.extract_text() or ""
+        all_lines.extend([ln for ln in txt.splitlines() if ln.strip()])
 
     # 3) Identify header & years
     header = next((ln for ln in all_lines if "Ticker" in ln and re.search(r"20\d{2}", ln)), None)
@@ -825,11 +824,25 @@ def step8_calendar_returns(pdf):
     fund_map     = st.session_state.get("tickers", {})
     fund_records = []
     for name, tk in fund_map.items():
-        ticker = (tk or "").upper()
-        idx    = next((i for i, ln in enumerate(all_lines) if ticker in ln.split()), None)
-        raw    = num_rx.findall(all_lines[idx - 1]) if idx not in (None, 0) else []
-        vals   = raw[:len(years)] + [None] * (len(years) - len(raw))
-        rec    = {"Name": name, "Ticker": ticker}
+        ticker = (tk or "").upper().strip()
+        # find the line containing the ticker as a standalone token
+        idx = next(
+            (i for i, ln in enumerate(all_lines) if ticker and ticker in ln.split()),
+            None
+        )
+
+        # if no match, skip this fund
+        if idx is None:
+            st.warning(f"⚠️ Calendar returns: no line found for {name} ({ticker})")
+            continue
+
+        # grab the prior line if possible
+        prior_line = all_lines[idx-1] if idx >= 1 else ""
+        raw        = num_rx.findall(prior_line)
+        # pad/truncate to match number of years
+        vals       = raw[:len(years)] + [None] * max(0, len(years) - len(raw))
+
+        rec = {"Name": name, "Ticker": ticker}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         fund_records.append(rec)
 
@@ -844,16 +857,20 @@ def step8_calendar_returns(pdf):
     bench_records = []
     for f in facts:
         bench_name = f.get("Benchmark", "").strip()
-        fund_tkr   = f.get("Matched Ticker", "")
+        fund_tkr   = f.get("Matched Ticker", "").upper().strip()
         if not bench_name:
             continue
 
+        # find the first line containing the benchmark name
         idx = next((i for i, ln in enumerate(all_lines) if bench_name in ln), None)
         if idx is None:
+            st.warning(f"⚠️ Calendar returns: no line for benchmark '{bench_name}'")
             continue
+
         raw  = num_rx.findall(all_lines[idx])
-        vals = raw[:len(years)] + [None] * (len(years) - len(raw))
-        rec  = {"Name": bench_name, "Ticker": fund_tkr}
+        vals = raw[:len(years)] + [None] * max(0, len(years) - len(raw))
+
+        rec = {"Name": bench_name, "Ticker": fund_tkr}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         bench_records.append(rec)
 
