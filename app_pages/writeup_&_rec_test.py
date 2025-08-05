@@ -2443,75 +2443,61 @@ def step17_export_to_ppt():
     df_slide2_table2 = st.session_state.get("slide2_table2_data")
     df_slide2_table3 = st.session_state.get("slide2_table3_data")
 
-    # --- Slide 1: Title + IPS Table ---
-    import pandas as pd
-    from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
-    from pptx.dml.color import RGBColor
-    from pptx.util import Pt
-    
-    # 1) Build the DataFrame for Slide 1
-    ips_icon = st.session_state.get("ips_icon_table", pd.DataFrame())
-    row = ips_icon[ips_icon["Fund Name"] == selected].iloc[0]
-    disp_map = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
-    
-    table_data = {
-        "Category":    st.session_state.get("fund_factsheets_data", [{}])[0].get("Category", ""),
-        "Time Period": st.session_state.get("report_date", ""),
-        "Plan Assets": "$",
-        **{disp_map[k]: row[k] for k in row.index if k.startswith("IPS Investment Criteria ")},
-        "IPS Status":  row["IPS Watch Status"],
-    }
-    
-    headers   = ["Category","Time Period","Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
-    df_slide1 = pd.DataFrame([table_data], columns=headers)
-    
-    # 2) Grab Slide 1 and replace the [Fund Name] placeholder
+    # --- Fill Slide 1 ---
     slide1 = prs.slides[0]
-    for shape in slide1.shapes:
-        if shape.has_text_frame and "[Fund Name]" in shape.text:
-            shape.text = shape.text.replace("[Fund Name]", selected)
+    if not fill_text_placeholder_preserving_format(slide1, "[Fund Name]", selected):
+        st.warning("Could not find the [Fund Name] placeholder on Slide 1.")
     
-    # 3) Find the table, clear row 1, write into row 2, then color the status cell
-    for shape in slide1.shapes:
-        if not shape.has_table:
-            continue
-        tbl = shape.table
-        if len(tbl.columns) != len(df_slide1.columns):
-            continue
+    if df_slide1 is not None:
+        # 1) Identify columns
+        cols = df_slide1.columns.tolist()
+        # first three are always filled
+        first_cols = cols[:3]
+        # the rest (metrics + IPS Status) we’ll blank out on row 1
+        blank_cols = cols[3:]
     
-        # clear first data row
-        for c in range(len(tbl.columns)):
-            tbl.cell(1, c).text = ""
+        # 2) Build the two body-rows:
+        #   – row1: copy only the first 3 columns, blank out metrics+status
+        row1 = {c: (df_slide1.iloc[0][c] if c in first_cols else "") for c in cols}
+        #   – row2: your full data row
+        row2 = df_slide1.iloc[0].to_dict()
     
-        # populate second data row
-        for idx, col in enumerate(df_slide1.columns):
-            cell = tbl.cell(2, idx)
-            cell.text = str(df_slide1.iloc[0, idx])
-            cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
-            for p in cell.text_frame.paragraphs:
-                p.alignment = PP_ALIGN.CENTER
-                for run in p.runs:
-                    run.font.name = "Cambria"
-                    run.font.size = Pt(11)
+        # 3) Assemble DataFrame — this will map to table.rows[1] and table.rows[2]
+        df_body = pd.DataFrame([row1, row2], columns=cols)
     
-        # color the IPS Status cell
-        status = df_slide1.iloc[0, -1]
-        color_map = {
-            "NW": (0x21, 0x7A, 0x3E),  # green
-            "IW": (0xB8, 0x73, 0x33),  # orange
-            "FW": (0xC3, 0x00, 0x00),  # red
-        }
-        rgb = color_map.get(status, (0,0,0))
-        status_cell = tbl.cell(2, len(df_slide1.columns)-1)
-        status_cell.fill.solid()
-        status_cell.fill.fore_color.rgb = RGBColor(*rgb)
-        for p in status_cell.text_frame.paragraphs:
-            for run in p.runs:
-                run.font.color.rgb = RGBColor(255,255,255)
+        # 4) Find the PPT table and fill both rows
+        filled = False
+        for shape in slide1.shapes:
+            if not shape.has_table: 
+                continue
+            tbl = shape.table
+            if len(tbl.columns) != len(cols):
+                continue
     
-        break  # only do the first matching table
+            # this helper will:
+            #  • leave tbl.rows[1] blank in the blank_cols
+            #  • fill tbl.rows[2] fully, and style the IPS Status cell
+            fill_table_with_styles(tbl, df_body, first_col_white=False)
+            filled = True
+            break
     
+        if not filled:
+            st.warning("Could not find matching table on Slide 1 to fill.")
 
+
+    # --- Fill Slide 2 ---
+    slide2 = prs.slides[3]
+    if not fill_text_placeholder_preserving_format(slide2, "[Category]", category):
+        st.warning("Could not find [Category] placeholder on Slide 2.")
+
+    # Table 1
+    if df_slide2_table1 is None:
+        st.warning("Slide 2 Table 1 data not found.")
+    else:
+        for shape in slide2.shapes:
+            if shape.has_table and len(shape.table.columns) == len(df_slide2_table1.columns):
+                fill_table_with_styles(shape.table, df_slide2_table1)
+                break
 
     # Table 2 (Returns)
     quarter_label = st.session_state.get("report_date", "QTD")
