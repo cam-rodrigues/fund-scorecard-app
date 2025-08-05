@@ -223,7 +223,7 @@ def extract_scorecard_blocks(pdf, scorecard_page):
         "Expense Ratio Rank", "Sharpe Ratio Rank (3Yr)", "Sharpe Ratio Rank (5Yr)",
         "R-Squared (3Yr)", "R-Squared (5Yr)",
         "Sortino Ratio Rank (3Yr)", "Sortino Ratio Rank (5Yr)",
-        "Tracking Error Rank (3Yr)", "Tracking Error Rank (5Yr)"
+        "Tracking Error (3Yr)", "Tracking Error (5Yr)"
     ]
     pages, fund_blocks, fund_name, metrics = [], [], None, []
     # collect all text from scorecard pages
@@ -372,8 +372,8 @@ def scorecard_to_ips(fund_blocks, fund_types, tickers):
         "R-Squared (5Yr)",
         "Sortino Ratio Rank (3Yr)",
         "Sortino Ratio Rank (5Yr)",
-        "Tracking Error Rank (3Yr)",
-        "Tracking Error Rank (5Yr)",
+        "Tracking Error (3Yr)",
+        "Tracking Error (5Yr)",
     ]
 
     # These say which of the above 14 feed into each of the 11 IPS checks
