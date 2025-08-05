@@ -219,30 +219,53 @@ def infer_fund_type_guess(ticker):
 def extract_scorecard_blocks(pdf, scorecard_page):
     metric_labels = [
         "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
-        "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Expense Ratio Rank",
-        "Sharpe Ratio Rank (3Yr)", "Sharpe Ratio Rank (5Yr)", "R-Squared (3Yr)",
-        "R-Squared (5Yr)", "Sortino Ratio Rank (3Yr)", "Sortino Ratio Rank (5Yr)",
-        "Tracking Error Rank (3Yr)", "Tracking Error Rank (5Yr)"
+        "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Style Drift Score (3Yr)",
+        "Expense Ratio Rank", "Sharpe Ratio Rank (3Yr)", "Sharpe Ratio Rank (5Yr)",
+        "R-Squared (3Yr)", "R-Squared (5Yr)",
+        "Sortino Ratio Rank (3Yr)", "Sortino Ratio Rank (5Yr)",
+        "Tracking Error (3Yr)", "Tracking Error (5Yr)"
     ]
     pages, fund_blocks, fund_name, metrics = [], [], None, []
+    # collect all text from scorecard pages
     for p in pdf.pages[scorecard_page-1:]:
         pages.append(p.extract_text() or "")
     lines = "\n".join(pages).splitlines()
+
     for line in lines:
+        # whenever we hit a line that is NOT metric-label-y, it's (potentially) a new fund header
         if not any(metric in line for metric in metric_labels) and line.strip():
+            # flush previous fund
             if fund_name and metrics:
                 fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
-            fund_name = re.sub(r"Fund (Meets Watchlist Criteria|has been placed on watchlist for not meeting .* out of 14 criteria)", "", line.strip()).strip()
+            # strip *any* watchlist suffix (14 or 15 criteria, or simple "Meets Watchlist")
+            fund_name = re.sub(
+                r"Fund\s+(?:Meets Watchlist Criteria|has been placed on watchlist for not meeting .*? out of \d+ criteria)\.?",
+                "",
+                line.strip(),
+                flags=re.IGNORECASE
+            ).strip()
             metrics = []
+
+        # now collect any metrics on this line
         for metric in metric_labels:
             if metric in line:
                 m = re.match(r"^(.*?)\s+(Pass|Review|Fail)\s*(.*)", line.strip())
                 if m:
                     metric_name, status, info = m.groups()
-                    metrics.append({"Metric": metric_name, "Status": status, "Info": info.strip()})
+                    metrics.append({
+                        "Metric": metric_name,
+                        "Status": status,
+                        "Info": info.strip()
+                    })
+
+    # after loop, append last fund
     if fund_name and metrics:
         fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
+
     return fund_blocks
+
+
+
 
 def extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page=None):
     import re
@@ -331,44 +354,90 @@ def extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page=None
     return {k: (v if v else "") for k, v in assigned.items()}
 
 def scorecard_to_ips(fund_blocks, fund_types, tickers):
-    # Maps for converting scorecard to IPS criteria (from your logic)
-    metrics_order = [
-        "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
-        "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Expense Ratio Rank",
-        "Sharpe Ratio Rank (3Yr)", "Sharpe Ratio Rank (5Yr)", "R-Squared (3Yr)",
-        "R-Squared (5Yr)", "Sortino Ratio Rank (3Yr)", "Sortino Ratio Rank (5Yr)",
-        "Tracking Error Rank (3Yr)", "Tracking Error Rank (5Yr)",
+    """
+    Converts raw scorecard metrics into the 11 IPS checks for each fund,
+    working correctly whether the scorecard has 14 or 15 total metrics.
+    """
+
+    # Define, in order, which scorecard metric each IPS check corresponds to.
+    ACTIVE_IPS_METRICS = [
+        "Manager Tenure",
+        "Excess Performance (3Yr)",
+        "Peer Return Rank (3Yr)",
+        "Sharpe Ratio Rank (3Yr)",
+        "Sortino Ratio Rank (3Yr)",
+        "Excess Performance (5Yr)",
+        "Peer Return Rank (5Yr)",
+        "Sharpe Ratio Rank (5Yr)",
+        "Sortino Ratio Rank (5Yr)",
+        "Expense Ratio Rank",
+        # last check is always a Pass
+        None
     ]
-    active_map  = [0,1,3,6,10,2,4,7,11,5,None]
-    passive_map = [0,8,3,6,12,9,4,7,13,5,None]
+    PASSIVE_IPS_METRICS = [
+        "Manager Tenure",
+        "R-Squared (3Yr)",
+        "Peer Return Rank (3Yr)",
+        "Sharpe Ratio Rank (3Yr)",
+        "Tracking Error (3Yr)",
+        "R-Squared (5Yr)",
+        "Peer Return Rank (5Yr)",
+        "Sharpe Ratio Rank (5Yr)",
+        "Tracking Error (5Yr)",
+        "Expense Ratio Rank",
+        None
+    ]
+
     ips_labels = [f"IPS Investment Criteria {i+1}" for i in range(11)]
-    ips_results, raw_results = [], []
+    icon_rows, raw_rows = [], []
+
     for fund in fund_blocks:
-        fund_name = fund["Fund Name"]
-        fund_type = fund_types.get(fund_name, "Passive" if "index" in fund_name.lower() else "Active")
-        metrics = fund["Metrics"]
-        scorecard_status = [next((m["Status"] for m in metrics if m["Metric"] == label), None) for label in metrics_order]
-        idx_map = passive_map if fund_type == "Passive" else active_map
-        ips_status = [scorecard_status[m_idx] if m_idx is not None else "Pass" for m_idx in idx_map]
-        review_fail = sum(1 for status in ips_status if status in ["Review","Fail"])
-        watch_status = "FW" if review_fail >= 6 else "IW" if review_fail >= 5 else "NW"
-        def iconify(status): return "✔" if status == "Pass" else "✗" if status in ("Review", "Fail") else ""
-        row = {
-            "Fund Name": fund_name,
-            "Ticker": tickers.get(fund_name, ""),
-            "Fund Type": fund_type,
-            **{ips_labels[i]: iconify(ips_status[i]) for i in range(11)},
-            "IPS Watch Status": watch_status,
+        name      = fund["Fund Name"]
+        ftype     = fund_types.get(name, 
+                       "Passive" if "index" in name.lower() else "Active"
+                   )
+        status_map = {m["Metric"]: m["Status"] for m in fund["Metrics"]}
+
+        # pick the right mapping by name
+        metric_names = PASSIVE_IPS_METRICS if ftype == "Passive" else ACTIVE_IPS_METRICS
+
+        # build the 11 statuses in order
+        ips_status = []
+        for metric_name in metric_names:
+            if metric_name is None:
+                ips_status.append("Pass")
+            else:
+                ips_status.append(status_map.get(metric_name, "Pass"))
+
+        # count failures
+        fails = sum(1 for s in ips_status if s in ("Review", "Fail"))
+        watch = "FW" if fails >= 6 else "IW" if fails >= 5 else "NW"
+
+        # map to icons
+        def ico(s):
+            return "✔" if s == "Pass" else ("✗" if s in ("Review", "Fail") else "")
+
+        icon_row = {
+            "Fund Name":       name,
+            "Ticker":          tickers.get(name, ""),
+            "Fund Type":       ftype,
+            **{ips_labels[i]: ico(ips_status[i]) for i in range(11)},
+            "IPS Watch Status": watch
         }
-        ips_results.append(row)
-        raw_results.append({
-            "Fund Name": fund_name,
-            "Ticker": tickers.get(fund_name, ""),
-            "Fund Type": fund_type,
+        raw_row = {
+            "Fund Name":       name,
+            "Ticker":          tickers.get(name, ""),
+            "Fund Type":       ftype,
             **{ips_labels[i]: ips_status[i] for i in range(11)},
-            "IPS Watch Status": watch_status,
-        })
-    return pd.DataFrame(ips_results), pd.DataFrame(raw_results)
+            "IPS Watch Status": watch
+        }
+
+        icon_rows.append(icon_row)
+        raw_rows.append(raw_row)
+
+    return pd.DataFrame(icon_rows), pd.DataFrame(raw_rows)
+
+
 
 def watch_status_color(val):
     if val == "FW":
@@ -520,16 +589,21 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     st.session_state["ips_raw_table"] = df_raw
 
     # --- Performance extraction ---
-    perf_data = extract_performance_table(
-        pdf,
-        performance_page,
-        fund_names,
-        factsheets_page
-    )
+    if performance_page is None:
+        st.error("❌ ‘Fund Performance’ page number not found in TOC. Run Step 2 first.")
+        perf_data = []
+    else:
+        perf_data = extract_performance_table(
+            pdf,
+            performance_page,
+            fund_names,
+            factsheets_page
+        )
+
     for itm in perf_data:
         itm["Ticker"] = tickers.get(itm["Fund Scorecard Name"], "")
-
     st.session_state["fund_performance_data"] = perf_data
+
     st.session_state["tickers"] = tickers  # legacy compatibility
 
 
@@ -728,198 +802,194 @@ def step7_extract_returns(pdf):
     )
 
 
-#───Step 8 Calendar Year Returns (funds + benchmarks──────────────────────────────────────────────────────────────────
 
+# ─── Step 8: Calendar Year Returns (auto-discover pages) ─────────────────────────────────
 def step8_calendar_returns(pdf):
-    import re, streamlit as st, pandas as pd
-
-    # 1) Figure out section bounds
-    cy_page  = st.session_state.get("calendar_year_page")
-    end_page = st.session_state.get("r3yr_page", len(pdf.pages) + 1)
+    # 1) Auto-find start page if needed
+    cy_page = st.session_state.get("calendar_year_page")
     if cy_page is None:
-        st.error("❌ 'Fund Performance: Calendar Year' not found in TOC.")
+        for i, pg in enumerate(pdf.pages, start=1):
+            if "Fund Performance: Calendar Year" in (pg.extract_text() or ""):
+                cy_page = i
+                st.session_state["calendar_year_page"] = i
+                break
+    if cy_page is None:
+        st.error("❌ 'Fund Performance: Calendar Year' not found in PDF.")
         return
 
-    # 2) Pull every line from that section
-    all_lines = []
-    for p in pdf.pages[cy_page-1 : end_page-1]:
-        all_lines.extend((p.extract_text() or "").splitlines())
+    # 2) Auto-find end page via 3Yr Risk section
+    end_page = st.session_state.get("r3yr_page")
+    if end_page is None:
+        for i, pg in enumerate(pdf.pages, start=1):
+            if "Risk Analysis: MPT Statistics (3Yr)" in (pg.extract_text() or ""):
+                end_page = i
+                st.session_state["r3yr_page"] = i
+                break
+    end_page = end_page or (len(pdf.pages) + 1)
 
-    # 3) Identify header & years
-    header = next((ln for ln in all_lines if "Ticker" in ln and re.search(r"20\d{2}", ln)), None)
+    # 3) Extract lines between cy_page and end_page
+    lines = []
+    for pg in pdf.pages[cy_page-1:end_page-1]:
+        txt = pg.extract_text() or ""
+        lines.extend([ln.strip() for ln in txt.splitlines() if ln.strip()])
+
+    # 4) Header + years
+    header = next((ln for ln in lines if "Ticker" in ln and re.search(r"20\d{2}", ln)), None)
     if not header:
         st.error("❌ Couldn’t find header row with 'Ticker' + year.")
         return
     years = re.findall(r"\b20\d{2}\b", header)
     num_rx = re.compile(r"-?\d+\.\d+%?")
 
-    # — A) Funds themselves —
-    fund_map     = st.session_state.get("tickers", {})
+    # A) Funds
+    fund_map = st.session_state.get("tickers", {})
     fund_records = []
     for name, tk in fund_map.items():
-        ticker = (tk or "").upper()
-        idx    = next((i for i, ln in enumerate(all_lines) if ticker in ln.split()), None)
-        raw    = num_rx.findall(all_lines[idx-1]) if idx not in (None, 0) else []
-        vals   = raw[:len(years)] + [None] * (len(years) - len(raw))
-        rec    = {"Name": name, "Ticker": ticker}
+        ticker = (tk or "").upper().strip()
+        idx = next((i for i, ln in enumerate(lines) if ticker and ticker in ln.split()), None)
+        if idx is None:
+            st.warning(f"⚠️ Calendar returns: no line for {name} ({ticker})")
+            continue
+        prior = lines[idx-1] if idx >= 1 else ""
+        raw   = num_rx.findall(prior)
+        vals  = raw[:len(years)] + [None]*max(0, len(years)-len(raw))
+        rec   = {"Name": name, "Ticker": ticker}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         fund_records.append(rec)
 
     df_fund = pd.DataFrame(fund_records)
     if not df_fund.empty:
-        st.markdown("**Fund Calendar‑Year Returns**")
-        st.dataframe(df_fund[["Name", "Ticker"] + years], use_container_width=True)
+        st.markdown("**Fund Calendar-Year Returns**")
+        st.dataframe(df_fund[["Name","Ticker"]+years], use_container_width=True)
         st.session_state["step8_returns"] = fund_records
 
-    # — B) Benchmarks matched back to each fund’s ticker —
-    facts         = st.session_state.get("fund_factsheets_data", [])
+    # B) Benchmarks
     bench_records = []
-    for f in facts:
-        bench_name = f.get("Benchmark", "").strip()
-        fund_tkr   = f.get("Matched Ticker", "")
+    for f in st.session_state.get("fund_factsheets_data", []):
+        bench_name = f.get("Benchmark","").strip()
+        bench_tkr  = f.get("Matched Ticker","").upper().strip()
         if not bench_name:
             continue
-
-        # find the first line containing the benchmark name
-        idx = next((i for i, ln in enumerate(all_lines) if bench_name in ln), None)
+        idx = next((i for i, ln in enumerate(lines) if bench_name in ln), None)
         if idx is None:
+            st.warning(f"⚠️ Calendar returns: no line for benchmark '{bench_name}'")
             continue
-        raw  = num_rx.findall(all_lines[idx])
-        vals = raw[:len(years)] + [None] * (len(years) - len(raw))
-        rec  = {"Name": bench_name, "Ticker": fund_tkr}
+        raw  = num_rx.findall(lines[idx])
+        vals = raw[:len(years)] + [None]*max(0,len(years)-len(raw))
+        rec  = {"Name": bench_name, "Ticker": bench_tkr}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         bench_records.append(rec)
 
     df_bench = pd.DataFrame(bench_records)
     if not df_bench.empty:
-        st.markdown("**Benchmark Calendar‑Year Returns**")
-        st.dataframe(df_bench[["Name", "Ticker"] + years], use_container_width=True)
+        st.markdown("**Benchmark Calendar-Year Returns**")
+        st.dataframe(df_bench[["Name","Ticker"]+years], use_container_width=True)
         st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
         st.warning("No benchmark returns extracted.")
 
-#───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
 
+# ─── Step 9: 3-Yr Risk Analysis (auto-discover start page) ───────────────────────────────
 def step9_risk_analysis_3yr(pdf):
-    import re, streamlit as st, pandas as pd
-    from rapidfuzz import fuzz
-
-    # 1) Get your fund→ticker map
     fund_map = st.session_state.get("tickers", {})
     if not fund_map:
         st.error("❌ No ticker mapping found. Run Step 5 first.")
         return
 
-    # 2) Locate the “Risk Analysis: MPT Statistics (3Yr)” page
-    start_page = st.session_state.get("r3yr_page")
-    if not start_page:
+    # auto-find 3Yr section
+    start = st.session_state.get("r3yr_page")
+    if start is None:
+        for i, pg in enumerate(pdf.pages, start=1):
+            if "Risk Analysis: MPT Statistics (3Yr)" in (pg.extract_text() or ""):
+                start = i
+                st.session_state["r3yr_page"] = i
+                break
+    if start is None:
         st.error("❌ ‘Risk Analysis: MPT Statistics (3Yr)’ page not found; run Step 2 first.")
         return
 
-    # 3) Scan forward until you’ve seen each ticker (no display)
+    # scan forward until all tickers seen
     locs = {}
-    for pnum in range(start_page, len(pdf.pages) + 1):
+    for pnum in range(start, len(pdf.pages)+1):
         lines = (pdf.pages[pnum-1].extract_text() or "").splitlines()
         for li, ln in enumerate(lines):
-            tokens = ln.split()
-            for fname, tk in fund_map.items():
-                if fname in locs: 
-                    continue
-                if tk.upper() in tokens:
-                    locs[fname] = {"page": pnum, "line": li}
-        if len(locs) == len(fund_map):
+            toks = ln.split()
+            for name, tk in fund_map.items():
+                if name in locs: continue
+                if tk.upper() in toks:
+                    locs[name] = (pnum, li)
+        if len(locs)==len(fund_map):
             break
 
-    # 4) Extract the first four numeric MPT stats from that same line
     num_rx = re.compile(r"-?\d+\.\d+")
     results = []
-    for name, info in locs.items():
-        page = pdf.pages[info["page"]-1]
-        lines = (page.extract_text() or "").splitlines()
-        line = lines[info["line"]]
-        nums = num_rx.findall(line)
-        nums += [None] * (4 - len(nums))
-        alpha, beta, up, down = nums[:4]
+    for name, (pgn, li) in locs.items():
+        lines = (pdf.pages[pgn-1].extract_text() or "").splitlines()
+        nums  = num_rx.findall(lines[li])
+        nums += [None]*max(0,4-len(nums))
+        alpha,beta,up,down = nums[:4]
         results.append({
-            "Fund Name":               name,
-            "Ticker":                  fund_map[name].upper(),
-            "3 Year Alpha":            alpha,
-            "3 Year Beta":             beta,
-            "3 Year Upside Capture":   up,
-            "3 Year Downside Capture": down
+            "Fund Name": name,
+            "Ticker":    fund_map[name].upper(),
+            "3 Year Alpha":          alpha,
+            "3 Year Beta":           beta,
+            "3 Year Upside Capture": up,
+            "3 Year Downside Capture": down,
         })
 
-    # 5) Display final table only
     st.session_state["step9_mpt_stats"] = results
 
-#───Step 10: Risk Analysis (5Yr) – Match & Extract MPT Statistics──────────────────────────────────────────────────────────────────
 
+# ─── Step 10: 5-Yr Risk Analysis (auto-discover start page) ─────────────────────────────
 def step10_risk_analysis_5yr(pdf):
-    import re, streamlit as st, pandas as pd
-
-    # 1) Your fund→ticker map from Step 5
     fund_map = st.session_state.get("tickers", {})
     if not fund_map:
         st.error("❌ No ticker mapping found. Run Step 5 first.")
         return
 
-    # 2) Locate the “Risk Analysis: MPT Statistics (5Yr)” section
-    section_page = next(
-        (i for i, pg in enumerate(pdf.pages, start=1)
-         if "Risk Analysis: MPT Statistics (5Yr)" in (pg.extract_text() or "")),
-        None
-    )
-    if section_page is None:
+    # auto-find 5Yr section
+    start = None
+    for i, pg in enumerate(pdf.pages, start=1):
+        if "Risk Analysis: MPT Statistics (5Yr)" in (pg.extract_text() or ""):
+            start = i
+            st.session_state["r5yr_page"] = i
+            break
+    if start is None:
         st.error("❌ Could not find ‘Risk Analysis: MPT Statistics (5Yr)’ section.")
         return
 
-    # 3) Under‑the‑hood: scan pages until each ticker is located
+    # scan forward until all tickers seen
     locs = {}
-    total = len(fund_map)
-    for pnum in range(section_page, len(pdf.pages) + 1):
+    for pnum in range(start, len(pdf.pages)+1):
         lines = (pdf.pages[pnum-1].extract_text() or "").splitlines()
         for li, ln in enumerate(lines):
-            tokens = ln.split()
+            toks = ln.split()
             for name, tk in fund_map.items():
-                if name in locs:
-                    continue
-                if tk.upper() in tokens:
-                    locs[name] = {"page": pnum, "line": li}
-        if len(locs) == total:
+                if name in locs: continue
+                if tk.upper() in toks:
+                    locs[name] = (pnum, li)
+        if len(locs)==len(fund_map):
             break
 
-    # 4) Wrap‑aware extraction of the first four floats after each ticker line
     num_rx = re.compile(r"-?\d+\.\d+")
     results = []
-    for name, tk in fund_map.items():
-        info = locs.get(name)
-        vals = [None] * 4
-        if info:
-            page = pdf.pages[info["page"] - 1]
-            text_lines = (page.extract_text() or "").splitlines()
-            idx = info["line"]
-            nums = []
-            # look on the line of the ticker and up to the next 2 lines
-            for j in range(idx, min(idx + 3, len(text_lines))):
-                nums += num_rx.findall(text_lines[j])
-                if len(nums) >= 4:
-                    break
-            nums += [None] * (4 - len(nums))
-            vals = nums[:4]
-        else:
-            st.warning(f"⚠️ {name} ({tk.upper()}): not found after page {section_page}.")
-
-        alpha5, beta5, up5, down5 = vals
+    for name, (pgn, li) in locs.items():
+        lines = (pdf.pages[pgn-1].extract_text() or "").splitlines()
+        nums  = []
+        for j in range(li, min(li+3, len(lines))):
+            nums += num_rx.findall(lines[j])
+            if len(nums)>=4: break
+        nums += [None]*max(0,4-len(nums))
+        a5,b5,u5,d5 = nums[:4]
         results.append({
-            "Fund Name":               name,
-            "Ticker":                  tk.upper(),
-            "5 Year Alpha":            alpha5,
-            "5 Year Beta":             beta5,
-            "5 Year Upside Capture":   up5,
-            "5 Year Downside Capture": down5,
+            "Fund Name": name,
+            "Ticker":    fund_map[name].upper(),
+            "5 Year Alpha":          a5,
+            "5 Year Beta":           b5,
+            "5 Year Upside Capture": u5,
+            "5 Year Downside Capture": d5,
         })
 
-    # 5) Save & display only the consolidated table
     st.session_state["step10_mpt_stats"] = results
 
 #───Step 11: Combined MPT Statistics Summary──────────────────────────────────────────────────────────────────
@@ -1988,12 +2058,10 @@ def run():
             with st.expander("Fund Facts (sub-headings)", expanded=False):
                 step12_process_fund_facts(pdf)
                 
-            # 3. Returns (annualized + calendar)
             with st.expander("Returns", expanded=False):
                 step7_extract_returns(pdf)
                 step8_calendar_returns(pdf)
-
-            # 4. MPT Statistics Summary (requires risk analyses first)
+    
             with st.expander("MPT Statistics Summary", expanded=False):
                 step9_risk_analysis_3yr(pdf)
                 step10_risk_analysis_5yr(pdf)
