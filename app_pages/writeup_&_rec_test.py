@@ -799,88 +799,91 @@ def step7_extract_returns(pdf):
 def step8_calendar_returns(pdf):
     import re, streamlit as st, pandas as pd
 
-    # 1) Figure out section bounds
-    cy_page  = st.session_state.get("calendar_year_page")
-    end_page = st.session_state.get("r3yr_page", len(pdf.pages) + 1)
+    # 1) Find (or re-use) the “Calendar Year” page
+    cy_page = st.session_state.get("calendar_year_page")
     if cy_page is None:
-        st.error("❌ 'Fund Performance: Calendar Year' not found in TOC.")
+        for i, pg in enumerate(pdf.pages, start=1):
+            text = pg.extract_text() or ""
+            if "Fund Performance: Calendar Year" in text:
+                cy_page = i
+                st.session_state["calendar_year_page"] = i
+                break
+    if cy_page is None:
+        st.error("❌ 'Fund Performance: Calendar Year' not found in the PDF.")
         return
 
-    # 2) Pull every line from that section
-    all_lines = []
-    for p in pdf.pages[cy_page-1 : end_page-1]:
-        txt = p.extract_text() or ""
-        all_lines.extend([ln for ln in txt.splitlines() if ln.strip()])
+    # 2) Find (or re-use) the 3Yr Risk Analysis page to mark the end of Calendar Year
+    end_page = st.session_state.get("r3yr_page")
+    if end_page is None:
+        for i, pg in enumerate(pdf.pages, start=1):
+            text = pg.extract_text() or ""
+            if "Risk Analysis: MPT Statistics (3Yr)" in text:
+                end_page = i
+                st.session_state["r3yr_page"] = i
+                break
+    # fallback to last page if still not found
+    end_page = end_page or (len(pdf.pages) + 1)
 
-    # 3) Identify header & years
-    header = next((ln for ln in all_lines if "Ticker" in ln and re.search(r"20\d{2}", ln)), None)
+    # 3) Pull every non-blank line from Calendar Year section
+    lines = []
+    for pg in pdf.pages[cy_page-1 : end_page-1]:
+        txt = pg.extract_text() or ""
+        lines.extend([ln for ln in txt.splitlines() if ln.strip()])
+
+    # 4) Locate header row and extract the years
+    header = next((ln for ln in lines if "Ticker" in ln and re.search(r"20\d{2}", ln)), None)
     if not header:
         st.error("❌ Couldn’t find header row with 'Ticker' + year.")
         return
     years = re.findall(r"\b20\d{2}\b", header)
     num_rx = re.compile(r"-?\d+\.\d+%?")
 
-    # — A) Funds themselves —
-    fund_map     = st.session_state.get("tickers", {})
-    fund_records = []
+    # — A) Extract fund returns —
+    fund_map, fund_records = st.session_state.get("tickers", {}), []
     for name, tk in fund_map.items():
         ticker = (tk or "").upper().strip()
-        # find the line containing the ticker as a standalone token
-        idx = next(
-            (i for i, ln in enumerate(all_lines) if ticker and ticker in ln.split()),
-            None
-        )
-
-        # if no match, skip this fund
+        idx = next((i for i, ln in enumerate(lines) if ticker and ticker in ln.split()), None)
         if idx is None:
-            st.warning(f"⚠️ Calendar returns: no line found for {name} ({ticker})")
+            st.warning(f"⚠️ Calendar returns: no line for {name} ({ticker})")
             continue
-
-        # grab the prior line if possible
-        prior_line = all_lines[idx-1] if idx >= 1 else ""
-        raw        = num_rx.findall(prior_line)
-        # pad/truncate to match number of years
-        vals       = raw[:len(years)] + [None] * max(0, len(years) - len(raw))
-
-        rec = {"Name": name, "Ticker": ticker}
+        prior = lines[idx-1] if idx >= 1 else ""
+        raw   = num_rx.findall(prior)
+        vals  = raw[:len(years)] + [None]*max(0, len(years)-len(raw))
+        rec   = {"Name": name, "Ticker": ticker}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         fund_records.append(rec)
 
     df_fund = pd.DataFrame(fund_records)
     if not df_fund.empty:
         st.markdown("**Fund Calendar-Year Returns**")
-        st.dataframe(df_fund[["Name", "Ticker"] + years], use_container_width=True)
+        st.dataframe(df_fund[["Name","Ticker"]+years], use_container_width=True)
         st.session_state["step8_returns"] = fund_records
 
-    # — B) Benchmarks matched back to each fund’s ticker —
-    facts         = st.session_state.get("fund_factsheets_data", [])
-    bench_records = []
+    # — B) Extract benchmark returns in the same way —
+    facts, bench_records = st.session_state.get("fund_factsheets_data", []), []
     for f in facts:
-        bench_name = f.get("Benchmark", "").strip()
-        fund_tkr   = f.get("Matched Ticker", "").upper().strip()
+        bench_name = f.get("Benchmark","").strip()
+        bench_tkr  = f.get("Matched Ticker","").upper().strip()
         if not bench_name:
             continue
-
-        # find the first line containing the benchmark name
-        idx = next((i for i, ln in enumerate(all_lines) if bench_name in ln), None)
+        idx = next((i for i, ln in enumerate(lines) if bench_name in ln), None)
         if idx is None:
             st.warning(f"⚠️ Calendar returns: no line for benchmark '{bench_name}'")
             continue
-
-        raw  = num_rx.findall(all_lines[idx])
-        vals = raw[:len(years)] + [None] * max(0, len(years) - len(raw))
-
-        rec = {"Name": bench_name, "Ticker": fund_tkr}
+        raw  = num_rx.findall(lines[idx])
+        vals = raw[:len(years)] + [None]*max(0,len(years)-len(raw))
+        rec  = {"Name": bench_name, "Ticker": bench_tkr}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         bench_records.append(rec)
 
     df_bench = pd.DataFrame(bench_records)
     if not df_bench.empty:
         st.markdown("**Benchmark Calendar-Year Returns**")
-        st.dataframe(df_bench[["Name", "Ticker"] + years], use_container_width=True)
+        st.dataframe(df_bench[["Name","Ticker"]+years], use_container_width=True)
         st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
         st.warning("No benchmark returns extracted.")
+
 
 
 #───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
