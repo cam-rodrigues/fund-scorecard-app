@@ -2442,27 +2442,47 @@ def step17_export_to_ppt():
     df_slide2_table1 = st.session_state.get("slide2_table1_data")
     df_slide2_table2 = st.session_state.get("slide2_table2_data")
     df_slide2_table3 = st.session_state.get("slide2_table3_data")
-
-    # --- Fill Slide 1 ---
+    
+     # --- Fill Slide 1 ---
     slide1 = prs.slides[0]
+    
+    # 1) Replace the [Fund Name] placeholder
     if not fill_text_placeholder_preserving_format(slide1, "[Fund Name]", selected):
         st.warning("Could not find the [Fund Name] placeholder on Slide 1.")
+    
+    # 2) Build a two-row DataFrame:
+    #    • Row 1: only Category filled; all other columns blank
+    #    • Row 2: full data
     if df_slide1 is not None:
+        cols    = df_slide1.columns.tolist()
+        value0  = df_slide1.iloc[0].get("Category", "")
+        row1    = {c: (value0 if c == "Category" else "") for c in cols}
+        row2    = df_slide1.iloc[0].to_dict()
+        df_body = pd.DataFrame([row1, row2], columns=cols)
+    
+        # 3) Find and fill the PPT table—row 1 keeps only Category, row 2 gets everything
         filled = False
         for shape in slide1.shapes:
-            if shape.has_table:
-                table = shape.table
-                if len(table.columns) == len(df_slide1.columns):
-                    fill_table_with_styles(table, df_slide1, first_col_white=False)
-                    filled = True
-                    break
+            if not shape.has_table:
+                continue
+            tbl = shape.table
+            if len(tbl.columns) != len(cols):
+                continue
+    
+            fill_table_with_styles(tbl, df_body, first_col_white=False)
+            filled = True
+            break
+    
         if not filled:
             st.warning("Could not find matching table on Slide 1 to fill.")
-    else:
-        st.warning("Slide 1 IPS data not found in session state.")
-    bullets = st.session_state.get("bullet_points", None)
+    
+    # 4) Insert your bullet points just like before
+    bullets = st.session_state.get("bullet_points", [])
     if not fill_bullet_points(slide1, "[Bullet Point 1]", bullets):
         st.warning("Could not find bullet points placeholder on Slide 1.")
+    
+
+
 
     # --- Fill Slide 2 ---
     slide2 = prs.slides[3]
