@@ -1251,62 +1251,95 @@ def step14_5_ips_fail_table():
     if df is None or df.empty:
         return
 
-    fail_df = df[df["IPS Watch Status"].isin(["FW", "IW"])][["Fund Name", "IPS Watch Status"]]
+    # compute counts
+    counts = df["IPS Watch Status"].value_counts().to_dict()
+    no_watch = counts.get("NW", 0)
+    informal = counts.get("IW", 0)
+    formal   = counts.get("FW", 0)
+
+    # build the table of funds on watch
+    fail_df = df[df["IPS Watch Status"].isin(["IW", "FW"])][["Fund Name", "IPS Watch Status"]]
     if fail_df.empty:
         return
 
-    table_html = fail_df.rename(columns={
-        "Fund Name": "Fund",
-        "IPS Watch Status": "Watch Status"
-    }).to_html(index=False, border=0, justify="center", classes="ips-fail-table")
+    table_html = (
+        fail_df
+        .rename(columns={"Fund Name": "Fund", "IPS Watch Status": "Watch Status"})
+        .to_html(index=False, border=0, justify="center", classes="ips-fail-table")
+    )
 
-    st.markdown(f"""
-    <div style='
-        background: linear-gradient(120deg, #e6f0fb 85%, #c8e0f6 100%);
-        color: #23395d;
-        border-radius: 1.3rem;
-        box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
-        padding: 1.6rem 2.0rem 1.6rem 2.0rem;
-        max-width: 650px;
-        margin: 1.4rem auto 1.2rem auto;
-        border: 1.5px solid #b5d0eb;'>
-        <div style='font-weight:700; color:#23395d; font-size:1.15rem; margin-bottom:0.5rem; letter-spacing:-0.5px;'>
+    # two-column layout
+    col1, col2 = st.columns(2, gap="large")
+
+    with col1:
+        st.markdown(f"""
+        <div style='
+            background: linear-gradient(120deg, #e6f0fb 85%, #c8e0f6 100%);
+            color: #23395d;
+            border-radius: 1.3rem;
+            box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
+            padding: 1.6rem 2.0rem;
+            border: 1.5px solid #b5d0eb;
+        '>
+          <div style='font-weight:700; font-size:1.15rem; margin-bottom:1rem;'>
+            IPS Watch Summary
+          </div>
+          <div style='display:flex; flex-direction:column; gap:0.75rem;'>
+            <div style='padding:6px 12px; background:#d6f5df; border-radius:4px; font-weight:600;'>
+              NW (No Watch): {no_watch}
+            </div>
+            <div style='padding:6px 12px; background:#fff3cd; border-radius:4px; font-weight:600;'>
+              IW (Informal Watch): {informal}
+            </div>
+            <div style='padding:6px 12px; background:#f8d7da; border-radius:4px; font-weight:600;'>
+              FW (Formal Watch): {formal}
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown(f"""
+        <div style='
+            background: linear-gradient(120deg, #e6f0fb 85%, #c8e0f6 100%);
+            color: #23395d;
+            border-radius: 1.3rem;
+            box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
+            padding: 1.6rem 2.0rem;
+            border: 1.5px solid #b5d0eb;
+        '>
+          <div style='font-weight:700; font-size:1.15rem; margin-bottom:1rem;'>
             Funds on Watch
+          </div>
+          {table_html}
         </div>
-        <div style='font-size:1rem; margin-bottom:1rem; color:#23395d;'>
-            The following funds failed five or more IPS criteria and are currently on watch.
-        </div>
-        {table_html}
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-    st.markdown("""
-    <style>
-    .ips-fail-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 0.7em;
-        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-    }
-    .ips-fail-table th, .ips-fail-table td {
-        border: none;
-        padding: 0.48em 1.1em;
-        text-align: left;
-        font-size: 1.07em;
-    }
-    .ips-fail-table th {
-        background: #244369;
-        color: #fff;
-        font-weight: 700;
-        letter-spacing: 0.01em;
-    }
-    .ips-fail-table td {
-        color: #244369;
-    }
-    .ips-fail-table tr:nth-child(even) {background: #e6f0fb;}
-    .ips-fail-table tr:nth-child(odd)  {background: #f8fafc;}
-    </style>
-    """, unsafe_allow_html=True)
+        # table styling
+        st.markdown("""
+        <style>
+        .ips-fail-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+            margin-top: 0.5rem;
+        }
+        .ips-fail-table th, .ips-fail-table td {
+            border: none;
+            padding: 0.6em 1.0em;
+            text-align: left;
+            font-size: 1.05em;
+        }
+        .ips-fail-table th {
+            background: #244369;
+            color: #fff;
+            font-weight: 700;
+        }
+        .ips-fail-table tr:nth-child(even) { background: #e6f0fb; }
+        .ips-fail-table tr:nth-child(odd)  { background: #f8fafc; }
+        </style>
+        """, unsafe_allow_html=True)
+
 
 #───Step 15: Single Fund──────────────────────────────────────────────────────────────────
 
