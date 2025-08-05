@@ -218,6 +218,8 @@ def infer_fund_type_guess(ticker):
 
 import re
 
+import re
+
 def extract_scorecard_blocks(pdf, scorecard_page):
     metric_labels = [
         "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
@@ -228,57 +230,62 @@ def extract_scorecard_blocks(pdf, scorecard_page):
         "Tracking Error (3Yr)", "Tracking Error (5Yr)"
     ]
 
-    # precompile a pattern that will strip:
-    # - "Meets Watchlist Criteria"
-    # - "has been placed on watchlist for not meeting X out of Y criteria"
-    # - any parenthetical code: "(RGBGX)" etc.
-    # - any trailing ": no match found" or similar
+    # Precompile the watchlist‐stripping pattern
     watch_pattern = re.compile(
-        r"""Fund\s+                           # the literal "Fund "
-            (?:Meets\s+Watchlist\s+Criteria   # either the simple phrase
-            |has\s+been\s+placed\s+on\s+watchlist\s+for\s+not\s+meeting\s+  # or the long form
-                .*?                            #   any chars (fund name part)
-                \s+out\s+of\s+\d+\s+criteria)  #   ending "... out of ## criteria"
-            (?:\s*\([^)]*\))?                  # optional parenthetical, e.g. "(RGBGX)"
-            (?:\s*:\s*[^.]+)?                  # optional ": no match found"
-            \.?
+        r"""Fund\s+(?:Meets\s+Watchlist\s+Criteria
+            |has\s+been\s+placed\s+on\s+watchlist\s+for\s+not\s+meeting\s+.*?\s+out\s+of\s+\d+\s+criteria)
+            (?:\s*\([^)]*\))?      # optional (RGBGX)
+            (?:\s*:\s*[^.]+)?      # optional ": no match found"
+            \.?$                   # trailing period
         """,
         re.IGNORECASE | re.VERBOSE
     )
 
     pages, fund_blocks, fund_name, metrics = [], [], None, []
 
-    # collect all text from scorecard pages
+    # gather all scorecard text
     for p in pdf.pages[scorecard_page-1:]:
         pages.append(p.extract_text() or "")
     lines = "\n".join(pages).splitlines()
 
     for line in lines:
-        # if this line doesn't contain any metric label, assume it's a header
-        if not any(metric in line for metric in metric_labels) and line.strip():
-            # flush previous fund
+        line = line.strip()
+        # if this line has no metric label, it's a fund header
+        if line and not any(lbl in line for lbl in metric_labels):
+            # flush previous
             if fund_name and metrics:
                 fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
 
-            # strip off *any* watchlist suffix, leaving just the base name
-            cleaned = watch_pattern.sub("", line.strip()).strip()
-            # if it still starts with "Fund ", drop that too
-            fund_name = re.sub(r"^Fund\s+", "", cleaned, flags=re.IGNORECASE).strip()
+            # 1) Try to match "everything up to the watchlist phrase"
+            m = re.match(
+                r"^(.+?Fund[^ ]*?)\s+"
+                r"(?:Meets\s+Watchlist\s+Criteria"
+                r"|has\s+been\s+placed\s+on\s+watchlist\s+for\s+not\s+meeting\s+.*?\s+out\s+of\s+\d+\s+criteria)",
+                line, re.IGNORECASE
+            )
+            if m:
+                fund_name = m.group(1).strip()
+            else:
+                # 2) fallback: strip with our generic pattern
+                cleaned = watch_pattern.sub("", line).strip()
+                # drop any leading "Fund "
+                fund_name = re.sub(r"^Fund\s+", "", cleaned, flags=re.IGNORECASE).strip()
+
             metrics = []
 
-        # now collect metrics on this line
-        for metric in metric_labels:
-            if metric in line:
-                m = re.match(r"^(.*?)\s+(Pass|Review|Fail)\s*(.*)", line.strip())
-                if m:
-                    metric_name, status, info = m.groups()
+        # collect any metrics
+        for lbl in metric_labels:
+            if lbl in line:
+                m2 = re.match(r"^(.*?)\s+(Pass|Review|Fail)\s*(.*)$", line)
+                if m2:
+                    metric_name, status, info = m2.groups()
                     metrics.append({
                         "Metric": metric_name,
                         "Status": status,
                         "Info": info.strip()
                     })
 
-    # append the last one
+    # don't forget the last one
     if fund_name and metrics:
         fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
 
