@@ -216,6 +216,8 @@ def infer_fund_type_guess(ticker):
     except Exception:
         return ""
 
+import re
+
 def extract_scorecard_blocks(pdf, scorecard_page):
     metric_labels = [
         "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
@@ -225,28 +227,46 @@ def extract_scorecard_blocks(pdf, scorecard_page):
         "Sortino Ratio Rank (3Yr)", "Sortino Ratio Rank (5Yr)",
         "Tracking Error (3Yr)", "Tracking Error (5Yr)"
     ]
+
+    # precompile a pattern that will strip:
+    # - "Meets Watchlist Criteria"
+    # - "has been placed on watchlist for not meeting X out of Y criteria"
+    # - any parenthetical code: "(RGBGX)" etc.
+    # - any trailing ": no match found" or similar
+    watch_pattern = re.compile(
+        r"""Fund\s+                           # the literal "Fund "
+            (?:Meets\s+Watchlist\s+Criteria   # either the simple phrase
+            |has\s+been\s+placed\s+on\s+watchlist\s+for\s+not\s+meeting\s+  # or the long form
+                .*?                            #   any chars (fund name part)
+                \s+out\s+of\s+\d+\s+criteria)  #   ending "... out of ## criteria"
+            (?:\s*\([^)]*\))?                  # optional parenthetical, e.g. "(RGBGX)"
+            (?:\s*:\s*[^.]+)?                  # optional ": no match found"
+            \.?
+        """,
+        re.IGNORECASE | re.VERBOSE
+    )
+
     pages, fund_blocks, fund_name, metrics = [], [], None, []
+
     # collect all text from scorecard pages
     for p in pdf.pages[scorecard_page-1:]:
         pages.append(p.extract_text() or "")
     lines = "\n".join(pages).splitlines()
 
     for line in lines:
-        # whenever we hit a line that is NOT metric-label-y, it's (potentially) a new fund header
+        # if this line doesn't contain any metric label, assume it's a header
         if not any(metric in line for metric in metric_labels) and line.strip():
             # flush previous fund
             if fund_name and metrics:
                 fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
-            # strip *any* watchlist suffix (14 or 15 criteria, or simple "Meets Watchlist")
-            fund_name = re.sub(
-                r"Fund\s+(?:Meets Watchlist Criteria|has been placed on watchlist for not meeting .*? out of \d+ criteria)\.?",
-                "",
-                line.strip(),
-                flags=re.IGNORECASE
-            ).strip()
+
+            # strip off *any* watchlist suffix, leaving just the base name
+            cleaned = watch_pattern.sub("", line.strip()).strip()
+            # if it still starts with "Fund ", drop that too
+            fund_name = re.sub(r"^Fund\s+", "", cleaned, flags=re.IGNORECASE).strip()
             metrics = []
 
-        # now collect any metrics on this line
+        # now collect metrics on this line
         for metric in metric_labels:
             if metric in line:
                 m = re.match(r"^(.*?)\s+(Pass|Review|Fail)\s*(.*)", line.strip())
@@ -258,13 +278,11 @@ def extract_scorecard_blocks(pdf, scorecard_page):
                         "Info": info.strip()
                     })
 
-    # after loop, append last fund
+    # append the last one
     if fund_name and metrics:
         fund_blocks.append({"Fund Name": fund_name, "Metrics": metrics})
 
     return fund_blocks
-
-
 
 
 def extract_fund_tickers(pdf, performance_page, fund_names, factsheets_page=None):
