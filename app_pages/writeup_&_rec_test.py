@@ -2443,21 +2443,24 @@ def step17_export_to_ppt():
     df_slide2_table2 = st.session_state.get("slide2_table2_data")
     df_slide2_table3 = st.session_state.get("slide2_table3_data")
     
-    # --- Fill Slide 1 ---
+     # --- Fill Slide 1 ---
     slide1 = prs.slides[0]
     
     # 1) Replace the [Fund Name] placeholder
     if not fill_text_placeholder_preserving_format(slide1, "[Fund Name]", selected):
         st.warning("Could not find the [Fund Name] placeholder on Slide 1.")
     
-    # 2) Build a two-row DataFrame: blank row + your real data row
+    # 2) Build a two-row DataFrame:
+    #    • Row 1: only Category filled; all other columns blank
+    #    • Row 2: full data
     if df_slide1 is not None:
-        cols = df_slide1.columns.tolist()
-        row1 = {c: "" for c in cols}                # completely blank
-        row2 = df_slide1.iloc[0].to_dict()           # full data
+        cols    = df_slide1.columns.tolist()
+        value0  = df_slide1.iloc[0].get("Category", "")
+        row1    = {c: (value0 if c == "Category" else "") for c in cols}
+        row2    = df_slide1.iloc[0].to_dict()
         df_body = pd.DataFrame([row1, row2], columns=cols)
     
-        # 3) Locate the table and fill it (row1 stays blank; row2 gets data+styles)
+        # 3) Find and fill the PPT table—row 1 keeps only Category, row 2 gets everything
         filled = False
         for shape in slide1.shapes:
             if not shape.has_table:
@@ -2473,10 +2476,11 @@ def step17_export_to_ppt():
         if not filled:
             st.warning("Could not find matching table on Slide 1 to fill.")
     
-    # 4) Re-insert your bullet points exactly as before
+    # 4) Insert your bullet points just like before
     bullets = st.session_state.get("bullet_points", [])
     if not fill_bullet_points(slide1, "[Bullet Point 1]", bullets):
         st.warning("Could not find bullet points placeholder on Slide 1.")
+    
 
 
 
