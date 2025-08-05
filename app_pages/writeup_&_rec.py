@@ -2348,23 +2348,53 @@ def step17_export_to_ppt():
         st.error(f"Could not load PowerPoint template: {e}")
         return
 
+    from pptx.dml.color import RGBColor
+    from pptx.util import Pt
+    from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
+    
     def fill_table_with_styles(table, df_table, bold_row_idx=None, first_col_white=True):
-        for i in range(min(len(df_table), len(table.rows) - 1)):
-            for j in range(min(len(df_table.columns), len(table.columns))):
-                val = df_table.iloc[i, j]
-                cell = table.cell(i + 1, j)
-                cell.text = str(val) if val is not None else ""
+        # locate the "IPS Status" column
+        try:
+            status_idx = df_table.columns.get_loc("IPS Status")
+        except KeyError:
+            status_idx = None
+    
+        for i in range(len(df_table)):
+            row_vals = df_table.iloc[i]
+            for j, col in enumerate(df_table.columns):
+                val = row_vals[col]
+                cell = table.cell(i+1, j)  # skip header row
+    
+                # set text
+                txt = str(val) if val is not None else ""
+                cell.text = txt
                 cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
+    
+                # only color the IPS Status cell on the data row (i==1)
+                if status_idx is not None and j == status_idx and i == 1:
+                    cell.fill.solid()
+                    if txt == "NW":
+                        cell.fill.fore_color.rgb = RGBColor(0xC5, 0xE6, 0x9A)  # #c5e69a
+                    elif txt == "IW":
+                        cell.fill.fore_color.rgb = RGBColor(0xFF, 0x95, 0x53)  # #ff9553
+                    elif txt == "FW":
+                        cell.fill.fore_color.rgb = RGBColor(0xFF, 0x5D, 0x58)  # #ff5d58
+    
+                # style text
                 for para in cell.text_frame.paragraphs:
                     para.alignment = PP_ALIGN.CENTER
                     for run in para.runs:
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
                         if j == 0:
-                            run.font.color.rgb = RGBColor(255, 255, 255) if first_col_white else RGBColor(0, 0, 0)
+                            run.font.color.rgb = RGBColor(255,255,255) if first_col_white else RGBColor(0,0,0)
+                        elif status_idx is not None and j == status_idx:
+                            run.font.color.rgb = RGBColor(255,255,255)
                         else:
-                            run.font.color.rgb = RGBColor(0, 0, 0)
+                            run.font.color.rgb = RGBColor(0,0,0)
                         run.font.bold = (bold_row_idx is not None and i == bold_row_idx)
+
+
 
     def fill_text_placeholder_preserving_format(slide, placeholder_text, replacement_text):
         replaced = False
