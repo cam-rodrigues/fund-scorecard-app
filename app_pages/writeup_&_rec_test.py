@@ -2325,14 +2325,39 @@ def step17_export_to_ppt():
             for run in p.runs:
                 run.font.color.rgb = RGBColor(*rgb)
 
-    # --- Fill Slide 1 Table & Color Status Cell ---
+    # --- Fill Slide 1 ---
     slide1 = prs.slides[0]
-    # replace [Fund Name]
+
+    # 1) Replace the [Fund Name] placeholder
     for shape in slide1.shapes:
         if shape.has_text_frame and "[Fund Name]" in shape.text:
             shape.text = shape.text.replace("[Fund Name]", selected)
 
-    # find the table
+    # 2) Build the DataFrame for Slide 1
+    ips_icon = st.session_state.get("ips_icon_table", pd.DataFrame())
+    row = ips_icon[ips_icon["Fund Name"] == selected].iloc[0]
+    display_cols = {f"IPS Investment Criteria {i+1}": str(i+1) for i in range(11)}
+    table_data = {
+        "Category":    st.session_state.get("fund_factsheets_data", [{}])[0].get("Category", ""),
+        "Time Period": st.session_state.get("report_date", ""),
+        "Plan Assets": "$",
+        **{ display_cols[k]: row[k] for k in row.index if k.startswith("IPS Investment Criteria ") },
+        "IPS Status":  row["IPS Watch Status"],
+    }
+    headers = ["Category", "Time Period", "Plan Assets"] + [str(i+1) for i in range(11)] + ["IPS Status"]
+    df_slide1 = pd.DataFrame([table_data], columns=headers)
+
+    # helper to center & font-style table cells
+    def style_cell(cell, text):
+        cell.text = text
+        cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
+        for para in cell.text_frame.paragraphs:
+            para.alignment = PP_ALIGN.CENTER
+            for run in para.runs:
+                run.font.name = "Cambria"
+                run.font.size = Pt(11)
+
+    # 3) Locate and fill the table
     for shape in slide1.shapes:
         if not shape.has_table:
             continue
@@ -2340,23 +2365,19 @@ def step17_export_to_ppt():
         if len(table.columns) != len(df_slide1.columns):
             continue
 
-        # Clear first data‐row (row index 1)
+        # Decide which data row to use (template may have only header+1 row)
+        data_row = 2 if len(table.rows) > 2 else 1
+
+        # Clear the first data row (row index 1)
         for col_idx in range(len(table.columns)):
             table.cell(1, col_idx).text = ""
 
-        # Write our values into second data‐row (row index 2)
+        # Populate the chosen data_row
         for col_idx, col_name in enumerate(df_slide1.columns):
             val = df_slide1.iloc[0, col_idx]
-            cell = table.cell(2, col_idx)
-            cell.text = str(val) if val is not None else ""
-            cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
-            for para in cell.text_frame.paragraphs:
-                para.alignment = PP_ALIGN.CENTER
-                for run in para.runs:
-                    run.font.name = "Cambria"
-                    run.font.size = Pt(11)
+            style_cell(table.cell(data_row, col_idx), str(val) if val is not None else "")
 
-        # Color the IPS Status cell background in row 2, last column
+        # Color the IPS Status cell background and make text white
         status = df_slide1.iloc[0, -1]
         color_map = {
             "NW": (0x21, 0x7A, 0x3E),  # green
@@ -2364,15 +2385,14 @@ def step17_export_to_ppt():
             "FW": (0xC3, 0x00, 0x00),  # red
         }
         rgb = color_map.get(status, (0, 0, 0))
-        status_cell = table.cell(2, len(df_slide1.columns) - 1)
-        # fill background
+        status_cell = table.cell(data_row, len(df_slide1.columns) - 1)
         status_cell.fill.solid()
         status_cell.fill.fore_color.rgb = RGBColor(*rgb)
-        # optional: make text white for contrast
-        for p in status_cell.text_frame.paragraphs:
-            for run in p.runs:
+        for para in status_cell.text_frame.paragraphs:
+            for run in para.runs:
                 run.font.color.rgb = RGBColor(255, 255, 255)
 
+        break  # done with Slide 1 table
 
 
     # --- Fill Slide 2 ---
