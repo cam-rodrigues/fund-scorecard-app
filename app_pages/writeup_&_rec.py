@@ -2363,35 +2363,49 @@ def step17_export_to_ppt():
             row_vals = df_table.iloc[i]
             for j, col in enumerate(df_table.columns):
                 val = row_vals[col]
-                cell = table.cell(i+1, j)  # skip header row
+                cell = table.cell(i+1, j)  # skip the header row
     
-                # set text
+                # set the cell text
                 txt = str(val) if val is not None else ""
                 cell.text = txt
                 cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
     
-                # only color the IPS Status cell on the data row (i==1)
+                # only color the IPS Status cell on the real-data row (i == 1)
                 if status_idx is not None and j == status_idx and i == 1:
                     cell.fill.solid()
                     if txt == "NW":
-                        cell.fill.fore_color.rgb = RGBColor(0x21, 0x7A, 0x3E)  # #c5e69a
+                        cell.fill.fore_color.rgb = RGBColor(0x21, 0x7A, 0x3E)
                     elif txt == "IW":
-                        cell.fill.fore_color.rgb = RGBColor(0xFF, 0x95, 0x53)  # #ff9553
+                        cell.fill.fore_color.rgb = RGBColor(0xFF, 0x95, 0x53)
                     elif txt == "FW":
-                        cell.fill.fore_color.rgb = RGBColor(0xFF, 0x5D, 0x58)  # #ff5d58
+                        cell.fill.fore_color.rgb = RGBColor(0xFF, 0x5D, 0x58)
     
-                # style text
+                # style the text, with special colors for ✔ and ✗
                 for para in cell.text_frame.paragraphs:
                     para.alignment = PP_ALIGN.CENTER
                     for run in para.runs:
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
-                        if j == 0:
+    
+                        # 1) checks and Xs
+                        if txt == "✔":
+                            run.font.color.rgb = RGBColor(0x00, 0x80, 0x00)  # green
+                        elif txt == "✗":
+                            run.font.color.rgb = RGBColor(0xFF, 0x00, 0x00)  # red
+    
+                        # 2) first column fallback
+                        elif j == 0:
                             run.font.color.rgb = RGBColor(255,255,255) if first_col_white else RGBColor(0,0,0)
+    
+                        # 3) IPS Status text stays white
                         elif status_idx is not None and j == status_idx:
                             run.font.color.rgb = RGBColor(255,255,255)
+    
+                        # 4) default text
                         else:
                             run.font.color.rgb = RGBColor(0,0,0)
+    
+                        # bold logic as before
                         run.font.bold = (bold_row_idx is not None and i == bold_row_idx)
 
 
