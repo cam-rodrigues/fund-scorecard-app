@@ -2349,22 +2349,45 @@ def step17_export_to_ppt():
         return
 
     def fill_table_with_styles(table, df_table, bold_row_idx=None, first_col_white=True):
+        # find which column index is "IPS Status"
+        try:
+            status_idx = df_table.columns.get_loc("IPS Status")
+        except KeyError:
+            status_idx = None
+    
         for i in range(min(len(df_table), len(table.rows) - 1)):
             for j in range(min(len(df_table.columns), len(table.columns))):
                 val = df_table.iloc[i, j]
                 cell = table.cell(i + 1, j)
                 cell.text = str(val) if val is not None else ""
                 cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
+    
+                # 1) Background color for IPS Status column
+                if status_idx is not None and j == status_idx:
+                    cell.fill.solid()
+                    if val == "NW":
+                        cell.fill.fore_color.rgb = RGBColor(0x21, 0x7A, 0x3E)   # green
+                    elif val == "IW":
+                        cell.fill.fore_color.rgb = RGBColor(0xB8, 0x73, 0x33)   # orange
+                    elif val == "FW":
+                        cell.fill.fore_color.rgb = RGBColor(0xC3, 0x00, 0x00)   # red
+    
+                # 2) Text styling
                 for para in cell.text_frame.paragraphs:
                     para.alignment = PP_ALIGN.CENTER
                     for run in para.runs:
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
+                        # first column white or black
                         if j == 0:
                             run.font.color.rgb = RGBColor(255, 255, 255) if first_col_white else RGBColor(0, 0, 0)
+                        # IPS Status text: make it white so it stands out on colored bg
+                        elif status_idx is not None and j == status_idx:
+                            run.font.color.rgb = RGBColor(255, 255, 255)
                         else:
                             run.font.color.rgb = RGBColor(0, 0, 0)
                         run.font.bold = (bold_row_idx is not None and i == bold_row_idx)
+
 
     def fill_text_placeholder_preserving_format(slide, placeholder_text, replacement_text):
         replaced = False
