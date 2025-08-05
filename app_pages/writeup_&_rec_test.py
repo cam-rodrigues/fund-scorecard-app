@@ -219,7 +219,7 @@ def infer_fund_type_guess(ticker):
 def extract_scorecard_blocks(pdf, scorecard_page):
     metric_labels = [
         "Manager Tenure", "Excess Performance (3Yr)", "Excess Performance (5Yr)",
-        "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Expense Ratio Rank",
+        "Peer Return Rank (3Yr)", "Peer Return Rank (5Yr)", "Stle Drift Score (3Yr)", "Expense Ratio Rank",
         "Sharpe Ratio Rank (3Yr)", "Sharpe Ratio Rank (5Yr)", "R-Squared (3Yr)",
         "R-Squared (5Yr)", "Sortino Ratio Rank (3Yr)", "Sortino Ratio Rank (5Yr)",
         "Tracking Error Rank (3Yr)", "Tracking Error Rank (5Yr)"
