@@ -444,6 +444,69 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
 
 #───Side-by-side Info Card Helpers──────────────────────────────────────────────────────
 
+def _shared_cards_css():
+    return """
+    <style>
+      /* Card shell */
+      .fid-card {
+        background: linear-gradient(120deg, #e6f0fb 84%, #cfe4f8 100%);
+        color: #23395d;
+        border-radius: 1.25rem;
+        box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
+        border: 1.2px solid #b5d0eb;
+        padding: 1.1rem 1.6rem;
+        margin: 0 0 1.1rem 0;
+      }
+      .fid-card h4 {
+        margin: 0 0 .45rem 0;
+        font-weight: 700;
+        font-size: 1.08rem;
+        color: #223d63;
+        letter-spacing: -.2px;
+      }
+      .fid-card .sub {
+        font-size: .98rem;
+        color: #2b4770;
+        margin: 0 0 .6rem 0;
+      }
+
+      /* Tables */
+      table.fid-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+        font-size: .98rem;
+      }
+      table.fid-table th, table.fid-table td {
+        border: none;
+        padding: .42rem .9rem;
+        text-align: left;
+      }
+      table.fid-table th {
+        background: #244369;
+        color: #fff;
+        font-weight: 700;
+        letter-spacing: .01em;
+      }
+      table.fid-table tr:nth-child(even) { background: #e9f2fc; }
+      table.fid-table tr:nth-child(odd)  { background: #f8fafc; }
+
+      /* Column alignment helpers */
+      .center { text-align: center; }
+      .ticker  { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; letter-spacing: .2px; }
+
+      /* Watch badges (in-table values or summary blocks) */
+      .badge-nw { background:#d6f5df; color:#217a3e; border-radius:.5rem; padding:.15rem .5rem; font-weight:600; }
+      .badge-iw { background:#fff3cd; color:#B87333; border-radius:.5rem; padding:.15rem .5rem; font-weight:600; }
+      .badge-fw { background:#f8d7da; color:#c30000; border-radius:.5rem; padding:.15rem .5rem; font-weight:600; }
+
+      /* Narrow tweaks for Proposed table: center ticker column */
+      table.proposed-fund-table td:nth-child(2),
+      table.proposed-fund-table th:nth-child(2) { text-align:center; }
+      table.proposed-fund-table td:nth-child(2) { font-family: ui-monospace, monospace; letter-spacing:.2px; }
+    </style>
+    """
+
 def get_ips_fail_card_html():
     df = st.session_state.get("ips_icon_table")
     if df is None or df.empty:
@@ -451,139 +514,56 @@ def get_ips_fail_card_html():
     fail_df = df[df["IPS Watch Status"].isin(["FW", "IW"])][["Fund Name", "IPS Watch Status"]]
     if fail_df.empty:
         return "", ""
-    table_html = fail_df.rename(columns={
-        "Fund Name": "Fund",
-        "IPS Watch Status": "Watch Status"
-    }).to_html(index=False, border=0, justify="center", classes="ips-fail-table")
+
+    # Map status to a colored badge label
+    def badge(s):
+        if s == "FW": return '<span class="badge-fw">FW</span>'
+        if s == "IW": return '<span class="badge-iw">IW</span>'
+        return s
+
+    display = fail_df.rename(columns={"Fund Name": "Fund", "IPS Watch Status": "Watch Status"}).copy()
+    display["Watch Status"] = display["Watch Status"].map(badge)
+
+    table_html = display.to_html(index=False, border=0, justify="center",
+                                 classes="fid-table ips-fail-table",
+                                 escape=False)
+
     card_html = f"""
-    <div style='
-        background: linear-gradient(120deg, #e6f0fb 85%, #c8e0f6 100%);
-        color: #23395d;
-        border-radius: 1.3rem;
-        box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
-        padding: 1.6rem 2.0rem 1.6rem 2.0rem;
-        border: 1.5px solid #b5d0eb;
-        font-size:1rem;
-        max-width:100%;
-        margin-bottom:1.2rem;
-    '>
-        <div style='font-weight:700; color:#23395d; font-size:1.15rem; margin-bottom:0.5rem; letter-spacing:-0.5px;'>
-            Funds on Watch
-        </div>
-        <div style='font-size:1rem; margin-bottom:1rem; color:#23395d;'>
-            The following funds failed five or more IPS criteria and are currently on watch.
-        </div>
+      <div class="fid-card">
+        <h4>Funds on Watch</h4>
+        <div class="sub">The following funds failed five or more IPS criteria and are currently on watch.</div>
         {table_html}
-    </div>
+      </div>
     """
-    css = """
-    <style>
-    .ips-fail-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 0.7em;
-        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-    }
-    .ips-fail-table th, .ips-fail-table td {
-        border: none;
-        padding: 0.48em 1.1em;
-        text-align: left;
-        font-size: 1.07em;
-    }
-    .ips-fail-table th {
-        background: #244369;
-        color: #fff;
-        font-weight: 700;
-        letter-spacing: 0.01em;
-    }
-    .ips-fail-table td {
-        color: #244369;
-    }
-    .ips-fail-table tr:nth-child(even) {background: #e6f0fb;}
-    .ips-fail-table tr:nth-child(odd)  {background: #f8fafc;}
-    </style>
-    """
-    return card_html, css
+    return card_html, _shared_cards_css()
 
 def get_proposed_fund_card_html():
     df = st.session_state.get("proposed_funds_confirmed_df")
     if df is None or df.empty:
-        card_html = f"""
-        <div style='
-            background: linear-gradient(120deg, #e6f0fb 85%, #c8e0f6 100%);
-            color: #23395d;
-            border-radius: 1.3rem;
-            box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
-            padding: 1.6rem 2.0rem;
-            border: 1.5px solid #b5d0eb;
-            font-size:1rem;
-            max-width:100%;
-            margin-bottom:1.2rem;
-        '>
-            <div style='font-weight:700; color:#23395d; font-size:1.15rem; margin-bottom:0.5rem; letter-spacing:-0.5px;'>
-                Confirmed Proposed Funds
-            </div>
-            <div style='font-size:1rem; margin-bottom:1rem; color:#23395d;'>
-                No confirmed proposed funds were found on the Proposed Funds scorecard page.
-            </div>
-        </div>
+        card_html = """
+          <div class="fid-card">
+            <h4>Confirmed Proposed Funds</h4>
+            <div class="sub">No confirmed proposed funds were found on the Proposed Funds scorecard pages.</div>
+          </div>
         """
-        css = ""
-        return card_html, css
+        return card_html, _shared_cards_css()
 
-    display_df = df[["Fund Scorecard Name", "Ticker"]].rename(columns={
-        "Fund Scorecard Name": "Fund",
-    })
-    table_html = display_df.to_html(index=False, border=0, justify="center", classes="proposed-fund-table")
+    display_df = df[["Fund Scorecard Name", "Ticker"]].rename(
+        columns={"Fund Scorecard Name": "Fund"}
+    ).drop_duplicates()
+
+    table_html = display_df.to_html(index=False, border=0, justify="center",
+                                    classes="fid-table proposed-fund-table",
+                                    escape=True)
+
     card_html = f"""
-    <div style='
-        background: linear-gradient(120deg, #e6f0fb 85%, #c8e0f6 100%);
-        color: #23395d;
-        border-radius: 1.3rem;
-        box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
-        padding: 1.6rem 2.0rem;
-        border: 1.5px solid #b5d0eb;
-        font-size:1rem;
-        max-width:100%;
-        margin-bottom:1.2rem;
-    '>
-        <div style='font-weight:700; color:#23395d; font-size:1.15rem; margin-bottom:0.5rem; letter-spacing:-0.5px;'>
-            Confirmed Proposed Funds
-        </div>
-        <div style='font-size:1rem; margin-bottom:1rem; color:#23395d;'>
-            The following funds were identified on the Proposed Funds scorecard page.
-        </div>
+      <div class="fid-card">
+        <h4>Confirmed Proposed Funds</h4>
+        <div class="sub">The following funds were identified on the Proposed Funds scorecard pages.</div>
         {table_html}
-    </div>
+      </div>
     """
-    css = """
-    <style>
-    .proposed-fund-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 0.7em;
-        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-    }
-    .proposed-fund-table th, .proposed-fund-table td {
-        border: none;
-        padding: 0.48em 1.1em;
-        text-align: left;
-        font-size: 1em;
-    }
-    .proposed-fund-table th {
-        background: #244369;
-        color: #fff;
-        font-weight: 700;
-        letter-spacing: 0.01em;
-    }
-    .proposed-fund-table td {
-        color: #23395d;
-    }
-    .proposed-fund-table tr:nth-child(even) {background: #e6f0fb;}
-    .proposed-fund-table tr:nth-child(odd)  {background: #f8fafc;}
-    </style>
-    """
-    return card_html, css
+    return card_html, _shared_cards_css()
 
 def get_watch_summary_card_html():
     df = st.session_state.get("ips_icon_table")
@@ -595,36 +575,25 @@ def get_watch_summary_card_html():
         "Informal Watch": counts.get("IW", 0),
         "Formal Watch": counts.get("FW", 0),
     }
+
     card_html = f"""
-    <div style="
-        background: linear-gradient(120deg, #e6f0fb 82%, #d0ebfa 100%);
-        color: #244369;
-        border-radius: 1.2rem;
-        box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
-        padding: 1.3rem 2rem 1.1rem 2rem;
-        margin-bottom: 2rem;
-        font-size: 1.07rem;
-        border: 1.2px solid #b5d0eb;
-        max-width: 520px;
-    ">
-      <div style="font-size:1.13rem; font-weight:700; color:#223d63; margin-bottom:0.7rem;">
-        Watch Summary
-      </div>
-      <div style="display:flex; gap:1.5rem; align-items:center; justify-content: flex-start; margin-bottom:0.3rem;">
-        <div style="background:#d6f5df; color:#217a3e; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
-            No Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["No Watch"]}</span>
-        </div>
-        <div style="background:#fff3cd; color:#B87333; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
-            Informal Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["Informal Watch"]}</span>
-        </div>
-        <div style="background:#f8d7da; color:#c30000; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
-            Formal Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["Formal Watch"]}</span>
+      <div class="fid-card" style="max-width:540px;">
+        <h4>Watch Summary</h4>
+        <div style="display:flex; gap:1rem; align-items:stretch; margin-top:.2rem;">
+          <div class="badge-nw" style="flex:1; text-align:center;">
+            No Watch<br><span style="font-size:1.35rem; font-weight:800;">{summary["No Watch"]}</span>
+          </div>
+          <div class="badge-iw" style="flex:1; text-align:center;">
+            Informal Watch<br><span style="font-size:1.35rem; font-weight:800;">{summary["Informal Watch"]}</span>
+          </div>
+          <div class="badge-fw" style="flex:1; text-align:center;">
+            Formal Watch<br><span style="font-size:1.35rem; font-weight:800;">{summary["Formal Watch"]}</span>
+          </div>
         </div>
       </div>
-    </div>
     """
-    css = ""
-    return card_html, css
+    return card_html, _shared_cards_css()
+
 
 #───Proposed Funds Extraction──────────────────────────────────────────────────────────────────
 
