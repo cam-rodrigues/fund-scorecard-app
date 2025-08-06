@@ -2835,22 +2835,34 @@ def step17_export_to_ppt():
                     if "[Category]" in run.text:
                         run.text = run.text.replace("[Category]", actual_cat)
 
-        # ───── Qualitative Factors Table 1 – Manager Tenure ─────────────────────────────
-        from copy import deepcopy
-        from pptx.util import Pt
-        from pptx.dml.color import RGBColor
-        import pandas as pd
+    # ───── Qualitative Factors Slide: Table 1 – Manager Tenure ─────────────────────────
+    from copy import deepcopy
+    from pptx.util import Pt
+    from pptx.dml.color import RGBColor
+    import pandas as pd
 
-        df_q1 = st.session_state.get("qualfact_table1_data", pd.DataFrame())
-        if df_q1.empty:
-            st.warning("No Manager Tenure data found for Table 1.")
+    # Pull in the DataFrame you saved in Step 15
+    df_q1 = st.session_state.get("qualfact_table1_data", pd.DataFrame())
+    if df_q1.empty:
+        st.warning("No Manager Tenure data found for Table 1.")
+    else:
+        # 1) Locate the correct table by matching its headers
+        table1 = None
+        for shape in slide_qualitative_factors.shapes:
+            if not shape.has_table:
+                continue
+            tbl = shape.table
+            h0 = tbl.cell(0, 0).text_frame.text.strip()
+            h1 = tbl.cell(0, 1).text_frame.text.strip()
+            if h0 == "Investment Manager" and h1 == "Manager Tenure":
+                table1 = tbl
+                tbl_xml = tbl._tbl
+                break
+
+        if table1 is None:
+            st.warning("Couldn't find the Manager Tenure table.")
         else:
-            # top‐left table is the first has_table shape
-            tables = [sh for sh in slide_qualitative_factors.shapes if sh.has_table]
-            table1 = tables[0].table
-            tbl_xml = table1._tbl
-
-            # add rows if needed (header row excluded)
+            # 2) Add rows if needed (keep header row intact)
             existing = len(table1.rows) - 1
             needed = len(df_q1) - existing
             if needed > 0:
@@ -2858,13 +2870,12 @@ def step17_export_to_ppt():
                 for _ in range(needed):
                     tbl_xml.append(deepcopy(base_tr))
 
-            # fill each row: selected fund first, then proposals
+            # 3) Fill each row: selected fund first, then proposals
             for r_idx, row in enumerate(df_q1.itertuples(index=False), start=1):
                 for c_idx, val in enumerate(row):
                     cell = table1.cell(r_idx, c_idx)
                     para = cell.text_frame.paragraphs[0]
-
-                    # get or create the run
+                    # get or create run
                     if para.runs:
                         run = para.runs[0]
                         run.text = val
@@ -2873,13 +2884,14 @@ def step17_export_to_ppt():
                         run.text = val
 
                     if c_idx == 0:
-                        # Investment Manager column: preserve placeholder style
+                        # Investment Manager: preserve placeholder style
                         continue
                     else:
-                        # Manager Tenure column: Cambria 11pt black
+                        # Manager Tenure: Cambria 11pt black
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
                         run.font.color.rgb = RGBColor(0, 0, 0)
+
 
     
     # ───── 6) Save & Download ───────────────────────────────────────────────────────────
