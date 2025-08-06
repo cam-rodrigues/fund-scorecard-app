@@ -2499,15 +2499,11 @@ def step17_export_to_ppt():
     from copy import deepcopy
     from pptx.enum.shapes import PP_PLACEHOLDER
 
-    # … right after you fill bullets on slide 1 …
-    # for shape in slide.shapes: … break
-
-    # ───── Replacement Slides: clone & personalize ──────────────────────────────
     placeholder    = "[Replacement]"
     confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
     proposal_names = confirmed_df["Fund Scorecard Name"].dropna().unique().tolist()
 
-    # 1) Find the template slide
+    # 1) Find the template slide and its index
     template_idx   = None
     template_slide = None
     for idx, sl in enumerate(prs.slides):
@@ -2518,16 +2514,10 @@ def step17_export_to_ppt():
             break
 
     if not template_slide or not proposal_names:
-        st.warning("No [Replacement] slide or no proposal funds.")
+        st.warning("No [Replacement] slide found or no proposal funds.")
     else:
-        # Helper to clone a slide by copying its XML
-        def duplicate_slide(pres, src_slide):
-            new = pres.slides.add_slide(src_slide.slide_layout)
-            for shp in src_slide.shapes:
-                new.shapes._spTree.insert_element_before(
-                    deepcopy(shp.element), "p:extLst"
-                )
-            return new
+        # Snapshot the ORIGINAL XML before any changes
+        orig_xml = deepcopy(template_slide.element)
 
         # Helper to set the TITLE placeholder text
         def set_title(slide, text):
@@ -2538,27 +2528,28 @@ def step17_export_to_ppt():
                 None
             )
             if title_shp:
-                # clear existing runs and set the new text
                 tf = title_shp.text_frame
                 tf.clear()
                 tf.text = text
 
-        # 2) Overwrite original slide’s TITLE with the first fund
+        # 2) Overwrite the template slide for the FIRST proposal fund
         set_title(template_slide, proposal_names[0])
 
-        # 3) Clone + personalize for each extra proposal, right after slide 1
+        # 3) For each additional fund, clone from the ORIGINAL XML
         sldIdLst = prs.slides._sldIdLst
         for offset, pf in enumerate(proposal_names[1:], start=1):
-            new_sl = duplicate_slide(prs, template_slide)
-            # move it immediately after slide 1
-            new_id = sldIdLst[-1]
-            sldIdLst.remove(new_id)
+            # a) Insert a new slideId entry right after slide 1
+            new_id = deepcopy(sldIdLst[template_idx])
             sldIdLst.insert(1 + offset, new_id)
-            # update its TITLE placeholder
+
+            # b) Grab the newly‐created slide object
+            new_sl = prs.slides[1 + offset]  # because we inserted at that position
+
+            # c) Replace its element with the original snapshot
+            new_sl.element.getparent().replace(new_sl.element, deepcopy(orig_xml))
+
+            # d) Set its title to this proposal fund
             set_title(new_sl, pf)
-
-    # ───── then continue with your Expense & Return code…
-
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
     # Locate the slide by its placeholder
