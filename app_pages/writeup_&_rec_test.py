@@ -2659,15 +2659,14 @@ def step17_export_to_ppt():
     if not slide2:
         st.error("Could not locate Slide 2 ([Category]) in template.")
     else:
-
-    # Table 1
-    if df_slide2_table1 is None:
-        st.warning("Slide 2 Table 1 data not found.")
-    else:
-        for shape in slide2.shapes:
-            if shape.has_table and len(shape.table.columns) == len(df_slide2_table1.columns):
-                fill_table_with_styles(shape.table, df_slide2_table1)
-                break
+        # Table 1
+        if df_slide2_table1 is None:
+            st.warning("Slide 2 Table 1 data not found.")
+        else:
+            for shape in slide2.shapes:
+                if shape.has_table and len(shape.table.columns) == len(df_slide2_table1.columns):
+                    fill_table_with_styles(shape.table, df_slide2_table1)
+                    break
 
     # Table 2 (Returns)
     quarter_label = st.session_state.get("report_date", "QTD")
