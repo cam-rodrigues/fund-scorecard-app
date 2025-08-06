@@ -2390,6 +2390,8 @@ def step17_export_to_ppt():
     from pptx.util import Pt
     from io import BytesIO
     from copy import deepcopy
+    from pptx.dml.color import RGBColor
+    from pptx.util import Pt
 
     # ───── 1) Load template ────────────────────────────────────────────────────────────
     prs = Presentation("assets/writeup&rec_templates.pptx")
@@ -2516,18 +2518,28 @@ def step17_export_to_ppt():
                 for _ in range(needed):
                     tbl_xml.append(deepcopy(base_tr))
 
+            
             # Fill each DataFrame row into the table
             for r_idx, df_row in enumerate(ear_df.itertuples(index=False), start=1):
                 for c_idx, val in enumerate(df_row):
                     cell = tbl1.cell(r_idx, c_idx)
                     para = cell.text_frame.paragraphs[0]
+            
+                    # get or create the run
                     if para.runs:
-                        para.runs[0].text = val
+                        run = para.runs[0]
+                        run.text = val
                     else:
-                        # Correct way to add a run and set text
                         run = para.add_run()
                         run.text = val
-                    # formatting (font, size, color) is inherited from the cloned row/template
+            
+                    # if this is the Net Expense Ratio column (column index 1):
+                    if c_idx == 1:
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(12)
+                        run.font.color.rgb = RGBColor(0, 0, 0)
+                    # else: leave the template’s default styling for column 0
+
 
     # ───── 6) Save & Download ───────────────────────────────────────────────────────────
     out = BytesIO()
