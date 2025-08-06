@@ -445,139 +445,120 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
 
 #───Proposed Funds Extraction──────────────────────────────────────────────────────────────────
 
-def extract_proposed_scorecard_blocks(pdf):
+def extract_proposed_scorecard_blocks(pdf, *, fuzzy_threshold=78, min_token_overlap=2, max_pages_per_section=4):
     import re
     import pandas as pd
     import streamlit as st
     from rapidfuzz import fuzz
 
-    # --- Helpers -------------------------------------------------------------
+    # --- helpers -------------------------------------------------------------
     def norm_text(s: str) -> str:
         return " ".join((s or "").strip().upper().split())
 
-    def page_text(pnum: int) -> str:
-        # 1-indexed page access; returns raw text
-        return pdf.pages[pnum - 1].extract_text() or ""
+    def page_text(i: int) -> str:
+        return pdf.pages[i - 1].extract_text() or ""
 
-    # Header patterns (robust to OCR/layout)
-    H_PROPOSED = "FUND SCORECARD: PROPOSED FUNDS"
-    RE_PROPOSED = re.compile(r"FUND\s*SCORECARD\s*:\s*PROPOSED\s*FUNDS", re.I)
+    def tokens(s: str):
+        # alphanumeric tokens length >=3
+        return {t for t in re.findall(r"[A-Za-z0-9]+", (s or "")) if len(t) >= 3}
 
-    # Stop anchors: when we hit these, the Proposed section ends
-    STOP_RE = re.compile(
-        r"\b(?:Style\s*Box|Returns\s*Correlation\s*Matrix|Fund\s*Factsheets|Fund\s*Scorecard)\b",
-        re.I
+    RE_PROPOSED_HDR = re.compile(r"FUND\s*SCORECARD\s*:\s*PROPOSED\s*FUNDS", re.I)
+
+    # Use TOC anchors as hard bounds if available
+    anchor_keys = (
+        "factsheets_proposed_page", "factsheets_page", "calendar_year_page",
+        "r3yr_page", "r5yr_page", "performance_page", "scorecard_page"
+    )
+    anchors = sorted(
+        p for k in anchor_keys
+        for p in [st.session_state.get(k)]
+        if isinstance(p, int)
     )
 
-    # --- 1) Find ALL start pages for Proposed sections ----------------------
+    # --- 1) find ALL Proposed header pages ----------------------------------
     starts = []
     for p in range(1, len(pdf.pages) + 1):
         t = page_text(p)
-        T = norm_text(t)
-        if H_PROPOSED in T or RE_PROPOSED.search(t):
+        if RE_PROPOSED_HDR.search(t) or "FUND SCORECARD: PROPOSED FUNDS" in norm_text(t):
             starts.append(p)
 
-    # Fallback: if TOC gave a start but header OCR failed, include it
+    # include TOC start if OCR missed header
     toc_start = st.session_state.get("scorecard_proposed_page")
     if isinstance(toc_start, int) and toc_start not in starts:
         starts.append(toc_start)
-        starts = sorted(set(starts))
+    starts = sorted(set(starts))
 
     if not starts:
         st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
         return pd.DataFrame()
 
-    # --- 2) Bound each section (end = next start, or first stop anchor, or EOF) -----
-    def find_section_end(start_page: int) -> int:
-        # Candidate ends: next start, first STOP_RE after start, or EOF (+1 sentinel)
-        next_start = next((s for s in starts if s > start_page), None)
-        # Scan forward to the first stop anchor
-        stop_at = None
-        for p in range(start_page + 1, len(pdf.pages) + 1):
-            if STOP_RE.search(page_text(p)):
-                stop_at = p
-                break
-        candidates = [len(pdf.pages) + 1]
-        if next_start:
-            candidates.append(next_start)
-        if stop_at:
-            candidates.append(stop_at)
-        return min(candidates)
-
-    # --- 3) Collect lines across ALL Proposed sections ----------------------
-    blocks = []
+    # --- 2) collect ONLY lines from pages that STILL show the header ----------
+    sections = []
     for s in starts:
-        e = find_section_end(s)
-        lines = []
-        for p in range(s, e):
-            txt = page_text(p)
-            # Keep non-empty lines
-            lines.extend([ln.strip() for ln in (txt.splitlines() if txt else []) if ln.strip()])
-        if lines:
-            blocks.append({
-                "start": s,
-                "end": e,
-                "lines": lines,
-                "joined": "\n".join(lines)
-            })
+        next_anchor = next((a for a in anchors if a > s), len(pdf.pages) + 1)
+        next_header = next((h for h in starts if h > s), len(pdf.pages) + 1)
+        hard_end = min(next_anchor, next_header, len(pdf.pages) + 1)
 
-    if not blocks:
+        lines, pages_used = [], 0
+        for p in range(s, hard_end):
+            txt = page_text(p)
+            # stop if header disappears (keeps scope tight)
+            if not (RE_PROPOSED_HDR.search(txt) or "FUND SCORECARD: PROPOSED FUNDS" in norm_text(txt)):
+                break
+            # keep non-empty lines
+            lines.extend([ln.strip() for ln in (txt.splitlines() or []) if ln.strip()])
+            pages_used += 1
+            if max_pages_per_section and pages_used >= max_pages_per_section:
+                break
+
+        if lines:
+            sections.append({"start": s, "lines": lines})
+
+    if not sections:
         st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
         return pd.DataFrame()
 
-    # --- 4) Candidate funds: rely on your previously built performance data -----
+    # --- 3) candidate funds (with tickers to backfill later) -----------------
     perf_data = st.session_state.get("fund_performance_data", []) or []
     if not perf_data:
         st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
         return pd.DataFrame()
 
-    # --- 5) Match logic: ticker first, then fuzzy name ----------------------
-    found = []
-    for item in perf_data:
-        name = (item.get("Fund Scorecard Name") or "").strip()
-        tk   = (item.get("Ticker") or "").strip().upper()
-        if not name:
+    # map name -> ticker for backfill
+    name_to_ticker = { (it.get("Fund Scorecard Name") or "").strip(): (it.get("Ticker") or "").strip().upper()
+                       for it in perf_data }
+
+    # --- 4) name-only matching within proposed sections ----------------------
+    results = []
+    for it in perf_data:
+        fund_name = (it.get("Fund Scorecard Name") or "").strip()
+        if not fund_name:
             continue
 
-        matched = False
-        matched_page = None
+        name_tok = tokens(fund_name)
+        best_score, best_page, best_line = 0, None, ""
 
-        # A) Strong: exact ticker with word boundaries in any block
-        if tk:
-            pat = re.compile(rf"\b{re.escape(tk)}\b")
-            for blk in blocks:
-                if pat.search(blk["joined"]):
-                    matched = True
-                    matched_page = blk["start"]
-                    break
+        for sec in sections:
+            for ln in sec["lines"]:
+                # quick token overlap guard to reduce false hits
+                if len(name_tok.intersection(tokens(ln))) < min_token_overlap:
+                    continue
+                score = fuzz.token_set_ratio(fund_name.lower(), ln.lower())
+                if score > best_score:
+                    best_score, best_page, best_line = score, sec["start"], ln
 
-        # B) Fallback: fuzzy name within any block (OCR tolerant)
-        if not matched:
-            for blk in blocks:
-                best = max((fuzz.token_set_ratio(name.lower(), ln.lower())
-                           for ln in blk["lines"]), default=0)
-                if best >= 78:   # adjust threshold if needed (74–82)
-                    matched = True
-                    matched_page = blk["start"]
-                    break
-
-        if matched:
-            found.append({
-                "Fund Scorecard Name": name,
-                "Ticker": tk,
-                "Proposed Section Start Page": matched_page
+        if best_score >= fuzzy_threshold:
+            results.append({
+                "Fund Scorecard Name": fund_name,
+                "Ticker": name_to_ticker.get(fund_name, ""),  # backfill ticker here
+                "Proposed Section Start Page": best_page,
+                "Match Score": best_score,
+                "Matched Line": best_line
             })
 
-    df = pd.DataFrame(found).drop_duplicates(subset=["Fund Scorecard Name", "Ticker"])
-
-    # Optional: light debug if nothing matched
-    if df.empty:
-        # Surface a tiny hint without being noisy
-        st.info("No matches found in Proposed sections. Consider lowering the fuzzy threshold to 74 or verify tickers in `fund_performance_data`.")
-
+    df = pd.DataFrame(results).drop_duplicates(subset=["Fund Scorecard Name"])
     st.session_state["proposed_funds_confirmed_df"] = df
     return df
-
 
 #───Side-by-side Info Card Helpers──────────────────────────────────────────────────────
 
@@ -674,8 +655,9 @@ def get_ips_fail_card_html():
     """
     return card_html, _shared_cards_css()
 
-def get_proposed_fund_card_html():
+def get_proposed_fund_card_html(*, only_with_tickers=True, min_score=74):
     df = st.session_state.get("proposed_funds_confirmed_df")
+
     if df is None or df.empty:
         card_html = """
           <div class="fid-card">
@@ -685,13 +667,46 @@ def get_proposed_fund_card_html():
         """
         return card_html, _shared_cards_css()
 
-    display_df = df[["Fund Scorecard Name", "Ticker"]].rename(
-        columns={"Fund Scorecard Name": "Fund"}
-    ).drop_duplicates()
+    df = df.copy()
 
-    table_html = display_df.to_html(index=False, border=0, justify="center",
-                                    classes="fid-table proposed-fund-table",
-                                    escape=True)
+    # 1) Keep only rows we know came from Proposed sections
+    if "Proposed Section Start Page" in df.columns:
+        df = df[df["Proposed Section Start Page"].notna()]
+
+    # 2) Enforce a minimum fuzzy match score, if available
+    if "Match Score" in df.columns and min_score is not None:
+        df = df[df["Match Score"] >= min_score]
+
+    # 3) Require a ticker (optional but helps avoid noisy name-only matches)
+    if only_with_tickers and "Ticker" in df.columns:
+        df = df[df["Ticker"].astype(str).str.len() > 0]
+
+    # 4) Final columns, sort, and de-dupe
+    cols = [c for c in ["Fund Scorecard Name", "Ticker"] if c in df.columns]
+    if not cols:
+        # Fallback if columns got renamed upstream
+        cols = df.columns[:2].tolist()
+    display_df = (
+        df[cols]
+        .rename(columns={"Fund Scorecard Name": "Fund"})
+        .drop_duplicates()
+        .sort_values(by=["Fund", "Ticker"], kind="stable")
+    )
+
+    if display_df.empty:
+        card_html = """
+          <div class="fid-card">
+            <h4>Confirmed Proposed Funds</h4>
+            <div class="sub">No confirmed proposed funds were found on the Proposed Funds scorecard pages.</div>
+          </div>
+        """
+        return card_html, _shared_cards_css()
+
+    table_html = display_df.to_html(
+        index=False, border=0, justify="center",
+        classes="fid-table proposed-fund-table",
+        escape=True
+    )
 
     card_html = f"""
       <div class="fid-card">
@@ -701,6 +716,7 @@ def get_proposed_fund_card_html():
       </div>
     """
     return card_html, _shared_cards_css()
+
 
 def get_watch_summary_card_html():
     df = st.session_state.get("ips_icon_table")
@@ -2375,6 +2391,29 @@ def step17_export_to_ppt():
     from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     from io import BytesIO
     import pandas as pd
+    import re  # ensure this import exists at the top of the function
+
+    # at top of step17_export_to_ppt()
+    def find_slide_with_text(prs, needle: str):
+        n = needle.lower()
+        for s in prs.slides:
+            for sh in s.shapes:
+                if getattr(sh, "has_text_frame", False):
+                    txt = "".join(run.text for p in sh.text_frame.paragraphs for run in p.runs)
+                    if n in (txt or "").lower():
+                        return s
+        return None
+        
+    def find_slide_with_any_text(prs, needles):
+        low = [n.lower() for n in needles]
+        for s in prs.slides:
+            for sh in s.shapes:
+                if getattr(sh, "has_text_frame", False):
+                    txt = "".join(run.text for p in sh.text_frame.paragraphs for run in p.runs).lower()
+                    if any(n in (txt or "") for n in low):
+                        return s
+        return None
+
     
     def truncate_to_n_sentences(text, n=3):
         sentences = re.split(r'(?<=[.!?])\s+', text.strip())
@@ -2575,7 +2614,7 @@ def step17_export_to_ppt():
     df_slide2_table3 = st.session_state.get("slide2_table3_data")
     
      # --- Fill Slide 1 ---
-    slide1 = prs.slides[0]
+    slide1 = find_slide_with_text(prs, "[Fund Name]") or prs.slides[0]
     
     # 1) Replace the [Fund Name] placeholder
     if not fill_text_placeholder_preserving_format(slide1, "[Fund Name]", selected):
@@ -2616,18 +2655,18 @@ def step17_export_to_ppt():
 
 
     # --- Fill Slide 2 ---
-    slide2 = prs.slides[3]
-    if not fill_text_placeholder_preserving_format(slide2, "[Category]", category):
-        st.warning("Could not find [Category] placeholder on Slide 2.")
-
-    # Table 1
-    if df_slide2_table1 is None:
-        st.warning("Slide 2 Table 1 data not found.")
+    slide2 = find_slide_with_text(prs, "[Category]")
+    if not slide2:
+        st.error("Could not locate Slide 2 ([Category]) in template.")
     else:
-        for shape in slide2.shapes:
-            if shape.has_table and len(shape.table.columns) == len(df_slide2_table1.columns):
-                fill_table_with_styles(shape.table, df_slide2_table1)
-                break
+        # Table 1
+        if df_slide2_table1 is None:
+            st.warning("Slide 2 Table 1 data not found.")
+        else:
+            for shape in slide2.shapes:
+                if shape.has_table and len(shape.table.columns) == len(df_slide2_table1.columns):
+                    fill_table_with_styles(shape.table, df_slide2_table1)
+                    break
 
     # Table 2 (Returns)
     quarter_label = st.session_state.get("report_date", "QTD")
@@ -2679,19 +2718,93 @@ def step17_export_to_ppt():
             fill_table_with_styles(table, df_slide2_table3, bold_row_idx=benchmark_idx)
             break
 
-    # --- Replacement placeholders for proposed funds ---
-    slide_repl1 = prs.slides[1]
-    if proposed:
-        fill_text_placeholder_preserving_format(slide_repl1, "[Replacement 1]", proposed[0])
-    if len(proposed) > 1:
-        slide_repl2 = prs.slides[2]
-        fill_text_placeholder_preserving_format(slide_repl2, "[Replacement 2]", proposed[1])
-    else:
-        # remove the second replacement slide if only one proposed fund
-        try:
-            prs.slides._sldIdLst.remove(prs.slides._sldIdLst[2])
-        except Exception:
-            pass
+    # --- Proposed Fund slides (dynamic: supports 1..N) ---
+    
+    def find_slide_with_text(prs, needle: str):
+        n = needle.lower()
+        for s in prs.slides:
+            for sh in s.shapes:
+                if getattr(sh, "has_text_frame", False):
+                    txt = "".join(run.text for p in sh.text_frame.paragraphs for run in p.runs)
+                    if n in (txt or "").lower():
+                        return s
+        return None
+    
+    def get_proposed_template_slide(prs):
+        # Prefer an explicit “[Replacement 1]” template; fall back to “[Replacement 2]”
+        return (find_slide_with_text(prs, "[Replacement 1]")
+                or find_slide_with_text(prs, "[Replacement 2]"))
+    
+    def replace_any_replacement_placeholder(slide, label):
+        # Replace any common placeholder variants your template might use
+        for token in ("[Replacement 1]", "[Replacement 2]", "[Replacement]", "[Proposed Fund]"):
+            fill_text_placeholder_preserving_format(slide, token, label)
+    
+    def inject_overview_from_lookup(slide, fund_label):
+        # Re-use helpers already defined earlier in your function:
+        #   - lookup_overview_paragraph()
+        #   - safe_split_sentences()
+        lookup = st.session_state.get("step16_5_proposed_overview_lookup", {})
+        paragraph = lookup_overview_paragraph(fund_label, lookup) or ""
+        if not paragraph:
+            return
+        sentences = safe_split_sentences(paragraph)[:3] if paragraph else []
+        if not sentences:
+            return
+        # Try to inject into the bullet placeholder on the slide
+        for shape in slide.shapes:
+            if not getattr(shape, "has_text_frame", False):
+                continue
+            text_content = "".join(run.text for para in shape.text_frame.paragraphs for run in para.runs)
+            if any(ph in text_content for ph in ["[Bullet Point 1]", "[Bullet Point 2]", "[Optional Bullet Point 3]"]):
+                tf = shape.text_frame
+                tf.clear()
+                for sent in sentences:
+                    p = tf.add_paragraph()
+                    p.text = sent
+                    p.level = 0
+                    for run in p.runs:
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(11)
+                        run.font.color.rgb = RGBColor(0, 0, 0)
+                        run.font.bold = False
+                break  # done after filling one box
+    
+    # Resolve a template slide to clone
+    template_repl_slide = get_proposed_template_slide(prs)
+    proposed_layout = template_repl_slide.slide_layout if template_repl_slide else None
+    
+    # Try to use existing slides for the first two (if present)
+    slide_repl1 = find_slide_with_text(prs, "[Replacement 1]")
+    slide_repl2 = find_slide_with_text(prs, "[Replacement 2]")
+    
+    for i, label in enumerate(proposed):
+        if i == 0:
+            # Use existing slide with [Replacement 1], or add from layout
+            slide = slide_repl1 or (prs.slides.add_slide(proposed_layout) if proposed_layout else None)
+            if slide is None:
+                st.error("No template for Proposed slides found; cannot add slide.")
+                break
+            replace_any_replacement_placeholder(slide, label)
+            inject_overview_from_lookup(slide, label)
+    
+        elif i == 1:
+            # Use existing slide with [Replacement 2], or add from layout
+            slide = slide_repl2 or (prs.slides.add_slide(proposed_layout) if proposed_layout else None)
+            if slide is None:
+                st.error("No template for Proposed slides found; cannot add slide.")
+                break
+            replace_any_replacement_placeholder(slide, label)
+            inject_overview_from_lookup(slide, label)
+    
+        else:
+            # Add one new Proposed slide per remaining fund
+            if not proposed_layout:
+                st.error("Cannot add more Proposed slides: template layout not found.")
+                break
+            slide = prs.slides.add_slide(proposed_layout)
+            replace_any_replacement_placeholder(slide, label)
+            inject_overview_from_lookup(slide, label)
 
     # --- Helpers for overview injection with safe sentence splitting ---
     def safe_split_sentences(text):
@@ -2761,60 +2874,91 @@ def step17_export_to_ppt():
             st.warning(f"No overview paragraph found to insert for proposed fund '{first_proposed_label}'.")
 
         # Second proposed fund if present
+        # --- Inject second proposed fund overview ---
         if len(proposed) > 1:
             second_label = proposed[1]
-            paragraph2 = lookup_overview_paragraph(second_label, lookup) or ""
-            if paragraph2:
-                sentences2 = safe_split_sentences(paragraph2)
-                overview_sentences2 = sentences2[:3] if sentences2 else []
-                try:
-                    slide_repl2 = prs.slides[2]
-                    if overview_sentences2:
-                        injected2 = inject_overview_into_placeholder(slide_repl2, overview_sentences2)
-                        if not injected2:
-                            st.warning(f"Could not find the bullet placeholder textbox on Replacement 2 slide to inject overview for '{second_label}'.")
-                    fill_text_placeholder_preserving_format(slide_repl2, "[Replacement 2]", second_label)
-                except Exception:
-                    st.warning(f"Could not update Replacement 2 slide for '{second_label}'.")
+            lookup    = st.session_state.get("step16_5_proposed_overview_lookup", {})
+            paragraph = lookup_overview_paragraph(second_label, lookup) or ""
+            if paragraph:
+                # split & take up to 3 sentences
+                sentences = safe_split_sentences(paragraph)[:3]
+                # find the slide that has “[Replacement 2]”
+                slide2 = find_slide_with_text(prs, "[Replacement 2]")
+                if slide2:
+                    # inject the sentences into its bullet-placeholder
+                    injected = inject_overview_into_placeholder(slide2, sentences)
+                    if not injected:
+                        st.warning(f"Couldn’t find bullet placeholder on Replacement 2 slide for '{second_label}'.")
+                    # replace the “[Replacement 2]” text itself
+                    fill_text_placeholder_preserving_format(slide2, "[Replacement 2]", second_label)
+                else:
+                    st.warning(f"Could not find a slide with placeholder '[Replacement 2]'; skipping fund '{second_label}'.")
             else:
-                st.warning(f"No overview paragraph found to insert for proposed fund '{second_label}'.")
+                st.warning(f"No overview paragraph found for proposed fund '{second_label}'.")
+
 
     # --- Fill Slide 3 ---
-    slide3 = prs.slides[4 if len(proposed) > 1 else 3]
-    if not fill_text_placeholder_preserving_format(slide3, "[Category]", category):
-        st.warning("Could not find [Category] placeholder on Slide 3.")
-    df_slide3_table1 = st.session_state.get("slide3_table1_data")
-    df_slide3_table2 = st.session_state.get("slide3_table2_data")
-    if df_slide3_table1 is None or df_slide3_table2 is None:
-        st.warning("Slide 3 table data not found.")
+    # look for the slide with your custom placeholder text
+    slide3 = find_slide_with_text(prs, "[Slide 3 Data]")
+    if slide3 is None:
+        st.warning("Could not find Slide 3 (placeholder '[Slide 3 Data]') in the template; skipping.")
     else:
-        tables = [shape.table for shape in slide3.shapes if shape.has_table]
-        if len(tables) >= 1 and df_slide3_table1 is not None:
-            if len(df_slide3_table1.columns) == len(tables[0].columns):
+        # (optional) replace any text placeholders on that slide
+        fill_text_placeholder_preserving_format(slide3, "[Category]", category)
+    
+        # grab the two DataFrames for Slide 3
+        df_slide3_table1 = st.session_state.get("slide3_table1_data")
+        df_slide3_table2 = st.session_state.get("slide3_table2_data")
+    
+        if df_slide3_table1 is None or df_slide3_table2 is None:
+            st.warning("Slide 3 table data not found in session_state.")
+        else:
+            # collect all tables on the slide
+            tables = [shape.table for shape in slide3.shapes if shape.has_table]
+    
+            # fill the first table with table1_data
+            if len(tables) >= 1 and len(df_slide3_table1.columns) == len(tables[0].columns):
                 fill_table_with_styles(tables[0], df_slide3_table1)
-        if len(tables) >= 2 and df_slide3_table2 is not None:
-            if len(df_slide3_table2.columns) == len(tables[1].columns):
+    
+            # fill the second table with table2_data
+            if len(tables) >= 2 and len(df_slide3_table2.columns) == len(tables[1].columns):
                 fill_table_with_styles(tables[1], df_slide3_table2)
 
     # --- Fill Slide 4 ---
-    slide4_index = 5 if len(proposed) > 1 else 4
-    slide4 = prs.slides[slide4_index]
-    qualitative_placeholder = f"[Category]– Qualitative Factors"
-    qualitative_replacement = f"{category} - Qualitative Factors"
-    if not fill_text_placeholder_preserving_format(slide4, qualitative_placeholder, qualitative_replacement):
-        st.warning(f"Could not find placeholder '{qualitative_placeholder}' on Slide 4.")
-    df_slide4_table1 = st.session_state.get("slide4")
-    df_slide4_table2 = st.session_state.get("slide4_table2_data")
-    if df_slide4_table1 is not None:
-        for shape in slide4.shapes:
-            if shape.has_table and len(shape.table.columns) == len(df_slide4_table1.columns):
-                fill_table_with_styles(shape.table, df_slide4_table1)
-                break
-    if df_slide4_table2 is not None:
-        for shape in slide4.shapes:
-            if shape.has_table and len(shape.table.columns) == len(df_slide4_table2.columns):
-                fill_table_with_styles(shape.table, df_slide4_table2)
-                break
+    # 1) find the slide by your unique placeholder text
+    slide4 = find_slide_with_text(prs, "[Qualitative Factors]")
+    if slide4 is None:
+        st.warning("Could not find Slide 4 (placeholder '[Qualitative Factors]') in template; skipping.")
+    else:
+        # 2) replace the category header if you like
+        fill_text_placeholder_preserving_format(
+            slide4,
+            "[Category] – Qualitative Factors",
+            f"{category} – Qualitative Factors"
+        )
+    
+        # 3) grab your two DataFrames
+        df4a = st.session_state.get("slide4_table1_data")
+        df4b = st.session_state.get("slide4_table2_data")
+    
+        # 4) fill the first table
+        if df4a is not None:
+            for shape in slide4.shapes:
+                if shape.has_table and len(shape.table.columns) == len(df4a.columns):
+                    fill_table_with_styles(shape.table, df4a)
+                    break
+        else:
+            st.warning("Slide 4 Table 1 data missing.")
+    
+        # 5) fill the second table
+        if df4b is not None:
+            for shape in slide4.shapes:
+                if shape.has_table and len(shape.table.columns) == len(df4b.columns):
+                    fill_table_with_styles(shape.table, df4b)
+                    break
+        else:
+            st.warning("Slide 4 Table 2 data missing.")
+
 
     # --- Save and offer download (clean UI) ---
     output = BytesIO()
