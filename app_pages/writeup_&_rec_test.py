@@ -2711,15 +2711,24 @@ def step17_export_to_ppt():
                     break
 
 
-    # --- Proposed Fund slides (dynamic) ---
-    for i, label in enumerate(proposed):
-        token = f"[Replacement {i+1}]"
-        slide = find_slide_with_text(prs, token)
-        if slide:
-            replace_any_replacement_placeholder(slide, token, label)
+    # --- Proposed Fund slides (dynamic: 1 template → N slides) ---
+    # find the one template slide in your PPTX
+    template_slide = find_slide_with_text(prs, "[Replacement]")
+    if not template_slide:
+        st.error("No template slide with placeholder '[Replacement]' found; cannot add proposal slides.")
+    else:
+        tmpl_layout = template_slide.slide_layout
+        # for each proposed fund, either reuse the template or clone it
+        for i, label in enumerate(proposed):
+            if i == 0:
+                slide = template_slide
+            else:
+                slide = prs.slides.add_slide(tmpl_layout)
+            # replace the placeholder text
+            fill_text_placeholder_preserving_format(slide, "[Replacement]", label)
+            # inject the overview bullets from your lookup
             inject_overview_from_lookup(slide, label)
-        else:
-            st.warning(f"No slide for '{token}' (skipping).")
+
 
 
     # --- Helper functions for Proposed slides ---
