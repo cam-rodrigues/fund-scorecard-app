@@ -2318,6 +2318,8 @@ def step17_export_to_ppt():
     from io import BytesIO
     import pandas as pd
     import copy
+    from copy import deepcopy
+
 
     def find_slide_by_heading(prs, heading_text):
         """
@@ -2610,65 +2612,74 @@ def step17_export_to_ppt():
         for shape in slide2.shapes:
             if not (shape.has_table and len(shape.table.columns) == len(df_slide2_table2.columns)):
                 continue
-    
             table = shape.table
+            tbl_elm = table._tbl  # the XML element
     
-            # 1) Capture header-run formatting for each column
+            # 1) capture header formatting
             header_styles = []
             for cell in table.rows[0].cells:
-                # assume one para, at least one run
                 run = cell.text_frame.paragraphs[0].runs[0]
                 header_styles.append({
-                    "font_name": run.font.name,
-                    "font_size": run.font.size,
-                    "font_color": run.font.color.rgb,
-                    "alignment": cell.text_frame.paragraphs[0].alignment
+                    "name": run.font.name,
+                    "size": run.font.size,
+                    "color": run.font.color.rgb,
+                    "align": cell.text_frame.paragraphs[0].alignment
                 })
     
-            # 2) Replace the quarter label in (0,1), preserving font/size/color/alignment
+            # 2) replace QTD/20__ placeholder in header cell (0,1)
             if quarter_label:
                 hdr_cell = table.cell(0, 1)
-                # clear existing text
-                hdr_cell.text = ""
+                hdr_cell.text = ""  # clear
                 p = hdr_cell.text_frame.add_paragraph()
-                p.alignment = header_styles[1]["alignment"]
+                p.alignment = header_styles[1]["align"]
                 run = p.add_run()
                 run.text = quarter_label
-                run.font.name = header_styles[1]["font_name"]
-                run.font.size = header_styles[1]["font_size"]
-                run.font.color.rgb = header_styles[1]["font_color"]
+                run.font.name = header_styles[1]["name"]
+                run.font.size = header_styles[1]["size"]
+                run.font.color.rgb = header_styles[1]["color"]
     
-            # 3) Remove any existing body rows (leave header only)
-            while len(table.rows) > 1:
-                tr = table.rows[1]._tr
-                table._tbl.remove(tr)
+            # 3) clear out all existing body rows (leave header + one bench placeholder)
+            #    assume template has exactly 2 rows: header (idx0), bench placeholder (idx1)
+            #    remove everything after header
+            while len(tbl_elm.tr_lst) > 1:
+                tbl_elm.remove(tbl_elm.tr_lst[1])
     
-            # 4) Split your DataFrame into proposal‐fund rows and the benchmark row
+            # 4) split your DataFrame
             df_funds = df_slide2_table2.iloc[:-1]
             df_bench = df_slide2_table2.iloc[-1]
     
-            # 5) Add one row per proposal fund (middle rows)
-            for _, row_vals in df_funds.iterrows():
-                new_row = table.add_row()
-                for col_idx, val in enumerate(row_vals):
-                    cell = new_row.cells[col_idx]
+            # 5) insert one cloned fund‐row per proposal fund
+            for fund_vals in df_funds.values:
+                template_tr = tbl_elm.tr_lst[0]  # use header row as template to preserve cell count
+                new_tr = deepcopy(template_tr)
+                tbl_elm.insert(len(tbl_elm.tr_lst) - 1, new_tr)  # just above the bench placeholder
+    
+            # 6) clone the bench placeholder one more time to ensure it's at bottom
+            bench_tr = deepcopy(tbl_elm.tr_lst[-1])
+            tbl_elm.append(bench_tr)
+    
+            # 7) now fill each body row
+            # body_rows = table.rows[1:-1]  # proposal funds
+            for row_idx, fund_vals in enumerate(df_funds.values, start=1):
+                row = table.rows[row_idx]
+                for col_idx, val in enumerate(fund_vals):
+                    cell = row.cells[col_idx]
                     cell.text = str(val)
     
-            # 6) Add the benchmark row at the bottom
-            bench_row = table.add_row()
+            # 8) fill the benchmark row
+            bench_row = table.rows[-1]
             for col_idx, val in enumerate(df_bench):
                 cell = bench_row.cells[col_idx]
                 cell.text = str(val)
     
-            # 7) Finally, run your style‐applier to handle centering, bolding the bottom row, etc.
-            #    (We pass bold_row_idx = last index)
+            # 9) apply your existing styling helper (borders, centering, bold last row, etc.)
             fill_table_with_styles(
                 table,
                 df_slide2_table2,
                 bold_row_idx=len(df_slide2_table2) - 1
             )
-    
-            break  # done with the first matching table
+            break
+
 
     
     # 4) Table 3 (Calendar Year)
