@@ -2398,6 +2398,7 @@ def step17_export_to_ppt():
     ips_icon_table = st.session_state.get("ips_icon_table")
     facts = st.session_state.get("fund_factsheets_data", [])
     bullets = st.session_state.get("bullet_points", [])
+    ear_df = st.session_state.get("ear_table1_data")  # DataFrame for Expense & Return Table 1
     fs_rec = next((f for f in facts if f.get("Matched Fund Name") == selected), {})
 
     # ───── 3) Validate IPS data ──────────────────────────────────────────────────────────
@@ -2410,7 +2411,7 @@ def step17_export_to_ppt():
         return
     row_dict = row.iloc[0].to_dict()
 
-    # ───── 4) Build values list ──────────────────────────────────────────────────────────
+    # ───── 4) Build values list for first slide ─────────────────────────────────────────
     report_date = st.session_state.get("report_date", "")
     values = [
         fs_rec.get("Category", ""),  # Category
@@ -2421,9 +2422,8 @@ def step17_export_to_ppt():
         values.append(str(row_dict.get(f"IPS Investment Criteria {i}", "")))
     values.append(row_dict.get("IPS Watch Status", ""))
 
-    slide = prs.slides[0]
-
     # ───── 5) First Slide: Replace "Fund Name" placeholder ──────────────────────────────
+    slide = prs.slides[0]
     for shape in slide.shapes:
         if not shape.has_text_frame:
             continue
@@ -2437,7 +2437,7 @@ def step17_export_to_ppt():
             run.font.underline = True
             break
 
-    # ───── 6) First Slide: Fill table ────────────────────────────────────────────────────
+    # ───── 6) First Slide: Fill IPS table ────────────────────────────────────────────────
     def style_run(run, text):
         run.text = text
         run.font.name = "Cambria"
@@ -2448,7 +2448,7 @@ def step17_export_to_ppt():
             run.font.color.rgb = RGBColor(255, 0, 0)
 
     table_shape = next((sh for sh in slide.shapes if sh.has_table), None)
-    if table_shape is None:
+    if not table_shape:
         st.error("No table found on the first slide.")
         return
     table = table_shape.table
@@ -2471,15 +2471,13 @@ def step17_export_to_ppt():
         else:
             style_run(para.add_run(), text)
 
-    # ───── 7) First Slide: Fill bullet-points textbox ───────────────────────────────────
+    # ───── 7) First Slide: Fill bullet‐points textbox ───────────────────────────────────
     for shape in slide.shapes:
         if not shape.has_text_frame:
             continue
         if "[Bullet Point 1]" in shape.text_frame.text:
             tf = shape.text_frame
             tf.text = ""  # clear placeholder
-
-            # Add each bullet
             for idx, bp in enumerate(bullets):
                 para = tf.paragraphs[0] if idx == 0 else tf.add_paragraph()
                 para.text = bp
@@ -2498,18 +2496,34 @@ def step17_export_to_ppt():
         if slide_expense_and_return:
             break
 
-    # ───── 9) Expense and Return Slide: Replace category token ─────────────────────────
-    if slide_expense_and_return:
-        actual_cat = fs_rec.get("Category", "")
-        for shape in slide_expense_and_return.shapes:
-            if not shape.has_text_frame:
-                continue
-            for para in shape.text_frame.paragraphs:
-                for run in para.runs:
-                    if "[Category]" in run.text:
-                        run.text = run.text.replace("[Category]", actual_cat)
+    if not slide_expense_and_return:
+        st.warning("Couldn't find the Expense and Return slide.")
     else:
-        st.warning("Couldn't find the Expense & Return slide.")
+        # ───── 9) Expense and Return Slide: Table 1 ────────────────────────────────────
+        # Find the top‐left table (first table on that slide)
+        tables = [sh for sh in slide_expense_and_return.shapes if sh.has_table]
+        if not tables:
+            st.warning("No tables found on Expense and Return slide.")
+        else:
+            table1 = tables[0].table
+
+            # Clear existing content rows (leave header row intact)
+            existing_rows = len(table1.rows) - 1
+            needed_rows = len(ear_df)
+            # Add extra rows if necessary
+            for _ in range(needed_rows - existing_rows):
+                table1.add_row()
+
+            # Fill each row: row index 1 = selected fund, then proposals
+            for r_idx, row in enumerate(ear_df.itertuples(index=False), start=1):
+                for c_idx, cell_value in enumerate(row):
+                    cell = table1.cell(r_idx, c_idx)
+                    para = cell.text_frame.paragraphs[0]
+                    if para.runs:
+                        para.runs[0].text = cell_value
+                    else:
+                        para.add_run(cell_value)
+                    # leave font, size, color as in template (add_row clones formatting)
 
     # ───── 10) Save & Download ───────────────────────────────────────────────────────────
     out = BytesIO()
