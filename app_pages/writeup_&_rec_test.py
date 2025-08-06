@@ -2681,6 +2681,28 @@ def step17_export_to_ppt():
                         # Bold entire benchmark row
                         run.font.bold = is_benchmark
 
+    # ───── Risk Adjusted Statistics Slide: Locate by placeholder ────────────────────
+    risk_adjusted_stats = None
+    for sl in prs.slides:
+        for shape in sl.shapes:
+            if shape.has_text_frame and "[Category] – Risk Adjusted Statistics" in shape.text_frame.text:
+                risk_adjusted_stats = sl
+                break
+        if risk_adjusted_stats:
+            break
+
+    # ───── Replace "[Category]" with actual category on that slide ──────────────────
+    if risk_adjusted_stats:
+        actual_cat = fs_rec.get("Category", "")
+        for shape in risk_adjusted_stats.shapes:
+            if not shape.has_text_frame:
+                continue
+            for para in shape.text_frame.paragraphs:
+                for run in para.runs:
+                    if "[Category]" in run.text:
+                        run.text = run.text.replace("[Category]", actual_cat)
+    else:
+        st.warning("Couldn't find the Risk Adjusted Statistics slide.")
 
     # ───── 6) Save & Download ───────────────────────────────────────────────────────────
     out = BytesIO()
