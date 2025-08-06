@@ -2900,6 +2900,7 @@ def step17_export_to_ppt():
 
     # Pull in the DataFrame you saved in Step 15
     df_q2 = st.session_state.get("qualfact_table2_data", pd.DataFrame())
+
     if df_q2.empty:
         st.warning("No Assets data found for Table 2.")
     else:
@@ -2909,11 +2910,14 @@ def step17_export_to_ppt():
             if not shape.has_table:
                 continue
             tbl = shape.table
-            # check first three headers
             h0 = tbl.cell(0, 0).text_frame.text.strip()
             h1 = tbl.cell(0, 1).text_frame.text.strip()
             h2 = tbl.cell(0, 2).text_frame.text.strip()
-            if (h0, h1, h2) == ("Investment Manager", "Assets Under Management", "Average Market Capitalization"):
+            if (h0, h1, h2) == (
+                "Investment Manager",
+                "Assets Under Management",
+                "Average Market Capitalization",
+            ):
                 table2 = tbl
                 tbl_xml = tbl._tbl
                 break
@@ -2921,20 +2925,22 @@ def step17_export_to_ppt():
         if table2 is None:
             st.warning("Couldn't find the Assets Under Management table.")
         else:
-            # 2) Add rows if needed (keep header row intact)
-            existing = len(table2.rows) - 1
+            # 2) Add rows if there is more than one proposal fund
+            existing = len(table2.rows) - 1  # header excluded
             needed = len(df_q2) - existing
             if needed > 0:
-                base_tr = tbl_xml.tr_lst[1]
+                # pick the first data‐row as template (index 1) if it exists
+                clone_idx = 1 if len(tbl_xml.tr_lst) > 1 else 0
+                base_tr = tbl_xml.tr_lst[clone_idx]
                 for _ in range(needed):
                     tbl_xml.append(deepcopy(base_tr))
 
-            # 3) Fill each row: selected fund first, then proposals
+            # 3) Fill each row: selected fund first, then any proposals
             for r_idx, row in enumerate(df_q2.itertuples(index=False), start=1):
                 for c_idx, val in enumerate(row):
                     cell = table2.cell(r_idx, c_idx)
                     para = cell.text_frame.paragraphs[0]
-                    # get or create run
+                    # get or create the run
                     if para.runs:
                         run = para.runs[0]
                         run.text = val
@@ -2943,13 +2949,14 @@ def step17_export_to_ppt():
                         run.text = val
 
                     if c_idx == 0:
-                        # Investment Manager column: preserve placeholder style
+                        # Investment Manager column: preserve placeholder styling
                         continue
                     else:
-                        # Assets & Avg Market Cap columns: Cambria 11pt black
+                        # Assets & Avg Market Cap: Cambria 11pt black
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
                         run.font.color.rgb = RGBColor(0, 0, 0)
+
 
     
     # ───── 6) Save & Download ───────────────────────────────────────────────────────────
