@@ -2370,7 +2370,7 @@ def step17_export_to_ppt():
             proposed.append(label)
     proposed = proposed[:2]  # template supports up to two
 
-    template_path = "assets/writeup&rec_templates.pptx"
+    template_path = "assets/ex/writeup&rec1_templates.pptx"
     try:
         prs = Presentation(template_path)
     except Exception as e:
