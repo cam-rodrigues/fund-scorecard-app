@@ -2545,6 +2545,7 @@ def step17_export_to_ppt():
                         run.font.size = Pt(11)
                         run.font.color.rgb = RGBColor(0, 0, 0)
                     # else: leave the template’s default styling for column 0
+    
     # ───── 9c) Expense and Return Slide: Table 2 – Returns ─────────────────────────────
 
     # Locate the Expense and Return slide
@@ -2709,6 +2710,58 @@ def step17_export_to_ppt():
                         run.text = run.text.replace("[Category]", actual_cat)
     else:
         st.warning("Couldn't find the Risk Adjusted Statistics slide.")
+
+
+    # ───── Risk Adjusted Statistics Slide: Table 1 – MPT Statistics Summary ─────────
+    from copy import deepcopy
+    from pptx.util import Pt
+    from pptx.dml.color import RGBColor
+    import pandas as pd
+
+    # Pull in the DataFrame saved in Step 15
+    df_raj = st.session_state.get("raj_table1_data", pd.DataFrame())
+    if df_raj.empty:
+        st.warning("No MPT Statistics data found for Table 1.")
+    else:
+        # Locate the first table on the Risk Adjusted Statistics slide
+        ras_tables = [sh for sh in risk_adjusted_stats.shapes if sh.has_table]
+        if not ras_tables:
+            st.warning("No tables found on the Risk Adjusted Statistics slide.")
+        else:
+            table1 = ras_tables[0].table
+            tbl_xml = table1._tbl
+
+            # 1) Add extra rows if needed (clone row template at index 1)
+            existing = len(table1.rows) - 1  # exclude header
+            needed = len(df_raj) - existing
+            if needed > 0:
+                base_tr = tbl_xml.tr_lst[1]
+                for _ in range(needed):
+                    tbl_xml.append(deepcopy(base_tr))
+
+            # 2) Fill each row: selected fund first, then proposals
+            for r_idx, row in enumerate(df_raj.itertuples(index=False), start=1):
+                for c_idx, val in enumerate(row):
+                    cell = table1.cell(r_idx, c_idx)
+                    para = cell.text_frame.paragraphs[0]
+
+                    # get or create run
+                    if para.runs:
+                        run = para.runs[0]
+                        run.text = val
+                    else:
+                        run = para.add_run()
+                        run.text = val
+
+                    if c_idx == 0:
+                        # Investment Manager column: preserve placeholder styling
+                        continue
+                    else:
+                        # Other columns: Cambria 11 pt black
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(11)
+                        run.font.color.rgb = RGBColor(0, 0, 0)
+
 
 
     # ───── 6) Save & Download ───────────────────────────────────────────────────────────
