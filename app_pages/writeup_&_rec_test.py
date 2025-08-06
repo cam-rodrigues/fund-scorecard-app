@@ -2497,65 +2497,60 @@ def step17_export_to_ppt():
 
     from copy import deepcopy
 
-    placeholder   = "[Replacement]"
-    confirmed_df  = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
-    proposal_names = (
-        confirmed_df["Fund Scorecard Name"]
-        .dropna()
-        .unique()
-        .tolist()
-    )
+    placeholder    = "[Replacement]"
+    confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    proposal_names = confirmed_df["Fund Scorecard Name"].dropna().unique().tolist()
 
-    def duplicate_slide(pres, src_slide):
-        """Clone all shapes from src_slide into a new slide with the same layout."""
-        new_sl = pres.slides.add_slide(src_slide.slide_layout)
-        for shape in src_slide.shapes:
-            el = shape.element
-            new_sl.shapes._spTree.insert_element_before(deepcopy(el), 'p:extLst')
-        return new_sl
-
-    # 1) Find the template slide index
-    template_idx = None
+    # 1) Find the template slide and its index
+    template_idx   = None
+    template_slide = None
     for idx, sl in enumerate(prs.slides):
-        if any(
-            placeholder in (shape.text_frame.text or "")
-            for shape in sl.shapes
-            if shape.has_text_frame
-        ):
-            template_idx = idx
+        for shape in sl.shapes:
+            if shape.has_text_frame and placeholder in (shape.text_frame.text or ""):
+                template_idx   = idx
+                template_slide = sl
+                break
+        if template_slide:
             break
 
-    if template_idx is None or not proposal_names:
-        st.warning("No [Replacement] slide found or no proposal funds.")
+    if not template_slide or not proposal_names:
+        st.warning("No [Replacement] slide or no proposal funds.")
     else:
-        # 2) Overwrite the existing placeholder slide with the first fund
-        base_sl = prs.slides[template_idx]
+        # Helper to clone a slide’s XML
+        def duplicate_slide(presentation, src_slide):
+            new = presentation.slides.add_slide(src_slide.slide_layout)
+            for shp in src_slide.shapes:
+                new.shapes._spTree.insert_element_before(deepcopy(shp.element), 'p:extLst')
+            return new
+
+        # 2) Overwrite the original slide with the first fund
         first_pf = proposal_names[0]
-        for shape in base_sl.shapes:
-            if not shape.has_text_frame: 
-                continue
+        for shape in template_slide.shapes:
+            if not shape.has_text_frame: continue
             for para in shape.text_frame.paragraphs:
-                txt = para.text or ""
-                if placeholder in txt:
-                    para.text = txt.replace(placeholder, first_pf)
-
-        # 3) Clone for each additional fund, inserting right after slide 1
-        for offset, pf in enumerate(proposal_names[1:], start=1):
-            new_sl = duplicate_slide(prs, base_sl)
-            # move it to position immediately after slide 1
-            sldIdLst = prs.slides._sldIdLst
-            new_id   = sldIdLst[-1]
-            sldIdLst.remove(new_id)
-            sldIdLst.insert(1 + offset, new_id)
-
-            # replace its placeholder
-            for shape in new_sl.shapes:
-                if not shape.has_text_frame:
-                    continue
-                for para in shape.text_frame.paragraphs:
-                    txt = para.text or ""
+                for run in para.runs:
+                    txt = run.text or ""
                     if placeholder in txt:
-                        para.text = txt.replace(placeholder, pf)
+                        run.text = txt.replace(placeholder, first_pf)
+
+        # 3) Clone & personalize for each additional fund
+        for offset, pf in enumerate(proposal_names[1:], start=1):
+            # a) Clone the slide
+            new_sl = duplicate_slide(prs, template_slide)
+            # b) Move it to immediately after slide 1
+            sldIds = prs.slides._sldIdLst
+            new_id  = sldIds[-1]
+            sldIds.remove(new_id)
+            sldIds.insert(1 + offset, new_id)
+            # c) Replace placeholder in cloned slide
+            for shape in new_sl.shapes:
+                if not shape.has_text_frame: continue
+                for para in shape.text_frame.paragraphs:
+                    for run in para.runs:
+                        txt = run.text or ""
+                        if placeholder in txt:
+                            run.text = txt.replace(placeholder, pf)
+
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
     # Locate the slide by its placeholder
