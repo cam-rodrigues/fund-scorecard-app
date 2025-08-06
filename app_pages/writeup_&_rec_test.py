@@ -442,6 +442,143 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     st.session_state["fund_performance_data"] = perf_data
     st.session_state["tickers"] = tickers
 
+
+#───Proposed Funds Extraction──────────────────────────────────────────────────────────────────
+
+def extract_proposed_scorecard_blocks(pdf):
+    import re
+    import pandas as pd
+    import streamlit as st
+    from rapidfuzz import fuzz
+
+    # --- Helpers -------------------------------------------------------------
+    def norm_text(s: str) -> str:
+        return " ".join((s or "").strip().upper().split())
+
+    def page_text(pnum: int) -> str:
+        # 1-indexed page access; returns raw text
+        return pdf.pages[pnum - 1].extract_text() or ""
+
+    # Header patterns (robust to OCR/layout)
+    H_PROPOSED = "FUND SCORECARD: PROPOSED FUNDS"
+    RE_PROPOSED = re.compile(r"FUND\s*SCORECARD\s*:\s*PROPOSED\s*FUNDS", re.I)
+
+    # Stop anchors: when we hit these, the Proposed section ends
+    STOP_RE = re.compile(
+        r"\b(?:Style\s*Box|Returns\s*Correlation\s*Matrix|Fund\s*Factsheets|Fund\s*Scorecard)\b",
+        re.I
+    )
+
+    # --- 1) Find ALL start pages for Proposed sections ----------------------
+    starts = []
+    for p in range(1, len(pdf.pages) + 1):
+        t = page_text(p)
+        T = norm_text(t)
+        if H_PROPOSED in T or RE_PROPOSED.search(t):
+            starts.append(p)
+
+    # Fallback: if TOC gave a start but header OCR failed, include it
+    toc_start = st.session_state.get("scorecard_proposed_page")
+    if isinstance(toc_start, int) and toc_start not in starts:
+        starts.append(toc_start)
+        starts = sorted(set(starts))
+
+    if not starts:
+        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
+        return pd.DataFrame()
+
+    # --- 2) Bound each section (end = next start, or first stop anchor, or EOF) -----
+    def find_section_end(start_page: int) -> int:
+        # Candidate ends: next start, first STOP_RE after start, or EOF (+1 sentinel)
+        next_start = next((s for s in starts if s > start_page), None)
+        # Scan forward to the first stop anchor
+        stop_at = None
+        for p in range(start_page + 1, len(pdf.pages) + 1):
+            if STOP_RE.search(page_text(p)):
+                stop_at = p
+                break
+        candidates = [len(pdf.pages) + 1]
+        if next_start:
+            candidates.append(next_start)
+        if stop_at:
+            candidates.append(stop_at)
+        return min(candidates)
+
+    # --- 3) Collect lines across ALL Proposed sections ----------------------
+    blocks = []
+    for s in starts:
+        e = find_section_end(s)
+        lines = []
+        for p in range(s, e):
+            txt = page_text(p)
+            # Keep non-empty lines
+            lines.extend([ln.strip() for ln in (txt.splitlines() if txt else []) if ln.strip()])
+        if lines:
+            blocks.append({
+                "start": s,
+                "end": e,
+                "lines": lines,
+                "joined": "\n".join(lines)
+            })
+
+    if not blocks:
+        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
+        return pd.DataFrame()
+
+    # --- 4) Candidate funds: rely on your previously built performance data -----
+    perf_data = st.session_state.get("fund_performance_data", []) or []
+    if not perf_data:
+        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
+        return pd.DataFrame()
+
+    # --- 5) Match logic: ticker first, then fuzzy name ----------------------
+    found = []
+    for item in perf_data:
+        name = (item.get("Fund Scorecard Name") or "").strip()
+        tk   = (item.get("Ticker") or "").strip().upper()
+        if not name:
+            continue
+
+        matched = False
+        matched_page = None
+
+        # A) Strong: exact ticker with word boundaries in any block
+        if tk:
+            pat = re.compile(rf"\b{re.escape(tk)}\b")
+            for blk in blocks:
+                if pat.search(blk["joined"]):
+                    matched = True
+                    matched_page = blk["start"]
+                    break
+
+        # B) Fallback: fuzzy name within any block (OCR tolerant)
+        if not matched:
+            for blk in blocks:
+                best = max((fuzz.token_set_ratio(name.lower(), ln.lower())
+                           for ln in blk["lines"]), default=0)
+                if best >= 78:   # adjust threshold if needed (74–82)
+                    matched = True
+                    matched_page = blk["start"]
+                    break
+
+        if matched:
+            found.append({
+                "Fund Scorecard Name": name,
+                "Ticker": tk,
+                "Proposed Section Start Page": matched_page
+            })
+
+    df = pd.DataFrame(found).drop_duplicates(subset=["Fund Scorecard Name", "Ticker"])
+
+    # Optional: light debug if nothing matched
+    if df.empty:
+        # Surface a tiny hint without being noisy
+        st.info("No matches found in Proposed sections. Consider lowering the fuzzy threshold to 74 or verify tickers in `fund_performance_data`.")
+
+    st.session_state["proposed_funds_confirmed_df"] = df
+    return df
+
+
 #───Side-by-side Info Card Helpers──────────────────────────────────────────────────────
 
 def _shared_cards_css():
@@ -593,68 +730,6 @@ def get_watch_summary_card_html():
       </div>
     """
     return card_html, _shared_cards_css()
-
-
-#───Proposed Funds Extraction──────────────────────────────────────────────────────────────────
-
-def extract_proposed_scorecard_blocks(pdf):
-    import re
-    import pandas as pd
-    import streamlit as st
-    from rapidfuzz import fuzz
-
-    prop_start = st.session_state.get("scorecard_proposed_page")
-    if not prop_start:
-        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
-        return pd.DataFrame()
-
-    # Step 1: Gather lines from Proposed section (multi-page)
-    section_lines = []
-    for p in pdf.pages[prop_start - 1:]:
-        txt = (p.extract_text() or "")
-        if re.search(r"\b(Style Box|Returns Correlation Matrix|Fund Factsheets)\b", txt, flags=re.I):
-            break
-        section_lines.extend([ln.strip() for ln in txt.splitlines() if ln.strip()])
-
-    if not section_lines:
-        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
-        return pd.DataFrame()
-
-    # Step 2: Match against previously extracted fund performance data
-    perf_data = st.session_state.get("fund_performance_data", [])
-    if not perf_data:
-        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
-        return pd.DataFrame()
-
-    results = []
-    for item in perf_data:
-        name = (item.get("Fund Scorecard Name") or "").strip()
-        tk   = (item.get("Ticker") or "").strip().upper()
-        if not name:
-            continue
-
-        best_score = 0
-        best_line = ""
-        for line in section_lines:
-            score_name   = fuzz.token_sort_ratio(name.lower(), line.lower())
-            score_ticker = fuzz.token_sort_ratio(tk.lower(), line.lower()) if tk else 0
-            score = max(score_name, score_ticker)
-            if score > best_score:
-                best_score = score
-                best_line = line
-
-        if best_score >= 70:
-            results.append({
-                "Fund Scorecard Name": name,
-                "Ticker": tk,
-                "Match Score": best_score,
-                "Matched Line": best_line
-            })
-
-    df = pd.DataFrame(results).drop_duplicates()
-    st.session_state["proposed_funds_confirmed_df"] = df
-    return df
-
 
 
 #───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
@@ -2902,7 +2977,7 @@ def render_step16_and_16_5_cards(pdf):
 
 # –– Main App –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 def run():
-    st.title("Writeup & Rec")
+    st.title("Writeup & Rec Test")
     uploaded = st.file_uploader("Upload MPI PDF to Generate Writup & Rec PPTX", type="pdf")
     if not uploaded:
         return
