@@ -629,50 +629,115 @@ def get_watch_summary_card_html():
 #───Proposed Funds Extraction──────────────────────────────────────────────────────────────────
 
 def extract_proposed_scorecard_blocks(pdf):
-    prop_page = st.session_state.get("scorecard_proposed_page")
-    if not prop_page:
+    import re
+    import pandas as pd
+    import streamlit as st
+    from rapidfuzz import fuzz
+
+    # --- helpers ---
+    def norm(s: str) -> str:
+        return " ".join((s or "").strip().upper().split())
+
+    def page_text(p):
+        return pdf.pages[p-1].extract_text() or ""
+
+    # --- 1) find ALL starts of "Fund Scorecard: Proposed Funds" ---
+    H = "FUND SCORECARD: PROPOSED FUNDS"
+    starts = []
+    for i in range(1, len(pdf.pages) + 1):
+        t = norm(page_text(i))
+        if H in t:
+            starts.append(i)
+        else:
+            # loose fallback in case of minor OCR issues
+            if fuzz.partial_ratio(H, t) >= 90:
+                starts.append(i)
+
+    if not starts:
         st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
         return pd.DataFrame()
-    page = pdf.pages[prop_page - 1]
-    lines = [ln.strip() for ln in (page.extract_text() or "").splitlines() if ln.strip()]
-    if not lines:
+
+    # --- 2) anchors to bound each section ---
+    anchor_keys = ("factsheets_proposed_page", "factsheets_page",
+                   "performance_page", "scorecard_page")
+    anchors = sorted(p for k in anchor_keys
+                     if isinstance(st.session_state.get(k), int)
+                     for p in [st.session_state.get(k)])
+    # ensure anchors are after a given start when chosen
+    def section_end_for(start):
+        cands = [a for a in anchors if a > start] + [len(pdf.pages) + 1]
+        # also respect the next "Proposed Funds" start, if any
+        next_start = next((s for s in starts if s > start), None)
+        if next_start:
+            cands.append(next_start)
+        return min(cands)
+
+    # --- 3) collect all lines from ALL proposed sections ---
+    section_blocks = []
+    for s in starts:
+        e = section_end_for(s)
+        lines = []
+        for p in range(s, e):
+            txt = page_text(p)
+            lines.extend([ln.strip() for ln in (txt.splitlines() if txt else []) if ln.strip()])
+        section_blocks.append({
+            "start": s,
+            "end": e,
+            "lines": lines,
+            "joined": "\n".join(lines)
+        })
+
+    if not any(b["lines"] for b in section_blocks):
         st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
         return pd.DataFrame()
-    perf_data = st.session_state.get("fund_performance_data", [])
+
+    # --- 4) candidate funds you already found earlier ---
+    perf_data = st.session_state.get("fund_performance_data", []) or []
     if not perf_data:
         st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
         return pd.DataFrame()
-    candidate_funds = []
+
+    # --- 5) match each fund against ANY proposed section ---
+    found = []
     for item in perf_data:
-        name = item.get("Fund Scorecard Name", "").strip()
-        ticker = item.get("Ticker", "").strip().upper()
-        if name:
-            candidate_funds.append({"Fund Scorecard Name": name, "Ticker": ticker})
-    results = []
-    for fund in candidate_funds:
-        name = fund["Fund Scorecard Name"]
-        ticker = fund["Ticker"]
-        best_score = 0
-        best_line = ""
-        for line in lines:
-            score_name = fuzz.token_sort_ratio(name.lower(), line.lower())
-            score_ticker = fuzz.token_sort_ratio(ticker.lower(), line.lower()) if ticker else 0
-            score = max(score_name, score_ticker)
-            if score > best_score:
-                best_score = score
-                best_line = line
-        found = best_score >= 70
-        results.append({
-            "Fund Scorecard Name": name,
-            "Ticker": ticker,
-            "Found on Proposed": "✅" if found else "❌",
-            "Match Score": best_score,
-            "Matched Line": best_line if found else ""
-        })
-    df = pd.DataFrame(results)
-    df_confirmed = df[df["Found on Proposed"] == "✅"].copy()
-    st.session_state["proposed_funds_confirmed_df"] = df_confirmed
-    return df_confirmed
+        name = (item.get("Fund Scorecard Name") or "").strip()
+        tk   = (item.get("Ticker") or "").strip().upper()
+        if not name:
+            continue
+
+        matched = False
+        matched_start = None
+
+        # A) exact ticker (word boundary) in any section
+        if tk:
+            pat = re.compile(rf"\b{re.escape(tk)}\b")
+            for blk in section_blocks:
+                if pat.search(blk["joined"]):
+                    matched = True
+                    matched_start = blk["start"]
+                    break
+
+        # B) fuzzy name fallback if no ticker hit
+        if not matched:
+            for blk in section_blocks:
+                best = max((fuzz.token_set_ratio(name.lower(), ln.lower())
+                            for ln in blk["lines"]), default=0)
+                if best >= 78:  # adjust threshold if needed
+                    matched = True
+                    matched_start = blk["start"]
+                    break
+
+        if matched:
+            found.append({
+                "Fund Scorecard Name": name,
+                "Ticker": tk,
+                "Proposed Section Start Page": matched_start
+            })
+
+    df = pd.DataFrame(found).drop_duplicates(subset=["Fund Scorecard Name", "Ticker"])
+    st.session_state["proposed_funds_confirmed_df"] = df
+    return df
+
 
 #───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
 
