@@ -445,135 +445,147 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
 
 #───Proposed Funds Extraction──────────────────────────────────────────────────────────────────
 
-def extract_proposed_scorecard_blocks(pdf):
+def extract_proposed_scorecard_blocks(pdf, *, max_pages_per_section=4, fuzzy_name_threshold=78):
     import re
     import pandas as pd
     import streamlit as st
     from rapidfuzz import fuzz
 
-    # --- Helpers -------------------------------------------------------------
+    # ---------- helpers ----------
     def norm_text(s: str) -> str:
         return " ".join((s or "").strip().upper().split())
 
-    def page_text(pnum: int) -> str:
-        # 1-indexed page access; returns raw text
-        return pdf.pages[pnum - 1].extract_text() or ""
+    def page_text(i: int) -> str:
+        return pdf.pages[i - 1].extract_text() or ""
 
-    # Header patterns (robust to OCR/layout)
-    H_PROPOSED = "FUND SCORECARD: PROPOSED FUNDS"
-    RE_PROPOSED = re.compile(r"FUND\s*SCORECARD\s*:\s*PROPOSED\s*FUNDS", re.I)
+    # robust header detection for Proposed pages (OCR tolerant)
+    RE_PROPOSED_HDR = re.compile(r"FUND\s*SCORECARD\s*:\s*PROPOSED\s*FUNDS", re.I)
 
-    # Stop anchors: when we hit these, the Proposed section ends
-    STOP_RE = re.compile(
-        r"\b(?:Style\s*Box|Returns\s*Correlation\s*Matrix|Fund\s*Factsheets|Fund\s*Scorecard)\b",
-        re.I
+    # gather TOC anchors as hard upper bounds
+    anchor_keys = (
+        "factsheets_proposed_page", "factsheets_page", "calendar_year_page",
+        "r3yr_page", "r5yr_page", "performance_page", "scorecard_page"
+    )
+    anchors = sorted(
+        p for k in anchor_keys
+        for p in [st.session_state.get(k)]
+        if isinstance(p, int)
     )
 
-    # --- 1) Find ALL start pages for Proposed sections ----------------------
-    starts = []
+    # ---------- 1) find ALL pages that have the Proposed header ----------
+    proposed_header_pages = []
     for p in range(1, len(pdf.pages) + 1):
-        t = page_text(p)
-        T = norm_text(t)
-        if H_PROPOSED in T or RE_PROPOSED.search(t):
-            starts.append(p)
+        if RE_PROPOSED_HDR.search(page_text(p)) or "FUND SCORECARD: PROPOSED FUNDS" in norm_text(page_text(p)):
+            proposed_header_pages.append(p)
 
-    # Fallback: if TOC gave a start but header OCR failed, include it
+    # include TOC start if present but header OCR failed
     toc_start = st.session_state.get("scorecard_proposed_page")
-    if isinstance(toc_start, int) and toc_start not in starts:
-        starts.append(toc_start)
-        starts = sorted(set(starts))
+    if isinstance(toc_start, int) and toc_start not in proposed_header_pages:
+        proposed_header_pages.append(toc_start)
+    proposed_header_pages = sorted(set(proposed_header_pages))
 
-    if not starts:
+    if not proposed_header_pages:
         st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
         return pd.DataFrame()
 
-    # --- 2) Bound each section (end = next start, or first stop anchor, or EOF) -----
-    def find_section_end(start_page: int) -> int:
-        # Candidate ends: next start, first STOP_RE after start, or EOF (+1 sentinel)
-        next_start = next((s for s in starts if s > start_page), None)
-        # Scan forward to the first stop anchor
-        stop_at = None
-        for p in range(start_page + 1, len(pdf.pages) + 1):
-            if STOP_RE.search(page_text(p)):
-                stop_at = p
-                break
-        candidates = [len(pdf.pages) + 1]
-        if next_start:
-            candidates.append(next_start)
-        if stop_at:
-            candidates.append(stop_at)
-        return min(candidates)
+    # ---------- 2) for each header page, build a tight section ----------
+    sections = []
+    for start in proposed_header_pages:
+        # bound by the next anchor > start, if any
+        next_anchor = next((a for a in anchors if a > start), len(pdf.pages) + 1)
+        # also bound by the next proposed header (don’t overlap)
+        next_header = next((h for h in proposed_header_pages if h > start), len(pdf.pages) + 1)
+        hard_end = min(next_anchor, next_header, len(pdf.pages) + 1)
 
-    # --- 3) Collect lines across ALL Proposed sections ----------------------
-    blocks = []
-    for s in starts:
-        e = find_section_end(s)
         lines = []
-        for p in range(s, e):
-            txt = page_text(p)
-            # Keep non-empty lines
-            lines.extend([ln.strip() for ln in (txt.splitlines() if txt else []) if ln.strip()])
-        if lines:
-            blocks.append({
-                "start": s,
-                "end": e,
-                "lines": lines,
-                "joined": "\n".join(lines)
-            })
+        pages_used = 0
+        for p in range(start, hard_end):
+            # keep only pages that STILL show the Proposed header
+            t = page_text(p)
+            if not (RE_PROPOSED_HDR.search(t) or "FUND SCORECARD: PROPOSED FUNDS" in norm_text(t)):
+                break  # header disappeared -> end the section
 
-    if not blocks:
+            # harvest lines
+            lines.extend([ln.strip() for ln in (t.splitlines() if t else []) if ln.strip()])
+
+            pages_used += 1
+            if max_pages_per_section and pages_used >= max_pages_per_section:
+                break
+
+        if lines:
+            sections.append({"start": start, "lines": lines, "joined": "\n".join(lines)})
+
+    if not sections:
         st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
         return pd.DataFrame()
 
-    # --- 4) Candidate funds: rely on your previously built performance data -----
+    # ---------- 3) build proposed set by TICKER intersection ----------
     perf_data = st.session_state.get("fund_performance_data", []) or []
     if not perf_data:
         st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
         return pd.DataFrame()
 
-    # --- 5) Match logic: ticker first, then fuzzy name ----------------------
-    found = []
-    for item in perf_data:
-        name = (item.get("Fund Scorecard Name") or "").strip()
-        tk   = (item.get("Ticker") or "").strip().upper()
+    # all known tickers from earlier steps
+    known_tickers = {
+        (it.get("Ticker") or "").strip().upper()
+        for it in perf_data if (it.get("Ticker") or "").strip()
+    }
+    if not known_tickers:
+        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
+        return pd.DataFrame()
+
+    # which known tickers actually appear on Proposed pages?
+    proposed_tickers = set()
+    for sec in sections:
+        blob = sec["joined"]
+        for tk in known_tickers:
+            if re.search(rf"\b{re.escape(tk)}\b", blob):
+                proposed_tickers.add(tk)
+
+    # ---------- 4) construct result: ticker-first, name-fallback ----------
+    found_rows = []
+
+    # A) use ticker membership as the primary filter
+    for it in perf_data:
+        name = (it.get("Fund Scorecard Name") or "").strip()
+        tk   = (it.get("Ticker") or "").strip().upper()
         if not name:
             continue
 
-        matched = False
-        matched_page = None
-
-        # A) Strong: exact ticker with word boundaries in any block
-        if tk:
-            pat = re.compile(rf"\b{re.escape(tk)}\b")
-            for blk in blocks:
-                if pat.search(blk["joined"]):
-                    matched = True
-                    matched_page = blk["start"]
+        if tk and tk in proposed_tickers:
+            # find the first section where the ticker appears (for page reference)
+            first_page = None
+            for sec in sections:
+                if re.search(rf"\b{re.escape(tk)}\b", sec["joined"]):
+                    first_page = sec["start"]
                     break
-
-        # B) Fallback: fuzzy name within any block (OCR tolerant)
-        if not matched:
-            for blk in blocks:
-                best = max((fuzz.token_set_ratio(name.lower(), ln.lower())
-                           for ln in blk["lines"]), default=0)
-                if best >= 78:   # adjust threshold if needed (74–82)
-                    matched = True
-                    matched_page = blk["start"]
-                    break
-
-        if matched:
-            found.append({
+            found_rows.append({
                 "Fund Scorecard Name": name,
                 "Ticker": tk,
-                "Proposed Section Start Page": matched_page
+                "Proposed Section Start Page": first_page,
+                "Match Score": 100  # ticker is a strong match
             })
 
-    df = pd.DataFrame(found).drop_duplicates(subset=["Fund Scorecard Name", "Ticker"])
+    # B) handle funds without a ticker: fuzzy name within proposed sections only
+    no_ticker_names = [it for it in perf_data if not (it.get("Ticker") or "").strip()]
+    for it in no_ticker_names:
+        name = (it.get("Fund Scorecard Name") or "").strip()
+        if not name:
+            continue
+        best = (0, None)  # (score, page)
+        for sec in sections:
+            sec_best = max((fuzz.token_set_ratio(name.lower(), ln.lower()) for ln in sec["lines"]), default=0)
+            if sec_best > best[0]:
+                best = (sec_best, sec["start"])
+        if best[0] >= fuzzy_name_threshold:
+            found_rows.append({
+                "Fund Scorecard Name": name,
+                "Ticker": "",
+                "Proposed Section Start Page": best[1],
+                "Match Score": best[0]
+            })
 
-    # Optional: light debug if nothing matched
-    if df.empty:
-        # Surface a tiny hint without being noisy
-        st.info("No matches found in Proposed sections. Consider lowering the fuzzy threshold to 74 or verify tickers in `fund_performance_data`.")
+    df = pd.DataFrame(found_rows).drop_duplicates(subset=["Fund Scorecard Name", "Ticker"])
 
     st.session_state["proposed_funds_confirmed_df"] = df
     return df
