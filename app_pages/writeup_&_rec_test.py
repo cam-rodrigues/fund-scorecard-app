@@ -2587,28 +2587,35 @@ def step17_export_to_ppt():
                     tbl2_xml.append(deepcopy(base_tr))
 
             # 3) Fill each row: selected fund, proposals, then benchmark
+            # Determine how many DF rows and which index is the benchmark
+            df2 = st.session_state.get("ear_table2_data", pd.DataFrame())
+            total_rows = len(df2)
+        
+            # 3) Fill each row: selected fund, proposals, then benchmark
             for r_idx, row in enumerate(df2.itertuples(index=False), start=1):
+                is_benchmark = (r_idx == total_rows)
                 for c_idx, val in enumerate(row):
                     cell = table2.cell(r_idx, c_idx)
                     para = cell.text_frame.paragraphs[0]
-
-                    # get or create the run
+        
                     if para.runs:
                         run = para.runs[0]
                         run.text = val
                     else:
                         run = para.add_run()
                         run.text = val
-
+        
                     if c_idx == 0:
-                        # Investment Manager column: leave placeholder style
-                        pass
+                        # Investment Manager: preserve placeholder styling
+                        continue
                     else:
-                        # Other columns: Cambria 12pt black bold
+                        # Other columns: Cambria 12pt black
                         run.font.name = "Cambria"
                         run.font.size = Pt(12)
-                        run.font.bold = True
                         run.font.color.rgb = RGBColor(0, 0, 0)
+                        # Only bold the benchmark row
+                        run.font.bold = is_benchmark
+
 
 
     # ───── 6) Save & Download ───────────────────────────────────────────────────────────
