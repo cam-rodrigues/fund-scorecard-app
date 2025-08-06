@@ -1,4 +1,5 @@
 import re
+
 import streamlit as st
 import pdfplumber
 from calendar import month_name
@@ -873,100 +874,71 @@ def step7_extract_returns(pdf):
 
 def step8_calendar_returns(pdf):
     import re, streamlit as st, pandas as pd
-    from rapidfuzz import fuzz
 
-    # 1) Section bounds
-    cy_page = st.session_state.get("calendar_year_page")
+    # 1) Figure out section bounds
+    cy_page  = st.session_state.get("calendar_year_page")
+    end_page = st.session_state.get("r3yr_page", len(pdf.pages) + 1)
     if cy_page is None:
         st.error("❌ 'Fund Performance: Calendar Year' not found in TOC.")
         return
 
-    next_page = st.session_state.get("r3yr_page")  # may be None
-    # Fallback to end-of-PDF when missing, and ensure we scan at least one page
-    end_page = next_page if isinstance(next_page, int) else (len(pdf.pages) + 1)
-    end_page = max(end_page, cy_page + 1)
-    end_page = min(end_page, len(pdf.pages) + 1)
-
-    # 2) Pull lines in section
+    # 2) Pull every line from that section
     all_lines = []
-    for p in pdf.pages[cy_page - 1 : end_page - 1]:
+    for p in pdf.pages[cy_page-1 : end_page-1]:
         all_lines.extend((p.extract_text() or "").splitlines())
 
     # 3) Identify header & years
-    header = next((ln for ln in all_lines if "Ticker" in ln and re.search(r"\b20\d{2}\b", ln)), None)
+    header = next((ln for ln in all_lines if "Ticker" in ln and re.search(r"20\d{2}", ln)), None)
     if not header:
         st.error("❌ Couldn’t find header row with 'Ticker' + year.")
         return
     years = re.findall(r"\b20\d{2}\b", header)
     num_rx = re.compile(r"-?\d+\.\d+%?")
 
-    # — A) Funds —
-    fund_map = st.session_state.get("tickers", {}) or {}
+    # — A) Funds themselves —
+    fund_map     = st.session_state.get("tickers", {})
     fund_records = []
     for name, tk in fund_map.items():
         ticker = (tk or "").upper()
-        # robust ticker search (word-boundary)
-        idx = next(
-            (i for i, ln in enumerate(all_lines)
-             if re.search(rf"\b{re.escape(ticker)}\b", ln)),
-            None
-        )
-        # numbers typically appear on the line above the ticker row
-        raw = num_rx.findall(all_lines[idx - 1]) if idx not in (None, 0) else []
-        vals = raw[:len(years)] + [None] * (len(years) - len(raw))
-
-        if idx is None:
-            st.warning(f"⚠️ Calendar-year table: no ticker row found for {name} ({ticker}).")
-
-        rec = {"Name": name, "Ticker": ticker}
+        idx    = next((i for i, ln in enumerate(all_lines) if ticker in ln.split()), None)
+        raw    = num_rx.findall(all_lines[idx-1]) if idx not in (None, 0) else []
+        vals   = raw[:len(years)] + [None] * (len(years) - len(raw))
+        rec    = {"Name": name, "Ticker": ticker}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         fund_records.append(rec)
 
     df_fund = pd.DataFrame(fund_records)
     if not df_fund.empty:
-        st.markdown("**Fund Calendar-Year Returns**")
+        st.markdown("**Fund Calendar‑Year Returns**")
         st.dataframe(df_fund[["Name", "Ticker"] + years], use_container_width=True)
         st.session_state["step8_returns"] = fund_records
 
-    # — B) Benchmarks per fund —
-    facts = st.session_state.get("fund_factsheets_data", []) or []
+    # — B) Benchmarks matched back to each fund’s ticker —
+    facts         = st.session_state.get("fund_factsheets_data", [])
     bench_records = []
     for f in facts:
-        bench_name = (f.get("Benchmark") or "").strip()
-        fund_tkr   = (f.get("Matched Ticker") or "").upper()
+        bench_name = f.get("Benchmark", "").strip()
+        fund_tkr   = f.get("Matched Ticker", "")
         if not bench_name:
             continue
 
-        # exact contains
+        # find the first line containing the benchmark name
         idx = next((i for i, ln in enumerate(all_lines) if bench_name in ln), None)
         if idx is None:
-            # fuzzy fallback (loose threshold)
-            best = max(
-                ((i, fuzz.token_set_ratio(bench_name.lower(), ln.lower()))
-                 for i, ln in enumerate(all_lines)),
-                key=lambda x: x[1],
-                default=(None, 0)
-            )
-            idx = best[0] if best[1] >= 70 else None
-
-        if idx is None:
-            st.warning(f"⚠️ Calendar-year benchmark row not found for: {bench_name} ({fund_tkr}).")
             continue
-
-        raw = num_rx.findall(all_lines[idx])
+        raw  = num_rx.findall(all_lines[idx])
         vals = raw[:len(years)] + [None] * (len(years) - len(raw))
-        rec = {"Name": bench_name, "Ticker": fund_tkr}
+        rec  = {"Name": bench_name, "Ticker": fund_tkr}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         bench_records.append(rec)
 
     df_bench = pd.DataFrame(bench_records)
     if not df_bench.empty:
-        st.markdown("**Benchmark Calendar-Year Returns**")
+        st.markdown("**Benchmark Calendar‑Year Returns**")
         st.dataframe(df_bench[["Name", "Ticker"] + years], use_container_width=True)
         st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
         st.warning("No benchmark returns extracted.")
-
 
 #───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
 
@@ -2306,8 +2278,6 @@ def step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_
 
     st.session_state["step16_5_proposed_overview_lookup"] = results
     return results
-
-
 #───Build Powerpoint─────────────────────────────────────────────────────────────────
 def step17_export_to_ppt():
     import streamlit as st
@@ -2317,32 +2287,7 @@ def step17_export_to_ppt():
     from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     from io import BytesIO
     import pandas as pd
-    import copy
-    from copy import deepcopy
-
-
-    def find_slide_by_heading(prs, heading_text):
-        """
-        Return the first slide whose text contains heading_text.
-        """
-        for slide in prs.slides:
-            for shape in slide.shapes:
-                if getattr(shape, "has_text_frame", False):
-                    if heading_text in shape.text_frame.text:
-                        return slide
-        raise ValueError(f"Could not find a slide with heading '{heading_text}'")
-
     
-    def clone_slide(prs, slide_idx):
-        """Deep-copy slide `slide_idx` and append it to the deck."""
-        src = prs.slides[slide_idx]
-        new_slide = prs.slides.add_slide(src.slide_layout)
-        for shp in src.shapes:
-            el = shp.element
-            new_el = copy.deepcopy(el)
-            new_slide.shapes._spTree.insert_element_before(new_el, 'p:extLst')
-        return new_slide
-
     def truncate_to_n_sentences(text, n=3):
         sentences = re.split(r'(?<=[.!?])\s+', text.strip())
         if len(sentences) <= n:
@@ -2583,18 +2528,11 @@ def step17_export_to_ppt():
 
 
     # --- Fill Slide 2 ---
-    # --- Fill "Expense & Return" slide ---
-    try:
-        slide2 = find_slide_by_heading(prs, "[Category] – Expense & Return")
-    except ValueError:
-        st.warning("Could not find the 'Expense & Return' slide (heading '[Category] – Expense & Return').")
-        return  # or continue, depending on how you want to handle a missing slide
-    
-    # 1) Replace the [Category] placeholder
+    slide2 = prs.slides[3]
     if not fill_text_placeholder_preserving_format(slide2, "[Category]", category):
-        st.warning("Could not find [Category] placeholder on the Expense & Return slide.")
-    
-    # 2) Table 1
+        st.warning("Could not find [Category] placeholder on Slide 2.")
+
+    # Table 1
     if df_slide2_table1 is None:
         st.warning("Slide 2 Table 1 data not found.")
     else:
@@ -2602,10 +2540,9 @@ def step17_export_to_ppt():
             if shape.has_table and len(shape.table.columns) == len(df_slide2_table1.columns):
                 fill_table_with_styles(shape.table, df_slide2_table1)
                 break
-    
-    # --- Table 2: Returns ---
+
+    # Table 2 (Returns)
     quarter_label = st.session_state.get("report_date", "QTD")
-    
     if df_slide2_table2 is None:
         st.warning("Slide 2 Table 2 data not found.")
     else:
@@ -2613,169 +2550,60 @@ def step17_export_to_ppt():
             if not (shape.has_table and len(shape.table.columns) == len(df_slide2_table2.columns)):
                 continue
             table = shape.table
-            tbl_elm = table._tbl  # the XML element
-    
-            # 1) capture header formatting
-            header_styles = []
-            for cell in table.rows[0].cells:
-                run = cell.text_frame.paragraphs[0].runs[0]
-                header_styles.append({
-                    "name": run.font.name,
-                    "size": run.font.size,
-                    "color": run.font.color.rgb,
-                    "align": cell.text_frame.paragraphs[0].alignment
-                })
-    
-            # 2) replace QTD/20__ placeholder in header cell (0,1)
+            # Header replacement and styling
             if quarter_label:
-                hdr_cell = table.cell(0, 1)
-                hdr_cell.text = ""  # clear
-                p = hdr_cell.text_frame.add_paragraph()
-                p.alignment = header_styles[1]["align"]
-                run = p.add_run()
-                run.text = quarter_label
-                run.font.name = header_styles[1]["name"]
-                run.font.size = header_styles[1]["size"]
-                run.font.color.rgb = header_styles[1]["color"]
-    
-            # 3) clear out all existing body rows (leave header + one bench placeholder)
-            #    assume template has exactly 2 rows: header (idx0), bench placeholder (idx1)
-            #    remove everything after header
-            while len(tbl_elm.tr_lst) > 1:
-                tbl_elm.remove(tbl_elm.tr_lst[1])
-    
-            # 4) split your DataFrame
-            df_funds = df_slide2_table2.iloc[:-1]
-            df_bench = df_slide2_table2.iloc[-1]
-    
-            # 5) insert one cloned fund‐row per proposal fund
-            for fund_vals in df_funds.values:
-                template_tr = tbl_elm.tr_lst[0]  # use header row as template to preserve cell count
-                new_tr = deepcopy(template_tr)
-                tbl_elm.insert(len(tbl_elm.tr_lst) - 1, new_tr)  # just above the bench placeholder
-    
-            # 6) clone the bench placeholder one more time to ensure it's at bottom
-            bench_tr = deepcopy(tbl_elm.tr_lst[-1])
-            tbl_elm.append(bench_tr)
-    
-            # 7) now fill each body row
-            # body_rows = table.rows[1:-1]  # proposal funds
-            for row_idx, fund_vals in enumerate(df_funds.values, start=1):
-                row = table.rows[row_idx]
-                for col_idx, val in enumerate(fund_vals):
-                    cell = row.cells[col_idx]
-                    cell.text = str(val)
-    
-            # 8) fill the benchmark row
-            bench_row = table.rows[-1]
-            for col_idx, val in enumerate(df_bench):
-                cell = bench_row.cells[col_idx]
-                cell.text = str(val)
-    
-            # 9) apply your existing styling helper (borders, centering, bold last row, etc.)
-            fill_table_with_styles(
-                table,
-                df_slide2_table2,
-                bold_row_idx=len(df_slide2_table2) - 1
-            )
+                table.cell(0, 1).text = quarter_label
+            for c in range(len(table.columns)):
+                cell = table.cell(0, c)
+                for para in cell.text_frame.paragraphs:
+                    para.alignment = PP_ALIGN.CENTER
+                    for run in para.runs:
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(11)
+                        run.font.color.rgb = RGBColor(255, 255, 255)
+                        run.font.bold = True
+            # Bold benchmark row (assumed last)
+            benchmark_idx = len(df_slide2_table2) - 1
+            fill_table_with_styles(table, df_slide2_table2, bold_row_idx=benchmark_idx)
             break
 
-
-    
-    # 4) Table 3 (Calendar Year)
-    # --- Table 3: Calendar Year Returns ---
+    # Table 3 (Calendar Year)
     if df_slide2_table3 is None:
         st.warning("Slide 2 Table 3 data not found.")
     else:
-        # locate the table
         for shape in slide2.shapes:
             if not (shape.has_table and len(shape.table.columns) == len(df_slide2_table3.columns)):
                 continue
             table = shape.table
-    
-            # 1) Capture header-run formatting
-            header_row = table.rows[0]
-            header_styles = []
-            for cell in header_row.cells:
-                # assume single paragraph, multiple runs
-                paras = cell.text_frame.paragraphs
-                runs = []
-                for run in paras[0].runs:
-                    runs.append({
-                        "font_name": run.font.name,
-                        "font_size": run.font.size,
-                        "font_color": run.font.color.rgb,
-                    })
-                header_styles.append(runs)
-    
-            # 2) Replace header texts with the actual years
-            for col_idx, year in enumerate(df_slide2_table3.columns):
-                cell = header_row.cells[col_idx]
-                # clear existing text
-                cell.text = ""
-                p = cell.text_frame.add_paragraph()
-                p.alignment = header_row.cells[col_idx].text_frame.paragraphs[0].alignment
-                # use the first run-style for simplicity
-                style = header_styles[col_idx][0]
-                run = p.add_run()
-                run.text = str(year)
-                run.font.name = style["font_name"]
-                run.font.size = style["font_size"]
-                run.font.color.rgb = style["font_color"]
-    
-            # 3) Remove any existing body rows (keep header only)
-            while len(table.rows) > 1:
-                tbl_tr = table.rows[1]._tr
-                table._tbl.remove(tbl_tr)
-    
-            # 4) Split your DataFrame into fund-rows and benchmark-row
-            df_funds = df_slide2_table3.iloc[:-1]
-            df_bench = df_slide2_table3.iloc[-1]
-    
-            # 5) Add one row per proposal fund
-            for _, fund_vals in df_funds.iterrows():
-                new_row = table.add_row()
-                for col_idx, val in enumerate(fund_vals):
-                    cell = new_row.cells[col_idx]
-                    cell.text = str(val)
-                    # copy formatting from header
-                    p = cell.text_frame.paragraphs[0]
-                    p.alignment = header_row.cells[col_idx].text_frame.paragraphs[0].alignment
-                    run = p.runs[0]
-                    style = header_styles[col_idx][0]
-                    run.font.name = style["font_name"]
-                    run.font.size = style["font_size"]
-                    run.font.color.rgb = style["font_color"]
-    
-            # 6) Finally, add the benchmark row at the bottom
-            bench_row = table.add_row()
-            for col_idx, val in enumerate(df_bench):
-                cell = bench_row.cells[col_idx]
-                cell.text = str(val)
-                p = cell.text_frame.paragraphs[0]
-                p.alignment = header_row.cells[col_idx].text_frame.paragraphs[0].alignment
-                run = p.runs[0]
-                style = header_styles[col_idx][0]
-                run.font.name = style["font_name"]
-                run.font.size = style["font_size"]
-                run.font.color.rgb = style["font_color"]
-    
-            break  # we’ve handled the first matching table, so stop
+            # Replace headers
+            for c, col in enumerate(df_slide2_table3.columns):
+                cell = table.cell(0, c)
+                cell.text = str(col)
+                for para in cell.text_frame.paragraphs:
+                    para.alignment = PP_ALIGN.CENTER
+                    for run in para.runs:
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(11)
+                        run.font.color.rgb = RGBColor(255, 255, 255)
+                        run.font.bold = True
+            # Bold benchmark row (last)
+            benchmark_idx = len(df_slide2_table3) - 1
+            fill_table_with_styles(table, df_slide2_table3, bold_row_idx=benchmark_idx)
+            break
 
-
-
-
-    
     # --- Replacement placeholders for proposed funds ---
     slide_repl1 = prs.slides[1]
     if proposed:
         fill_text_placeholder_preserving_format(slide_repl1, "[Replacement 1]", proposed[0])
     if len(proposed) > 1:
-        # clone slide 2 (index 1) so we have a second replacement slide
-        slide_repl2 = clone_slide(prs, 1)
+        slide_repl2 = prs.slides[2]
         fill_text_placeholder_preserving_format(slide_repl2, "[Replacement 2]", proposed[1])
-    # no need to remove anything if there’s only one fund
-
+    else:
+        # remove the second replacement slide if only one proposed fund
+        try:
+            prs.slides._sldIdLst.remove(prs.slides._sldIdLst[2])
+        except Exception:
+            pass
 
     # --- Helpers for overview injection with safe sentence splitting ---
     def safe_split_sentences(text):
@@ -2864,11 +2692,9 @@ def step17_export_to_ppt():
                 st.warning(f"No overview paragraph found to insert for proposed fund '{second_label}'.")
 
     # --- Fill Slide 3 ---
-    # --- Fill “Expense & Return” (Slide 3) ---
-    slide3 = prs.slides[2]
+    slide3 = prs.slides[4 if len(proposed) > 1 else 3]
     if not fill_text_placeholder_preserving_format(slide3, "[Category]", category):
         st.warning("Could not find [Category] placeholder on Slide 3.")
-
     df_slide3_table1 = st.session_state.get("slide3_table1_data")
     df_slide3_table2 = st.session_state.get("slide3_table2_data")
     if df_slide3_table1 is None or df_slide3_table2 is None:
@@ -2883,10 +2709,8 @@ def step17_export_to_ppt():
                 fill_table_with_styles(tables[1], df_slide3_table2)
 
     # --- Fill Slide 4 ---
-    # --- Fill “Risk-Adjusted Statistics” (Slide 4) ---
-    slide4 = prs.slides[3]
-    if not fill_text_placeholder_preserving_format(slide4, "[Category]", category):
-        st.warning("Could not find [Category] placeholder on Slide 4.")
+    slide4_index = 5 if len(proposed) > 1 else 4
+    slide4 = prs.slides[slide4_index]
     qualitative_placeholder = f"[Category]– Qualitative Factors"
     qualitative_replacement = f"{category} - Qualitative Factors"
     if not fill_text_placeholder_preserving_format(slide4, qualitative_placeholder, qualitative_replacement):
@@ -2904,14 +2728,6 @@ def step17_export_to_ppt():
                 fill_table_with_styles(shape.table, df_slide4_table2)
                 break
 
-    # --- Fill “Qualitative Factors” (Slide 5) ---
-    slide5 = prs.slides[4]
-    qualitative_placeholder = "[Category]– Qualitative Factors"
-    qualitative_replacement = f"{category} – Qualitative Factors"
-    if not fill_text_placeholder_preserving_format(slide5, qualitative_placeholder, qualitative_replacement):
-        st.warning(f"Could not find placeholder '{qualitative_placeholder}' on Slide 5.")
-
-                                              
     # --- Save and offer download (clean UI) ---
     output = BytesIO()
     prs.save(output)
