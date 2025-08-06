@@ -2391,6 +2391,29 @@ def step17_export_to_ppt():
     from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     from io import BytesIO
     import pandas as pd
+    import re  # ensure this import exists at the top of the function
+
+    # at top of step17_export_to_ppt()
+    def find_slide_with_text(prs, needle: str):
+        n = needle.lower()
+        for s in prs.slides:
+            for sh in s.shapes:
+                if getattr(sh, "has_text_frame", False):
+                    txt = "".join(run.text for p in sh.text_frame.paragraphs for run in p.runs)
+                    if n in (txt or "").lower():
+                        return s
+        return None
+        
+    def find_slide_with_any_text(prs, needles):
+        low = [n.lower() for n in needles]
+        for s in prs.slides:
+            for sh in s.shapes:
+                if getattr(sh, "has_text_frame", False):
+                    txt = "".join(run.text for p in sh.text_frame.paragraphs for run in p.runs).lower()
+                    if any(n in (txt or "") for n in low):
+                        return s
+        return None
+
     
     def truncate_to_n_sentences(text, n=3):
         sentences = re.split(r'(?<=[.!?])\s+', text.strip())
@@ -2591,7 +2614,7 @@ def step17_export_to_ppt():
     df_slide2_table3 = st.session_state.get("slide2_table3_data")
     
      # --- Fill Slide 1 ---
-    slide1 = prs.slides[0]
+    slide1 = find_slide_with_text(prs, "[Fund Name]") or prs.slides[0]
     
     # 1) Replace the [Fund Name] placeholder
     if not fill_text_placeholder_preserving_format(slide1, "[Fund Name]", selected):
@@ -2632,9 +2655,10 @@ def step17_export_to_ppt():
 
 
     # --- Fill Slide 2 ---
-    slide2 = prs.slides[3]
-    if not fill_text_placeholder_preserving_format(slide2, "[Category]", category):
-        st.warning("Could not find [Category] placeholder on Slide 2.")
+    slide2 = find_slide_with_text(prs, "[Category]")
+    if not slide2:
+        st.error("Could not locate Slide 2 ([Category]) in template.")
+    else:
 
     # Table 1
     if df_slide2_table1 is None:
@@ -2870,41 +2894,67 @@ def step17_export_to_ppt():
                 st.warning(f"No overview paragraph found to insert for proposed fund '{second_label}'.")
 
     # --- Fill Slide 3 ---
-    slide3 = prs.slides[4 if len(proposed) > 1 else 3]
-    if not fill_text_placeholder_preserving_format(slide3, "[Category]", category):
-        st.warning("Could not find [Category] placeholder on Slide 3.")
-    df_slide3_table1 = st.session_state.get("slide3_table1_data")
-    df_slide3_table2 = st.session_state.get("slide3_table2_data")
-    if df_slide3_table1 is None or df_slide3_table2 is None:
-        st.warning("Slide 3 table data not found.")
+    # look for the slide with your custom placeholder text
+    slide3 = find_slide_with_text(prs, "[Slide 3 Data]")
+    if slide3 is None:
+        st.warning("Could not find Slide 3 (placeholder '[Slide 3 Data]') in the template; skipping.")
     else:
-        tables = [shape.table for shape in slide3.shapes if shape.has_table]
-        if len(tables) >= 1 and df_slide3_table1 is not None:
-            if len(df_slide3_table1.columns) == len(tables[0].columns):
+        # (optional) replace any text placeholders on that slide
+        fill_text_placeholder_preserving_format(slide3, "[Category]", category)
+    
+        # grab the two DataFrames for Slide 3
+        df_slide3_table1 = st.session_state.get("slide3_table1_data")
+        df_slide3_table2 = st.session_state.get("slide3_table2_data")
+    
+        if df_slide3_table1 is None or df_slide3_table2 is None:
+            st.warning("Slide 3 table data not found in session_state.")
+        else:
+            # collect all tables on the slide
+            tables = [shape.table for shape in slide3.shapes if shape.has_table]
+    
+            # fill the first table with table1_data
+            if len(tables) >= 1 and len(df_slide3_table1.columns) == len(tables[0].columns):
                 fill_table_with_styles(tables[0], df_slide3_table1)
-        if len(tables) >= 2 and df_slide3_table2 is not None:
-            if len(df_slide3_table2.columns) == len(tables[1].columns):
+    
+            # fill the second table with table2_data
+            if len(tables) >= 2 and len(df_slide3_table2.columns) == len(tables[1].columns):
                 fill_table_with_styles(tables[1], df_slide3_table2)
 
     # --- Fill Slide 4 ---
-    slide4_index = 5 if len(proposed) > 1 else 4
-    slide4 = prs.slides[slide4_index]
-    qualitative_placeholder = f"[Category]– Qualitative Factors"
-    qualitative_replacement = f"{category} - Qualitative Factors"
-    if not fill_text_placeholder_preserving_format(slide4, qualitative_placeholder, qualitative_replacement):
-        st.warning(f"Could not find placeholder '{qualitative_placeholder}' on Slide 4.")
-    df_slide4_table1 = st.session_state.get("slide4")
-    df_slide4_table2 = st.session_state.get("slide4_table2_data")
-    if df_slide4_table1 is not None:
-        for shape in slide4.shapes:
-            if shape.has_table and len(shape.table.columns) == len(df_slide4_table1.columns):
-                fill_table_with_styles(shape.table, df_slide4_table1)
-                break
-    if df_slide4_table2 is not None:
-        for shape in slide4.shapes:
-            if shape.has_table and len(shape.table.columns) == len(df_slide4_table2.columns):
-                fill_table_with_styles(shape.table, df_slide4_table2)
-                break
+    # 1) find the slide by your unique placeholder text
+    slide4 = find_slide_with_text(prs, "[Qualitative Factors]")
+    if slide4 is None:
+        st.warning("Could not find Slide 4 (placeholder '[Qualitative Factors]') in template; skipping.")
+    else:
+        # 2) replace the category header if you like
+        fill_text_placeholder_preserving_format(
+            slide4,
+            "[Category] – Qualitative Factors",
+            f"{category} – Qualitative Factors"
+        )
+    
+        # 3) grab your two DataFrames
+        df4a = st.session_state.get("slide4_table1_data")
+        df4b = st.session_state.get("slide4_table2_data")
+    
+        # 4) fill the first table
+        if df4a is not None:
+            for shape in slide4.shapes:
+                if shape.has_table and len(shape.table.columns) == len(df4a.columns):
+                    fill_table_with_styles(shape.table, df4a)
+                    break
+        else:
+            st.warning("Slide 4 Table 1 data missing.")
+    
+        # 5) fill the second table
+        if df4b is not None:
+            for shape in slide4.shapes:
+                if shape.has_table and len(shape.table.columns) == len(df4b.columns):
+                    fill_table_with_styles(shape.table, df4b)
+                    break
+        else:
+            st.warning("Slide 4 Table 2 data missing.")
+
 
     # --- Save and offer download (clean UI) ---
     output = BytesIO()
