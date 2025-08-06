@@ -2874,23 +2874,28 @@ def step17_export_to_ppt():
             st.warning(f"No overview paragraph found to insert for proposed fund '{first_proposed_label}'.")
 
         # Second proposed fund if present
-        if len(proposed) > 1:
-            second_label = proposed[1]
-            paragraph2 = lookup_overview_paragraph(second_label, lookup) or ""
-            if paragraph2:
-                sentences2 = safe_split_sentences(paragraph2)
-                overview_sentences2 = sentences2[:3] if sentences2 else []
-                try:
-                    slide_repl2 = prs.slides[2]
-                    if overview_sentences2:
-                        injected2 = inject_overview_into_placeholder(slide_repl2, overview_sentences2)
-                        if not injected2:
-                            st.warning(f"Could not find the bullet placeholder textbox on Replacement 2 slide to inject overview for '{second_label}'.")
-                    fill_text_placeholder_preserving_format(slide_repl2, "[Replacement 2]", second_label)
-                except Exception:
-                    st.warning(f"Could not update Replacement 2 slide for '{second_label}'.")
+    # --- Inject second proposed fund overview ---
+    if len(proposed) > 1:
+        second_label = proposed[1]
+        lookup    = st.session_state.get("step16_5_proposed_overview_lookup", {})
+        paragraph = lookup_overview_paragraph(second_label, lookup) or ""
+        if paragraph:
+            # split & take up to 3 sentences
+            sentences = safe_split_sentences(paragraph)[:3]
+            # find the slide that has “[Replacement 2]”
+            slide2 = find_slide_with_text(prs, "[Replacement 2]")
+            if slide2:
+                # inject the sentences into its bullet-placeholder
+                injected = inject_overview_into_placeholder(slide2, sentences)
+                if not injected:
+                    st.warning(f"Couldn’t find bullet placeholder on Replacement 2 slide for '{second_label}'.")
+                # replace the “[Replacement 2]” text itself
+                fill_text_placeholder_preserving_format(slide2, "[Replacement 2]", second_label)
             else:
-                st.warning(f"No overview paragraph found to insert for proposed fund '{second_label}'.")
+                st.warning(f"Could not find a slide with placeholder '[Replacement 2]'; skipping fund '{second_label}'.")
+        else:
+            st.warning(f"No overview paragraph found for proposed fund '{second_label}'.")
+
 
     # --- Fill Slide 3 ---
     # look for the slide with your custom placeholder text
