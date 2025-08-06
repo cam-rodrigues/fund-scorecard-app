@@ -2695,19 +2695,93 @@ def step17_export_to_ppt():
             fill_table_with_styles(table, df_slide2_table3, bold_row_idx=benchmark_idx)
             break
 
-    # --- Replacement placeholders for proposed funds ---
-    slide_repl1 = prs.slides[1]
-    if proposed:
-        fill_text_placeholder_preserving_format(slide_repl1, "[Replacement 1]", proposed[0])
-    if len(proposed) > 1:
-        slide_repl2 = prs.slides[2]
-        fill_text_placeholder_preserving_format(slide_repl2, "[Replacement 2]", proposed[1])
-    else:
-        # remove the second replacement slide if only one proposed fund
-        try:
-            prs.slides._sldIdLst.remove(prs.slides._sldIdLst[2])
-        except Exception:
-            pass
+    # --- Proposed Fund slides (dynamic: supports 1..N) ---
+    
+    def find_slide_with_text(prs, needle: str):
+        n = needle.lower()
+        for s in prs.slides:
+            for sh in s.shapes:
+                if getattr(sh, "has_text_frame", False):
+                    txt = "".join(run.text for p in sh.text_frame.paragraphs for run in p.runs)
+                    if n in (txt or "").lower():
+                        return s
+        return None
+    
+    def get_proposed_template_slide(prs):
+        # Prefer an explicit “[Replacement 1]” template; fall back to “[Replacement 2]”
+        return (find_slide_with_text(prs, "[Replacement 1]")
+                or find_slide_with_text(prs, "[Replacement 2]"))
+    
+    def replace_any_replacement_placeholder(slide, label):
+        # Replace any common placeholder variants your template might use
+        for token in ("[Replacement 1]", "[Replacement 2]", "[Replacement]", "[Proposed Fund]"):
+            fill_text_placeholder_preserving_format(slide, token, label)
+    
+    def inject_overview_from_lookup(slide, fund_label):
+        # Re-use helpers already defined earlier in your function:
+        #   - lookup_overview_paragraph()
+        #   - safe_split_sentences()
+        lookup = st.session_state.get("step16_5_proposed_overview_lookup", {})
+        paragraph = lookup_overview_paragraph(fund_label, lookup) or ""
+        if not paragraph:
+            return
+        sentences = safe_split_sentences(paragraph)[:3] if paragraph else []
+        if not sentences:
+            return
+        # Try to inject into the bullet placeholder on the slide
+        for shape in slide.shapes:
+            if not getattr(shape, "has_text_frame", False):
+                continue
+            text_content = "".join(run.text for para in shape.text_frame.paragraphs for run in para.runs)
+            if any(ph in text_content for ph in ["[Bullet Point 1]", "[Bullet Point 2]", "[Optional Bullet Point 3]"]):
+                tf = shape.text_frame
+                tf.clear()
+                for sent in sentences:
+                    p = tf.add_paragraph()
+                    p.text = sent
+                    p.level = 0
+                    for run in p.runs:
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(11)
+                        run.font.color.rgb = RGBColor(0, 0, 0)
+                        run.font.bold = False
+                break  # done after filling one box
+    
+    # Resolve a template slide to clone
+    template_repl_slide = get_proposed_template_slide(prs)
+    proposed_layout = template_repl_slide.slide_layout if template_repl_slide else None
+    
+    # Try to use existing slides for the first two (if present)
+    slide_repl1 = find_slide_with_text(prs, "[Replacement 1]")
+    slide_repl2 = find_slide_with_text(prs, "[Replacement 2]")
+    
+    for i, label in enumerate(proposed):
+        if i == 0:
+            # Use existing slide with [Replacement 1], or add from layout
+            slide = slide_repl1 or (prs.slides.add_slide(proposed_layout) if proposed_layout else None)
+            if slide is None:
+                st.error("No template for Proposed slides found; cannot add slide.")
+                break
+            replace_any_replacement_placeholder(slide, label)
+            inject_overview_from_lookup(slide, label)
+    
+        elif i == 1:
+            # Use existing slide with [Replacement 2], or add from layout
+            slide = slide_repl2 or (prs.slides.add_slide(proposed_layout) if proposed_layout else None)
+            if slide is None:
+                st.error("No template for Proposed slides found; cannot add slide.")
+                break
+            replace_any_replacement_placeholder(slide, label)
+            inject_overview_from_lookup(slide, label)
+    
+        else:
+            # Add one new Proposed slide per remaining fund
+            if not proposed_layout:
+                st.error("Cannot add more Proposed slides: template layout not found.")
+                break
+            slide = prs.slides.add_slide(proposed_layout)
+            replace_any_replacement_placeholder(slide, label)
+            inject_overview_from_lookup(slide, label)
 
     # --- Helpers for overview injection with safe sentence splitting ---
     def safe_split_sentences(text):
