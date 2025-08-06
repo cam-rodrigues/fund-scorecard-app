@@ -2386,24 +2386,19 @@ def step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_
 def step17_export_to_ppt():
     import streamlit as st
     from pptx import Presentation
-    from pptx.util import Pt
     from pptx.dml.color import RGBColor
-    from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     from io import BytesIO
-    import pandas as pd
-    import re  # ensure this import exists at the top of the function
 
-    # — Load your template (adjust key/path as needed) —
-    template_path = "assets/writeup&rec_templates.pptx"
-    prs = Presentation(template_path)
+    # — Load template —
+    prs = Presentation("assets/writeup&rec_templates.pptx")
 
-    # — Pull in the selected fund and IPS data —
+    # — Pull in data —
     selected = st.session_state.get("selected_fund")
     ips_icon_table = st.session_state.get("ips_icon_table")
     facts = st.session_state.get("fund_factsheets_data", [])
     fs_rec = next((f for f in facts if f.get("Matched Fund Name") == selected), {})
 
-    # — Validate presence of data —
+    # — Validate —
     if ips_icon_table is None or ips_icon_table.empty:
         st.error("IPS screening table not found. Run earlier steps first.")
         return
@@ -2413,12 +2408,12 @@ def step17_export_to_ppt():
         return
     row_dict = row.iloc[0].to_dict()
 
-    # — Assemble the row values in column order —
+    # — Build value list —
     report_date = st.session_state.get("report_date", "")
     values = [
-        fs_rec.get("Category", ""),
-        report_date,
-        "$",  # replace with actual Plan Assets if you have it
+        fs_rec.get("Category", ""),   # Category (we’ll put this in row 1, col 0)
+        report_date,                  # Time Period
+        "$",                          # Plan Assets — replace if you have a real var
     ]
     # IPS Investment Criteria 1–11
     for i in range(1, 12):
@@ -2426,33 +2421,46 @@ def step17_export_to_ppt():
     # IPS Watch Status
     values.append(row_dict.get("IPS Watch Status", ""))
 
-    # — Locate the first slide’s table —
+    # — Find the first slide’s table —
     slide = prs.slides[0]
     table_shape = next((sh for sh in slide.shapes if sh.has_table), None)
-    if table_shape is None:
+    if not table_shape:
         st.error("No table found on the first slide.")
         return
     table = table_shape.table
 
-    # — Write into the second row, preserving formatting by updating the existing run’s text —
-    for col_idx, new_text in enumerate(values):
-        cell = table.cell(1, col_idx)
+    # — Write Category into row 1, col 0 —
+    cat_cell = table.cell(1, 0)
+    cat_para = cat_cell.text_frame.paragraphs[0]
+    if cat_para.runs:
+        cat_para.runs[0].text = values[0]
+    else:
+        cat_para.text = values[0]
+
+    # — Write everything else into the BOTTOM row —
+    bottom = len(table.rows) - 1
+    for col_idx, new_text in enumerate(values[1:], start=1):
+        cell = table.cell(bottom, col_idx)
         para = cell.text_frame.paragraphs[0]
         if para.runs:
-            # Replace the run text; font/name/color/size stay as is
-            para.runs[0].text = new_text
+            run = para.runs[0]
+            run.text = new_text
+            # color checks / Xs
+            if new_text == "✔":
+                run.font.color.rgb = RGBColor(0, 128, 0)
+            elif new_text == "✗":
+                run.font.color.rgb = RGBColor(255, 0, 0)
         else:
             para.text = new_text
 
-    # — Save to buffer and push out as a Streamlit download button —
-    output = BytesIO()
-    prs.save(output)
-    output.seek(0)
-
+    # — Save & download —
+    out = BytesIO()
+    prs.save(out)
+    out.seek(0)
     st.success("PowerPoint Generated")
     st.download_button(
         label="Download Writeup PowerPoint",
-        data=output,
+        data=out,
         file_name=f"{selected} Writeup.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
