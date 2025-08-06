@@ -2317,7 +2317,18 @@ def step17_export_to_ppt():
     from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     from io import BytesIO
     import pandas as pd
-    
+    import copy
+
+    def clone_slide(prs, slide_idx):
+        """Deep-copy slide `slide_idx` and append it to the deck."""
+        src = prs.slides[slide_idx]
+        new_slide = prs.slides.add_slide(src.slide_layout)
+        for shp in src.shapes:
+            el = shp.element
+            new_el = copy.deepcopy(el)
+            new_slide.shapes._spTree.insert_element_before(new_el, 'p:extLst')
+        return new_slide
+
     def truncate_to_n_sentences(text, n=3):
         sentences = re.split(r'(?<=[.!?])\s+', text.strip())
         if len(sentences) <= n:
@@ -2626,14 +2637,11 @@ def step17_export_to_ppt():
     if proposed:
         fill_text_placeholder_preserving_format(slide_repl1, "[Replacement 1]", proposed[0])
     if len(proposed) > 1:
-        slide_repl2 = prs.slides[2]
+        # clone slide 2 (index 1) so we have a second replacement slide
+        slide_repl2 = clone_slide(prs, 1)
         fill_text_placeholder_preserving_format(slide_repl2, "[Replacement 2]", proposed[1])
-    else:
-        # remove the second replacement slide if only one proposed fund
-        try:
-            prs.slides._sldIdLst.remove(prs.slides._sldIdLst[2])
-        except Exception:
-            pass
+    # no need to remove anything if there’s only one fund
+
 
     # --- Helpers for overview injection with safe sentence splitting ---
     def safe_split_sentences(text):
