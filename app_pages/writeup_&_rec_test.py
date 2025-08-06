@@ -2392,6 +2392,9 @@ def step17_export_to_ppt():
     from copy import deepcopy
     from pptx.dml.color import RGBColor
     from pptx.util import Pt
+    import pandas as pd
+
+
 
     # ───── 1) Load template ────────────────────────────────────────────────────────────
     prs = Presentation("assets/writeup&rec_templates.pptx")
@@ -2402,6 +2405,9 @@ def step17_export_to_ppt():
     bullets = st.session_state.get("bullet_points", [])
     ear_df = st.session_state.get("ear_table1_data")  # DataFrame for Expense & Return Table 1
     facts = st.session_state.get("fund_factsheets_data", [])
+        # Pull in the DataFrame you saved in Step 15
+    df2 = st.session_state.get("ear_table2_data", pd.DataFrame())
+    date_label = st.session_state.get("report_date", "")
 
     # ───── 3) Validate IPS data ──────────────────────────────────────────────────────────
     if ips_icon_table is None or ips_icon_table.empty:
@@ -2539,6 +2545,70 @@ def step17_export_to_ppt():
                         run.font.size = Pt(12)
                         run.font.color.rgb = RGBColor(0, 0, 0)
                     # else: leave the template’s default styling for column 0
+    # ───── 9c) Expense and Return Slide: Table 2 – Returns ─────────────────────────────
+
+    # Locate the Expense and Return slide
+    slide_expense_and_return = None
+    for sl in prs.slides:
+        for shape in sl.shapes:
+            if shape.has_text_frame and "[Category] – Expense & Return" in shape.text_frame.text:
+                slide_expense_and_return = sl
+                break
+        if slide_expense_and_return:
+            break
+
+    if not slide_expense_and_return:
+        st.warning("Couldn't find the Expense and Return slide.")
+    else:
+        # Grab the second table (top‐right)
+        tables = [sh for sh in slide_expense_and_return.shapes if sh.has_table]
+        if len(tables) < 2:
+            st.warning("Couldn't find Table 2 on Expense and Return slide.")
+        else:
+            table2 = tables[1].table
+            tbl2_xml = table2._tbl
+
+            # 1) Replace the header "Q_, 20__" with the actual quarter
+            hdr_cell = table2.cell(0, 1)
+            hdr_para = hdr_cell.text_frame.paragraphs[0]
+            if hdr_para.runs:
+                hdr_para.runs[0].text = date_label
+            else:
+                run = hdr_para.add_run()
+                run.text = date_label
+            # (font/size/color preserved from placeholder)
+
+            # 2) Clone extra body rows if needed
+            existing = len(table2.rows) - 1  # exclude header
+            needed = len(df2) - existing
+            if needed > 0:
+                base_tr = tbl2_xml.tr_lst[1]
+                for _ in range(needed):
+                    tbl2_xml.append(deepcopy(base_tr))
+
+            # 3) Fill each row: selected fund, proposals, then benchmark
+            for r_idx, row in enumerate(df2.itertuples(index=False), start=1):
+                for c_idx, val in enumerate(row):
+                    cell = table2.cell(r_idx, c_idx)
+                    para = cell.text_frame.paragraphs[0]
+
+                    # get or create the run
+                    if para.runs:
+                        run = para.runs[0]
+                        run.text = val
+                    else:
+                        run = para.add_run()
+                        run.text = val
+
+                    if c_idx == 0:
+                        # Investment Manager column: leave placeholder style
+                        pass
+                    else:
+                        # Other columns: Cambria 12pt black bold
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(12)
+                        run.font.bold = True
+                        run.font.color.rgb = RGBColor(0, 0, 0)
 
 
     # ───── 6) Save & Download ───────────────────────────────────────────────────────────
