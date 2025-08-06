@@ -2389,6 +2389,7 @@ def step17_export_to_ppt():
     from pptx.dml.color import RGBColor
     from pptx.util import Pt
     from io import BytesIO
+    from copy import deepcopy  # for row cloning
 
     # ───── 1) Load template ────────────────────────────────────────────────────────────
     prs = Presentation("assets/writeup&rec_templates.pptx")
@@ -2396,9 +2397,9 @@ def step17_export_to_ppt():
     # ───── 2) Pull in session data ──────────────────────────────────────────────────────
     selected = st.session_state.get("selected_fund", "")
     ips_icon_table = st.session_state.get("ips_icon_table")
-    facts = st.session_state.get("fund_factsheets_data", [])
     bullets = st.session_state.get("bullet_points", [])
     ear_df = st.session_state.get("ear_table1_data")  # DataFrame for Expense & Return Table 1
+    facts = st.session_state.get("fund_factsheets_data", [])
     fs_rec = next((f for f in facts if f.get("Matched Fund Name") == selected), {})
 
     # ───── 3) Validate IPS data ──────────────────────────────────────────────────────────
@@ -2409,7 +2410,6 @@ def step17_export_to_ppt():
     if row.empty:
         st.error("No IPS screening result found for selected fund.")
         return
-    row_dict = row.iloc[0].to_dict()
 
     # ───── 4) Build values list for first slide ─────────────────────────────────────────
     report_date = st.session_state.get("report_date", "")
@@ -2500,21 +2500,22 @@ def step17_export_to_ppt():
         st.warning("Couldn't find the Expense and Return slide.")
     else:
         # ───── 9) Expense and Return Slide: Table 1 ────────────────────────────────────
-        # Find the top‐left table (first table on that slide)
         tables = [sh for sh in slide_expense_and_return.shapes if sh.has_table]
         if not tables:
             st.warning("No tables found on Expense and Return slide.")
         else:
             table1 = tables[0].table
+            tbl = table1._tbl  # the underlying XML table element
 
-            # Clear existing content rows (leave header row intact)
-            existing_rows = len(table1.rows) - 1
-            needed_rows = len(ear_df)
-            # Add extra rows if necessary
-            for _ in range(needed_rows - existing_rows):
-                table1.add_row()
+            existing_body_rows = len(table1.rows) - 1  # exclude header
+            needed = len(ear_df) - existing_body_rows
+            if needed > 0:
+                # clone the first data row (row index 1) needed times
+                base_tr = tbl.tr_lst[1]
+                for _ in range(needed):
+                    tbl.append(deepcopy(base_tr))
 
-            # Fill each row: row index 1 = selected fund, then proposals
+            # Fill each row under the header
             for r_idx, row in enumerate(ear_df.itertuples(index=False), start=1):
                 for c_idx, cell_value in enumerate(row):
                     cell = table1.cell(r_idx, c_idx)
@@ -2523,7 +2524,7 @@ def step17_export_to_ppt():
                         para.runs[0].text = cell_value
                     else:
                         para.add_run(cell_value)
-                    # leave font, size, color as in template (add_row clones formatting)
+                    # font, size, color are inherited from the cloned row/template
 
     # ───── 10) Save & Download ───────────────────────────────────────────────────────────
     out = BytesIO()
