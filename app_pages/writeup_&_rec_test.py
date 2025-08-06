@@ -2775,7 +2775,7 @@ def step17_export_to_ppt():
     qualitative_placeholder = "[Category]– Qualitative Factors"
     qualitative_replacement = f"{category} – Qualitative Factors"
     if not fill_text_placeholder_preserving_format(slide5, qualitative_placeholder, qualitative_replacement):
-        st.warning(f"Could not find placeholder '{qualitati
+        st.warning(f"Could not find placeholder '{qualitative_placeholder}' on Slide 5.")
 
                                               
     # --- Save and offer download (clean UI) ---
