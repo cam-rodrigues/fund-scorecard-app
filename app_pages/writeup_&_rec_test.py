@@ -1,5 +1,4 @@
 import re
-
 import streamlit as st
 import pdfplumber
 from calendar import month_name
@@ -874,71 +873,100 @@ def step7_extract_returns(pdf):
 
 def step8_calendar_returns(pdf):
     import re, streamlit as st, pandas as pd
+    from rapidfuzz import fuzz
 
-    # 1) Figure out section bounds
-    cy_page  = st.session_state.get("calendar_year_page")
-    end_page = st.session_state.get("r3yr_page", len(pdf.pages) + 1)
+    # 1) Section bounds
+    cy_page = st.session_state.get("calendar_year_page")
     if cy_page is None:
         st.error("❌ 'Fund Performance: Calendar Year' not found in TOC.")
         return
 
-    # 2) Pull every line from that section
+    next_page = st.session_state.get("r3yr_page")  # may be None
+    # Fallback to end-of-PDF when missing, and ensure we scan at least one page
+    end_page = next_page if isinstance(next_page, int) else (len(pdf.pages) + 1)
+    end_page = max(end_page, cy_page + 1)
+    end_page = min(end_page, len(pdf.pages) + 1)
+
+    # 2) Pull lines in section
     all_lines = []
-    for p in pdf.pages[cy_page-1 : end_page-1]:
+    for p in pdf.pages[cy_page - 1 : end_page - 1]:
         all_lines.extend((p.extract_text() or "").splitlines())
 
     # 3) Identify header & years
-    header = next((ln for ln in all_lines if "Ticker" in ln and re.search(r"20\d{2}", ln)), None)
+    header = next((ln for ln in all_lines if "Ticker" in ln and re.search(r"\b20\d{2}\b", ln)), None)
     if not header:
         st.error("❌ Couldn’t find header row with 'Ticker' + year.")
         return
     years = re.findall(r"\b20\d{2}\b", header)
     num_rx = re.compile(r"-?\d+\.\d+%?")
 
-    # — A) Funds themselves —
-    fund_map     = st.session_state.get("tickers", {})
+    # — A) Funds —
+    fund_map = st.session_state.get("tickers", {}) or {}
     fund_records = []
     for name, tk in fund_map.items():
         ticker = (tk or "").upper()
-        idx    = next((i for i, ln in enumerate(all_lines) if ticker in ln.split()), None)
-        raw    = num_rx.findall(all_lines[idx-1]) if idx not in (None, 0) else []
-        vals   = raw[:len(years)] + [None] * (len(years) - len(raw))
-        rec    = {"Name": name, "Ticker": ticker}
+        # robust ticker search (word-boundary)
+        idx = next(
+            (i for i, ln in enumerate(all_lines)
+             if re.search(rf"\b{re.escape(ticker)}\b", ln)),
+            None
+        )
+        # numbers typically appear on the line above the ticker row
+        raw = num_rx.findall(all_lines[idx - 1]) if idx not in (None, 0) else []
+        vals = raw[:len(years)] + [None] * (len(years) - len(raw))
+
+        if idx is None:
+            st.warning(f"⚠️ Calendar-year table: no ticker row found for {name} ({ticker}).")
+
+        rec = {"Name": name, "Ticker": ticker}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         fund_records.append(rec)
 
     df_fund = pd.DataFrame(fund_records)
     if not df_fund.empty:
-        st.markdown("**Fund Calendar‑Year Returns**")
+        st.markdown("**Fund Calendar-Year Returns**")
         st.dataframe(df_fund[["Name", "Ticker"] + years], use_container_width=True)
         st.session_state["step8_returns"] = fund_records
 
-    # — B) Benchmarks matched back to each fund’s ticker —
-    facts         = st.session_state.get("fund_factsheets_data", [])
+    # — B) Benchmarks per fund —
+    facts = st.session_state.get("fund_factsheets_data", []) or []
     bench_records = []
     for f in facts:
-        bench_name = f.get("Benchmark", "").strip()
-        fund_tkr   = f.get("Matched Ticker", "")
+        bench_name = (f.get("Benchmark") or "").strip()
+        fund_tkr   = (f.get("Matched Ticker") or "").upper()
         if not bench_name:
             continue
 
-        # find the first line containing the benchmark name
+        # exact contains
         idx = next((i for i, ln in enumerate(all_lines) if bench_name in ln), None)
         if idx is None:
+            # fuzzy fallback (loose threshold)
+            best = max(
+                ((i, fuzz.token_set_ratio(bench_name.lower(), ln.lower()))
+                 for i, ln in enumerate(all_lines)),
+                key=lambda x: x[1],
+                default=(None, 0)
+            )
+            idx = best[0] if best[1] >= 70 else None
+
+        if idx is None:
+            st.warning(f"⚠️ Calendar-year benchmark row not found for: {bench_name} ({fund_tkr}).")
             continue
-        raw  = num_rx.findall(all_lines[idx])
+
+        raw = num_rx.findall(all_lines[idx])
         vals = raw[:len(years)] + [None] * (len(years) - len(raw))
-        rec  = {"Name": bench_name, "Ticker": fund_tkr}
+        rec = {"Name": bench_name, "Ticker": fund_tkr}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         bench_records.append(rec)
 
     df_bench = pd.DataFrame(bench_records)
     if not df_bench.empty:
-        st.markdown("**Benchmark Calendar‑Year Returns**")
+        st.markdown("**Benchmark Calendar-Year Returns**")
         st.dataframe(df_bench[["Name", "Ticker"] + years], use_container_width=True)
         st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
         st.warning("No benchmark returns extracted.")
+
 
 #───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
 
@@ -2278,6 +2306,8 @@ def step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_
 
     st.session_state["step16_5_proposed_overview_lookup"] = results
     return results
+
+
 #───Build Powerpoint─────────────────────────────────────────────────────────────────
 def step17_export_to_ppt():
     import streamlit as st
@@ -2340,7 +2370,7 @@ def step17_export_to_ppt():
             proposed.append(label)
     proposed = proposed[:2]  # template supports up to two
 
-    template_path = "assets/writeup&rec_templates.pptx"
+    template_path = "assets/ex/writeup&rec1_templates.pptx"
     try:
         prs = Presentation(template_path)
     except Exception as e:
