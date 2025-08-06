@@ -1663,11 +1663,11 @@ def step15_display_selected_fund():
     
     # Assemble final table: selected fund first, then proposed(s)
     all_rows = [row_selected] + proposed_rows
-    df_e&r_table1 = pd.DataFrame(all_rows)
+    df_ear_table1 = pd.DataFrame(all_rows)
     
     # Save & display
-    st.session_state["e&r_table1_data"] = df_e&r_table1
-    st.dataframe(df_e&r_table1, use_container_width=True)
+    st.session_state["ear_table1_data"] = df_ear_table1
+    st.dataframe(df_ear_table1, use_container_width=True)
 
 
     # --- Expense & Return: Table 2: Returns ---
@@ -1736,11 +1736,11 @@ def step15_display_selected_fund():
     
     # Assemble: selected, proposed(s), then benchmark
     all_rows = [row_selected] + proposed_rows + [row_benchmark]
-    df_e&r_table2 = pd.DataFrame(all_rows)
+    df_ear_table2 = pd.DataFrame(all_rows)
     
     # Save & display
-    st.session_state["e&r_table2_data"] = df_e&r_table2
-    st.dataframe(df_e&r_table2, use_container_width=True)
+    st.session_state["ear_table2_data"] = df_ear_table2
+    st.dataframe(df_ear_table2, use_container_width=True)
 
     # --- Expense & Return: Table 3: Calendar Returns ---
     st.markdown("**Calendar Returns**")
@@ -1799,10 +1799,10 @@ def step15_display_selected_fund():
     
     # Assemble in order: selected, proposed(s), benchmark
     all_rows = [row_selected] + proposed_rows + [row_benchmark]
-    df_e&r_table3 = pd.DataFrame(all_rows, columns=["Investment Manager"] + year_cols)
+    df_ear_table3 = pd.DataFrame(all_rows, columns=["Investment Manager"] + year_cols)
     
-    st.session_state["e&r_table3_data"] = df_e&r_table3
-    st.dataframe(df_e&r_table3, use_container_width=True)
+    st.session_state["ear_table3_data"] = df_ear_table3
+    st.dataframe(df_ear_table3, use_container_width=True)
 
 
 
