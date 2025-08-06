@@ -1885,7 +1885,7 @@ def step15_display_selected_fund():
     st.session_state["raj_table2_data"] = df_raj_table2
     st.dataframe(df_raj_table2, use_container_width=True)
 
-    # --- Slide 4 Table 1 ---
+    # --- Qualitative Factors Table 1 ---
     st.markdown("**Manager Tenure**")
     blocks = st.session_state.get("fund_blocks", [])
     
@@ -1917,7 +1917,7 @@ def step15_display_selected_fund():
     st.dataframe(df_qualfact_table1, use_container_width=True)
 
     
-    # --- Slide 4 Table 2 ---
+    # --- Qualitative Factors Table 2 ---
     st.markdown("**Assets**")
     facts = st.session_state.get("fund_factsheets_data", [])
     
@@ -2394,8 +2394,6 @@ def step17_export_to_ppt():
     from pptx.util import Pt
     import pandas as pd
 
-
-
     # ───── 1) Load template ────────────────────────────────────────────────────────────
     prs = Presentation("assets/writeup&rec_templates.pptx")
 
@@ -2814,6 +2812,76 @@ def step17_export_to_ppt():
                         run.font.color.rgb = RGBColor(0, 0, 0)
 
 
+    # ───── Qualitative Factors Slide: Locate & Replace Heading ─────────────────────────
+    slide_qualitative_factors = None
+    for sl in prs.slides:
+        for shape in sl.shapes:
+            if shape.has_text_frame and "[Category]– Qualitative Factors" in shape.text_frame.text:
+                slide_qualitative_factors = sl
+                break
+        if slide_qualitative_factors:
+            break
+
+    if not slide_qualitative_factors:
+        st.warning("Couldn't find the Qualitative Factors slide.")
+    else:
+        # Replace the [Category] token in the heading
+        actual_cat = fs_rec.get("Category", "")
+        for shape in slide_qualitative_factors.shapes:
+            if not shape.has_text_frame:
+                continue
+            for para in shape.text_frame.paragraphs:
+                for run in para.runs:
+                    if "[Category]" in run.text:
+                        run.text = run.text.replace("[Category]", actual_cat)
+
+        # ───── Qualitative Factors Table 1 – Manager Tenure ─────────────────────────────
+        from copy import deepcopy
+        from pptx.util import Pt
+        from pptx.dml.color import RGBColor
+        import pandas as pd
+
+        df_q1 = st.session_state.get("qualfact_table1_data", pd.DataFrame())
+        if df_q1.empty:
+            st.warning("No Manager Tenure data found for Table 1.")
+        else:
+            # top‐left table is the first has_table shape
+            tables = [sh for sh in slide_qualitative_factors.shapes if sh.has_table]
+            table1 = tables[0].table
+            tbl_xml = table1._tbl
+
+            # add rows if needed (header row excluded)
+            existing = len(table1.rows) - 1
+            needed = len(df_q1) - existing
+            if needed > 0:
+                base_tr = tbl_xml.tr_lst[1]
+                for _ in range(needed):
+                    tbl_xml.append(deepcopy(base_tr))
+
+            # fill each row: selected fund first, then proposals
+            for r_idx, row in enumerate(df_q1.itertuples(index=False), start=1):
+                for c_idx, val in enumerate(row):
+                    cell = table1.cell(r_idx, c_idx)
+                    para = cell.text_frame.paragraphs[0]
+
+                    # get or create the run
+                    if para.runs:
+                        run = para.runs[0]
+                        run.text = val
+                    else:
+                        run = para.add_run()
+                        run.text = val
+
+                    if c_idx == 0:
+                        # Investment Manager column: preserve placeholder style
+                        continue
+                    else:
+                        # Manager Tenure column: Cambria 11pt black
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(11)
+                        run.font.color.rgb = RGBColor(0, 0, 0)
+
+    
     # ───── 6) Save & Download ───────────────────────────────────────────────────────────
     out = BytesIO()
     prs.save(out)
