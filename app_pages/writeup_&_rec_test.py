@@ -2578,7 +2578,30 @@ def step17_export_to_ppt():
     bullets = st.session_state.get("bullet_points", [])
     if not fill_bullet_points(slide1, "[Bullet Point 1]", bullets):
         st.warning("Could not find bullet points placeholder on Slide 1.")
+
+
+
+    # --- Locate the “[Category] – Expense & Return” slide ---
+    try:
+        slide2 = find_slide_by_heading(prs, "[Category] – Expense & Return")
+    except ValueError:
+        st.warning("Could not find the 'Expense & Return' slide (heading '[Category] – Expense & Return').")
+        return
     
+    # --- 1) Replace the [Category] placeholder ---
+    if not fill_text_placeholder_preserving_format(slide2, "[Category]", category):
+        st.warning("Could not find [Category] placeholder on the Expense & Return slide.")
+    
+    # --- 2) Table 1: Expense & Return details ---
+    if df_slide2_table1 is None:
+        st.warning("Slide 2 Table 1 data not found.")
+    else:
+        for shape in slide2.shapes:
+            if shape.has_table and len(shape.table.columns) == len(df_slide2_table1.columns):
+                fill_table_with_styles(shape.table, df_slide2_table1)
+                break
+
+# … followed by your Table 2 and Table 3 logic …
     
     # --- TABLE 2: RETURNS ---
     quarter_label = st.session_state.get("report_date", "QTD")
