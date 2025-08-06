@@ -2491,7 +2491,7 @@ def step17_export_to_ppt():
                 p.text = bp
                 p.level = 0
                 p.font.name = "Cambria"
-                p.font.size = Pt(12)
+                p.font.size = Pt(11)
             break
 
     # ───── 5) EXPENSE AND RETURN SLIDE: Table 1 ────────────────────────────────────────
@@ -2542,7 +2542,7 @@ def step17_export_to_ppt():
                     # if this is the Net Expense Ratio column (column index 1):
                     if c_idx == 1:
                         run.font.name = "Cambria"
-                        run.font.size = Pt(12)
+                        run.font.size = Pt(11)
                         run.font.color.rgb = RGBColor(0, 0, 0)
                     # else: leave the template’s default styling for column 0
     # ───── 9c) Expense and Return Slide: Table 2 – Returns ─────────────────────────────
@@ -2611,11 +2611,75 @@ def step17_export_to_ppt():
                     else:
                         # Other columns: Cambria 12pt black
                         run.font.name = "Cambria"
-                        run.font.size = Pt(12)
+                        run.font.size = Pt(11)
                         run.font.color.rgb = RGBColor(0, 0, 0)
                         # Only bold the benchmark row
                         run.font.bold = is_benchmark
 
+    # ───── 9d) Expense and Return Slide: Table 3 – Calendar Returns ────────────────────
+    from copy import deepcopy
+    from pptx.dml.color import RGBColor
+    from pptx.util import Pt
+    import pandas as pd
+
+    # Pull in the DataFrame you saved in Step 15
+    df3 = st.session_state.get("ear_table3_data", pd.DataFrame())
+    if df3.empty:
+        st.warning("No calendar returns data found for Table 3.")
+    else:
+        # Locate the 3rd table (under Tables 1 & 2)
+        tables = [sh for sh in slide_expense_and_return.shapes if sh.has_table]
+        if len(tables) < 3:
+            st.warning("Couldn't find Table 3 on the Expense and Return slide.")
+        else:
+            table3 = tables[2].table
+            tbl3_xml = table3._tbl
+
+            # --- 1) Update year‐header placeholders ("20__") to actual years ---
+            years = list(df3.columns[1:])  # skip "Investment Manager"
+            for col_idx, year in enumerate(years, start=1):
+                hdr_cell = table3.cell(0, col_idx)
+                p = hdr_cell.text_frame.paragraphs[0]
+                if p.runs:
+                    p.runs[0].text = year
+                else:
+                    run = p.add_run()
+                    run.text = year
+                # font/name/size/color/bold preserved from placeholder
+
+            # --- 2) Ensure enough rows (header + body) ---
+            existing = len(table3.rows) - 1  # exclude header row
+            needed = len(df3) - existing
+            if needed > 0:
+                base_tr = tbl3_xml.tr_lst[1]  # first data row as template
+                for _ in range(needed):
+                    tbl3_xml.append(deepcopy(base_tr))
+
+            # --- 3) Fill each row; bottom row (benchmark) bolds all data cols ---
+            total = len(df3)
+            for r_idx, row in enumerate(df3.itertuples(index=False), start=1):
+                is_benchmark = (r_idx == total)
+                for c_idx, val in enumerate(row):
+                    cell = table3.cell(r_idx, c_idx)
+                    p = cell.text_frame.paragraphs[0]
+                    # get or create run
+                    if p.runs:
+                        run = p.runs[0]
+                        run.text = val
+                    else:
+                        run = p.add_run()
+                        run.text = val
+
+                    if c_idx == 0:
+                        # Investment Manager col → preserve placeholder style
+                        continue
+                    else:
+                        # Calendar return cols → Cambria 11 pt black
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(11)
+                        run.font.color.rgb = RGBColor(0, 0, 0)
+                        # Bold entire benchmark row
+                        run.font.bold = is_benchmark
 
 
     # ───── 6) Save & Download ───────────────────────────────────────────────────────────
