@@ -2401,7 +2401,7 @@ def step17_export_to_ppt():
     ear_df = st.session_state.get("ear_table1_data")  # DataFrame for Expense & Return Table 1
     facts = st.session_state.get("fund_factsheets_data", [])
 
-    # ───── 3) Validate IPS data & define row_dict ────────────────────────────────────────
+    # ───── 3) Validate IPS data ──────────────────────────────────────────────────────────
     if ips_icon_table is None or ips_icon_table.empty:
         st.error("IPS screening table not found. Run earlier steps first.")
         return
@@ -2487,7 +2487,6 @@ def step17_export_to_ppt():
             break
 
     # ───── 5) EXPENSE AND RETURN SLIDE: Table 1 ────────────────────────────────────────
-
     # Locate the slide by its placeholder
     slide_expense_and_return = None
     for sl in prs.slides:
@@ -2517,18 +2516,20 @@ def step17_export_to_ppt():
                 for _ in range(needed):
                     tbl_xml.append(deepcopy(base_tr))
 
-            # Fill each DF row into the table
-            for r, row in enumerate(ear_df.itertuples(index=False), start=1):
-                for c, val in enumerate(row):
-                    cell = tbl1.cell(r, c)
-                    p = cell.text_frame.paragraphs[0]
-                    if p.runs:
-                        p.runs[0].text = val
+            # Fill each DataFrame row into the table
+            for r_idx, df_row in enumerate(ear_df.itertuples(index=False), start=1):
+                for c_idx, val in enumerate(df_row):
+                    cell = tbl1.cell(r_idx, c_idx)
+                    para = cell.text_frame.paragraphs[0]
+                    if para.runs:
+                        para.runs[0].text = val
                     else:
-                        p.add_run(val)
-                    # formatting inherited from template row
+                        # Correct way to add a run and set text
+                        run = para.add_run()
+                        run.text = val
+                    # formatting (font, size, color) is inherited from the cloned row/template
 
-    # ───── 6) Save & Download ─────────────────────────────────────────────────────────
+    # ───── 6) Save & Download ───────────────────────────────────────────────────────────
     out = BytesIO()
     prs.save(out)
     out.seek(0)
@@ -2539,7 +2540,6 @@ def step17_export_to_ppt():
         file_name=f"{selected} Writeup.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
-
 # –– Cards ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 def render_step16_and_16_5_cards(pdf):
     import streamlit as st
