@@ -608,11 +608,10 @@ def extract_proposed_scorecard_blocks(pdf):
         st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
         return pd.DataFrame()
 
-    # 1) Read all pages in the Proposed Scorecard section (not just one)
+    # Step 1: Gather lines from Proposed section (multi-page)
     section_lines = []
     for p in pdf.pages[prop_start - 1:]:
         txt = (p.extract_text() or "")
-        # stop when the next section header appears
         if re.search(r"\b(Style Box|Returns Correlation Matrix|Fund Factsheets)\b", txt, flags=re.I):
             break
         section_lines.extend([ln.strip() for ln in txt.splitlines() if ln.strip()])
@@ -621,7 +620,7 @@ def extract_proposed_scorecard_blocks(pdf):
         st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
         return pd.DataFrame()
 
-    # 2) Build candidate list from previously extracted performance data
+    # Step 2: Match against previously extracted fund performance data
     perf_data = st.session_state.get("fund_performance_data", [])
     if not perf_data:
         st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
@@ -634,27 +633,28 @@ def extract_proposed_scorecard_blocks(pdf):
         if not name:
             continue
 
-        best_score, best_line = 0, ""
+        best_score = 0
+        best_line = ""
         for line in section_lines:
-            s_name   = fuzz.token_sort_ratio(name.lower(), line.lower())
-            s_ticker = fuzz.token_sort_ratio(tk.lower(), line.lower()) if tk else 0
-            s = max(s_name, s_ticker)
-            if s > best_score:
-                best_score, best_line = s, line
+            score_name   = fuzz.token_sort_ratio(name.lower(), line.lower())
+            score_ticker = fuzz.token_sort_ratio(tk.lower(), line.lower()) if tk else 0
+            score = max(score_name, score_ticker)
+            if score > best_score:
+                best_score = score
+                best_line = line
 
-        found = best_score >= 60  # slightly looser than 70 for OCR/layout quirks
-        results.append({
-            "Fund Scorecard Name": name,
-            "Ticker": tk,
-            "Found on Proposed": "✅" if found else "❌",
-            "Match Score": best_score,
-            "Matched Line": best_line if found else ""
-        })
+        if best_score >= 70:
+            results.append({
+                "Fund Scorecard Name": name,
+                "Ticker": tk,
+                "Match Score": best_score,
+                "Matched Line": best_line
+            })
 
-    df = pd.DataFrame(results)
-    df_confirmed = df[df["Found on Proposed"] == "✅"].copy()
-    st.session_state["proposed_funds_confirmed_df"] = df_confirmed
-    return df_confirmed
+    df = pd.DataFrame(results).drop_duplicates()
+    st.session_state["proposed_funds_confirmed_df"] = df
+    return df
+
 
 
 #───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
