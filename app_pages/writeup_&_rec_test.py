@@ -2390,18 +2390,17 @@ def step17_export_to_ppt():
     from pptx.util import Pt
     from io import BytesIO
 
-    # — Load template —
+    # ───── 1) Load template ────────────────────────────────────────────────────────────
     prs = Presentation("assets/writeup&rec_templates.pptx")
 
-    # — Pull in data —
+    # ───── 2) Pull in session data ──────────────────────────────────────────────────────
     selected = st.session_state.get("selected_fund", "")
     ips_icon_table = st.session_state.get("ips_icon_table")
     facts = st.session_state.get("fund_factsheets_data", [])
     bullets = st.session_state.get("bullet_points", [])
-
     fs_rec = next((f for f in facts if f.get("Matched Fund Name") == selected), {})
 
-    # — Validate existence —
+    # ───── 3) Validate IPS data ──────────────────────────────────────────────────────────
     if ips_icon_table is None or ips_icon_table.empty:
         st.error("IPS screening table not found. Run earlier steps first.")
         return
@@ -2411,12 +2410,12 @@ def step17_export_to_ppt():
         return
     row_dict = row.iloc[0].to_dict()
 
-    # — Build values list: Category + [Time Period, Plan Assets, IPS Criteria 1–11, IPS Status] —
+    # ───── 4) Build values list ──────────────────────────────────────────────────────────
     report_date = st.session_state.get("report_date", "")
     values = [
-        fs_rec.get("Category", ""),   # Category
-        report_date,                  # Time Period
-        "$",                          # Plan Assets
+        fs_rec.get("Category", ""),  # Category
+        report_date,                 # Time Period
+        "$",                         # Plan Assets
     ]
     for i in range(1, 12):
         values.append(str(row_dict.get(f"IPS Investment Criteria {i}", "")))
@@ -2424,15 +2423,12 @@ def step17_export_to_ppt():
 
     slide = prs.slides[0]
 
-    # — 1) Replace “Fund Name” placeholder with selected fund, styled Cambria 12, bold, underlined —
-    from pptx.enum.text import PP_PARAGRAPH_ALIGNMENT
+    # ───── 5) First Slide: Replace "Fund Name" placeholder ──────────────────────────────
     for shape in slide.shapes:
         if not shape.has_text_frame:
             continue
-        txt = shape.text_frame.text
-        if "Fund Name" in txt:
-            tf = shape.text_frame
-            p = tf.paragraphs[0]
+        if "Fund Name" in shape.text_frame.text:
+            p = shape.text_frame.paragraphs[0]
             run = p.runs[0] if p.runs else p.add_run()
             run.text = selected
             run.font.name = "Cambria"
@@ -2441,7 +2437,7 @@ def step17_export_to_ppt():
             run.font.underline = True
             break
 
-    # — 2) Fill Category in row 1, col 0; other values in bottom row, Cambria 12 pt, ✔ green, ✗ red —
+    # ───── 6) First Slide: Fill table ────────────────────────────────────────────────────
     def style_run(run, text):
         run.text = text
         run.font.name = "Cambria"
@@ -2457,7 +2453,7 @@ def step17_export_to_ppt():
         return
     table = table_shape.table
 
-    # Category → row 1, col 0
+    # — Category → row 1, col 0
     cat_cell = table.cell(1, 0)
     cat_para = cat_cell.text_frame.paragraphs[0]
     if cat_para.runs:
@@ -2465,7 +2461,7 @@ def step17_export_to_ppt():
     else:
         style_run(cat_para.add_run(), values[0])
 
-    # Rest → bottom row
+    # — Other values → bottom row
     bottom = len(table.rows) - 1
     for col_idx, text in enumerate(values[1:], start=1):
         cell = table.cell(bottom, col_idx)
@@ -2475,31 +2471,47 @@ def step17_export_to_ppt():
         else:
             style_run(para.add_run(), text)
 
-    # — 3) Fill bullet‐points textbox below table —
+    # ───── 7) First Slide: Fill bullet-points textbox ───────────────────────────────────
     for shape in slide.shapes:
         if not shape.has_text_frame:
             continue
         if "[Bullet Point 1]" in shape.text_frame.text:
             tf = shape.text_frame
-            # clear placeholder
-            tf.text = ""
-            # first bullet
-            if bullets:
-                p0 = tf.paragraphs[0]
-                p0.text = bullets[0]
-                p0.level = 0
-                p0.font.name = "Cambria"
-                p0.font.size = Pt(12)
-            # remaining bullets
-            for bp in bullets[1:]:
-                p = tf.add_paragraph()
-                p.text = bp
-                p.level = 0
-                p.font.name = "Cambria"
-                p.font.size = Pt(12)
+            tf.text = ""  # clear placeholder
+
+            # Add each bullet
+            for idx, bp in enumerate(bullets):
+                para = tf.paragraphs[0] if idx == 0 else tf.add_paragraph()
+                para.text = bp
+                para.level = 0
+                para.font.name = "Cambria"
+                para.font.size = Pt(12)
             break
 
-    # — Save & offer download —
+    # ───── 8) Expense & Return Slide: Locate by placeholder ─────────────────────────────
+    slide_expense_&_return = None
+    for sl in prs.slides:
+        for shape in sl.shapes:
+            if shape.has_text_frame and "[Category] – Expense & Return" in shape.text_frame.text:
+                slide_expense_&_return = sl
+                break
+        if slide_expense_&_return:
+            break
+
+    # ───── 9) Expense & Return Slide: Replace category token ────────────────────────────
+    if slide_expense_&_return:
+        actual_cat = fs_rec.get("Category", "")
+        for shape in slide_expense_&_return.shapes:
+            if not shape.has_text_frame:
+                continue
+            for para in shape.text_frame.paragraphs:
+                for run in para.runs:
+                    if "[Category]" in run.text:
+                        run.text = run.text.replace("[Category]", actual_cat)
+    else:
+        st.warning("Couldn't find the Expense & Return slide.")
+
+    # ───── 10) Save & Download ───────────────────────────────────────────────────────────
     out = BytesIO()
     prs.save(out)
     out.seek(0)
