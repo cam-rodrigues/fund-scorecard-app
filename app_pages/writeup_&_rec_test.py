@@ -2960,6 +2960,52 @@ def step17_export_to_ppt():
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
                         run.font.color.rgb = RGBColor(0, 0, 0)
+    # ───── Replacement Slides: clone & personalize ─────────────────────────────────
+    from copy import deepcopy
+
+    def clone_slide(pres, slide):
+        """
+        Clone a slide by copying its layout and all its shapes.
+        """
+        layout = slide.slide_layout
+        new_slide = pres.slides.add_slide(layout)
+        for shape in slide.shapes:
+            el = shape.element
+            new_slide.shapes._spTree.insert_element_before(deepcopy(el), 'p:extLst')
+        return new_slide
+
+    # Gather proposal fund names
+    confirmed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    proposal_names = (
+        confirmed_df["Fund Scorecard Name"]
+        .dropna()
+        .unique()
+        .tolist()
+    )
+
+    # Find the original slide containing "[Replacement]" in its heading
+    slide_replacement = None
+    for sl in prs.slides:
+        for shape in sl.shapes:
+            if shape.has_text_frame and "[Replacement]" in shape.text_frame.text:
+                slide_replacement = sl
+                break
+        if slide_replacement:
+            break
+
+    if slide_replacement and proposal_names:
+        # For each proposal fund, clone and replace the placeholder
+        for pf in proposal_names:
+            new_sl = clone_slide(prs, slide_replacement)
+            for shape in new_sl.shapes:
+                if not shape.has_text_frame:
+                    continue
+                for para in shape.text_frame.paragraphs:
+                    for run in para.runs:
+                        if "[Replacement]" in run.text:
+                            run.text = run.text.replace("[Replacement]", pf)
+    else:
+        st.warning("No slide with [Replacement] found or no proposal funds to insert.")
 
     
     # ───── 6) Save & Download ───────────────────────────────────────────────────────────
