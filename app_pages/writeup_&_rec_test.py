@@ -444,6 +444,69 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
 
 #───Side-by-side Info Card Helpers──────────────────────────────────────────────────────
 
+def _shared_cards_css():
+    return """
+    <style>
+      /* Card shell */
+      .fid-card {
+        background: linear-gradient(120deg, #e6f0fb 84%, #cfe4f8 100%);
+        color: #23395d;
+        border-radius: 1.25rem;
+        box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
+        border: 1.2px solid #b5d0eb;
+        padding: 1.1rem 1.6rem;
+        margin: 0 0 1.1rem 0;
+      }
+      .fid-card h4 {
+        margin: 0 0 .45rem 0;
+        font-weight: 700;
+        font-size: 1.08rem;
+        color: #223d63;
+        letter-spacing: -.2px;
+      }
+      .fid-card .sub {
+        font-size: .98rem;
+        color: #2b4770;
+        margin: 0 0 .6rem 0;
+      }
+
+      /* Tables */
+      table.fid-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+        font-size: .98rem;
+      }
+      table.fid-table th, table.fid-table td {
+        border: none;
+        padding: .42rem .9rem;
+        text-align: left;
+      }
+      table.fid-table th {
+        background: #244369;
+        color: #fff;
+        font-weight: 700;
+        letter-spacing: .01em;
+      }
+      table.fid-table tr:nth-child(even) { background: #e9f2fc; }
+      table.fid-table tr:nth-child(odd)  { background: #f8fafc; }
+
+      /* Column alignment helpers */
+      .center { text-align: center; }
+      .ticker  { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; letter-spacing: .2px; }
+
+      /* Watch badges (in-table values or summary blocks) */
+      .badge-nw { background:#d6f5df; color:#217a3e; border-radius:.5rem; padding:.15rem .5rem; font-weight:600; }
+      .badge-iw { background:#fff3cd; color:#B87333; border-radius:.5rem; padding:.15rem .5rem; font-weight:600; }
+      .badge-fw { background:#f8d7da; color:#c30000; border-radius:.5rem; padding:.15rem .5rem; font-weight:600; }
+
+      /* Narrow tweaks for Proposed table: center ticker column */
+      table.proposed-fund-table td:nth-child(2),
+      table.proposed-fund-table th:nth-child(2) { text-align:center; }
+      table.proposed-fund-table td:nth-child(2) { font-family: ui-monospace, monospace; letter-spacing:.2px; }
+    </style>
+    """
+
 def get_ips_fail_card_html():
     df = st.session_state.get("ips_icon_table")
     if df is None or df.empty:
@@ -451,139 +514,56 @@ def get_ips_fail_card_html():
     fail_df = df[df["IPS Watch Status"].isin(["FW", "IW"])][["Fund Name", "IPS Watch Status"]]
     if fail_df.empty:
         return "", ""
-    table_html = fail_df.rename(columns={
-        "Fund Name": "Fund",
-        "IPS Watch Status": "Watch Status"
-    }).to_html(index=False, border=0, justify="center", classes="ips-fail-table")
+
+    # Map status to a colored badge label
+    def badge(s):
+        if s == "FW": return '<span class="badge-fw">FW</span>'
+        if s == "IW": return '<span class="badge-iw">IW</span>'
+        return s
+
+    display = fail_df.rename(columns={"Fund Name": "Fund", "IPS Watch Status": "Watch Status"}).copy()
+    display["Watch Status"] = display["Watch Status"].map(badge)
+
+    table_html = display.to_html(index=False, border=0, justify="center",
+                                 classes="fid-table ips-fail-table",
+                                 escape=False)
+
     card_html = f"""
-    <div style='
-        background: linear-gradient(120deg, #e6f0fb 85%, #c8e0f6 100%);
-        color: #23395d;
-        border-radius: 1.3rem;
-        box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
-        padding: 1.6rem 2.0rem 1.6rem 2.0rem;
-        border: 1.5px solid #b5d0eb;
-        font-size:1rem;
-        max-width:100%;
-        margin-bottom:1.2rem;
-    '>
-        <div style='font-weight:700; color:#23395d; font-size:1.15rem; margin-bottom:0.5rem; letter-spacing:-0.5px;'>
-            Funds on Watch
-        </div>
-        <div style='font-size:1rem; margin-bottom:1rem; color:#23395d;'>
-            The following funds failed five or more IPS criteria and are currently on watch.
-        </div>
+      <div class="fid-card">
+        <h4>Funds on Watch</h4>
+        <div class="sub">The following funds failed five or more IPS criteria and are currently on watch.</div>
         {table_html}
-    </div>
+      </div>
     """
-    css = """
-    <style>
-    .ips-fail-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 0.7em;
-        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-    }
-    .ips-fail-table th, .ips-fail-table td {
-        border: none;
-        padding: 0.48em 1.1em;
-        text-align: left;
-        font-size: 1.07em;
-    }
-    .ips-fail-table th {
-        background: #244369;
-        color: #fff;
-        font-weight: 700;
-        letter-spacing: 0.01em;
-    }
-    .ips-fail-table td {
-        color: #244369;
-    }
-    .ips-fail-table tr:nth-child(even) {background: #e6f0fb;}
-    .ips-fail-table tr:nth-child(odd)  {background: #f8fafc;}
-    </style>
-    """
-    return card_html, css
+    return card_html, _shared_cards_css()
 
 def get_proposed_fund_card_html():
     df = st.session_state.get("proposed_funds_confirmed_df")
     if df is None or df.empty:
-        card_html = f"""
-        <div style='
-            background: linear-gradient(120deg, #e6f0fb 85%, #c8e0f6 100%);
-            color: #23395d;
-            border-radius: 1.3rem;
-            box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
-            padding: 1.6rem 2.0rem;
-            border: 1.5px solid #b5d0eb;
-            font-size:1rem;
-            max-width:100%;
-            margin-bottom:1.2rem;
-        '>
-            <div style='font-weight:700; color:#23395d; font-size:1.15rem; margin-bottom:0.5rem; letter-spacing:-0.5px;'>
-                Confirmed Proposed Funds
-            </div>
-            <div style='font-size:1rem; margin-bottom:1rem; color:#23395d;'>
-                No confirmed proposed funds were found on the Proposed Funds scorecard page.
-            </div>
-        </div>
+        card_html = """
+          <div class="fid-card">
+            <h4>Confirmed Proposed Funds</h4>
+            <div class="sub">No confirmed proposed funds were found on the Proposed Funds scorecard pages.</div>
+          </div>
         """
-        css = ""
-        return card_html, css
+        return card_html, _shared_cards_css()
 
-    display_df = df[["Fund Scorecard Name", "Ticker"]].rename(columns={
-        "Fund Scorecard Name": "Fund",
-    })
-    table_html = display_df.to_html(index=False, border=0, justify="center", classes="proposed-fund-table")
+    display_df = df[["Fund Scorecard Name", "Ticker"]].rename(
+        columns={"Fund Scorecard Name": "Fund"}
+    ).drop_duplicates()
+
+    table_html = display_df.to_html(index=False, border=0, justify="center",
+                                    classes="fid-table proposed-fund-table",
+                                    escape=True)
+
     card_html = f"""
-    <div style='
-        background: linear-gradient(120deg, #e6f0fb 85%, #c8e0f6 100%);
-        color: #23395d;
-        border-radius: 1.3rem;
-        box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
-        padding: 1.6rem 2.0rem;
-        border: 1.5px solid #b5d0eb;
-        font-size:1rem;
-        max-width:100%;
-        margin-bottom:1.2rem;
-    '>
-        <div style='font-weight:700; color:#23395d; font-size:1.15rem; margin-bottom:0.5rem; letter-spacing:-0.5px;'>
-            Confirmed Proposed Funds
-        </div>
-        <div style='font-size:1rem; margin-bottom:1rem; color:#23395d;'>
-            The following funds were identified on the Proposed Funds scorecard page.
-        </div>
+      <div class="fid-card">
+        <h4>Confirmed Proposed Funds</h4>
+        <div class="sub">The following funds were identified on the Proposed Funds scorecard pages.</div>
         {table_html}
-    </div>
+      </div>
     """
-    css = """
-    <style>
-    .proposed-fund-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 0.7em;
-        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-    }
-    .proposed-fund-table th, .proposed-fund-table td {
-        border: none;
-        padding: 0.48em 1.1em;
-        text-align: left;
-        font-size: 1em;
-    }
-    .proposed-fund-table th {
-        background: #244369;
-        color: #fff;
-        font-weight: 700;
-        letter-spacing: 0.01em;
-    }
-    .proposed-fund-table td {
-        color: #23395d;
-    }
-    .proposed-fund-table tr:nth-child(even) {background: #e6f0fb;}
-    .proposed-fund-table tr:nth-child(odd)  {background: #f8fafc;}
-    </style>
-    """
-    return card_html, css
+    return card_html, _shared_cards_css()
 
 def get_watch_summary_card_html():
     df = st.session_state.get("ips_icon_table")
@@ -595,84 +575,87 @@ def get_watch_summary_card_html():
         "Informal Watch": counts.get("IW", 0),
         "Formal Watch": counts.get("FW", 0),
     }
+
     card_html = f"""
-    <div style="
-        background: linear-gradient(120deg, #e6f0fb 82%, #d0ebfa 100%);
-        color: #244369;
-        border-radius: 1.2rem;
-        box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
-        padding: 1.3rem 2rem 1.1rem 2rem;
-        margin-bottom: 2rem;
-        font-size: 1.07rem;
-        border: 1.2px solid #b5d0eb;
-        max-width: 520px;
-    ">
-      <div style="font-size:1.13rem; font-weight:700; color:#223d63; margin-bottom:0.7rem;">
-        Watch Summary
-      </div>
-      <div style="display:flex; gap:1.5rem; align-items:center; justify-content: flex-start; margin-bottom:0.3rem;">
-        <div style="background:#d6f5df; color:#217a3e; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
-            No Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["No Watch"]}</span>
-        </div>
-        <div style="background:#fff3cd; color:#B87333; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
-            Informal Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["Informal Watch"]}</span>
-        </div>
-        <div style="background:#f8d7da; color:#c30000; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
-            Formal Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["Formal Watch"]}</span>
+      <div class="fid-card" style="max-width:540px;">
+        <h4>Watch Summary</h4>
+        <div style="display:flex; gap:1rem; align-items:stretch; margin-top:.2rem;">
+          <div class="badge-nw" style="flex:1; text-align:center;">
+            No Watch<br><span style="font-size:1.35rem; font-weight:800;">{summary["No Watch"]}</span>
+          </div>
+          <div class="badge-iw" style="flex:1; text-align:center;">
+            Informal Watch<br><span style="font-size:1.35rem; font-weight:800;">{summary["Informal Watch"]}</span>
+          </div>
+          <div class="badge-fw" style="flex:1; text-align:center;">
+            Formal Watch<br><span style="font-size:1.35rem; font-weight:800;">{summary["Formal Watch"]}</span>
+          </div>
         </div>
       </div>
-    </div>
     """
-    css = ""
-    return card_html, css
+    return card_html, _shared_cards_css()
+
 
 #───Proposed Funds Extraction──────────────────────────────────────────────────────────────────
 
 def extract_proposed_scorecard_blocks(pdf):
-    prop_page = st.session_state.get("scorecard_proposed_page")
-    if not prop_page:
+    import re
+    import pandas as pd
+    import streamlit as st
+    from rapidfuzz import fuzz
+
+    prop_start = st.session_state.get("scorecard_proposed_page")
+    if not prop_start:
         st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
         return pd.DataFrame()
-    page = pdf.pages[prop_page - 1]
-    lines = [ln.strip() for ln in (page.extract_text() or "").splitlines() if ln.strip()]
-    if not lines:
+
+    # Step 1: Gather lines from Proposed section (multi-page)
+    section_lines = []
+    for p in pdf.pages[prop_start - 1:]:
+        txt = (p.extract_text() or "")
+        if re.search(r"\b(Style Box|Returns Correlation Matrix|Fund Factsheets)\b", txt, flags=re.I):
+            break
+        section_lines.extend([ln.strip() for ln in txt.splitlines() if ln.strip()])
+
+    if not section_lines:
         st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
         return pd.DataFrame()
+
+    # Step 2: Match against previously extracted fund performance data
     perf_data = st.session_state.get("fund_performance_data", [])
     if not perf_data:
         st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
         return pd.DataFrame()
-    candidate_funds = []
-    for item in perf_data:
-        name = item.get("Fund Scorecard Name", "").strip()
-        ticker = item.get("Ticker", "").strip().upper()
-        if name:
-            candidate_funds.append({"Fund Scorecard Name": name, "Ticker": ticker})
+
     results = []
-    for fund in candidate_funds:
-        name = fund["Fund Scorecard Name"]
-        ticker = fund["Ticker"]
+    for item in perf_data:
+        name = (item.get("Fund Scorecard Name") or "").strip()
+        tk   = (item.get("Ticker") or "").strip().upper()
+        if not name:
+            continue
+
         best_score = 0
         best_line = ""
-        for line in lines:
-            score_name = fuzz.token_sort_ratio(name.lower(), line.lower())
-            score_ticker = fuzz.token_sort_ratio(ticker.lower(), line.lower()) if ticker else 0
+        for line in section_lines:
+            score_name   = fuzz.token_sort_ratio(name.lower(), line.lower())
+            score_ticker = fuzz.token_sort_ratio(tk.lower(), line.lower()) if tk else 0
             score = max(score_name, score_ticker)
             if score > best_score:
                 best_score = score
                 best_line = line
-        found = best_score >= 70
-        results.append({
-            "Fund Scorecard Name": name,
-            "Ticker": ticker,
-            "Found on Proposed": "✅" if found else "❌",
-            "Match Score": best_score,
-            "Matched Line": best_line if found else ""
-        })
-    df = pd.DataFrame(results)
-    df_confirmed = df[df["Found on Proposed"] == "✅"].copy()
-    st.session_state["proposed_funds_confirmed_df"] = df_confirmed
-    return df_confirmed
+
+        if best_score >= 70:
+            results.append({
+                "Fund Scorecard Name": name,
+                "Ticker": tk,
+                "Match Score": best_score,
+                "Matched Line": best_line
+            })
+
+    df = pd.DataFrame(results).drop_duplicates()
+    st.session_state["proposed_funds_confirmed_df"] = df
+    return df
+
+
 
 #───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
 
@@ -873,71 +856,100 @@ def step7_extract_returns(pdf):
 
 def step8_calendar_returns(pdf):
     import re, streamlit as st, pandas as pd
+    from rapidfuzz import fuzz
 
-    # 1) Figure out section bounds
-    cy_page  = st.session_state.get("calendar_year_page")
-    end_page = st.session_state.get("r3yr_page", len(pdf.pages) + 1)
+    # 1) Section bounds
+    cy_page = st.session_state.get("calendar_year_page")
     if cy_page is None:
         st.error("❌ 'Fund Performance: Calendar Year' not found in TOC.")
         return
 
-    # 2) Pull every line from that section
+    next_page = st.session_state.get("r3yr_page")  # may be None
+    # Fallback to end-of-PDF when missing, and ensure we scan at least one page
+    end_page = next_page if isinstance(next_page, int) else (len(pdf.pages) + 1)
+    end_page = max(end_page, cy_page + 1)
+    end_page = min(end_page, len(pdf.pages) + 1)
+
+    # 2) Pull lines in section
     all_lines = []
-    for p in pdf.pages[cy_page-1 : end_page-1]:
+    for p in pdf.pages[cy_page - 1 : end_page - 1]:
         all_lines.extend((p.extract_text() or "").splitlines())
 
     # 3) Identify header & years
-    header = next((ln for ln in all_lines if "Ticker" in ln and re.search(r"20\d{2}", ln)), None)
+    header = next((ln for ln in all_lines if "Ticker" in ln and re.search(r"\b20\d{2}\b", ln)), None)
     if not header:
         st.error("❌ Couldn’t find header row with 'Ticker' + year.")
         return
     years = re.findall(r"\b20\d{2}\b", header)
     num_rx = re.compile(r"-?\d+\.\d+%?")
 
-    # — A) Funds themselves —
-    fund_map     = st.session_state.get("tickers", {})
+    # — A) Funds —
+    fund_map = st.session_state.get("tickers", {}) or {}
     fund_records = []
     for name, tk in fund_map.items():
         ticker = (tk or "").upper()
-        idx    = next((i for i, ln in enumerate(all_lines) if ticker in ln.split()), None)
-        raw    = num_rx.findall(all_lines[idx-1]) if idx not in (None, 0) else []
-        vals   = raw[:len(years)] + [None] * (len(years) - len(raw))
-        rec    = {"Name": name, "Ticker": ticker}
+        # robust ticker search (word-boundary)
+        idx = next(
+            (i for i, ln in enumerate(all_lines)
+             if re.search(rf"\b{re.escape(ticker)}\b", ln)),
+            None
+        )
+        # numbers typically appear on the line above the ticker row
+        raw = num_rx.findall(all_lines[idx - 1]) if idx not in (None, 0) else []
+        vals = raw[:len(years)] + [None] * (len(years) - len(raw))
+
+        if idx is None:
+            st.warning(f"⚠️ Calendar-year table: no ticker row found for {name} ({ticker}).")
+
+        rec = {"Name": name, "Ticker": ticker}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         fund_records.append(rec)
 
     df_fund = pd.DataFrame(fund_records)
     if not df_fund.empty:
-        st.markdown("**Fund Calendar‑Year Returns**")
+        st.markdown("**Fund Calendar-Year Returns**")
         st.dataframe(df_fund[["Name", "Ticker"] + years], use_container_width=True)
         st.session_state["step8_returns"] = fund_records
 
-    # — B) Benchmarks matched back to each fund’s ticker —
-    facts         = st.session_state.get("fund_factsheets_data", [])
+    # — B) Benchmarks per fund —
+    facts = st.session_state.get("fund_factsheets_data", []) or []
     bench_records = []
     for f in facts:
-        bench_name = f.get("Benchmark", "").strip()
-        fund_tkr   = f.get("Matched Ticker", "")
+        bench_name = (f.get("Benchmark") or "").strip()
+        fund_tkr   = (f.get("Matched Ticker") or "").upper()
         if not bench_name:
             continue
 
-        # find the first line containing the benchmark name
+        # exact contains
         idx = next((i for i, ln in enumerate(all_lines) if bench_name in ln), None)
         if idx is None:
+            # fuzzy fallback (loose threshold)
+            best = max(
+                ((i, fuzz.token_set_ratio(bench_name.lower(), ln.lower()))
+                 for i, ln in enumerate(all_lines)),
+                key=lambda x: x[1],
+                default=(None, 0)
+            )
+            idx = best[0] if best[1] >= 70 else None
+
+        if idx is None:
+            st.warning(f"⚠️ Calendar-year benchmark row not found for: {bench_name} ({fund_tkr}).")
             continue
-        raw  = num_rx.findall(all_lines[idx])
+
+        raw = num_rx.findall(all_lines[idx])
         vals = raw[:len(years)] + [None] * (len(years) - len(raw))
-        rec  = {"Name": bench_name, "Ticker": fund_tkr}
+        rec = {"Name": bench_name, "Ticker": fund_tkr}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         bench_records.append(rec)
 
     df_bench = pd.DataFrame(bench_records)
     if not df_bench.empty:
-        st.markdown("**Benchmark Calendar‑Year Returns**")
+        st.markdown("**Benchmark Calendar-Year Returns**")
         st.dataframe(df_bench[["Name", "Ticker"] + years], use_container_width=True)
         st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
         st.warning("No benchmark returns extracted.")
+
 
 #───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
 
