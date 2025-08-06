@@ -2730,9 +2730,11 @@ def step17_export_to_ppt():
                 st.warning(f"No overview paragraph found to insert for proposed fund '{second_label}'.")
 
     # --- Fill Slide 3 ---
-    slide3 = prs.slides[4 if len(proposed) > 1 else 3]
+    # --- Fill “Expense & Return” (Slide 3) ---
+    slide3 = prs.slides[2]
     if not fill_text_placeholder_preserving_format(slide3, "[Category]", category):
         st.warning("Could not find [Category] placeholder on Slide 3.")
+
     df_slide3_table1 = st.session_state.get("slide3_table1_data")
     df_slide3_table2 = st.session_state.get("slide3_table2_data")
     if df_slide3_table1 is None or df_slide3_table2 is None:
@@ -2747,8 +2749,10 @@ def step17_export_to_ppt():
                 fill_table_with_styles(tables[1], df_slide3_table2)
 
     # --- Fill Slide 4 ---
-    slide4_index = 5 if len(proposed) > 1 else 4
-    slide4 = prs.slides[slide4_index]
+    # --- Fill “Risk-Adjusted Statistics” (Slide 4) ---
+    slide4 = prs.slides[3]
+    if not fill_text_placeholder_preserving_format(slide4, "[Category]", category):
+        st.warning("Could not find [Category] placeholder on Slide 4.")
     qualitative_placeholder = f"[Category]– Qualitative Factors"
     qualitative_replacement = f"{category} - Qualitative Factors"
     if not fill_text_placeholder_preserving_format(slide4, qualitative_placeholder, qualitative_replacement):
@@ -2766,6 +2770,14 @@ def step17_export_to_ppt():
                 fill_table_with_styles(shape.table, df_slide4_table2)
                 break
 
+    # --- Fill “Qualitative Factors” (Slide 5) ---
+    slide5 = prs.slides[4]
+    qualitative_placeholder = "[Category]– Qualitative Factors"
+    qualitative_replacement = f"{category} – Qualitative Factors"
+    if not fill_text_placeholder_preserving_format(slide5, qualitative_placeholder, qualitative_replacement):
+        st.warning(f"Could not find placeholder '{qualitati
+
+                                              
     # --- Save and offer download (clean UI) ---
     output = BytesIO()
     prs.save(output)
