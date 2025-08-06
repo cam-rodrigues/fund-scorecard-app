@@ -674,8 +674,9 @@ def get_ips_fail_card_html():
     """
     return card_html, _shared_cards_css()
 
-def get_proposed_fund_card_html():
+def get_proposed_fund_card_html(*, only_with_tickers=True, min_score=74):
     df = st.session_state.get("proposed_funds_confirmed_df")
+
     if df is None or df.empty:
         card_html = """
           <div class="fid-card">
@@ -685,13 +686,46 @@ def get_proposed_fund_card_html():
         """
         return card_html, _shared_cards_css()
 
-    display_df = df[["Fund Scorecard Name", "Ticker"]].rename(
-        columns={"Fund Scorecard Name": "Fund"}
-    ).drop_duplicates()
+    df = df.copy()
 
-    table_html = display_df.to_html(index=False, border=0, justify="center",
-                                    classes="fid-table proposed-fund-table",
-                                    escape=True)
+    # 1) Keep only rows we know came from Proposed sections
+    if "Proposed Section Start Page" in df.columns:
+        df = df[df["Proposed Section Start Page"].notna()]
+
+    # 2) Enforce a minimum fuzzy match score, if available
+    if "Match Score" in df.columns and min_score is not None:
+        df = df[df["Match Score"] >= min_score]
+
+    # 3) Require a ticker (optional but helps avoid noisy name-only matches)
+    if only_with_tickers and "Ticker" in df.columns:
+        df = df[df["Ticker"].astype(str).str.len() > 0]
+
+    # 4) Final columns, sort, and de-dupe
+    cols = [c for c in ["Fund Scorecard Name", "Ticker"] if c in df.columns]
+    if not cols:
+        # Fallback if columns got renamed upstream
+        cols = df.columns[:2].tolist()
+    display_df = (
+        df[cols]
+        .rename(columns={"Fund Scorecard Name": "Fund"})
+        .drop_duplicates()
+        .sort_values(by=["Fund", "Ticker"], kind="stable")
+    )
+
+    if display_df.empty:
+        card_html = """
+          <div class="fid-card">
+            <h4>Confirmed Proposed Funds</h4>
+            <div class="sub">No confirmed proposed funds were found on the Proposed Funds scorecard pages.</div>
+          </div>
+        """
+        return card_html, _shared_cards_css()
+
+    table_html = display_df.to_html(
+        index=False, border=0, justify="center",
+        classes="fid-table proposed-fund-table",
+        escape=True
+    )
 
     card_html = f"""
       <div class="fid-card">
@@ -701,6 +735,7 @@ def get_proposed_fund_card_html():
       </div>
     """
     return card_html, _shared_cards_css()
+
 
 def get_watch_summary_card_html():
     df = st.session_state.get("ips_icon_table")
