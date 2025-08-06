@@ -2493,14 +2493,22 @@ def step17_export_to_ppt():
             break
 
     # ───── Replacement Slides: clone & personalize ──────────────────────────────
-    from copy import deepcopy
-    from pptx.enum.shapes import PP_PLACEHOLDER
+    # ───── 3) Replacement Slides logic ──────────────────────────────────────────────
 
-    placeholder    = "[Replacement]"
-    confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    # 3a) Build initial proposal_names from confirmed_df
     proposal_names = confirmed_df["Fund Scorecard Name"].dropna().unique().tolist()
 
-    # 1) Find the template slide and its index
+    # 3b) **Fallback**: if that list is empty, read them from your ear_table1_data
+    if not proposal_names:
+        ear_df = st.session_state.get("ear_table1_data", pd.DataFrame())
+        if not ear_df.empty and "Investment Manager" in ear_df.columns:
+            proposal_names = [
+                nm.split(" (")[0]
+                for nm in ear_df["Investment Manager"].iloc[1:]
+            ]
+
+    # 3c) Find the single [Replacement] slide
+    placeholder    = "[Replacement]"
     template_idx   = None
     template_slide = None
     for idx, sl in enumerate(prs.slides):
@@ -2512,45 +2520,38 @@ def step17_export_to_ppt():
         if template_slide:
             break
 
-    if not template_slide or not proposal_names:
-        st.warning("No [Replacement] slide or no proposal funds.")
-    else:
-        # Helper to clone a slide’s XML
-        def duplicate_slide(presentation, src_slide):
-            new = presentation.slides.add_slide(src_slide.slide_layout)
-            for shp in src_slide.shapes:
-                new.shapes._spTree.insert_element_before(deepcopy(shp.element), 'p:extLst')
+    if template_slide and proposal_names:
+        # Helper to clone a slide
+        def duplicate_slide(pres, src):
+            new = pres.slides.add_slide(src.slide_layout)
+            for shp in src.shapes:
+                new.shapes._spTree.insert_element_before(deepcopy(shp.element), "p:extLst")
             return new
 
-        # Helper to set the title placeholder text
-        def set_slide_title(slide, text):
-            title_shp = next(
-                (sh for sh in slide.shapes
-                 if sh.is_placeholder and sh.placeholder_format.type == PP_PLACEHOLDER),
-                None
-            )
-            if title_shp:
-                tf = title_shp.text_frame
-                tf.clear()
-                p = tf.paragraphs[0]
-                run = p.add_run()
-                run.text = text
+        # Helper to update just the heading run
+        def update_replacement_heading(sl, fund_name):
+            for shape in sl.shapes:
+                if not shape.has_text_frame: continue
+                for para in shape.text_frame.paragraphs:
+                    for run in para.runs:
+                        txt = run.text or ""
+                        if placeholder in txt:
+                            run.text = txt.replace(placeholder, fund_name)
+                            return
 
-        # 2) Overwrite the original slide’s title with the first fund
-        first_pf = proposal_names[0]
-        set_slide_title(template_slide, first_pf)
+        # 3d) Overwrite original slide for first proposal
+        update_replacement_heading(template_slide, proposal_names[0])
 
-        # 3) Clone & personalize for each additional fund
+        # 3e) Clone + personalize for each additional proposal, right after slide 1
+        sldIdLst = prs.slides._sldIdLst
         for offset, pf in enumerate(proposal_names[1:], start=1):
-            # a) Clone the slide
             new_sl = duplicate_slide(prs, template_slide)
-            # b) Move it to immediately after slide 1
-            sldIds = prs.slides._sldIdLst
-            new_id  = sldIds[-1]
-            sldIds.remove(new_id)
-            sldIds.insert(1 + offset, new_id)
-            # c) Set its title to this fund’s name
-            set_slide_title(new_sl, pf)
+            new_id = sldIdLst[-1]
+            sldIdLst.remove(new_id)
+            sldIdLst.insert(1 + offset, new_id)
+            update_replacement_heading(new_sl, pf)
+    else:
+        st.warning("No [Replacement] slide found or no proposal funds.")
 
 
 
