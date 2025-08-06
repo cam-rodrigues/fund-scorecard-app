@@ -2604,13 +2604,16 @@ def step17_export_to_ppt():
 # … followed by your Table 2 and Table 3 logic …
     
     # --- TABLE 2: RETURNS ---
+    # (requires: from copy import deepcopy)
     quarter_label = st.session_state.get("report_date", "QTD")
+    
     if df_slide2_table2 is None:
         st.warning("Slide 2 Table 2 data not found.")
     else:
         for shape in slide2.shapes:
             if not (shape.has_table and len(shape.table.columns) == len(df_slide2_table2.columns)):
                 continue
+    
             table = shape.table
             tbl_elm = table._tbl
     
@@ -2629,7 +2632,7 @@ def step17_export_to_ppt():
                     "align": cell.text_frame.paragraphs[0].alignment
                 })
     
-            # 3) replace header cell (0,1) with quarter_label
+            # 3) replace placeholder in header cell (0,1) with quarter_label
             if quarter_label:
                 hdr_cell = table.cell(0, 1)
                 hdr_cell.text = ""
@@ -2641,37 +2644,34 @@ def step17_export_to_ppt():
                 run.font.size = header_styles[1]["size"]
                 run.font.color.rgb = header_styles[1]["color"]
     
-            # 4) wipe out all body rows (leave header only)
-            #    remove index 1 until there's only one row
+            # 4) remove all existing body rows (keep header only)
             while len(tbl_elm.tr_lst) > 1:
                 tbl_elm.remove(tbl_elm.tr_lst[1])
     
-            # 5) split out funds vs benchmark
+            # 5) split DataFrame into proposal-fund rows and benchmark row
             df_funds = df_slide2_table2.iloc[:-1]
             df_bench = df_slide2_table2.iloc[-1]
     
-            # 6) insert one cloned fund row for each proposal fund at position 1
+            # 6) insert one cloned fund row per proposal fund at position 1
             for fund_vals in df_funds.values:
                 new_tr = deepcopy(header_tr)
                 tbl_elm.insert(1, new_tr)
     
-            # 7) append the bench template at bottom
+            # 7) append the bench template at the bottom
             tbl_elm.append(bench_tr_template)
     
-            # 8) now fill in fund rows (rows 1…n)
+            # 8) fill in proposal-fund rows (rows 1…n)
             for row_idx, fund_vals in enumerate(df_funds.values, start=1):
                 row = table.rows[row_idx]
                 for col_idx, val in enumerate(fund_vals):
-                    cell = row.cells[col_idx]
-                    cell.text = str(val)
+                    row.cells[col_idx].text = str(val)
     
-            # 9) fill in the benchmark row at the very end
-            bench_row = table.rows[len(table.rows) - 1]
+            # 9) fill in the benchmark row (last row)
+            bench_row = table.rows[-1]
             for col_idx, val in enumerate(df_bench):
-                cell = bench_row.cells[col_idx]
-                cell.text = str(val)
+                bench_row.cells[col_idx].text = str(val)
     
-            # 10) final styling pass
+            # 10) apply your style helper to center, bold the bottom row, etc.
             fill_table_with_styles(
                 table,
                 df_slide2_table2,
@@ -2681,12 +2681,14 @@ def step17_export_to_ppt():
     
     
     # --- TABLE 3: CALENDAR YEAR RETURNS ---
+    # (requires: from copy import deepcopy)
     if df_slide2_table3 is None:
         st.warning("Slide 2 Table 3 data not found.")
     else:
         for shape in slide2.shapes:
             if not (shape.has_table and len(shape.table.columns) == len(df_slide2_table3.columns)):
                 continue
+    
             table = shape.table
             tbl_elm = table._tbl
     
@@ -2705,7 +2707,7 @@ def step17_export_to_ppt():
                     "align": cell.text_frame.paragraphs[0].alignment
                 })
     
-            # 3) replace “20__” placeholders with actual year headers
+            # 3) replace all "20__" headers with actual year labels
             for col_idx, year in enumerate(df_slide2_table3.columns):
                 cell = table.cell(0, col_idx)
                 cell.text = ""
@@ -2717,42 +2719,41 @@ def step17_export_to_ppt():
                 run.font.size = header_styles[col_idx]["size"]
                 run.font.color.rgb = header_styles[col_idx]["color"]
     
-            # 4) wipe out all body rows
+            # 4) remove all existing body rows (keep header only)
             while len(tbl_elm.tr_lst) > 1:
                 tbl_elm.remove(tbl_elm.tr_lst[1])
     
-            # 5) split funds vs benchmark
+            # 5) split DataFrame into proposal-fund rows and benchmark row
             df_funds = df_slide2_table3.iloc[:-1]
             df_bench = df_slide2_table3.iloc[-1]
     
-            # 6) insert fund rows
+            # 6) insert one cloned fund row per proposal fund at position 1
             for fund_vals in df_funds.values:
                 new_tr = deepcopy(header_tr)
                 tbl_elm.insert(1, new_tr)
     
-            # 7) append the bench template
+            # 7) append the bench template at the bottom
             tbl_elm.append(bench_tr_template)
     
-            # 8) fill fund rows
+            # 8) fill in proposal-fund rows (rows 1…n)
             for row_idx, fund_vals in enumerate(df_funds.values, start=1):
                 row = table.rows[row_idx]
                 for col_idx, val in enumerate(fund_vals):
-                    cell = row.cells[col_idx]
-                    cell.text = str(val)
+                    row.cells[col_idx].text = str(val)
     
-            # 9) fill benchmark row
-            bench_row = table.rows[len(table.rows) - 1]
+            # 9) fill in the benchmark row (last row)
+            bench_row = table.rows[-1]
             for col_idx, val in enumerate(df_bench):
-                cell = bench_row.cells[col_idx]
-                cell.text = str(val)
+                bench_row.cells[col_idx].text = str(val)
     
-            # 10) final styling pass
+            # 10) apply your style helper to center, bold the bottom row, etc.
             fill_table_with_styles(
                 table,
                 df_slide2_table3,
                 bold_row_idx=len(df_slide2_table3) - 1
             )
             break
+    
 
 
 
