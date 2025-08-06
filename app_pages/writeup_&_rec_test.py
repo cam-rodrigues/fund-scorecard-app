@@ -1846,7 +1846,7 @@ def step15_display_selected_fund():
     st.session_state["raj_table1_data"] = df_raj_table1
     st.dataframe(df_raj_table1, use_container_width=True)
 
-    # --- Slide 3 Table 2 ---
+    # --- Risk Adjusted Returns Table 2 ---
     st.markdown("**Risk-Adjusted Returns / Peer Ranking %**")
     risk_table = st.session_state.get("step13_risk_adjusted_table", [])
     peer_table = st.session_state.get("step14_peer_rank_table", [])
@@ -2762,6 +2762,56 @@ def step17_export_to_ppt():
                         run.font.size = Pt(11)
                         run.font.color.rgb = RGBColor(0, 0, 0)
 
+    # ───── Risk Adjusted Statistics Slide: Table 2 – Risk-Adjusted Returns / Peer Ranking % ─────
+    from copy import deepcopy
+    from pptx.dml.color import RGBColor
+    from pptx.util import Pt
+    import pandas as pd
+
+    # pull in the DataFrame saved in Step 15
+    df_raj2 = st.session_state.get("raj_table2_data", pd.DataFrame())
+
+    if df_raj2.empty:
+        st.warning("No Risk-Adjusted Returns / Peer Ranking data found for Table 2.")
+    else:
+        # assume `risk_adjusted_stats` slide was located earlier
+        ras_tables = [sh for sh in risk_adjusted_stats.shapes if sh.has_table]
+        if len(ras_tables) < 2:
+            st.warning("Couldn't find Table 2 on the Risk Adjusted Statistics slide.")
+        else:
+            table2 = ras_tables[1].table
+            tbl2_xml = table2._tbl
+
+            # 1) add extra rows if needed (clone the first data row at idx 1)
+            existing = len(table2.rows) - 1
+            needed = len(df_raj2) - existing
+            if needed > 0:
+                base_tr = tbl2_xml.tr_lst[1]
+                for _ in range(needed):
+                    tbl2_xml.append(deepcopy(base_tr))
+
+            # 2) fill each row: selected fund first, then proposals
+            for r_idx, row in enumerate(df_raj2.itertuples(index=False), start=1):
+                for c_idx, val in enumerate(row):
+                    cell = table2.cell(r_idx, c_idx)
+                    para = cell.text_frame.paragraphs[0]
+
+                    # get or create run
+                    if para.runs:
+                        run = para.runs[0]
+                        run.text = val
+                    else:
+                        run = para.add_run()
+                        run.text = val
+
+                    if c_idx == 0:
+                        # Investment Manager column: preserve placeholder styling
+                        continue
+                    else:
+                        # Other columns: Cambria 11pt black
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(11)
+                        run.font.color.rgb = RGBColor(0, 0, 0)
 
 
     # ───── 6) Save & Download ───────────────────────────────────────────────────────────
