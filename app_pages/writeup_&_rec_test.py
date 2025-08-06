@@ -2492,7 +2492,54 @@ def step17_export_to_ppt():
                 p.font.size = Pt(11)
             break
 
-    # ───── 5) EXPENSE AND RETURN SLIDE: Table 1 ────────────────────────────────────────
+    # ───── 5) Replacement Slides: clone & personalize ──────────────────────────────
+    from copy import deepcopy
+
+    confirmed_df    = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    proposal_names  = confirmed_df["Fund Scorecard Name"].dropna().unique().tolist()
+    template_sl     = None
+    template_idx    = None
+
+    # find the single [Replacement] slide and its index
+    for idx, sl in enumerate(prs.slides):
+        for shape in sl.shapes:
+            if shape.has_text_frame and "[Replacement]" in shape.text_frame.text:
+                template_sl  = sl
+                template_idx = idx
+                break
+        if template_sl:
+            break
+
+    if template_sl and proposal_names:
+        template_el = deepcopy(template_sl.element)
+
+        # overwrite the existing slide with the first proposal
+        for shape in template_sl.shapes:
+            if shape.has_text_frame:
+                for para in shape.text_frame.paragraphs:
+                    for run in para.runs:
+                        if "[Replacement]" in run.text:
+                            run.text = run.text.replace("[Replacement]", proposal_names[0])
+
+        # clone for each additional proposal, inserting right after slide 1
+        sldIdLst = prs.slides._sldIdLst
+        for offset, pf in enumerate(proposal_names[1:], start=1):
+            new_id = deepcopy(sldIdLst[template_idx])
+            sldIdLst.insert(1 + offset, new_id)
+
+            new_sl = prs.slides[len(prs.slides) - 1]
+            new_sl.element.getparent().replace(new_sl.element, deepcopy(template_el))
+
+            for shape in new_sl.shapes:
+                if shape.has_text_frame:
+                    for para in shape.text_frame.paragraphs:
+                        for run in para.runs:
+                            if "[Replacement]" in run.text:
+                                run.text = run.text.replace("[Replacement]", pf)
+    else:
+        st.warning("No [Replacement] slide or proposal funds found.")
+
+    # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
     # Locate the slide by its placeholder
     slide_expense_and_return = None
     for sl in prs.slides:
@@ -2960,52 +3007,6 @@ def step17_export_to_ppt():
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
                         run.font.color.rgb = RGBColor(0, 0, 0)
-    # ───── Replacement Slides: clone & personalize ─────────────────────────────────
-    from copy import deepcopy
-
-    def clone_slide(pres, slide):
-        """
-        Clone a slide by copying its layout and all its shapes.
-        """
-        layout = slide.slide_layout
-        new_slide = pres.slides.add_slide(layout)
-        for shape in slide.shapes:
-            el = shape.element
-            new_slide.shapes._spTree.insert_element_before(deepcopy(el), 'p:extLst')
-        return new_slide
-
-    # Gather proposal fund names
-    confirmed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
-    proposal_names = (
-        confirmed_df["Fund Scorecard Name"]
-        .dropna()
-        .unique()
-        .tolist()
-    )
-
-    # Find the original slide containing "[Replacement]" in its heading
-    slide_replacement = None
-    for sl in prs.slides:
-        for shape in sl.shapes:
-            if shape.has_text_frame and "[Replacement]" in shape.text_frame.text:
-                slide_replacement = sl
-                break
-        if slide_replacement:
-            break
-
-    if slide_replacement and proposal_names:
-        # For each proposal fund, clone and replace the placeholder
-        for pf in proposal_names:
-            new_sl = clone_slide(prs, slide_replacement)
-            for shape in new_sl.shapes:
-                if not shape.has_text_frame:
-                    continue
-                for para in shape.text_frame.paragraphs:
-                    for run in para.runs:
-                        if "[Replacement]" in run.text:
-                            run.text = run.text.replace("[Replacement]", pf)
-    else:
-        st.warning("No slide with [Replacement] found or no proposal funds to insert.")
 
     
     # ───── 6) Save & Download ───────────────────────────────────────────────────────────
