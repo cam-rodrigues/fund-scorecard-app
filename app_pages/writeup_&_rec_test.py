@@ -2565,43 +2565,78 @@ def step17_export_to_ppt():
             # Finally, set its title
             set_title(new_sl, pf)
 
-    # … inside your Replacement‐Slides loop, right after set_title(slide, pf) …  
+from copy import deepcopy
+from pptx.enum.shapes import PP_PLACEHOLDER
+import re
 
-    # grab your overview lookup
+# … earlier: you’ve found template_slide, proposal_names, and defined set_title() …
+
+# Snapshot original elements for cloning
+orig_elements = [deepcopy(sh.element) for sh in template_slide.shapes]
+
+# Begin looping through each proposal fund
+for i, pf in enumerate(proposal_names):
+    if i == 0:
+        sl = template_slide
+    else:
+        # clone template slide
+        sl = prs.slides.add_slide(template_slide.slide_layout)
+        # remove default placeholders
+        for shp in list(sl.shapes):
+            if shp.is_placeholder:
+                sl.shapes._spTree.remove(shp.element)
+        # insert all original shapes
+        for elem in orig_elements:
+            sl.shapes._spTree.insert_element_before(deepcopy(elem), "p:extLst")
+        # move cloned slide to position 1 + i
+        sldIdLst = prs.slides._sldIdLst
+        new_id   = sldIdLst[-1]
+        sldIdLst.remove(new_id)
+        sldIdLst.insert(1 + i, new_id)
+
+    # 1) Set the slide’s title
+    set_title(sl, pf)
+
+    # 2) Insert Investment Overview bullets
     overview_map = st.session_state.get("step16_5_proposed_overview_lookup", {})
     para_text   = overview_map.get(pf, {}).get("Overview Paragraph", "")
     if para_text:
-        # find the first non‐title textbox on this slide
+        # find the first non‐title text frame
         target_tf = None
         for shp in sl.shapes:
-            if not shp.has_text_frame or shp.is_placeholder and shp.placeholder_format.type == PP_PLACEHOLDER.TITLE:
+            if not shp.has_text_frame:
+                continue
+            # skip the title placeholder
+            if shp.is_placeholder and shp.placeholder_format.type == PP_PLACEHOLDER.TITLE:
                 continue
             target_tf = shp.text_frame
             break
 
         if target_tf:
-            # snapshot original run formatting
+            # capture original run formatting
             orig_run = target_tf.paragraphs[0].runs[0]
-            fnt = orig_run.font
+            font     = orig_run.font
 
-            # clear placeholder text
+            # clear placeholder
             target_tf.clear()
 
-            # split into sentences for bullets
-            bullets = [s.strip() for s in re.split(r'(?<=[\.!?])\s+', para_text) if s.strip()]
+            # split paragraph into sentences
+            sentences = [s.strip() for s in re.split(r'(?<=[\.!?])\s+', para_text) if s.strip()]
 
-            for i, sent in enumerate(bullets):
-                p = target_tf.paragraphs[0] if i == 0 else target_tf.add_paragraph()
-                p.text = sent
+            # fill as bullets
+            for j, sent in enumerate(sentences):
+                p = target_tf.paragraphs[0] if j == 0 else target_tf.add_paragraph()
+                p.text  = sent
                 p.level = 0
                 # reapply formatting
                 run = p.runs[0]
-                run.font.name        = fnt.name
-                run.font.size        = fnt.size
-                run.font.color.rgb   = fnt.color.rgb
-                run.font.bold        = fnt.bold
-                run.font.italic      = fnt.italic
-                run.font.underline   = fnt.underline
+                run.font.name      = font.name
+                run.font.size      = font.size
+                run.font.color.rgb = font.color.rgb
+                run.font.bold      = font.bold
+                run.font.italic    = font.italic
+                run.font.underline = font.underline
+
 
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
