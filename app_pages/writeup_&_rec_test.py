@@ -2488,20 +2488,20 @@ def step17_export_to_ppt():
                 para.font.size = Pt(12)
             break
 
-    # ───── 8) Expense & Return Slide: Locate by placeholder ─────────────────────────────
-    slide_expense_&_return = None
+    # ───── 8) Expense and Return Slide: Locate by placeholder ──────────────────────────
+    slide_expense_and_return = None
     for sl in prs.slides:
         for shape in sl.shapes:
             if shape.has_text_frame and "[Category] – Expense & Return" in shape.text_frame.text:
-                slide_expense_&_return = sl
+                slide_expense_and_return = sl
                 break
-        if slide_expense_&_return:
+        if slide_expense_and_return:
             break
 
-    # ───── 9) Expense & Return Slide: Replace category token ────────────────────────────
-    if slide_expense_&_return:
+    # ───── 9) Expense and Return Slide: Replace category token ─────────────────────────
+    if slide_expense_and_return:
         actual_cat = fs_rec.get("Category", "")
-        for shape in slide_expense_&_return.shapes:
+        for shape in slide_expense_and_return.shapes:
             if not shape.has_text_frame:
                 continue
             for para in shape.text_frame.paragraphs:
@@ -2522,6 +2522,7 @@ def step17_export_to_ppt():
         file_name=f"{selected} Writeup.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
+
 
 # –– Cards ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 def render_step16_and_16_5_cards(pdf):
