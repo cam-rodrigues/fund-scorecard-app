@@ -2601,9 +2601,6 @@ def step17_export_to_ppt():
                 fill_table_with_styles(shape.table, df_slide2_table1)
                 break
 
-from copy import deepcopy
-
-# … make sure slide2 is defined …
 
     # --- TABLE 2: RETURNS ---
     quarter_label = st.session_state.get("report_date", "QTD")
