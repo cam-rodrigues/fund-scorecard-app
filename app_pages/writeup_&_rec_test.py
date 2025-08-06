@@ -2493,9 +2493,8 @@ def step17_export_to_ppt():
             break
 
     # ───── Replacement Slides: clone & personalize ──────────────────────────────
-    # … after you fill the first‐slide bullets, before Expense & Return …
-
     from copy import deepcopy
+    from pptx.enum.shapes import PP_PLACEHOLDER
 
     placeholder    = "[Replacement]"
     confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
@@ -2523,15 +2522,23 @@ def step17_export_to_ppt():
                 new.shapes._spTree.insert_element_before(deepcopy(shp.element), 'p:extLst')
             return new
 
-        # 2) Overwrite the original slide with the first fund
+        # Helper to set the title placeholder text
+        def set_slide_title(slide, text):
+            title_shp = next(
+                (sh for sh in slide.shapes
+                 if sh.is_placeholder and sh.placeholder_format.type == PP_PLACEHOLDER),
+                None
+            )
+            if title_shp:
+                tf = title_shp.text_frame
+                tf.clear()
+                p = tf.paragraphs[0]
+                run = p.add_run()
+                run.text = text
+
+        # 2) Overwrite the original slide’s title with the first fund
         first_pf = proposal_names[0]
-        for shape in template_slide.shapes:
-            if not shape.has_text_frame: continue
-            for para in shape.text_frame.paragraphs:
-                for run in para.runs:
-                    txt = run.text or ""
-                    if placeholder in txt:
-                        run.text = txt.replace(placeholder, first_pf)
+        set_slide_title(template_slide, first_pf)
 
         # 3) Clone & personalize for each additional fund
         for offset, pf in enumerate(proposal_names[1:], start=1):
@@ -2542,14 +2549,9 @@ def step17_export_to_ppt():
             new_id  = sldIds[-1]
             sldIds.remove(new_id)
             sldIds.insert(1 + offset, new_id)
-            # c) Replace placeholder in cloned slide
-            for shape in new_sl.shapes:
-                if not shape.has_text_frame: continue
-                for para in shape.text_frame.paragraphs:
-                    for run in para.runs:
-                        txt = run.text or ""
-                        if placeholder in txt:
-                            run.text = txt.replace(placeholder, pf)
+            # c) Set its title to this fund’s name
+            set_slide_title(new_sl, pf)
+
 
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
