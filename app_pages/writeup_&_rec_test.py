@@ -873,71 +873,100 @@ def step7_extract_returns(pdf):
 
 def step8_calendar_returns(pdf):
     import re, streamlit as st, pandas as pd
+    from rapidfuzz import fuzz
 
-    # 1) Figure out section bounds
-    cy_page  = st.session_state.get("calendar_year_page")
-    end_page = st.session_state.get("r3yr_page", len(pdf.pages) + 1)
+    # 1) Section bounds
+    cy_page = st.session_state.get("calendar_year_page")
     if cy_page is None:
         st.error("❌ 'Fund Performance: Calendar Year' not found in TOC.")
         return
 
-    # 2) Pull every line from that section
+    next_page = st.session_state.get("r3yr_page")  # may be None
+    # Fallback to end-of-PDF when missing, and ensure we scan at least one page
+    end_page = next_page if isinstance(next_page, int) else (len(pdf.pages) + 1)
+    end_page = max(end_page, cy_page + 1)
+    end_page = min(end_page, len(pdf.pages) + 1)
+
+    # 2) Pull lines in section
     all_lines = []
-    for p in pdf.pages[cy_page-1 : end_page-1]:
+    for p in pdf.pages[cy_page - 1 : end_page - 1]:
         all_lines.extend((p.extract_text() or "").splitlines())
 
     # 3) Identify header & years
-    header = next((ln for ln in all_lines if "Ticker" in ln and re.search(r"20\d{2}", ln)), None)
+    header = next((ln for ln in all_lines if "Ticker" in ln and re.search(r"\b20\d{2}\b", ln)), None)
     if not header:
         st.error("❌ Couldn’t find header row with 'Ticker' + year.")
         return
     years = re.findall(r"\b20\d{2}\b", header)
     num_rx = re.compile(r"-?\d+\.\d+%?")
 
-    # — A) Funds themselves —
-    fund_map     = st.session_state.get("tickers", {})
+    # — A) Funds —
+    fund_map = st.session_state.get("tickers", {}) or {}
     fund_records = []
     for name, tk in fund_map.items():
         ticker = (tk or "").upper()
-        idx    = next((i for i, ln in enumerate(all_lines) if ticker in ln.split()), None)
-        raw    = num_rx.findall(all_lines[idx-1]) if idx not in (None, 0) else []
-        vals   = raw[:len(years)] + [None] * (len(years) - len(raw))
-        rec    = {"Name": name, "Ticker": ticker}
+        # robust ticker search (word-boundary)
+        idx = next(
+            (i for i, ln in enumerate(all_lines)
+             if re.search(rf"\b{re.escape(ticker)}\b", ln)),
+            None
+        )
+        # numbers typically appear on the line above the ticker row
+        raw = num_rx.findall(all_lines[idx - 1]) if idx not in (None, 0) else []
+        vals = raw[:len(years)] + [None] * (len(years) - len(raw))
+
+        if idx is None:
+            st.warning(f"⚠️ Calendar-year table: no ticker row found for {name} ({ticker}).")
+
+        rec = {"Name": name, "Ticker": ticker}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         fund_records.append(rec)
 
     df_fund = pd.DataFrame(fund_records)
     if not df_fund.empty:
-        st.markdown("**Fund Calendar‑Year Returns**")
+        st.markdown("**Fund Calendar-Year Returns**")
         st.dataframe(df_fund[["Name", "Ticker"] + years], use_container_width=True)
         st.session_state["step8_returns"] = fund_records
 
-    # — B) Benchmarks matched back to each fund’s ticker —
-    facts         = st.session_state.get("fund_factsheets_data", [])
+    # — B) Benchmarks per fund —
+    facts = st.session_state.get("fund_factsheets_data", []) or []
     bench_records = []
     for f in facts:
-        bench_name = f.get("Benchmark", "").strip()
-        fund_tkr   = f.get("Matched Ticker", "")
+        bench_name = (f.get("Benchmark") or "").strip()
+        fund_tkr   = (f.get("Matched Ticker") or "").upper()
         if not bench_name:
             continue
 
-        # find the first line containing the benchmark name
+        # exact contains
         idx = next((i for i, ln in enumerate(all_lines) if bench_name in ln), None)
         if idx is None:
+            # fuzzy fallback (loose threshold)
+            best = max(
+                ((i, fuzz.token_set_ratio(bench_name.lower(), ln.lower()))
+                 for i, ln in enumerate(all_lines)),
+                key=lambda x: x[1],
+                default=(None, 0)
+            )
+            idx = best[0] if best[1] >= 70 else None
+
+        if idx is None:
+            st.warning(f"⚠️ Calendar-year benchmark row not found for: {bench_name} ({fund_tkr}).")
             continue
-        raw  = num_rx.findall(all_lines[idx])
+
+        raw = num_rx.findall(all_lines[idx])
         vals = raw[:len(years)] + [None] * (len(years) - len(raw))
-        rec  = {"Name": bench_name, "Ticker": fund_tkr}
+        rec = {"Name": bench_name, "Ticker": fund_tkr}
         rec.update({years[i]: vals[i] for i in range(len(years))})
         bench_records.append(rec)
 
     df_bench = pd.DataFrame(bench_records)
     if not df_bench.empty:
-        st.markdown("**Benchmark Calendar‑Year Returns**")
+        st.markdown("**Benchmark Calendar-Year Returns**")
         st.dataframe(df_bench[["Name", "Ticker"] + years], use_container_width=True)
         st.session_state["benchmark_calendar_year_returns"] = bench_records
     else:
         st.warning("No benchmark returns extracted.")
+
 
 #───Step 9: 3‑Yr Risk Analysis – Match & Extract MPT Stats (hidden matching)──────────────────────────────────────────────────────────────────
 
@@ -2277,6 +2306,8 @@ def step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_
 
     st.session_state["step16_5_proposed_overview_lookup"] = results
     return results
+
+
 #───Build Powerpoint─────────────────────────────────────────────────────────────────
 def step17_export_to_ppt():
     import streamlit as st
@@ -2286,7 +2317,18 @@ def step17_export_to_ppt():
     from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     from io import BytesIO
     import pandas as pd
-    
+    import copy
+
+    def clone_slide(prs, slide_idx):
+        """Deep-copy slide `slide_idx` and append it to the deck."""
+        src = prs.slides[slide_idx]
+        new_slide = prs.slides.add_slide(src.slide_layout)
+        for shp in src.shapes:
+            el = shp.element
+            new_el = copy.deepcopy(el)
+            new_slide.shapes._spTree.insert_element_before(new_el, 'p:extLst')
+        return new_slide
+
     def truncate_to_n_sentences(text, n=3):
         sentences = re.split(r'(?<=[.!?])\s+', text.strip())
         if len(sentences) <= n:
@@ -2595,14 +2637,11 @@ def step17_export_to_ppt():
     if proposed:
         fill_text_placeholder_preserving_format(slide_repl1, "[Replacement 1]", proposed[0])
     if len(proposed) > 1:
-        slide_repl2 = prs.slides[2]
+        # clone slide 2 (index 1) so we have a second replacement slide
+        slide_repl2 = clone_slide(prs, 1)
         fill_text_placeholder_preserving_format(slide_repl2, "[Replacement 2]", proposed[1])
-    else:
-        # remove the second replacement slide if only one proposed fund
-        try:
-            prs.slides._sldIdLst.remove(prs.slides._sldIdLst[2])
-        except Exception:
-            pass
+    # no need to remove anything if there’s only one fund
+
 
     # --- Helpers for overview injection with safe sentence splitting ---
     def safe_split_sentences(text):
@@ -2691,9 +2730,11 @@ def step17_export_to_ppt():
                 st.warning(f"No overview paragraph found to insert for proposed fund '{second_label}'.")
 
     # --- Fill Slide 3 ---
-    slide3 = prs.slides[4 if len(proposed) > 1 else 3]
+    # --- Fill “Expense & Return” (Slide 3) ---
+    slide3 = prs.slides[2]
     if not fill_text_placeholder_preserving_format(slide3, "[Category]", category):
         st.warning("Could not find [Category] placeholder on Slide 3.")
+
     df_slide3_table1 = st.session_state.get("slide3_table1_data")
     df_slide3_table2 = st.session_state.get("slide3_table2_data")
     if df_slide3_table1 is None or df_slide3_table2 is None:
@@ -2708,8 +2749,10 @@ def step17_export_to_ppt():
                 fill_table_with_styles(tables[1], df_slide3_table2)
 
     # --- Fill Slide 4 ---
-    slide4_index = 5 if len(proposed) > 1 else 4
-    slide4 = prs.slides[slide4_index]
+    # --- Fill “Risk-Adjusted Statistics” (Slide 4) ---
+    slide4 = prs.slides[3]
+    if not fill_text_placeholder_preserving_format(slide4, "[Category]", category):
+        st.warning("Could not find [Category] placeholder on Slide 4.")
     qualitative_placeholder = f"[Category]– Qualitative Factors"
     qualitative_replacement = f"{category} - Qualitative Factors"
     if not fill_text_placeholder_preserving_format(slide4, qualitative_placeholder, qualitative_replacement):
@@ -2727,6 +2770,14 @@ def step17_export_to_ppt():
                 fill_table_with_styles(shape.table, df_slide4_table2)
                 break
 
+    # --- Fill “Qualitative Factors” (Slide 5) ---
+    slide5 = prs.slides[4]
+    qualitative_placeholder = "[Category]– Qualitative Factors"
+    qualitative_replacement = f"{category} – Qualitative Factors"
+    if not fill_text_placeholder_preserving_format(slide5, qualitative_placeholder, qualitative_replacement):
+        st.warning(f"Could not find placeholder '{qualitati
+
+                                              
     # --- Save and offer download (clean UI) ---
     output = BytesIO()
     prs.save(output)
