@@ -442,188 +442,7 @@ def step3_5_6_scorecard_and_ips(pdf, scorecard_page, performance_page, factsheet
     st.session_state["fund_performance_data"] = perf_data
     st.session_state["tickers"] = tickers
 
-
-#───Proposed Funds Extraction──────────────────────────────────────────────────────────────────
-
-def extract_proposed_scorecard_blocks(pdf, *, fuzzy_threshold=78, min_token_overlap=2, max_pages_per_section=4):
-    import re
-    import pandas as pd
-    import streamlit as st
-    from rapidfuzz import fuzz
-
-    # --- helpers -------------------------------------------------------------
-    def norm_text(s: str) -> str:
-        return " ".join((s or "").strip().upper().split())
-
-    def page_text(i: int) -> str:
-        return pdf.pages[i - 1].extract_text() or ""
-
-    def tokens(s: str):
-        # alphanumeric tokens length >=3
-        return {t for t in re.findall(r"[A-Za-z0-9]+", (s or "")) if len(t) >= 3}
-
-    RE_PROPOSED_HDR = re.compile(r"FUND\s*SCORECARD\s*:\s*PROPOSED\s*FUNDS", re.I)
-
-    # Use TOC anchors as hard bounds if available
-    anchor_keys = (
-        "factsheets_proposed_page", "factsheets_page", "calendar_year_page",
-        "r3yr_page", "r5yr_page", "performance_page", "scorecard_page"
-    )
-    anchors = sorted(
-        p for k in anchor_keys
-        for p in [st.session_state.get(k)]
-        if isinstance(p, int)
-    )
-
-    # --- 1) find ALL Proposed header pages ----------------------------------
-    starts = []
-    for p in range(1, len(pdf.pages) + 1):
-        t = page_text(p)
-        if RE_PROPOSED_HDR.search(t) or "FUND SCORECARD: PROPOSED FUNDS" in norm_text(t):
-            starts.append(p)
-
-    # include TOC start if OCR missed header
-    toc_start = st.session_state.get("scorecard_proposed_page")
-    if isinstance(toc_start, int) and toc_start not in starts:
-        starts.append(toc_start)
-    starts = sorted(set(starts))
-
-    if not starts:
-        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
-        return pd.DataFrame()
-
-    # --- 2) collect ONLY lines from pages that STILL show the header ----------
-    sections = []
-    for s in starts:
-        next_anchor = next((a for a in anchors if a > s), len(pdf.pages) + 1)
-        next_header = next((h for h in starts if h > s), len(pdf.pages) + 1)
-        hard_end = min(next_anchor, next_header, len(pdf.pages) + 1)
-
-        lines, pages_used = [], 0
-        for p in range(s, hard_end):
-            txt = page_text(p)
-            # stop if header disappears (keeps scope tight)
-            if not (RE_PROPOSED_HDR.search(txt) or "FUND SCORECARD: PROPOSED FUNDS" in norm_text(txt)):
-                break
-            # keep non-empty lines
-            lines.extend([ln.strip() for ln in (txt.splitlines() or []) if ln.strip()])
-            pages_used += 1
-            if max_pages_per_section and pages_used >= max_pages_per_section:
-                break
-
-        if lines:
-            sections.append({"start": s, "lines": lines})
-
-    if not sections:
-        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
-        return pd.DataFrame()
-
-    # --- 3) candidate funds (with tickers to backfill later) -----------------
-    perf_data = st.session_state.get("fund_performance_data", []) or []
-    if not perf_data:
-        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
-        return pd.DataFrame()
-
-    # map name -> ticker for backfill
-    name_to_ticker = { (it.get("Fund Scorecard Name") or "").strip(): (it.get("Ticker") or "").strip().upper()
-                       for it in perf_data }
-
-    # --- 4) name-only matching within proposed sections ----------------------
-    results = []
-    for it in perf_data:
-        fund_name = (it.get("Fund Scorecard Name") or "").strip()
-        if not fund_name:
-            continue
-
-        name_tok = tokens(fund_name)
-        best_score, best_page, best_line = 0, None, ""
-
-        for sec in sections:
-            for ln in sec["lines"]:
-                # quick token overlap guard to reduce false hits
-                if len(name_tok.intersection(tokens(ln))) < min_token_overlap:
-                    continue
-                score = fuzz.token_set_ratio(fund_name.lower(), ln.lower())
-                if score > best_score:
-                    best_score, best_page, best_line = score, sec["start"], ln
-
-        if best_score >= fuzzy_threshold:
-            results.append({
-                "Fund Scorecard Name": fund_name,
-                "Ticker": name_to_ticker.get(fund_name, ""),  # backfill ticker here
-                "Proposed Section Start Page": best_page,
-                "Match Score": best_score,
-                "Matched Line": best_line
-            })
-
-    df = pd.DataFrame(results).drop_duplicates(subset=["Fund Scorecard Name"])
-    st.session_state["proposed_funds_confirmed_df"] = df
-    return df
-
 #───Side-by-side Info Card Helpers──────────────────────────────────────────────────────
-
-def _shared_cards_css():
-    return """
-    <style>
-      /* Card shell */
-      .fid-card {
-        background: linear-gradient(120deg, #e6f0fb 84%, #cfe4f8 100%);
-        color: #23395d;
-        border-radius: 1.25rem;
-        box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
-        border: 1.2px solid #b5d0eb;
-        padding: 1.1rem 1.6rem;
-        margin: 0 0 1.1rem 0;
-      }
-      .fid-card h4 {
-        margin: 0 0 .45rem 0;
-        font-weight: 700;
-        font-size: 1.08rem;
-        color: #223d63;
-        letter-spacing: -.2px;
-      }
-      .fid-card .sub {
-        font-size: .98rem;
-        color: #2b4770;
-        margin: 0 0 .6rem 0;
-      }
-
-      /* Tables */
-      table.fid-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-        font-size: .98rem;
-      }
-      table.fid-table th, table.fid-table td {
-        border: none;
-        padding: .42rem .9rem;
-        text-align: left;
-      }
-      table.fid-table th {
-        background: #244369;
-        color: #fff;
-        font-weight: 700;
-        letter-spacing: .01em;
-      }
-      table.fid-table tr:nth-child(even) { background: #e9f2fc; }
-      table.fid-table tr:nth-child(odd)  { background: #f8fafc; }
-
-      /* Column alignment helpers */
-      .center { text-align: center; }
-      .ticker  { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; letter-spacing: .2px; }
-
-      /* Watch badges (in-table values or summary blocks) */
-      .badge-nw { background:#d6f5df; color:#217a3e; border-radius:.5rem; padding:.15rem .5rem; font-weight:600; }
-      .badge-iw { background:#fff3cd; color:#B87333; border-radius:.5rem; padding:.15rem .5rem; font-weight:600; }
-      .badge-fw { background:#f8d7da; color:#c30000; border-radius:.5rem; padding:.15rem .5rem; font-weight:600; }
-
-      /* Narrow tweaks for Proposed table: center ticker column */
-      table.proposed-fund-table td:nth-child(2),
-      table.proposed-fund-table th:nth-child(2) { text-align:center; }
-      table.proposed-fund-table td:nth-child(2) { font-family: ui-monospace, monospace; letter-spacing:.2px; }
-    </style>
-    """
 
 def get_ips_fail_card_html():
     df = st.session_state.get("ips_icon_table")
@@ -632,91 +451,139 @@ def get_ips_fail_card_html():
     fail_df = df[df["IPS Watch Status"].isin(["FW", "IW"])][["Fund Name", "IPS Watch Status"]]
     if fail_df.empty:
         return "", ""
-
-    # Map status to a colored badge label
-    def badge(s):
-        if s == "FW": return '<span class="badge-fw">FW</span>'
-        if s == "IW": return '<span class="badge-iw">IW</span>'
-        return s
-
-    display = fail_df.rename(columns={"Fund Name": "Fund", "IPS Watch Status": "Watch Status"}).copy()
-    display["Watch Status"] = display["Watch Status"].map(badge)
-
-    table_html = display.to_html(index=False, border=0, justify="center",
-                                 classes="fid-table ips-fail-table",
-                                 escape=False)
-
+    table_html = fail_df.rename(columns={
+        "Fund Name": "Fund",
+        "IPS Watch Status": "Watch Status"
+    }).to_html(index=False, border=0, justify="center", classes="ips-fail-table")
     card_html = f"""
-      <div class="fid-card">
-        <h4>Funds on Watch</h4>
-        <div class="sub">The following funds failed five or more IPS criteria and are currently on watch.</div>
+    <div style='
+        background: linear-gradient(120deg, #e6f0fb 85%, #c8e0f6 100%);
+        color: #23395d;
+        border-radius: 1.3rem;
+        box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
+        padding: 1.6rem 2.0rem 1.6rem 2.0rem;
+        border: 1.5px solid #b5d0eb;
+        font-size:1rem;
+        max-width:100%;
+        margin-bottom:1.2rem;
+    '>
+        <div style='font-weight:700; color:#23395d; font-size:1.15rem; margin-bottom:0.5rem; letter-spacing:-0.5px;'>
+            Funds on Watch
+        </div>
+        <div style='font-size:1rem; margin-bottom:1rem; color:#23395d;'>
+            The following funds failed five or more IPS criteria and are currently on watch.
+        </div>
         {table_html}
-      </div>
+    </div>
     """
-    return card_html, _shared_cards_css()
+    css = """
+    <style>
+    .ips-fail-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 0.7em;
+        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+    }
+    .ips-fail-table th, .ips-fail-table td {
+        border: none;
+        padding: 0.48em 1.1em;
+        text-align: left;
+        font-size: 1.07em;
+    }
+    .ips-fail-table th {
+        background: #244369;
+        color: #fff;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+    }
+    .ips-fail-table td {
+        color: #244369;
+    }
+    .ips-fail-table tr:nth-child(even) {background: #e6f0fb;}
+    .ips-fail-table tr:nth-child(odd)  {background: #f8fafc;}
+    </style>
+    """
+    return card_html, css
 
-def get_proposed_fund_card_html(*, only_with_tickers=True, min_score=74):
+def get_proposed_fund_card_html():
     df = st.session_state.get("proposed_funds_confirmed_df")
-
     if df is None or df.empty:
-        card_html = """
-          <div class="fid-card">
-            <h4>Confirmed Proposed Funds</h4>
-            <div class="sub">No confirmed proposed funds were found on the Proposed Funds scorecard pages.</div>
-          </div>
+        card_html = f"""
+        <div style='
+            background: linear-gradient(120deg, #e6f0fb 85%, #c8e0f6 100%);
+            color: #23395d;
+            border-radius: 1.3rem;
+            box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
+            padding: 1.6rem 2.0rem;
+            border: 1.5px solid #b5d0eb;
+            font-size:1rem;
+            max-width:100%;
+            margin-bottom:1.2rem;
+        '>
+            <div style='font-weight:700; color:#23395d; font-size:1.15rem; margin-bottom:0.5rem; letter-spacing:-0.5px;'>
+                Confirmed Proposed Funds
+            </div>
+            <div style='font-size:1rem; margin-bottom:1rem; color:#23395d;'>
+                No confirmed proposed funds were found on the Proposed Funds scorecard page.
+            </div>
+        </div>
         """
-        return card_html, _shared_cards_css()
+        css = ""
+        return card_html, css
 
-    df = df.copy()
-
-    # 1) Keep only rows we know came from Proposed sections
-    if "Proposed Section Start Page" in df.columns:
-        df = df[df["Proposed Section Start Page"].notna()]
-
-    # 2) Enforce a minimum fuzzy match score, if available
-    if "Match Score" in df.columns and min_score is not None:
-        df = df[df["Match Score"] >= min_score]
-
-    # 3) Require a ticker (optional but helps avoid noisy name-only matches)
-    if only_with_tickers and "Ticker" in df.columns:
-        df = df[df["Ticker"].astype(str).str.len() > 0]
-
-    # 4) Final columns, sort, and de-dupe
-    cols = [c for c in ["Fund Scorecard Name", "Ticker"] if c in df.columns]
-    if not cols:
-        # Fallback if columns got renamed upstream
-        cols = df.columns[:2].tolist()
-    display_df = (
-        df[cols]
-        .rename(columns={"Fund Scorecard Name": "Fund"})
-        .drop_duplicates()
-        .sort_values(by=["Fund", "Ticker"], kind="stable")
-    )
-
-    if display_df.empty:
-        card_html = """
-          <div class="fid-card">
-            <h4>Confirmed Proposed Funds</h4>
-            <div class="sub">No confirmed proposed funds were found on the Proposed Funds scorecard pages.</div>
-          </div>
-        """
-        return card_html, _shared_cards_css()
-
-    table_html = display_df.to_html(
-        index=False, border=0, justify="center",
-        classes="fid-table proposed-fund-table",
-        escape=True
-    )
-
+    display_df = df[["Fund Scorecard Name", "Ticker"]].rename(columns={
+        "Fund Scorecard Name": "Fund",
+    })
+    table_html = display_df.to_html(index=False, border=0, justify="center", classes="proposed-fund-table")
     card_html = f"""
-      <div class="fid-card">
-        <h4>Confirmed Proposed Funds</h4>
-        <div class="sub">The following funds were identified on the Proposed Funds scorecard pages.</div>
+    <div style='
+        background: linear-gradient(120deg, #e6f0fb 85%, #c8e0f6 100%);
+        color: #23395d;
+        border-radius: 1.3rem;
+        box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
+        padding: 1.6rem 2.0rem;
+        border: 1.5px solid #b5d0eb;
+        font-size:1rem;
+        max-width:100%;
+        margin-bottom:1.2rem;
+    '>
+        <div style='font-weight:700; color:#23395d; font-size:1.15rem; margin-bottom:0.5rem; letter-spacing:-0.5px;'>
+            Confirmed Proposed Funds
+        </div>
+        <div style='font-size:1rem; margin-bottom:1rem; color:#23395d;'>
+            The following funds were identified on the Proposed Funds scorecard page.
+        </div>
         {table_html}
-      </div>
+    </div>
     """
-    return card_html, _shared_cards_css()
-
+    css = """
+    <style>
+    .proposed-fund-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 0.7em;
+        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+    }
+    .proposed-fund-table th, .proposed-fund-table td {
+        border: none;
+        padding: 0.48em 1.1em;
+        text-align: left;
+        font-size: 1em;
+    }
+    .proposed-fund-table th {
+        background: #244369;
+        color: #fff;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+    }
+    .proposed-fund-table td {
+        color: #23395d;
+    }
+    .proposed-fund-table tr:nth-child(even) {background: #e6f0fb;}
+    .proposed-fund-table tr:nth-child(odd)  {background: #f8fafc;}
+    </style>
+    """
+    return card_html, css
 
 def get_watch_summary_card_html():
     df = st.session_state.get("ips_icon_table")
@@ -728,25 +595,84 @@ def get_watch_summary_card_html():
         "Informal Watch": counts.get("IW", 0),
         "Formal Watch": counts.get("FW", 0),
     }
-
     card_html = f"""
-      <div class="fid-card" style="max-width:540px;">
-        <h4>Watch Summary</h4>
-        <div style="display:flex; gap:1rem; align-items:stretch; margin-top:.2rem;">
-          <div class="badge-nw" style="flex:1; text-align:center;">
-            No Watch<br><span style="font-size:1.35rem; font-weight:800;">{summary["No Watch"]}</span>
-          </div>
-          <div class="badge-iw" style="flex:1; text-align:center;">
-            Informal Watch<br><span style="font-size:1.35rem; font-weight:800;">{summary["Informal Watch"]}</span>
-          </div>
-          <div class="badge-fw" style="flex:1; text-align:center;">
-            Formal Watch<br><span style="font-size:1.35rem; font-weight:800;">{summary["Formal Watch"]}</span>
-          </div>
+    <div style="
+        background: linear-gradient(120deg, #e6f0fb 82%, #d0ebfa 100%);
+        color: #244369;
+        border-radius: 1.2rem;
+        box-shadow: 0 2px 14px rgba(44,85,130,0.08), 0 1px 4px rgba(36,67,105,0.07);
+        padding: 1.3rem 2rem 1.1rem 2rem;
+        margin-bottom: 2rem;
+        font-size: 1.07rem;
+        border: 1.2px solid #b5d0eb;
+        max-width: 520px;
+    ">
+      <div style="font-size:1.13rem; font-weight:700; color:#223d63; margin-bottom:0.7rem;">
+        Watch Summary
+      </div>
+      <div style="display:flex; gap:1.5rem; align-items:center; justify-content: flex-start; margin-bottom:0.3rem;">
+        <div style="background:#d6f5df; color:#217a3e; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
+            No Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["No Watch"]}</span>
+        </div>
+        <div style="background:#fff3cd; color:#B87333; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
+            Informal Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["Informal Watch"]}</span>
+        </div>
+        <div style="background:#f8d7da; color:#c30000; border-radius:0.55rem; padding:0.5rem 1.2rem; font-size:1.1rem; font-weight:600; min-width:105px; text-align:center;">
+            Formal Watch<br><span style="font-size:1.4rem; font-weight:700;">{summary["Formal Watch"]}</span>
         </div>
       </div>
+    </div>
     """
-    return card_html, _shared_cards_css()
+    css = ""
+    return card_html, css
 
+#───Proposed Funds Extraction──────────────────────────────────────────────────────────────────
+
+def extract_proposed_scorecard_blocks(pdf):
+    prop_page = st.session_state.get("scorecard_proposed_page")
+    if not prop_page:
+        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
+        return pd.DataFrame()
+    page = pdf.pages[prop_page - 1]
+    lines = [ln.strip() for ln in (page.extract_text() or "").splitlines() if ln.strip()]
+    if not lines:
+        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
+        return pd.DataFrame()
+    perf_data = st.session_state.get("fund_performance_data", [])
+    if not perf_data:
+        st.session_state["proposed_funds_confirmed_df"] = pd.DataFrame()
+        return pd.DataFrame()
+    candidate_funds = []
+    for item in perf_data:
+        name = item.get("Fund Scorecard Name", "").strip()
+        ticker = item.get("Ticker", "").strip().upper()
+        if name:
+            candidate_funds.append({"Fund Scorecard Name": name, "Ticker": ticker})
+    results = []
+    for fund in candidate_funds:
+        name = fund["Fund Scorecard Name"]
+        ticker = fund["Ticker"]
+        best_score = 0
+        best_line = ""
+        for line in lines:
+            score_name = fuzz.token_sort_ratio(name.lower(), line.lower())
+            score_ticker = fuzz.token_sort_ratio(ticker.lower(), line.lower()) if ticker else 0
+            score = max(score_name, score_ticker)
+            if score > best_score:
+                best_score = score
+                best_line = line
+        found = best_score >= 70
+        results.append({
+            "Fund Scorecard Name": name,
+            "Ticker": ticker,
+            "Found on Proposed": "✅" if found else "❌",
+            "Match Score": best_score,
+            "Matched Line": best_line if found else ""
+        })
+    df = pd.DataFrame(results)
+    df_confirmed = df[df["Found on Proposed"] == "✅"].copy()
+    st.session_state["proposed_funds_confirmed_df"] = df_confirmed
+    return df_confirmed
 
 #───Step 6:Factsheets Pages──────────────────────────────────────────────────────────────────
 
@@ -2391,29 +2317,6 @@ def step17_export_to_ppt():
     from pptx.enum.text import PP_ALIGN, MSO_VERTICAL_ANCHOR
     from io import BytesIO
     import pandas as pd
-    import re  # ensure this import exists at the top of the function
-
-    # at top of step17_export_to_ppt()
-    def find_slide_with_text(prs, needle: str):
-        n = needle.lower()
-        for s in prs.slides:
-            for sh in s.shapes:
-                if getattr(sh, "has_text_frame", False):
-                    txt = "".join(run.text for p in sh.text_frame.paragraphs for run in p.runs)
-                    if n in (txt or "").lower():
-                        return s
-        return None
-        
-    def find_slide_with_any_text(prs, needles):
-        low = [n.lower() for n in needles]
-        for s in prs.slides:
-            for sh in s.shapes:
-                if getattr(sh, "has_text_frame", False):
-                    txt = "".join(run.text for p in sh.text_frame.paragraphs for run in p.runs).lower()
-                    if any(n in (txt or "") for n in low):
-                        return s
-        return None
-
     
     def truncate_to_n_sentences(text, n=3):
         sentences = re.split(r'(?<=[.!?])\s+', text.strip())
@@ -2612,25 +2515,25 @@ def step17_export_to_ppt():
     df_slide2_table1 = st.session_state.get("slide2_table1_data")
     df_slide2_table2 = st.session_state.get("slide2_table2_data")
     df_slide2_table3 = st.session_state.get("slide2_table3_data")
-        
-    # --- Fill Slide 1 ---
-    # 1) locate the slide by its “[Fund Name]” token (fallback to first slide)
-    slide1 = find_slide_with_text(prs, "[Fund Name]") or prs.slides[0]
-
-    # 2) replace the [Fund Name] placeholder with the selected fund
+    
+     # --- Fill Slide 1 ---
+    slide1 = prs.slides[0]
+    
+    # 1) Replace the [Fund Name] placeholder
     if not fill_text_placeholder_preserving_format(slide1, "[Fund Name]", selected):
         st.warning("Could not find the [Fund Name] placeholder on Slide 1.")
-
-    # 3) prepare the two-row DataFrame if available
+    
+    # 2) Build a two-row DataFrame:
+    #    • Row 1: only Category filled; all other columns blank
+    #    • Row 2: full data
     if df_slide1 is not None:
-        cols   = df_slide1.columns.tolist()
-        value0 = df_slide1.iloc[0].get("Category", "")
-        # row1: only Category; row2: all data
-        row1   = {c: (value0 if c == "Category" else "") for c in cols}
-        row2   = df_slide1.iloc[0].to_dict()
+        cols    = df_slide1.columns.tolist()
+        value0  = df_slide1.iloc[0].get("Category", "")
+        row1    = {c: (value0 if c == "Category" else "") for c in cols}
+        row2    = df_slide1.iloc[0].to_dict()
         df_body = pd.DataFrame([row1, row2], columns=cols)
-
-        # 4) find and fill the PPT table on the slide
+    
+        # 3) Find and fill the PPT table—row 1 keeps only Category, row 2 gets everything
         filled = False
         for shape in slide1.shapes:
             if not shape.has_table:
@@ -2638,120 +2541,136 @@ def step17_export_to_ppt():
             tbl = shape.table
             if len(tbl.columns) != len(cols):
                 continue
-
+    
             fill_table_with_styles(tbl, df_body, first_col_white=False)
             filled = True
             break
-
+    
         if not filled:
             st.warning("Could not find matching table on Slide 1 to fill.")
-
-    # 5) insert bullet points into the “[Bullet Point 1]” placeholder
+    
+    # 4) Insert your bullet points just like before
     bullets = st.session_state.get("bullet_points", [])
     if not fill_bullet_points(slide1, "[Bullet Point 1]", bullets):
         st.warning("Could not find bullet points placeholder on Slide 1.")
+    
+
 
 
     # --- Fill Slide 2 ---
-    slide2 = find_slide_with_text(prs, "[Category]")
-    if slide2 is None:
-        st.error("Could not locate Slide 2 ([Category]) in template.")
+    slide2 = prs.slides[3]
+    if not fill_text_placeholder_preserving_format(slide2, "[Category]", category):
+        st.warning("Could not find [Category] placeholder on Slide 2.")
+
+    # Table 1
+    if df_slide2_table1 is None:
+        st.warning("Slide 2 Table 1 data not found.")
     else:
-        # Table 1
-        if df_slide2_table1 is None:
-            st.warning("Slide 2 Table 1 data not found.")
-        else:
-            for shape in slide2.shapes:
-                if shape.has_table and len(shape.table.columns) == len(df_slide2_table1.columns):
-                    fill_table_with_styles(shape.table, df_slide2_table1)
-                    break
+        for shape in slide2.shapes:
+            if shape.has_table and len(shape.table.columns) == len(df_slide2_table1.columns):
+                fill_table_with_styles(shape.table, df_slide2_table1)
+                break
 
-        # Table 2 (Returns)
-        if df_slide2_table2 is None:
-            st.warning("Slide 2 Table 2 data not found.")
-        else:
-            quarter_label = st.session_state.get("report_date", "QTD")
-            for shape in slide2.shapes:
-                if shape.has_table and len(shape.table.columns) == len(df_slide2_table2.columns):
-                    table = shape.table
-                    if quarter_label:
-                        table.cell(0, 1).text = quarter_label
-                    for c in range(len(table.columns)):
-                        cell = table.cell(0, c)
-                        for para in cell.text_frame.paragraphs:
-                            para.alignment = PP_ALIGN.CENTER
-                            for run in para.runs:
-                                run.font.name = "Cambria"
-                                run.font.size = Pt(11)
-                                run.font.color.rgb = RGBColor(255, 255, 255)
-                                run.font.bold = True
-                    benchmark_idx = len(df_slide2_table2) - 1
-                    fill_table_with_styles(table, df_slide2_table2, bold_row_idx=benchmark_idx)
-                    break
-
-        # Table 3 (Calendar Year)
-        if df_slide2_table3 is None:
-            st.warning("Slide 2 Table 3 data not found.")
-        else:
-            for shape in slide2.shapes:
-                if shape.has_table and len(shape.table.columns) == len(df_slide2_table3.columns):
-                    table = shape.table
-                    for c, col in enumerate(df_slide2_table3.columns):
-                        cell = table.cell(0, c)
-                        cell.text = str(col)
-                        for para in cell.text_frame.paragraphs:
-                            para.alignment = PP_ALIGN.CENTER
-                            for run in para.runs:
-                                run.font.name = "Cambria"
-                                run.font.size = Pt(11)
-                                run.font.color.rgb = RGBColor(255, 255, 255)
-                                run.font.bold = True
-                    benchmark_idx = len(df_slide2_table3) - 1
-                    fill_table_with_styles(table, df_slide2_table3, bold_row_idx=benchmark_idx)
-                    break
-
-
-    # --- Proposed Fund slides (dynamic: 1 template → N slides) ---
-    # find the one template slide in your PPTX
-    template_slide = find_slide_with_text(prs, "[Replacement]")
-    if not template_slide:
-        st.error("No template slide with placeholder '[Replacement]' found; cannot add proposal slides.")
+    # Table 2 (Returns)
+    quarter_label = st.session_state.get("report_date", "QTD")
+    if df_slide2_table2 is None:
+        st.warning("Slide 2 Table 2 data not found.")
     else:
-        tmpl_layout = template_slide.slide_layout
-        # for each proposed fund, either reuse the template or clone it
-        for i, label in enumerate(proposed):
-            if i == 0:
-                slide = template_slide
-            else:
-                slide = prs.slides.add_slide(tmpl_layout)
-            # replace the placeholder text
-            fill_text_placeholder_preserving_format(slide, "[Replacement]", label)
-            # inject the overview bullets from your lookup
-            inject_overview_from_lookup(slide, label)
-
-
-
-    # --- Helper functions for Proposed slides ---
-    def replace_any_replacement_placeholder(slide, label):
-        for token in ("[Replacement 1]", "[Replacement 2]", "[Replacement]", "[Proposed Fund]"):
-            fill_text_placeholder_preserving_format(slide, token, label)
-
-    def inject_overview_from_lookup(slide, fund_label):
-        lookup    = st.session_state.get("step16_5_proposed_overview_lookup", {})
-        paragraph = lookup_overview_paragraph(fund_label, lookup) or ""
-        if not paragraph:
-            return
-        sentences = safe_split_sentences(paragraph)[:3]
-        if not sentences:
-            return
-        for shape in slide.shapes:
-            if not getattr(shape, "has_text_frame", False):
+        for shape in slide2.shapes:
+            if not (shape.has_table and len(shape.table.columns) == len(df_slide2_table2.columns)):
                 continue
-            text_content = "".join(run.text for p in shape.text_frame.paragraphs for run in p.runs)
+            table = shape.table
+            # Header replacement and styling
+            if quarter_label:
+                table.cell(0, 1).text = quarter_label
+            for c in range(len(table.columns)):
+                cell = table.cell(0, c)
+                for para in cell.text_frame.paragraphs:
+                    para.alignment = PP_ALIGN.CENTER
+                    for run in para.runs:
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(11)
+                        run.font.color.rgb = RGBColor(255, 255, 255)
+                        run.font.bold = True
+            # Bold benchmark row (assumed last)
+            benchmark_idx = len(df_slide2_table2) - 1
+            fill_table_with_styles(table, df_slide2_table2, bold_row_idx=benchmark_idx)
+            break
+
+    # Table 3 (Calendar Year)
+    if df_slide2_table3 is None:
+        st.warning("Slide 2 Table 3 data not found.")
+    else:
+        for shape in slide2.shapes:
+            if not (shape.has_table and len(shape.table.columns) == len(df_slide2_table3.columns)):
+                continue
+            table = shape.table
+            # Replace headers
+            for c, col in enumerate(df_slide2_table3.columns):
+                cell = table.cell(0, c)
+                cell.text = str(col)
+                for para in cell.text_frame.paragraphs:
+                    para.alignment = PP_ALIGN.CENTER
+                    for run in para.runs:
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(11)
+                        run.font.color.rgb = RGBColor(255, 255, 255)
+                        run.font.bold = True
+            # Bold benchmark row (last)
+            benchmark_idx = len(df_slide2_table3) - 1
+            fill_table_with_styles(table, df_slide2_table3, bold_row_idx=benchmark_idx)
+            break
+
+    # --- Replacement placeholders for proposed funds ---
+    slide_repl1 = prs.slides[1]
+    if proposed:
+        fill_text_placeholder_preserving_format(slide_repl1, "[Replacement 1]", proposed[0])
+    if len(proposed) > 1:
+        slide_repl2 = prs.slides[2]
+        fill_text_placeholder_preserving_format(slide_repl2, "[Replacement 2]", proposed[1])
+    else:
+        # remove the second replacement slide if only one proposed fund
+        try:
+            prs.slides._sldIdLst.remove(prs.slides._sldIdLst[2])
+        except Exception:
+            pass
+
+    # --- Helpers for overview injection with safe sentence splitting ---
+    def safe_split_sentences(text):
+        # protect common abbreviations so they don't split as sentence boundaries
+        abbrev_map = {
+            "U.S.": "__US__",
+            "U.S": "__US__",
+            "U.K.": "__UK__",
+            "U.K": "__UK__",
+            "e.g.": "__EG__",
+            "e.g": "__EG__",
+            "i.e.": "__IE__",
+            "i.e": "__IE__",
+            "etc.": "__ETC__",
+            "etc": "__ETC__",
+        }
+        protected = text
+        for k, v in abbrev_map.items():
+            protected = protected.replace(k, v)
+        sentences = re.split(r'(?<=[\.!?])\s+', protected.strip())
+        def restore(s):
+            for k, v in abbrev_map.items():
+                s = s.replace(v, k)
+            return s
+        return [restore(s).strip() for s in sentences if s.strip()]
+
+    def inject_overview_into_placeholder(slide, overview_sentences):
+        if not overview_sentences:
+            return False
+        for shape in slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            text_content = "".join(run.text for para in shape.text_frame.paragraphs for run in para.runs)
             if any(ph in text_content for ph in ["[Bullet Point 1]", "[Bullet Point 2]", "[Optional Bullet Point 3]"]):
                 tf = shape.text_frame
                 tf.clear()
-                for sent in sentences:
+                for sent in overview_sentences:
                     p = tf.add_paragraph()
                     p.text = sent
                     p.level = 0
@@ -2760,71 +2679,84 @@ def step17_export_to_ppt():
                         run.font.size = Pt(11)
                         run.font.color.rgb = RGBColor(0, 0, 0)
                         run.font.bold = False
-                break
+                return True
+        return False
 
+    # --- Inject proposed fund overview(s) ---
+    if proposed:
+        lookup = st.session_state.get("step16_5_proposed_overview_lookup", {})
+
+        # First proposed fund
+        first_proposed_label = proposed[0]
+        paragraph = lookup_overview_paragraph(first_proposed_label, lookup) or ""
+        if paragraph:
+            sentences = safe_split_sentences(paragraph)
+            overview_sentences = sentences[:3] if sentences else []
+            if overview_sentences:
+                injected = inject_overview_into_placeholder(slide_repl1, overview_sentences)
+                if not injected:
+                    st.warning(f"Could not find the bullet placeholder textbox on Replacement 1 slide to inject overview for '{first_proposed_label}'.")
+                fill_text_placeholder_preserving_format(slide_repl1, "[Replacement 1]", first_proposed_label)
+            else:
+                st.warning(f"No sentences extracted for proposed fund '{first_proposed_label}'.")
+        else:
+            st.warning(f"No overview paragraph found to insert for proposed fund '{first_proposed_label}'.")
+
+        # Second proposed fund if present
+        if len(proposed) > 1:
+            second_label = proposed[1]
+            paragraph2 = lookup_overview_paragraph(second_label, lookup) or ""
+            if paragraph2:
+                sentences2 = safe_split_sentences(paragraph2)
+                overview_sentences2 = sentences2[:3] if sentences2 else []
+                try:
+                    slide_repl2 = prs.slides[2]
+                    if overview_sentences2:
+                        injected2 = inject_overview_into_placeholder(slide_repl2, overview_sentences2)
+                        if not injected2:
+                            st.warning(f"Could not find the bullet placeholder textbox on Replacement 2 slide to inject overview for '{second_label}'.")
+                    fill_text_placeholder_preserving_format(slide_repl2, "[Replacement 2]", second_label)
+                except Exception:
+                    st.warning(f"Could not update Replacement 2 slide for '{second_label}'.")
+            else:
+                st.warning(f"No overview paragraph found to insert for proposed fund '{second_label}'.")
 
     # --- Fill Slide 3 ---
-    slide3 = find_slide_with_text(prs, "[Slide 3 Data]")
-    if slide3 is None:
-        st.warning("Could not find Slide 3 (placeholder '[Slide 3 Data]') in the template; skipping.")
+    slide3 = prs.slides[4 if len(proposed) > 1 else 3]
+    if not fill_text_placeholder_preserving_format(slide3, "[Category]", category):
+        st.warning("Could not find [Category] placeholder on Slide 3.")
+    df_slide3_table1 = st.session_state.get("slide3_table1_data")
+    df_slide3_table2 = st.session_state.get("slide3_table2_data")
+    if df_slide3_table1 is None or df_slide3_table2 is None:
+        st.warning("Slide 3 table data not found.")
     else:
-        # replace the [Category] placeholder if present
-        if not fill_text_placeholder_preserving_format(slide3, "[Category]", category):
-            st.warning("Could not find [Category] placeholder on Slide 3.")
-
-        # pull in the two tables’ data
-        df3a = st.session_state.get("slide3_table1_data")
-        df3b = st.session_state.get("slide3_table2_data")
-
-        if df3a is None or df3b is None:
-            st.warning("Slide 3 table data not found in session_state.")
-        else:
-            # collect all tables on the slide
-            tables = [shape.table for shape in slide3.shapes if shape.has_table]
-
-            # fill the first table
-            if len(tables) >= 1 and len(df3a.columns) == len(tables[0].columns):
-                fill_table_with_styles(tables[0], df3a)
-
-            # fill the second table
-            if len(tables) >= 2 and len(df3b.columns) == len(tables[1].columns):
-                fill_table_with_styles(tables[1], df3b)
-
+        tables = [shape.table for shape in slide3.shapes if shape.has_table]
+        if len(tables) >= 1 and df_slide3_table1 is not None:
+            if len(df_slide3_table1.columns) == len(tables[0].columns):
+                fill_table_with_styles(tables[0], df_slide3_table1)
+        if len(tables) >= 2 and df_slide3_table2 is not None:
+            if len(df_slide3_table2.columns) == len(tables[1].columns):
+                fill_table_with_styles(tables[1], df_slide3_table2)
 
     # --- Fill Slide 4 ---
-    slide4 = find_slide_with_text(prs, "[Qualitative Factors]")
-    if slide4 is None:
-        st.warning("Could not find Slide 4 (placeholder '[Qualitative Factors]') in template; skipping.")
-    else:
-        # Replace the category header
-        if not fill_text_placeholder_preserving_format(
-            slide4,
-            "[Category] – Qualitative Factors",
-            f"{category} – Qualitative Factors"
-        ):
-            st.warning("Could not find the category header placeholder on Slide 4.")
-
-        # Grab your two DataFrames
-        df4a = st.session_state.get("slide4_table1_data")
-        df4b = st.session_state.get("slide4_table2_data")
-
-        # Fill the first table (if data present)
-        if df4a is not None:
-            for shape in slide4.shapes:
-                if shape.has_table and len(shape.table.columns) == len(df4a.columns):
-                    fill_table_with_styles(shape.table, df4a)
-                    break
-        else:
-            st.warning("Slide 4 Table 1 data missing.")
-
-        # Fill the second table (if data present)
-        if df4b is not None:
-            for shape in slide4.shapes:
-                if shape.has_table and len(shape.table.columns) == len(df4b.columns):
-                    fill_table_with_styles(shape.table, df4b)
-                    break
-        else:
-            st.warning("Slide 4 Table 2 data missing.")
+    slide4_index = 5 if len(proposed) > 1 else 4
+    slide4 = prs.slides[slide4_index]
+    qualitative_placeholder = f"[Category]– Qualitative Factors"
+    qualitative_replacement = f"{category} - Qualitative Factors"
+    if not fill_text_placeholder_preserving_format(slide4, qualitative_placeholder, qualitative_replacement):
+        st.warning(f"Could not find placeholder '{qualitative_placeholder}' on Slide 4.")
+    df_slide4_table1 = st.session_state.get("slide4")
+    df_slide4_table2 = st.session_state.get("slide4_table2_data")
+    if df_slide4_table1 is not None:
+        for shape in slide4.shapes:
+            if shape.has_table and len(shape.table.columns) == len(df_slide4_table1.columns):
+                fill_table_with_styles(shape.table, df_slide4_table1)
+                break
+    if df_slide4_table2 is not None:
+        for shape in slide4.shapes:
+            if shape.has_table and len(shape.table.columns) == len(df_slide4_table2.columns):
+                fill_table_with_styles(shape.table, df_slide4_table2)
+                break
 
     # --- Save and offer download (clean UI) ---
     output = BytesIO()
@@ -2987,7 +2919,7 @@ def render_step16_and_16_5_cards(pdf):
 
 # –– Main App –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 def run():
-    st.title("Writeup & Rec Test")
+    st.title("Writeup & Rec")
     uploaded = st.file_uploader("Upload MPI PDF to Generate Writup & Rec PPTX", type="pdf")
     if not uploaded:
         return
