@@ -2493,19 +2493,21 @@ def step17_export_to_ppt():
             break
 
     # ───── Replacement Slides: clone & personalize ──────────────────────────────
-
     from copy import deepcopy
 
+    placeholder = "[Replacement]"
     confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
     proposal_names = confirmed_df["Fund Scorecard Name"].dropna().unique().tolist()
-    placeholder    = "[Replacement]"
 
     # 1) Find the template slide and its index
     template_sl = None
     template_idx = None
     for idx, sl in enumerate(prs.slides):
         for shape in sl.shapes:
-            if shape.has_text_frame and placeholder in (shape.text_frame.text or ""):
+            if not shape.has_text_frame:
+                continue
+            text = shape.text_frame.text or ""
+            if placeholder in text:
                 template_sl  = sl
                 template_idx = idx
                 break
@@ -2513,39 +2515,44 @@ def step17_export_to_ppt():
             break
 
     if template_sl and proposal_names:
-        # snapshot of the original XML
+        # snapshot original XML
         template_el = deepcopy(template_sl.element)
 
-        # 2) Overwrite that slide in place with first proposal
+        # 2) Replace on the existing slide with first proposal
         first_pf = proposal_names[0]
         for shape in template_sl.shapes:
-            if not shape.has_text_frame: continue
+            if not shape.has_text_frame:
+                continue
             for para in shape.text_frame.paragraphs:
                 for run in para.runs:
-                    text = run.text or ""
-                    if placeholder in text:
-                        run.text = text.replace(placeholder, first_pf)
+                    run_text = run.text or ""
+                    if placeholder in run_text:
+                        run.text = run_text.replace(placeholder, first_pf)
 
-        # 3) Clone for additional proposals, inserting right after slide 1
+        # 3) Clone for each additional proposal, inserting right after slide 1
         sldIdLst = prs.slides._sldIdLst
         for offset, pf in enumerate(proposal_names[1:], start=1):
+            # clone slideId entry
             new_id = deepcopy(sldIdLst[template_idx])
             sldIdLst.insert(1 + offset, new_id)
-            new_sl = prs.slides[len(prs.slides) - 1]
-            # replace its XML with original template
+
+            # python-pptx appends the new slide at end—grab it
+            new_sl = prs.slides[-1]
+            # replace its XML with original
             new_sl.element.getparent().replace(new_sl.element, deepcopy(template_el))
-            # patch in fund name safely
+
+            # patch in the fund name
             for shape in new_sl.shapes:
-                if not shape.has_text_frame: continue
+                if not shape.has_text_frame:
+                    continue
                 for para in shape.text_frame.paragraphs:
                     for run in para.runs:
-                        text = run.text or ""
-                        if placeholder in text:
-                            run.text = text.replace(placeholder, pf)
+                        run_text = run.text or ""
+                        if placeholder in run_text:
+                            run.text = run_text.replace(placeholder, pf)
     else:
         st.warning("No [Replacement] slide found or no proposal funds available.")
 
-    # ───── next: Expense & Return slide code begins here …
 
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
