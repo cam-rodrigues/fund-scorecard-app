@@ -2495,20 +2495,20 @@ def step17_export_to_ppt():
                 p.font.size = Pt(11)
             break
 
-    # ───── Replacement Slides: clone & personalize ──────────────────────────────
     from copy import deepcopy
     from pptx.enum.shapes import PP_PLACEHOLDER
 
-    placeholder    = "[Replacement]"
+    # 1) Get your list of proposal fund names
     confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
-    proposal_names = confirmed_df["Fund Scorecard Name"].dropna().unique().tolist()
+    proposal_names = confirmed_df.get("Fund Scorecard Name", pd.Series()).dropna().unique().tolist()
 
-    # 1) Find the template slide and its index
+    # 2) Find the “template” slide whose title still contains the placeholder
+    placeholder    = "[Replacement]"
     template_idx   = None
     template_slide = None
     for idx, sl in enumerate(prs.slides):
-        title = getattr(sl.shapes, "title", None)
-        if title and placeholder in (title.text or ""):
+        title_shp = getattr(sl.shapes, "title", None)
+        if title_shp and placeholder in (title_shp.text or ""):
             template_idx   = idx
             template_slide = sl
             break
@@ -2516,40 +2516,40 @@ def step17_export_to_ppt():
     if not template_slide or not proposal_names:
         st.warning("No [Replacement] slide found or no proposal funds.")
     else:
-        # Snapshot the ORIGINAL XML before any changes
+        # 3) Snapshot the original slide XML BEFORE any changes
         orig_xml = deepcopy(template_slide.element)
 
-        # Helper to set the TITLE placeholder text
+        # 4) Helper to set a slide’s TITLE placeholder text
         def set_title(slide, text):
-            title_shp = next(
-                (sh for sh in slide.shapes
-                 if sh.is_placeholder
-                 and sh.placeholder_format.type == PP_PLACEHOLDER.TITLE),
-                None
-            )
+            title_shp = getattr(slide.shapes, "title", None)
             if title_shp:
-                tf = title_shp.text_frame
-                tf.clear()
-                tf.text = text
+                title_shp.text_frame.text = text
 
-        # 2) Overwrite the template slide for the FIRST proposal fund
-        set_title(template_slide, proposal_names[0])
+        # 5) Loop over each fund name, overwriting or cloning as needed
+        for i, pf in enumerate(proposal_names):
+            if i == 0:
+                # — Overwrite the template slide in place —
+                #   Restore its original XML, then set the new title
+                template_slide.element.getparent() \
+                    .replace(template_slide.element, deepcopy(orig_xml))
+                set_title(template_slide, pf)
+            else:
+                # — Clone for additional funds —
+                # a) Insert a new slideId entry right after slide 1 + (i-1)
+                sldIdLst = prs.slides._sldIdLst
+                new_id   = deepcopy(sldIdLst[template_idx])
+                sldIdLst.insert(1 + i, new_id)
 
-        # 3) For each additional fund, clone from the ORIGINAL XML
-        sldIdLst = prs.slides._sldIdLst
-        for offset, pf in enumerate(proposal_names[1:], start=1):
-            # a) Insert a new slideId entry right after slide 1
-            new_id = deepcopy(sldIdLst[template_idx])
-            sldIdLst.insert(1 + offset, new_id)
+                # b) Grab the newly-created slide by that position
+                new_sl = prs.slides[1 + i]
 
-            # b) Grab the newly‐created slide object
-            new_sl = prs.slides[1 + offset]  # because we inserted at that position
+                # c) Replace its XML with the original snapshot
+                new_sl.element.getparent() \
+                    .replace(new_sl.element, deepcopy(orig_xml))
 
-            # c) Replace its element with the original snapshot
-            new_sl.element.getparent().replace(new_sl.element, deepcopy(orig_xml))
+                # d) Set its title to this fund name
+                set_title(new_sl, pf)
 
-            # d) Set its title to this proposal fund
-            set_title(new_sl, pf)
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
     # Locate the slide by its placeholder
