@@ -1,4 +1,5 @@
 import re
+
 import streamlit as st
 import pdfplumber
 from calendar import month_name
@@ -2277,8 +2278,6 @@ def step16_5_locate_proposed_factsheets_with_overview(pdf, context_lines=3, min_
 
     st.session_state["step16_5_proposed_overview_lookup"] = results
     return results
-
-
 #───Build Powerpoint─────────────────────────────────────────────────────────────────
 def step17_export_to_ppt():
     import streamlit as st
