@@ -2892,7 +2892,7 @@ def step17_export_to_ppt():
                         run.font.size = Pt(11)
                         run.font.color.rgb = RGBColor(0, 0, 0)
 
-    # ───── Qualitative Factors Slide: Table 2 – Assets Under Management ──────────────
+    # ───── Qualitative Factors Slide: Table 2 – Assets Under Management ────────────
     from copy import deepcopy
     from pptx.util import Pt
     from pptx.dml.color import RGBColor
@@ -2902,12 +2902,14 @@ def step17_export_to_ppt():
     if df_q2.empty:
         st.warning("No Assets data found for Table 2.")
     else:
-        # Locate the Assets table by matching headers
+        # 1) Locate the correct table by header row (must have at least 3 columns)
         table2 = None
         for shape in slide_qualitative_factors.shapes:
             if not shape.has_table:
                 continue
             tbl = shape.table
+            if len(tbl.columns) < 3:
+                continue
             h0 = tbl.cell(0, 0).text_frame.text.strip()
             h1 = tbl.cell(0, 1).text_frame.text.strip()
             h2 = tbl.cell(0, 2).text_frame.text.strip()
@@ -2917,43 +2919,44 @@ def step17_export_to_ppt():
                 "Average Market Capitalization",
             ):
                 table2 = tbl
+                tbl_xml = tbl._tbl
                 break
 
         if table2 is None:
             st.warning("Couldn't find the Assets Under Management table.")
         else:
-            # 1) Add rows if there are more than one proposal funds
-            existing = len(table2.rows) - 1  # header excluded
+            # 2) Add rows if there are more proposals than existing body rows
+            existing = len(table2.rows) - 1  # exclude header
             needed = len(df_q2) - existing
             if needed > 0:
+                # pick a base row index safely (first data row if present, else header)
+                base_idx = 1 if len(table2.rows) > 1 else 0
+                base_tr = tbl_xml.tr_lst[base_idx]
                 for _ in range(needed):
-                    try:
-                        # preferred: use python-pptx API
-                        table2.add_row()
-                    except AttributeError:
-                        # fallback: clone an existing data row (or header if none)
-                        base_idx = 1 if len(table2.rows) > 1 else 0
-                        base_tr = table2._tbl.tr_lst[base_idx]
-                        table2._tbl.append(deepcopy(base_tr))
+                    tbl_xml.append(deepcopy(base_tr))
 
-            # 2) Fill each row: selected fund first, then proposals
-            for r_idx, row in enumerate(df_q2.itertuples(index=False), start=1):
-                for c_idx, val in enumerate(row):
+            # 3) Fill each row: selected fund first, then proposals
+            for r_idx, record in enumerate(df_q2.itertuples(index=False), start=1):
+                for c_idx, val in enumerate(record):
+                    # guard against columns beyond shape
+                    if c_idx >= len(table2.columns):
+                        continue
                     cell = table2.cell(r_idx, c_idx)
                     para = cell.text_frame.paragraphs[0]
-                    # get or create the run
+
+                    # replace or add run
                     if para.runs:
                         run = para.runs[0]
-                        run.text = val
+                        run.text = str(val)
                     else:
                         run = para.add_run()
-                        run.text = val
+                        run.text = str(val)
 
                     if c_idx == 0:
-                        # Investment Manager: preserve placeholder style
+                        # Investment Manager: preserve the template’s styling
                         continue
                     else:
-                        # Assets & Avg Market Cap: Cambria 11pt black
+                        # Assets & Avg Market Cap: Cambria, 11 pt, black
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
                         run.font.color.rgb = RGBColor(0, 0, 0)
