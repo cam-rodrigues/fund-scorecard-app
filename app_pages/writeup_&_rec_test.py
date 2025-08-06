@@ -2493,69 +2493,69 @@ def step17_export_to_ppt():
             break
 
     # ───── Replacement Slides: clone & personalize ──────────────────────────────
+    # … after you fill the first‐slide bullets, before Expense & Return …
+
     from copy import deepcopy
 
-    placeholder    = "[Replacement]"
-    confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
-    proposal_names = confirmed_df["Fund Scorecard Name"].dropna().unique().tolist()
+    placeholder   = "[Replacement]"
+    confirmed_df  = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    proposal_names = (
+        confirmed_df["Fund Scorecard Name"]
+        .dropna()
+        .unique()
+        .tolist()
+    )
 
-    # 1) Find the single slide with the placeholder
-    template_sl  = None
+    def duplicate_slide(pres, src_slide):
+        """Clone all shapes from src_slide into a new slide with the same layout."""
+        new_sl = pres.slides.add_slide(src_slide.slide_layout)
+        for shape in src_slide.shapes:
+            el = shape.element
+            new_sl.shapes._spTree.insert_element_before(deepcopy(el), 'p:extLst')
+        return new_sl
+
+    # 1) Find the template slide index
     template_idx = None
     for idx, sl in enumerate(prs.slides):
-        for shape in sl.shapes:
-            if not shape.has_text_frame:
-                continue
-            text = shape.text_frame.text or ""
-            if placeholder in text:
-                template_sl  = sl
-                template_idx = idx
-                break
-        if template_sl:
+        if any(
+            placeholder in (shape.text_frame.text or "")
+            for shape in sl.shapes
+            if shape.has_text_frame
+        ):
+            template_idx = idx
             break
 
-    if template_sl and proposal_names:
-        # Snapshot its XML for later cloning
-        template_el = deepcopy(template_sl.element)
-
-        # 2) Overwrite that slide in-place with the first proposal fund
+    if template_idx is None or not proposal_names:
+        st.warning("No [Replacement] slide found or no proposal funds.")
+    else:
+        # 2) Overwrite the existing placeholder slide with the first fund
+        base_sl = prs.slides[template_idx]
         first_pf = proposal_names[0]
-        for shape in template_sl.shapes:
-            if not shape.has_text_frame:
+        for shape in base_sl.shapes:
+            if not shape.has_text_frame: 
                 continue
             for para in shape.text_frame.paragraphs:
-                for run in para.runs:
-                    # guard against None
-                    run_txt = run.text or ""
-                    if placeholder in run_txt:
-                        run.text = run_txt.replace(placeholder, first_pf)
+                txt = para.text or ""
+                if placeholder in txt:
+                    para.text = txt.replace(placeholder, first_pf)
 
-        # 3) Clone additional slides right after slide 1
-        sldIdLst = prs.slides._sldIdLst
+        # 3) Clone for each additional fund, inserting right after slide 1
         for offset, pf in enumerate(proposal_names[1:], start=1):
-            # copy the slideId entry
-            new_id = deepcopy(sldIdLst[template_idx])
+            new_sl = duplicate_slide(prs, base_sl)
+            # move it to position immediately after slide 1
+            sldIdLst = prs.slides._sldIdLst
+            new_id   = sldIdLst[-1]
+            sldIdLst.remove(new_id)
             sldIdLst.insert(1 + offset, new_id)
 
-            # python-pptx always appends new slide at the end
-            new_sl = prs.slides[-1]
-            # replace its XML with our original template
-            new_sl.element.getparent().replace(new_sl.element, deepcopy(template_el))
-
-            # patch in this fund’s name
+            # replace its placeholder
             for shape in new_sl.shapes:
                 if not shape.has_text_frame:
                     continue
                 for para in shape.text_frame.paragraphs:
-                    for run in para.runs:
-                        run_txt = run.text or ""
-                        if placeholder in run_txt:
-                            run.text = run_txt.replace(placeholder, pf)
-    else:
-        st.warning("No [Replacement] slide found or no proposal funds available.")
-
-
-
+                    txt = para.text or ""
+                    if placeholder in txt:
+                        para.text = txt.replace(placeholder, pf)
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
     # Locate the slide by its placeholder
