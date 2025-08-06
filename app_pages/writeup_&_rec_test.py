@@ -2389,7 +2389,7 @@ def step17_export_to_ppt():
     from pptx.dml.color import RGBColor
     from pptx.util import Pt
     from io import BytesIO
-    from copy import deepcopy  # for row cloning
+    from copy import deepcopy
 
     # ───── 1) Load template ────────────────────────────────────────────────────────────
     prs = Presentation("assets/writeup&rec_templates.pptx")
@@ -2400,9 +2400,8 @@ def step17_export_to_ppt():
     bullets = st.session_state.get("bullet_points", [])
     ear_df = st.session_state.get("ear_table1_data")  # DataFrame for Expense & Return Table 1
     facts = st.session_state.get("fund_factsheets_data", [])
-    fs_rec = next((f for f in facts if f.get("Matched Fund Name") == selected), {})
 
-    # ───── 3) Validate IPS data ──────────────────────────────────────────────────────────
+    # ───── 3) Validate IPS data & define row_dict ────────────────────────────────────────
     if ips_icon_table is None or ips_icon_table.empty:
         st.error("IPS screening table not found. Run earlier steps first.")
         return
@@ -2410,20 +2409,12 @@ def step17_export_to_ppt():
     if row.empty:
         st.error("No IPS screening result found for selected fund.")
         return
+    row_dict = row.iloc[0].to_dict()
 
-    # ───── 4) Build values list for first slide ─────────────────────────────────────────
-    report_date = st.session_state.get("report_date", "")
-    values = [
-        fs_rec.get("Category", ""),  # Category
-        report_date,                 # Time Period
-        "$",                         # Plan Assets
-    ]
-    for i in range(1, 12):
-        values.append(str(row_dict.get(f"IPS Investment Criteria {i}", "")))
-    values.append(row_dict.get("IPS Watch Status", ""))
-
-    # ───── 5) First Slide: Replace "Fund Name" placeholder ──────────────────────────────
+    # ───── 4) FIRST SLIDE LOGIC (Fund Name, IPS table, bullets) ────────────────────────
     slide = prs.slides[0]
+
+    # — Replace "Fund Name" placeholder ─────────────────────────────────────────────
     for shape in slide.shapes:
         if not shape.has_text_frame:
             continue
@@ -2437,7 +2428,7 @@ def step17_export_to_ppt():
             run.font.underline = True
             break
 
-    # ───── 6) First Slide: Fill IPS table ────────────────────────────────────────────────
+    # — Fill IPS table ───────────────────────────────────────────────────────────────
     def style_run(run, text):
         run.text = text
         run.font.name = "Cambria"
@@ -2447,46 +2438,57 @@ def step17_export_to_ppt():
         elif text == "✗":
             run.font.color.rgb = RGBColor(255, 0, 0)
 
+    # gather values for the IPS table row
+    facts_rec = next((f for f in facts if f.get("Matched Fund Name") == selected), {})
+    report_date = st.session_state.get("report_date", "")
+    vals = [
+        facts_rec.get("Category", ""),
+        report_date,
+        "$",
+    ] + [str(row_dict.get(f"IPS Investment Criteria {i}", "")) for i in range(1, 12)] + [row_dict.get("IPS Watch Status", "")]
+
     table_shape = next((sh for sh in slide.shapes if sh.has_table), None)
     if not table_shape:
         st.error("No table found on the first slide.")
         return
     table = table_shape.table
 
-    # — Category → row 1, col 0
-    cat_cell = table.cell(1, 0)
-    cat_para = cat_cell.text_frame.paragraphs[0]
-    if cat_para.runs:
-        style_run(cat_para.runs[0], values[0])
+    # Category → row 1, col 0
+    cell = table.cell(1, 0)
+    para = cell.text_frame.paragraphs[0]
+    if para.runs:
+        style_run(para.runs[0], vals[0])
     else:
-        style_run(cat_para.add_run(), values[0])
+        style_run(para.add_run(), vals[0])
 
-    # — Other values → bottom row
+    # Other values → bottom row
     bottom = len(table.rows) - 1
-    for col_idx, text in enumerate(values[1:], start=1):
-        cell = table.cell(bottom, col_idx)
+    for idx, text in enumerate(vals[1:], start=1):
+        cell = table.cell(bottom, idx)
         para = cell.text_frame.paragraphs[0]
         if para.runs:
             style_run(para.runs[0], text)
         else:
             style_run(para.add_run(), text)
 
-    # ───── 7) First Slide: Fill bullet‐points textbox ───────────────────────────────────
+    # — Fill bullets textbox ──────────────────────────────────────────────────────────
     for shape in slide.shapes:
         if not shape.has_text_frame:
             continue
         if "[Bullet Point 1]" in shape.text_frame.text:
             tf = shape.text_frame
-            tf.text = ""  # clear placeholder
-            for idx, bp in enumerate(bullets):
-                para = tf.paragraphs[0] if idx == 0 else tf.add_paragraph()
-                para.text = bp
-                para.level = 0
-                para.font.name = "Cambria"
-                para.font.size = Pt(12)
+            tf.text = ""
+            for i, bp in enumerate(bullets):
+                p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+                p.text = bp
+                p.level = 0
+                p.font.name = "Cambria"
+                p.font.size = Pt(12)
             break
 
-    # ───── 8) Expense and Return Slide: Locate by placeholder ──────────────────────────
+    # ───── 5) EXPENSE AND RETURN SLIDE: Table 1 ────────────────────────────────────────
+
+    # Locate the slide by its placeholder
     slide_expense_and_return = None
     for sl in prs.slides:
         for shape in sl.shapes:
@@ -2499,34 +2501,34 @@ def step17_export_to_ppt():
     if not slide_expense_and_return:
         st.warning("Couldn't find the Expense and Return slide.")
     else:
-        # ───── 9) Expense and Return Slide: Table 1 ────────────────────────────────────
+        # Grab all tables, pick the first (top-left)
         tables = [sh for sh in slide_expense_and_return.shapes if sh.has_table]
         if not tables:
             st.warning("No tables found on Expense and Return slide.")
         else:
-            table1 = tables[0].table
-            tbl = table1._tbl  # the underlying XML table element
+            tbl1 = tables[0].table
+            tbl_xml = tbl1._tbl
 
-            existing_body_rows = len(table1.rows) - 1  # exclude header
-            needed = len(ear_df) - existing_body_rows
+            # Determine how many body rows to add
+            existing = len(tbl1.rows) - 1  # header excluded
+            needed = len(ear_df) - existing
             if needed > 0:
-                # clone the first data row (row index 1) needed times
-                base_tr = tbl.tr_lst[1]
+                base_tr = tbl_xml.tr_lst[1]
                 for _ in range(needed):
-                    tbl.append(deepcopy(base_tr))
+                    tbl_xml.append(deepcopy(base_tr))
 
-            # Fill each row under the header
-            for r_idx, row in enumerate(ear_df.itertuples(index=False), start=1):
-                for c_idx, cell_value in enumerate(row):
-                    cell = table1.cell(r_idx, c_idx)
-                    para = cell.text_frame.paragraphs[0]
-                    if para.runs:
-                        para.runs[0].text = cell_value
+            # Fill each DF row into the table
+            for r, row in enumerate(ear_df.itertuples(index=False), start=1):
+                for c, val in enumerate(row):
+                    cell = tbl1.cell(r, c)
+                    p = cell.text_frame.paragraphs[0]
+                    if p.runs:
+                        p.runs[0].text = val
                     else:
-                        para.add_run(cell_value)
-                    # font, size, color are inherited from the cloned row/template
+                        p.add_run(val)
+                    # formatting inherited from template row
 
-    # ───── 10) Save & Download ───────────────────────────────────────────────────────────
+    # ───── 6) Save & Download ─────────────────────────────────────────────────────────
     out = BytesIO()
     prs.save(out)
     out.seek(0)
@@ -2537,7 +2539,6 @@ def step17_export_to_ppt():
         file_name=f"{selected} Writeup.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
-
 
 # –– Cards ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 def render_step16_and_16_5_cards(pdf):
