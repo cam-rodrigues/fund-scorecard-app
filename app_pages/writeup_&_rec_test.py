@@ -2898,13 +2898,12 @@ def step17_export_to_ppt():
     from pptx.dml.color import RGBColor
     import pandas as pd
 
-    # Pull in the DataFrame you saved in Step 15
     df_q2 = st.session_state.get("qualfact_table2_data", pd.DataFrame())
-
     if df_q2.empty:
         st.warning("No Assets data found for Table 2.")
     else:
-        # 1) Locate the correct table by matching its headers
+        # locate the slide (reuse slide_qualitative_factors from earlier)
+        # find the table by its headers
         table2 = None
         for shape in slide_qualitative_factors.shapes:
             if not shape.has_table:
@@ -2925,22 +2924,22 @@ def step17_export_to_ppt():
         if table2 is None:
             st.warning("Couldn't find the Assets Under Management table.")
         else:
-            # 2) Add rows if there is more than one proposal fund
+            # how many real data‐rows exist?
             existing = len(table2.rows) - 1  # header excluded
             needed = len(df_q2) - existing
             if needed > 0:
-                # pick the first data‐row as template (index 1) if it exists
-                clone_idx = 1 if len(tbl_xml.tr_lst) > 1 else 0
-                base_tr = tbl_xml.tr_lst[clone_idx]
+                # choose a base row safely:
+                base_idx = 1 if len(tbl_xml.tr_lst) > 1 else 0
+                base_tr = tbl_xml.tr_lst[base_idx]
                 for _ in range(needed):
                     tbl_xml.append(deepcopy(base_tr))
 
-            # 3) Fill each row: selected fund first, then any proposals
+            # now fill them: selected (r=1), proposals (r=2..), etc.
             for r_idx, row in enumerate(df_q2.itertuples(index=False), start=1):
                 for c_idx, val in enumerate(row):
                     cell = table2.cell(r_idx, c_idx)
                     para = cell.text_frame.paragraphs[0]
-                    # get or create the run
+                    # get or create run
                     if para.runs:
                         run = para.runs[0]
                         run.text = val
@@ -2949,13 +2948,14 @@ def step17_export_to_ppt():
                         run.text = val
 
                     if c_idx == 0:
-                        # Investment Manager column: preserve placeholder styling
+                        # Investment Manager: keep placeholder style
                         continue
                     else:
                         # Assets & Avg Market Cap: Cambria 11pt black
                         run.font.name = "Cambria"
                         run.font.size = Pt(11)
                         run.font.color.rgb = RGBColor(0, 0, 0)
+
 
 
     
