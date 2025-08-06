@@ -2497,11 +2497,10 @@ def step17_export_to_ppt():
 
 
     # ───── Replacement Slides + Overview Insertion ────────────────────────────────
-    from copy import deepcopy
     from pptx.enum.shapes import PP_PLACEHOLDER
     import re
 
-    # 1) Build list of proposal names (with fallback)
+    # 1) Gather proposal names (with fallback)
     confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
     proposal_names = confirmed_df.get("Fund Scorecard Name", pd.Series()).dropna().unique().tolist()
     if not proposal_names:
@@ -2509,91 +2508,64 @@ def step17_export_to_ppt():
         if "Investment Manager" in ear_df.columns:
             proposal_names = [nm.split(" (")[0] for nm in ear_df["Investment Manager"].iloc[1:]]
 
-    # 2) Find the template slide (still contains “[Replacement]” in its title)
+    # 2) Find the layout of the “[Replacement]” slide
     placeholder    = "[Replacement]"
-    template_idx   = None
-    template_slide = None
-    for idx, sl in enumerate(prs.slides):
+    template_layout = None
+    for sl in prs.slides:
         title_shp = getattr(sl.shapes, "title", None)
         if title_shp and placeholder in (title_shp.text or ""):
-            template_idx   = idx
-            template_slide = sl
+            template_layout = sl.slide_layout
             break
 
-    if not template_slide or not proposal_names:
-        st.warning("No [Replacement] slide or no proposal funds.")
+    if template_layout is None or not proposal_names:
+        st.warning("Could not find the Replacement slide layout or no proposal funds.")
     else:
-        # 3) Snapshot original shapes so clones start fresh
-        orig_elements = [deepcopy(sh.element) for sh in template_slide.shapes]
-
-        # 4) Helper to set the TITLE placeholder
+        # 3) Helper to fill TITLE on a slide
         def set_title(slide, text):
-            title_shp = next(
-                (sh for sh in slide.shapes
-                 if sh.is_placeholder and
-                    sh.placeholder_format.type == PP_PLACEHOLDER.TITLE),
-                None
-            )
-            if title_shp:
-                title_shp.text_frame.clear()
-                title_shp.text_frame.text = text
+            ts = slide.shapes.title
+            ts.text = text
 
-        # 5) Loop over each proposal fund
-        for i, pf in enumerate(proposal_names):
-            if i == 0:
-                # overwrite template slide
-                sl = template_slide
-            else:
-                # clone: add blank slide of same layout, then remove placeholders
-                sl = prs.slides.add_slide(template_slide.slide_layout)
-                for shp in list(sl.shapes):
-                    if shp.is_placeholder:
-                        sl.shapes._spTree.remove(shp.element)
-                # paste in each original shape
-                for elem in orig_elements:
-                    sl.shapes._spTree.insert_element_before(deepcopy(elem), "p:extLst")
-                # reorder slide into position immediately after slide 1
-                new_id = deepcopy(prs.slides._sldIdLst[template_idx])
-                prs.slides._sldIdLst.insert(1 + i, new_id)
-
-            # a) Set slide title to this fund
-            set_title(sl, pf)
-
-            # b) Insert “Investment Overview” bullets below title
+        # 4) Helper to fill the first non‐title text box with overview bullets
+        def set_overview(slide, fund_name):
             overview_map = st.session_state.get("step16_5_proposed_overview_lookup", {})
-            para_text   = overview_map.get(pf, {}).get("Overview Paragraph", "")
-            if para_text:
-                # find first non‐title text_frame
-                target_tf = None
-                for shp in sl.shapes:
-                    if not shp.has_text_frame:
-                        continue
-                    if shp.is_placeholder and shp.placeholder_format.type == PP_PLACEHOLDER.TITLE:
-                        continue
-                    target_tf = shp.text_frame
+            para_text   = overview_map.get(fund_name, {}).get("Overview Paragraph", "")
+            if not para_text:
+                return
+            # find the first placeholder that is *not* the title
+            tb = None
+            for shp in slide.placeholders:
+                if shp.is_placeholder and shp.placeholder_format.type != PP_PLACEHOLDER.TITLE:
+                    tb = shp
                     break
-                if target_tf:
-                    # capture original formatting
-                    orig_run = target_tf.paragraphs[0].runs[0]
-                    fnt = orig_run.font
+            if not tb:
+                return
+            tf = tb.text_frame
+            # capture original run formatting
+            orig_run = tf.paragraphs[0].runs[0]
+            fnt = orig_run.font
+            # clear out the placeholder text
+            tf.clear()
+            # split into sentences
+            sentences = [s.strip() for s in re.split(r'(?<=[\.!?])\s+', para_text) if s.strip()]
+            # write bullets
+            for i, sent in enumerate(sentences):
+                p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+                p.text  = sent
+                p.level = 0
+                run     = p.runs[0]
+                run.font.name      = fnt.name
+                run.font.size      = fnt.size
+                run.font.color.rgb = fnt.color.rgb
+                run.font.bold      = fnt.bold
+                run.font.italic    = fnt.italic
+                run.font.underline = fnt.underline
 
-                    # clear placeholder
-                    target_tf.clear()
-
-                    # split into sentences and write bullets
-                    sentences = [s.strip() for s in re.split(r'(?<=[\.!?])\s+', para_text) if s.strip()]
-                    for j, sent in enumerate(sentences):
-                        p = target_tf.paragraphs[0] if j == 0 else target_tf.add_paragraph()
-                        p.text  = sent
-                        p.level = 0
-                        run     = p.runs[0]
-                        # reapply formatting
-                        run.font.name      = fnt.name
-                        run.font.size      = fnt.size
-                        run.font.color.rgb = fnt.color.rgb
-                        run.font.bold      = fnt.bold
-                        run.font.italic    = fnt.italic
-                        run.font.underline = fnt.underline
+        # 5) Now generate one slide per fund
+        #    (this automatically appends after slide 1)
+        for fund in proposal_names:
+            new_sl = prs.slides.add_slide(template_layout)
+            set_title(new_sl, fund)
+            set_overview(new_sl, fund)
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
     # Locate the slide by its placeholder
