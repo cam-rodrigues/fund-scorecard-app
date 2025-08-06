@@ -1591,7 +1591,7 @@ def step15_display_selected_fund():
     )
 
 
-    # --- Slide 1 Table: IPS Results ---
+    # --- IPS Results ---
     ips_icon_table = st.session_state.get("ips_icon_table")
     facts = st.session_state.get("fund_factsheets_data", [])
     fs_rec = next((f for f in facts if f["Matched Fund Name"] == selected_fund), None)
@@ -1628,7 +1628,7 @@ def step15_display_selected_fund():
     else:
         st.warning("IPS screening table not found. Run earlier steps first.")
 
-    # --- Slide 2 Table 1 ---
+    # --- Expense & Return: Table 1 ---
     st.markdown("**Net Expense Ratio**")
     
     def format_expense(val):
@@ -1663,14 +1663,14 @@ def step15_display_selected_fund():
     
     # Assemble final table: selected fund first, then proposed(s)
     all_rows = [row_selected] + proposed_rows
-    df_slide2_table1 = pd.DataFrame(all_rows)
+    df_e&r_table1 = pd.DataFrame(all_rows)
     
     # Save & display
-    st.session_state["slide2_table1_data"] = df_slide2_table1
-    st.dataframe(df_slide2_table1, use_container_width=True)
+    st.session_state["e&r_table1_data"] = df_e&r_table1
+    st.dataframe(df_e&r_table1, use_container_width=True)
 
 
-    # --- Slide 2 Table 2: Returns ---
+    # --- Expense & Return: Table 2: Returns ---
     st.markdown("**Returns**")
     date_label = st.session_state.get("report_date", "QTD")
     
@@ -1736,13 +1736,13 @@ def step15_display_selected_fund():
     
     # Assemble: selected, proposed(s), then benchmark
     all_rows = [row_selected] + proposed_rows + [row_benchmark]
-    df_slide2_table2 = pd.DataFrame(all_rows)
+    df_e&r_table2 = pd.DataFrame(all_rows)
     
     # Save & display
-    st.session_state["slide2_table2_data"] = df_slide2_table2
-    st.dataframe(df_slide2_table2, use_container_width=True)
+    st.session_state["e&r_table2_data"] = df_e&r_table2
+    st.dataframe(df_e&r_table2, use_container_width=True)
 
-    # --- Slide 2 Table 3: Calendar Returns ---
+    # --- Expense & Return: Table 3: Calendar Returns ---
     st.markdown("**Calendar Returns**")
     fund_cy = st.session_state.get("step8_returns", [])
     bench_cy = st.session_state.get("benchmark_calendar_year_returns", [])
@@ -1799,14 +1799,14 @@ def step15_display_selected_fund():
     
     # Assemble in order: selected, proposed(s), benchmark
     all_rows = [row_selected] + proposed_rows + [row_benchmark]
-    df_slide2_3 = pd.DataFrame(all_rows, columns=["Investment Manager"] + year_cols)
+    df_e&r_table3 = pd.DataFrame(all_rows, columns=["Investment Manager"] + year_cols)
     
-    st.session_state["slide2_table3_data"] = df_slide2_3
-    st.dataframe(df_slide2_3, use_container_width=True)
+    st.session_state["e&r_table3_data"] = df_e&r_table3
+    st.dataframe(df_e&r_table3, use_container_width=True)
 
 
 
-    # --- Slide 3 Table 1 ---
+    # --- Risk Adjusted Returns Table 1 ---
     st.markdown("**MPT Statistics Summary**")
     mpt3 = st.session_state.get("step9_mpt_stats", [])
     mpt5 = st.session_state.get("step10_risk_analysis_5yr", []) or st.session_state.get("step10_mpt_stats", [])
@@ -1841,10 +1841,10 @@ def step15_display_selected_fund():
     
     # Assemble: selected then proposed(s)
     all_rows = [row_selected] + proposed_rows
-    df_slide3_1 = pd.DataFrame(all_rows)
+    df_raj_table1 = pd.DataFrame(all_rows)
     
-    st.session_state["slide3_table1_data"] = df_slide3_1
-    st.dataframe(df_slide3_1, use_container_width=True)
+    st.session_state["raj_table1_data"] = df_raj_table1
+    st.dataframe(df_raj_table1, use_container_width=True)
 
     # --- Slide 3 Table 2 ---
     st.markdown("**Risk-Adjusted Returns / Peer Ranking %**")
@@ -1879,11 +1879,11 @@ def step15_display_selected_fund():
         for pf in confirmed_proposed_df["Fund Scorecard Name"].unique().tolist():
             rows.append(build_ratio_row(pf))
     
-    df_slide3_2 = pd.DataFrame(rows)
+    df_raj_table2 = pd.DataFrame(rows)
 
     # Save for Step 17 to use
-    st.session_state["slide3_table2_data"] = df_slide3_2
-    st.dataframe(df_slide3_2, use_container_width=True)
+    st.session_state["raj_table2_data"] = df_raj_table2
+    st.dataframe(df_raj_table2, use_container_width=True)
 
     # --- Slide 4 Table 1 ---
     st.markdown("**Manager Tenure**")
@@ -1910,11 +1910,11 @@ def step15_display_selected_fund():
         for pf in confirmed_proposed_df["Fund Scorecard Name"].unique().tolist():
             rows.append(build_tenure_row(pf))
     
-    df_slide4 = pd.DataFrame(rows)
+    df_qualfact_table1 = pd.DataFrame(rows)
 
     # Save for Step 17 to use
-    st.session_state["slide4"] = df_slide4
-    st.dataframe(df_slide4, use_container_width=True)
+    st.session_state["qualfact_table1_data"] = df_qualfact_table1
+    st.dataframe(df_qualfact_table1, use_container_width=True)
 
     
     # --- Slide 4 Table 2 ---
@@ -1944,11 +1944,11 @@ def step15_display_selected_fund():
             rows.append(build_asset_row(pf))
 
 
-    df_slide4_2 = pd.DataFrame(rows)
+    df_qualfact_table2 = pd.DataFrame(rows)
     
     # Save for Step 17 to use
-    st.session_state["slide4_table2_data"] = df_slide4_2
-    st.dataframe(df_slide4_2, use_container_width=True)
+    st.session_state["qualfact_table2_data"] = df_qualfact_table2
+    st.dataframe(df_qualfact_table2, use_container_width=True)
 
 #───Bullet Points──────────────────────────────────────────────────────────────────
 def step16_3_selected_overview_lookup(pdf, context_lines=3, min_score=50):
