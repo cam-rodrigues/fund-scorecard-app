@@ -2495,122 +2495,86 @@ def step17_export_to_ppt():
                 p.font.size = Pt(11)
             break
 
+    # ───── Proposal Slides: Replace Headings, Fill Bullets, Delete Extras ─────────────
     from pptx.util import Pt
     import re
     
-    # 0) Pull your proposal list + overview lookup once
+    # 0) Build your proposal list (up to 5) with fallback
     confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
     proposal_names = confirmed_df.get("Fund Scorecard Name", pd.Series()).dropna().tolist()
     if not proposal_names:
         ear_df = st.session_state.get("ear_table1_data", pd.DataFrame())
         if "Investment Manager" in ear_df.columns:
             proposal_names = [nm.split(" (")[0] for nm in ear_df["Investment Manager"].iloc[1:]]
+    
+    # 1) Grab your overview lookup
     overview_map = st.session_state.get("step16_5_proposed_overview_lookup", {})
     
-    # ───── Replace or Remove Replacement Slides ─────────────────────────────────────
-    placeholder_to_idx = {}
-    for idx, sl in enumerate(prs.slides):
-        for shape in sl.shapes:
-            if not shape.has_text_frame:
-                continue
-            txt = shape.text_frame.text or ""
-            for i in range(1, 6):
-                token = f"[Replacement {i}]"
-                if token in txt:
-                    placeholder_to_idx[i] = idx
-                    break
-            if idx in placeholder_to_idx.values():
-                break
-    
+    # 2) Loop through placeholders [Replacement 1]…[Replacement 5]
     to_delete = []
     for i in range(1, 6):
-        idx = placeholder_to_idx.get(i)
-        if idx is None:
-            continue
-        sl = prs.slides[idx]
-        if i <= len(proposal_names):
-            name = proposal_names[i - 1]
-            # replace only the first run that contains the token
+        # a) Find the slide containing "[Replacement i]"
+        found = None
+        for idx, sl in enumerate(prs.slides):
             for shape in sl.shapes:
                 if not shape.has_text_frame:
                     continue
-                for run in shape.text_frame.paragraphs[0].runs:
-                    if f"[Replacement {i}]" in (run.text or ""):
-                        run.text = run.text.replace(f"[Replacement {i}]", name)
-                        break
-                else:
-                    continue
+                if f"[Replacement {i}]" in (shape.text_frame.text or ""):
+                    found = (idx, sl)
+                    break
+            if found:
                 break
+        if not found:
+            continue
+        idx, sl = found
+    
+        # b) If we have a fund for this slot, replace heading and fill bullets
+        if i <= len(proposal_names):
+            fund_name = proposal_names[i - 1]
+    
+            # Replace the heading placeholder
+            for shape in sl.shapes:
+                if not shape.has_text_frame:
+                    continue
+                text = shape.text_frame.text or ""
+                if f"[Replacement {i}]" in text:
+                    shape.text_frame.text = text.replace(f"[Replacement {i}]", fund_name)
+                    break
+    
+            # Fill the bullets box (shape containing "[Bullet Point 1]")
+            overview = overview_map.get(fund_name, {}).get("Overview Paragraph", "")
+            if overview:
+                sentences = [
+                    s.strip()
+                    for s in re.split(r'(?<=[.!?])\s+', overview)
+                    if s.strip()
+                ]
+                for shape in sl.shapes:
+                    if not shape.has_text_frame:
+                        continue
+                    text = shape.text_frame.text or ""
+                    if "[Bullet Point 1]" not in text:
+                        continue
+                    tf = shape.text_frame
+                    tf.text = ""  # clear placeholder lines
+                    for j, sent in enumerate(sentences):
+                        p = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
+                        p.text      = sent
+                        p.level     = 0
+                        p.font.name = "Cambria"
+                        p.font.size = Pt(11)
+                    break
+    
+        # c) Otherwise, mark slide for deletion
         else:
             to_delete.append(idx)
     
-    # remove extra slides in reverse order
+    # 3) Delete any extra placeholders in reverse index order
     sldIdLst = prs.slides._sldIdLst
     for idx in sorted(to_delete, reverse=True):
         sldId = sldIdLst[idx]
         sldIdLst.remove(sldId)
-    
-    # ───── Now fill in the bullets on each proposal slide ────────────────────────────
-    from pptx.util import Pt
-    import re
-    
-    # (Make sure this runs *after* you’ve done your [Replacement i] → fund-name replacements and slide deletions)
-    
-    # 1) Build your proposal list + overview lookup once
-    confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
-    proposal_names = confirmed_df.get("Fund Scorecard Name", pd.Series()).dropna().tolist()
-    overview_map   = st.session_state.get("step16_5_proposed_overview_lookup", {})
-    
-    # 2) For each slide that matches a proposal fund, update its bullet box
-    for sl in prs.slides:
-        # a) identify slide by title
-        title_shp = getattr(sl.shapes, "title", None)
-        if not title_shp:
-            continue
-        fund = title_shp.text.strip()
-        if fund not in proposal_names:
-            continue
-    
-        # b) find the exact shape whose text contains "[Bullet Point 1]"
-        for shape in sl.shapes:
-            if not shape.has_text_frame:
-                continue
-            full_text = shape.text_frame.text or ""
-            if "[Bullet Point 1]" not in full_text:
-                continue
-    
-            tf = shape.text_frame
-            # c) grab original run formatting from the first run
-            first_run = tf.paragraphs[0].runs[0]
-            font = first_run.font
-    
-            # d) clear out the existing placeholder lines
-            tf.clear()
-    
-            # e) split your overview paragraph into sentences
-            para_text = overview_map.get(fund, {}).get("Overview Paragraph", "")
-            bullets   = [
-                s.strip() for s in re.split(r'(?<=[\.!?])\s+', para_text) if s.strip()
-            ]
-    
-            # f) write them back as bullets, preserving font
-            for idx, line in enumerate(bullets):
-                if idx == 0:
-                    p = tf.paragraphs[0]
-                    p.text = line
-                else:
-                    p = tf.add_paragraph()
-                    p.text = line
-                p.level = 0
-                run = p.runs[0]
-                run.font.name      = font.name
-                run.font.size      = font.size
-                run.font.color.rgb = font.color.rgb
-                run.font.bold      = font.bold
-                run.font.italic    = font.italic
-                run.font.underline = font.underline
-    
-            break  # done with this slide
+
 
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
