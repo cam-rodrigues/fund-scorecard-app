@@ -2512,82 +2512,70 @@ def step17_export_to_ppt():
     
     # 2) Loop through placeholders [Replacement 1]…[Replacement 5]
     to_delete = []
+
     for i in range(1, 6):
-        # a) Find the slide containing "[Replacement i]"
-        found = None
+        # 1) find the slide with "[Replacement i]"
+        slide_idx = None
+        slide_obj = None
         for idx, sl in enumerate(prs.slides):
-            for shape in sl.shapes:
-                if not shape.has_text_frame:
+            for shp in sl.shapes:
+                if not shp.has_text_frame:
                     continue
-                if f"[Replacement {i}]" in (shape.text_frame.text or ""):
-                    found = (idx, sl)
+                if f"[Replacement {i}]" in (shp.text_frame.text or ""):
+                    slide_idx = idx
+                    slide_obj = sl
                     break
-            if found:
+            if slide_obj:
                 break
-        if not found:
-            continue
-        idx, sl = found
+        if slide_obj is None:
+            continue  # no template slide for this index
     
-        # b) If we have a fund for this slot, replace heading and fill bullets
+        # 2) if there's a fund for this slot, replace + fill; else mark for deletion
         if i <= len(proposal_names):
-            fund_name = proposal_names[i - 1]
+            fund = proposal_names[i - 1]
     
-            # Replace the heading placeholder
-            for shape in sl.shapes:
-                if not shape.has_text_frame:
+            # 2a) replace the heading token
+            for shp in slide_obj.shapes:
+                if not shp.has_text_frame:
                     continue
-                text = shape.text_frame.text or ""
-                if f"[Replacement {i}]" in text:
-                    shape.text_frame.text = text.replace(f"[Replacement {i}]", fund_name)
+                txt = shp.text_frame.text or ""
+                if f"[Replacement {i}]" in txt:
+                    shp.text_frame.text = txt.replace(f"[Replacement {i}]", fund)
                     break
     
-            # Fill the bullets box (shape containing "[Bullet Point 1]")
-            # Build your list + lookup one time
-            from pptx.enum.shapes import PP_PLACEHOLDER
-            confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
-            proposal_names = confirmed_df["Fund Scorecard Name"].dropna().tolist()
-            overview_map   = st.session_state.get("step16_5_proposed_overview_lookup", {})
-            
-            # For each slide titled as one of the proposal funds:
-            for sl in prs.slides:
-                title = getattr(sl.shapes, "title", None)
-                if not title or title.text.strip() not in proposal_names:
-                    continue
-            
-                # Target the BODY placeholder
+            # 2b) fill the BODY placeholder with overview bullets
+            overview = overview_map.get(fund, {}).get("Overview Paragraph", "")
+            if overview:
+                # split into sentences
+                bullets = [
+                    s.strip()
+                    for s in re.split(r'(?<=[.!?])\s+', overview)
+                    if s.strip()
+                ]
+    
+                # target the content box (BODY placeholder under the title)
                 body_ph = next(
-                    (ph for ph in sl.placeholders 
+                    (ph for ph in slide_obj.placeholders
                         if ph.placeholder_format.type == PP_PLACEHOLDER.BODY),
                     None
                 )
-                if not body_ph:
-                    continue
-            
-                tf = body_ph.text_frame
-                tf.clear()
-            
-                # Get and split the overview paragraph
-                para_text = overview_map.get(title.text.strip(), {}).get("Overview Paragraph", "")
-                sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', para_text) if s.strip()]
-            
-                for i, sent in enumerate(sentences):
-                    p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-                    p.text      = sent
-                    p.level     = 0
-                    p.font.name = "Cambria"
-                    p.font.size = Pt(11)
-
+                if body_ph:
+                    tf = body_ph.text_frame
+                    tf.clear()
+                    for j, line in enumerate(bullets):
+                        p = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
+                        p.text      = line
+                        p.level     = 0
+                        p.font.name = "Cambria"
+                        p.font.size = Pt(11)
     
-        # c) Otherwise, mark slide for deletion
         else:
-            to_delete.append(idx)
+            to_delete.append(slide_idx)
     
-    # 3) Delete any extra placeholders in reverse index order
+    # 3) delete any leftover template slides (in reverse order)
     sldIdLst = prs.slides._sldIdLst
     for idx in sorted(to_delete, reverse=True):
-        sldId = sldIdLst[idx]
-        sldIdLst.remove(sldId)
-
+        sldIdLst.remove(sldIdLst[idx])
 
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
