@@ -2538,66 +2538,64 @@ def step17_export_to_ppt():
                 new_sl.shapes._spTree.insert_element_before(deepcopy(elem), "p:extLst")
             return new_sl
 
-        # e) Helper to set the TITLE placeholder text
+        from copy import deepcopy
+        from pptx.enum.shapes import PP_PLACEHOLDER
+        from pptx.util import Pt
+        import re
+        
+        # … assume you’ve already found template_slide, template_idx, proposal_names, and template_layout …
+        
         def set_title(slide, text):
-            title_shp = next(
-                (sh for sh in slide.shapes
-                 if sh.is_placeholder and
-                    sh.placeholder_format.type == PP_PLACEHOLDER.TITLE),
-                None
-            )
-            if title_shp:
-                tf = title_shp.text_frame
-                tf.clear()    # remove old runs
-                tf.text = text
-
-        # f) Overwrite the *template* slide for the FIRST fund
-        set_title(template_slide, proposal_names[0])
-
-        # g) For each additional fund, clone & personalize, inserting right after slide 1
-        sldIdLst = prs.slides._sldIdLst
-        for offset, pf in enumerate(proposal_names[1:], start=1):
-            new_sl = clone_from_template(template_slide)
-            # Move this new slide’s ID into position immediately after slide 1
-            new_id = sldIdLst[-1]
-            sldIdLst.remove(new_id)
-            sldIdLst.insert(1 + offset, new_id)
-            # Finally, set its title
-            set_title(new_sl, pf)
-
-    from pptx.util import Pt
-    import re
-    
-    # … inside your loop over proposal_names, after set_title(sl, pf) …
-    
-    # grab the overview text
-    overview_map = st.session_state.get("step16_5_proposed_overview_lookup", {})
-    para_text   = overview_map.get(pf, {}).get("Overview Paragraph", "")
-    
-    if para_text:
-        # split into sentences (or however many bullets you want)
-        bullets = [
-            s.strip()
-            for s in re.split(r'(?<=[\.!?])\s+', para_text)
-            if s.strip()
-        ]
-    
-        # find the placeholder textbox just like on Slide 1
-        for shape in sl.shapes:
-            if not shape.has_text_frame:
-                continue
-            if "[Bullet Point 1]" in (shape.text_frame.text or ""):
-                tf = shape.text_frame
-                # clear out the placeholder text
-                tf.text = ""
-                # write each sentence as a bullet
-                for i, bp in enumerate(bullets):
-                    p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-                    p.text       = bp
-                    p.level      = 0
-                    p.font.name  = "Cambria"
-                    p.font.size  = Pt(11)
-                break
+            slide.shapes.title.text = text
+        
+        # Start generating one slide per proposal fund
+        for i, pf in enumerate(proposal_names):
+            if i == 0:
+                sl = template_slide
+            else:
+                # clone a fresh slide from the same layout
+                sl = prs.slides.add_slide(template_layout)
+                for shp in list(sl.shapes):
+                    if shp.is_placeholder:
+                        sl.shapes._spTree.remove(shp.element)
+                # no need to copy XML—your layout already has title+body placeholders
+                # move it immediately after slide 1
+                new_id = deepcopy(prs.slides._sldIdLst[template_idx])
+                prs.slides._sldIdLst.insert(1 + i, new_id)
+        
+            # 1) Set the slide title
+            set_title(sl, pf)
+        
+            # 2) Now fill the overview bullets in the BODY placeholder
+            overview_map = st.session_state.get("step16_5_proposed_overview_lookup", {})
+            para_text    = overview_map.get(pf, {}).get("Overview Paragraph", "")
+            if para_text:
+                # split into sentences
+                bullets = [
+                    s.strip()
+                    for s in re.split(r'(?<=[\.!?])\s+', para_text)
+                    if s.strip()
+                ]
+        
+                # find the same placeholder box you used on Slide 1
+                for shape in sl.shapes:
+                    if not shape.has_text_frame:
+                        continue
+                    if "[Bullet Point 1]" not in (shape.text_frame.text or ""):
+                        continue
+        
+                    tf = shape.text_frame
+                    tf.text = ""  # clear the three “[Bullet Point …]” lines
+        
+                    for idx, line in enumerate(bullets):
+                        p = tf.paragraphs[0] if idx == 0 else tf.add_paragraph()
+                        p.text      = line
+                        p.level     = 0
+                        p.font.name = "Cambria"
+                        p.font.size = Pt(11)
+                    break
+        
+        # … then drop into your Expense & Return code …
 
 
 
