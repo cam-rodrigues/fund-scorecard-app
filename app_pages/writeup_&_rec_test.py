@@ -2543,6 +2543,7 @@ def step17_export_to_ppt():
     
             # Fill the bullets box (shape containing "[Bullet Point 1]")
             # Build your list + lookup one time
+            from pptx.enum.shapes import PP_PLACEHOLDER
             confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
             proposal_names = confirmed_df["Fund Scorecard Name"].dropna().tolist()
             overview_map   = st.session_state.get("step16_5_proposed_overview_lookup", {})
