@@ -2549,8 +2549,13 @@ def step17_export_to_ppt():
     overview_map = st.session_state.get("step16_5_proposed_overview_lookup", {})
     
     # Replace [Replacement 1]–[Replacement 5], fill bullets, delete extras
+    from pptx.enum.shapes import PP_PLACEHOLDER
+    from pptx.util import Pt
+    import re
     to_delete = []
+    
     for i in range(1, 6):
+        # a) find the slide with "[Replacement i]"
         slide_idx = None
         slide_obj = None
         for idx, sl in enumerate(prs.slides):
@@ -2563,12 +2568,14 @@ def step17_export_to_ppt():
                     break
             if slide_obj:
                 break
-        if not slide_obj:
+        if slide_obj is None:
             continue
     
+        # b) if there's a fund, replace and fill; else mark for deletion
         if i <= len(proposal_names):
             fund_name = proposal_names[i - 1]
-            # replace heading
+    
+            # replace the heading placeholder
             for shp in slide_obj.shapes:
                 if not shp.has_text_frame:
                     continue
@@ -2577,27 +2584,38 @@ def step17_export_to_ppt():
                     shp.text_frame.text = txt.replace(f"[Replacement {i}]", fund_name)
                     break
     
-            # extract bullets
-            para = overview_map.get(fund_name, {}).get("Overview Paragraph", "")
-            sentences = [
-                s.strip()
-                for s in re.split(r'(?<=[.!?])\s+', para)
-                if s.strip()
-            ][:3]
+            # fill the BODY placeholder with overview bullets
+            overview = overview_map.get(fund_name, {}).get("Overview Paragraph", "")
+            if overview:
+                sentences = [
+                    s.strip()
+                    for s in re.split(r'(?<=[.!?])\s+', overview)
+                    if s.strip()
+                ][:3]
     
-            # fill bullets
-            fill_bullet_points(
-                slide_obj,
-                placeholder="[Bullet Point 1]",
-                bullets=sentences
-            )
+                # target the BODY placeholder directly
+                body_ph = next(
+                    (ph for ph in slide_obj.placeholders
+                        if ph.placeholder_format.type == PP_PLACEHOLDER.BODY),
+                    None
+                )
+                if body_ph:
+                    tf = body_ph.text_frame
+                    tf.clear()  # clear out the old placeholder text
+                    for line in sentences:
+                        p = tf.add_paragraph()
+                        p.text      = line
+                        p.level     = 0
+                        p.font.name = "Cambria"
+                        p.font.size = Pt(11)
         else:
             to_delete.append(slide_idx)
     
-    # delete extra slides
+    # c) delete extra slides (reverse order to keep indices valid)
     sldIdLst = prs.slides._sldIdLst
     for idx in sorted(to_delete, reverse=True):
         sldIdLst.remove(sldIdLst[idx])
+
 
 
 
