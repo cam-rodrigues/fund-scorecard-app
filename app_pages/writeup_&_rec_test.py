@@ -2535,30 +2535,32 @@ def step17_export_to_ppt():
             sl.shapes.title.text = pf
     
             # 3b) Fill the overview bullets into the BODY placeholder
-            para_text = overview_map.get(pf, {}).get("Overview Paragraph", "")
+            from pptx.enum.shapes import PP_PLACEHOLDER
+            from pptx.util import Pt
+            import re
+            
+            # … after set_title(sl, pf) …
+            
+            para_text = st.session_state.get("step16_5_proposed_overview_lookup", {}) \
+                               .get(pf, {}).get("Overview Paragraph", "")
             if para_text:
-                # split into sentences
-                bullets = [
-                    s.strip() for s in re.split(r'(?<=[.!?])\s+', para_text) if s.strip()
-                ]
-                # find the BODY placeholder
-                body_ph = None
-                for ph in sl.placeholders:
-                    if ph.placeholder_format.type == PP_PLACEHOLDER.BODY:
-                        body_ph = ph
-                        break
+                sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', para_text) if s.strip()]
+            
+                # find the BODY placeholder (guaranteed to exist in the layout)
+                body_ph = next(
+                    (ph for ph in sl.placeholders
+                         if ph.placeholder_format.type == PP_PLACEHOLDER.BODY),
+                    None
+                )
                 if body_ph:
                     tf = body_ph.text_frame
-                    # clear placeholder text
-                    tf.clear()
-                    # write bullets
-                    for j, line in enumerate(bullets):
-                        p = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
-                        p.text      = line
+                    tf.clear()  # wipe whatever was there
+                    for i, sent in enumerate(sentences):
+                        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+                        p.text      = sent
                         p.level     = 0
                         p.font.name = "Cambria"
                         p.font.size = Pt(11)
-
 
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
