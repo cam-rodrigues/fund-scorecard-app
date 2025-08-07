@@ -1251,12 +1251,12 @@ from openpyxl.utils import get_column_letter
 import datetime
 from openpyxl.styles import PatternFill
 from openpyxl.utils import get_column_letter
-
 def step15_populate_excel():
     """
     Populates the Excel template with:
       - Prepared For (AB4), Quarter (AB5), Actual Date (AB6)
-      - Category / Investment Option / Ticker / Expense Ratio
+      - Category (from factsheets) in Col A
+      - Investment Option / Ticker / Expense Ratio
       - IPS criteria 1..11
       - Current Quarter Status with coloring
       - Deletes extra rows after last used up to row 180
@@ -1273,11 +1273,12 @@ def step15_populate_excel():
     report_date   = st.session_state.get("report_date", "")
     df_icon       = st.session_state.get("ips_icon_table", pd.DataFrame())
     facts         = st.session_state.get("step12_fund_facts_table", [])
+    # maps from Fund Name -> Category & Expense Ratio
+    category_map  = {r["Fund Name"]: r.get("Category", "") for r in facts}
     expense_map   = {r["Fund Name"]: r.get("Expense Ratio", "") for r in facts}
 
     # 2. Parse quarter & date
     quarter_str = ""
-    actual_date = None
     m = re.match(r"([1-4])[a-z]{2}\s+QTR,\s*(20\d{2})", report_date or "")
     if m:
         q, yr = int(m.group(1)), int(m.group(2))
@@ -1299,10 +1300,9 @@ def step15_populate_excel():
     ws["AB6"] = date_str
 
     # 5. Build header→col map from row 4
-    header_row = 4
     hdr2col = {
         str(cell.value).strip(): cell.column
-        for cell in ws[header_row]
+        for cell in ws[4]
         if cell.value
     }
 
@@ -1313,7 +1313,7 @@ def step15_populate_excel():
         "FW": PatternFill("solid", fgColor="F8D7DA"),
     }
 
-    # 7. Write table rows, starting at row 5 (only if df_icon has data)
+    # 7. Write table rows, starting at row 5
     start = 5
     if not df_icon.empty:
         for i, row in df_icon.reset_index(drop=True).iterrows():
@@ -1322,9 +1322,9 @@ def step15_populate_excel():
             ticker = row["Ticker"]
             status = row["IPS Watch Status"]
 
-            # Category
+            # Category from factsheets
             if "Category" in hdr2col:
-                ws.cell(row=r, column=hdr2col["Category"], value=row.get("Fund Type", ""))
+                ws.cell(row=r, column=hdr2col["Category"], value=category_map.get(name, ""))
 
             # Investment Option
             if "Investment Option" in hdr2col:
@@ -1359,7 +1359,7 @@ def step15_populate_excel():
         if last < 180:
             ws.delete_rows(last + 1, 180 - last)
 
-    # 9. Return a BytesIO for your download button
+    # 9. Return a BytesIO for download
     bio = BytesIO()
     wb.save(bio)
     bio.seek(0)
