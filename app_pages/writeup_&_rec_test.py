@@ -2495,13 +2495,11 @@ def step17_export_to_ppt():
                 p.font.size = Pt(11)
             break
 
-    # ───── Replacement Slides: clone & personalize ──────────────────────────────
-
     from pptx.enum.shapes import PP_PLACEHOLDER
     from pptx.util import Pt
     import re
     
-    # 1) Build proposal list (with fallback)
+    # 1) Gather your proposal names (with fallback)
     confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
     proposal_names = confirmed_df.get("Fund Scorecard Name", pd.Series()).dropna().tolist()
     if not proposal_names:
@@ -2509,55 +2507,54 @@ def step17_export_to_ppt():
         if "Investment Manager" in ear_df.columns:
             proposal_names = [nm.split(" (")[0] for nm in ear_df["Investment Manager"].iloc[1:]]
     
-    # 2) Find the template slide (title contains “[Replacement]”) and grab its layout
+    # 2) Find the "[Replacement]" slide and its layout
     template_slide  = None
     template_layout = None
     for sl in prs.slides:
-        title = sl.shapes.title
-        if title and "[Replacement]" in (title.text or ""):
+        title_shape = getattr(sl.shapes, "title", None)
+        if title_shape and "[Replacement]" in (title_shape.text or ""):
             template_slide  = sl
             template_layout = sl.slide_layout
             break
     
     if not template_slide or not proposal_names:
-        st.warning("No [Replacement] slide found or no proposal funds.")
+        st.warning("No [Replacement] slide or no proposal funds.")
     else:
+        # pull your overview lookup
         overview_map = st.session_state.get("step16_5_proposed_overview_lookup", {})
     
-        # 3) Loop and build each slide
+        # 3) Loop through each fund
         for i, pf in enumerate(proposal_names):
             if i == 0:
                 sl = template_slide
             else:
+                # create a new slide from the same layout
                 sl = prs.slides.add_slide(template_layout)
     
-            # 3a) Set the title
+            # 3a) Set slide title
             sl.shapes.title.text = pf
     
-            # 3b) Fill the overview bullets into the BODY placeholder
-            from pptx.enum.shapes import PP_PLACEHOLDER
-            from pptx.util import Pt
-            import re
-            
-            # … after set_title(sl, pf) …
-            
-            para_text = st.session_state.get("step16_5_proposed_overview_lookup", {}) \
-                               .get(pf, {}).get("Overview Paragraph", "")
+            # 3b) Fill the BODY placeholder with overview bullets
+            para_text = overview_map.get(pf, {}).get("Overview Paragraph", "")
             if para_text:
-                sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', para_text) if s.strip()]
-            
-                # find the BODY placeholder (guaranteed to exist in the layout)
+                # split into sentences
+                bullets = [
+                    s.strip()
+                    for s in re.split(r'(?<=[\.!?])\s+', para_text)
+                    if s.strip()
+                ]
+                # find the BODY placeholder
                 body_ph = next(
                     (ph for ph in sl.placeholders
-                         if ph.placeholder_format.type == PP_PLACEHOLDER.BODY),
+                     if ph.placeholder_format.type == PP_PLACEHOLDER.BODY),
                     None
                 )
                 if body_ph:
                     tf = body_ph.text_frame
-                    tf.clear()  # wipe whatever was there
-                    for i, sent in enumerate(sentences):
-                        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-                        p.text      = sent
+                    tf.clear()
+                    for idx, line in enumerate(bullets):
+                        p = tf.paragraphs[0] if idx == 0 else tf.add_paragraph()
+                        p.text      = line
                         p.level     = 0
                         p.font.name = "Cambria"
                         p.font.size = Pt(11)
