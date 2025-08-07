@@ -2495,60 +2495,59 @@ def step17_export_to_ppt():
                 p.font.size = Pt(11)
             break
 
-    from pptx.enum.shapes import PP_PLACEHOLDER
-    from pptx.util import Pt
-    import re
+    # ───── Replace or Remove Replacement Slides ─────────────────────────────────────
+    from pptx import Presentation
     
-    # 1) Build your proposal names (fallback to ear_table1_data)
-    confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
-    proposal_names = confirmed_df.get("Fund Scorecard Name", pd.Series()).dropna().tolist()
-    if not proposal_names:
-        ear_df = st.session_state.get("ear_table1_data", pd.DataFrame())
-        if "Investment Manager" in ear_df.columns:
-            proposal_names = [nm.split(" (")[0] for nm in ear_df["Investment Manager"].iloc[1:]]
+    # 0) assume prs = Presentation(...) and proposal_names = [...] are defined
     
-    # 2) Find the “[Replacement]” slide and grab its layout
-    template_slide  = None
-    template_layout = None
-    for sl in prs.slides:
-        if sl.shapes.title and "[Replacement]" in (sl.shapes.title.text or ""):
-            template_slide  = sl
-            template_layout = sl.slide_layout
-            break
+    # Build a map: placeholder → slide index
+    placeholder_to_idx = {}
+    for idx, sl in enumerate(prs.slides):
+        if not sl.shapes:
+            continue
+        # check every shape for a Replacement placeholder
+        for shape in sl.shapes:
+            if not shape.has_text_frame:
+                continue
+            txt = shape.text_frame.text or ""
+            for i in range(1, 6):
+                token = f"[Replacement {i}]"
+                if token in txt:
+                    placeholder_to_idx[i] = idx
+                    break
+            if any(i in placeholder_to_idx for i in range(1,6)):
+                break
     
-    if not template_slide or not proposal_names:
-        st.warning("No [Replacement] slide or no proposal funds.")
-    else:
-        overview_map = st.session_state.get("step16_5_proposed_overview_lookup", {})
+    # Now for each of the five positions:
+    to_delete = []
+    for i in range(1, 6):
+        idx = placeholder_to_idx.get(i)
+        if idx is None:
+            continue  # no such slide in template
+        sl = prs.slides[idx]
+        if i <= len(proposal_names):
+            name = proposal_names[i-1]
+            # replace only the first occurrence
+            for shape in sl.shapes:
+                if not shape.has_text_frame:
+                    continue
+                for run in shape.text_frame.paragraphs[0].runs:
+                    if f"[Replacement {i}]" in (run.text or ""):
+                        run.text = run.text.replace(f"[Replacement {i}]", name)
+                        break
+                else:
+                    continue
+                break
+        else:
+            # mark this slide for deletion
+            to_delete.append(idx)
     
-        # 3) For each fund, make a new slide from that layout
-        for i, pf in enumerate(proposal_names):
-            sl = template_slide if i == 0 else prs.slides.add_slide(template_layout)
-    
-            # 3a) Set slide title
-            sl.shapes.title.text = pf
-    
-            # 3b) Fill the BODY placeholder with the overview bullets
-            para_text = overview_map.get(pf, {}).get("Overview Paragraph", "")
-            if para_text:
-                # split into sentences
-                bullets = [s.strip() for s in re.split(r'(?<=[.!?])\s+', para_text) if s.strip()]
-    
-                # find the BODY placeholder (the content box under the title)
-                body_ph = next(
-                    (ph for ph in sl.placeholders
-                        if ph.placeholder_format.type == PP_PLACEHOLDER.BODY),
-                    None
-                )
-                if body_ph:
-                    tf = body_ph.text_frame
-                    tf.clear()
-                    for idx, line in enumerate(bullets):
-                        p = tf.paragraphs[0] if idx == 0 else tf.add_paragraph()
-                        p.text      = line
-                        p.level     = 0
-                        p.font.name = "Cambria"
-                        p.font.size = Pt(11)
+    # Delete marked slides in reverse order so indices don't shift mid-loop
+    sldIdLst = prs.slides._sldIdLst
+    for idx in sorted(to_delete, reverse=True):
+        sldId = sldIdLst[idx]
+        sldIdLst.remove(sldId)
+
 
 
 
