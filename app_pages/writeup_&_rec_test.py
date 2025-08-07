@@ -2551,7 +2551,19 @@ def step17_export_to_ppt():
         sldIdLst.remove(sldId)
     
     # ───── Now fill in the bullets on each proposal slide ────────────────────────────
+    from pptx.util import Pt
+    import re
+    
+    # (Make sure this runs *after* you’ve done your [Replacement i] → fund-name replacements and slide deletions)
+    
+    # 1) Build your proposal list + overview lookup once
+    confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    proposal_names = confirmed_df.get("Fund Scorecard Name", pd.Series()).dropna().tolist()
+    overview_map   = st.session_state.get("step16_5_proposed_overview_lookup", {})
+    
+    # 2) For each slide that matches a proposal fund, update its bullet box
     for sl in prs.slides:
+        # a) identify slide by title
         title_shp = getattr(sl.shapes, "title", None)
         if not title_shp:
             continue
@@ -2559,29 +2571,47 @@ def step17_export_to_ppt():
         if fund not in proposal_names:
             continue
     
-        # find the textbox still containing “[Bullet Point 1]”
+        # b) find the exact shape whose text contains "[Bullet Point 1]"
         for shape in sl.shapes:
             if not shape.has_text_frame:
                 continue
-            txt = shape.text_frame.text or ""
-            if "[Bullet Point 1]" not in txt:
+            full_text = shape.text_frame.text or ""
+            if "[Bullet Point 1]" not in full_text:
                 continue
     
             tf = shape.text_frame
-            tf.text = ""  # clear placeholders
+            # c) grab original run formatting from the first run
+            first_run = tf.paragraphs[0].runs[0]
+            font = first_run.font
     
+            # d) clear out the existing placeholder lines
+            tf.clear()
+    
+            # e) split your overview paragraph into sentences
             para_text = overview_map.get(fund, {}).get("Overview Paragraph", "")
             bullets   = [
-                s.strip() for s in re.split(r'(?<=[.!?])\s+', para_text) if s.strip()
+                s.strip() for s in re.split(r'(?<=[\.!?])\s+', para_text) if s.strip()
             ]
     
-            for j, line in enumerate(bullets):
-                p = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
-                p.text      = line
-                p.level     = 0
-                p.font.name = "Cambria"
-                p.font.size = Pt(11)
-            break
+            # f) write them back as bullets, preserving font
+            for idx, line in enumerate(bullets):
+                if idx == 0:
+                    p = tf.paragraphs[0]
+                    p.text = line
+                else:
+                    p = tf.add_paragraph()
+                    p.text = line
+                p.level = 0
+                run = p.runs[0]
+                run.font.name      = font.name
+                run.font.size      = font.size
+                run.font.color.rgb = font.color.rgb
+                run.font.bold      = font.bold
+                run.font.italic    = font.italic
+                run.font.underline = font.underline
+    
+            break  # done with this slide
+
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
     # Locate the slide by its placeholder
