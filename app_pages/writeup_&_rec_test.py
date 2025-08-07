@@ -2542,28 +2542,40 @@ def step17_export_to_ppt():
                     break
     
             # Fill the bullets box (shape containing "[Bullet Point 1]")
-            overview = overview_map.get(fund_name, {}).get("Overview Paragraph", "")
-            if overview:
-                sentences = [
-                    s.strip()
-                    for s in re.split(r'(?<=[.!?])\s+', overview)
-                    if s.strip()
-                ]
-                for shape in sl.shapes:
-                    if not shape.has_text_frame:
-                        continue
-                    text = shape.text_frame.text or ""
-                    if "[Bullet Point 1]" not in text:
-                        continue
-                    tf = shape.text_frame
-                    tf.text = ""  # clear placeholder lines
-                    for j, sent in enumerate(sentences):
-                        p = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
-                        p.text      = sent
-                        p.level     = 0
-                        p.font.name = "Cambria"
-                        p.font.size = Pt(11)
-                    break
+            # Build your list + lookup one time
+            confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+            proposal_names = confirmed_df["Fund Scorecard Name"].dropna().tolist()
+            overview_map   = st.session_state.get("step16_5_proposed_overview_lookup", {})
+            
+            # For each slide titled as one of the proposal funds:
+            for sl in prs.slides:
+                title = getattr(sl.shapes, "title", None)
+                if not title or title.text.strip() not in proposal_names:
+                    continue
+            
+                # Target the BODY placeholder
+                body_ph = next(
+                    (ph for ph in sl.placeholders 
+                        if ph.placeholder_format.type == PP_PLACEHOLDER.BODY),
+                    None
+                )
+                if not body_ph:
+                    continue
+            
+                tf = body_ph.text_frame
+                tf.clear()
+            
+                # Get and split the overview paragraph
+                para_text = overview_map.get(title.text.strip(), {}).get("Overview Paragraph", "")
+                sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', para_text) if s.strip()]
+            
+                for i, sent in enumerate(sentences):
+                    p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+                    p.text      = sent
+                    p.level     = 0
+                    p.font.name = "Cambria"
+                    p.font.size = Pt(11)
+
     
         # c) Otherwise, mark slide for deletion
         else:
