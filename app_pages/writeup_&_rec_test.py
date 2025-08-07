@@ -2565,50 +2565,45 @@ def step17_export_to_ppt():
             # Finally, set its title
             set_title(new_sl, pf)
 
-    # … inside your Replacement‐Slides loop, right after set_title(slide, pf) …  
-
     from pptx.enum.shapes import PP_PLACEHOLDER
     import re
 
-    # … inside your loop over proposal_names, after set_title(sl, pf) …
+    # … after set_title(sl, pf) …
 
-    # grab your overview lookup
+    # 1) Grab the overview text
     overview_map = st.session_state.get("step16_5_proposed_overview_lookup", {})
     para_text   = overview_map.get(pf, {}).get("Overview Paragraph", "")
 
     if para_text:
-        # find the first non‐title text box placeholder
-        target_tf = None
-        for shp in sl.shapes:
-            if not shp.has_text_frame:
-                continue
-            # skip the title placeholder
-            if shp.is_placeholder and shp.placeholder_format.type == PP_PLACEHOLDER.TITLE:
-                continue
-            target_tf = shp.text_frame
-            break
+        # 2) Find the BODY placeholder (the text box under the title)
+        body_ph = None
+        for ph in sl.placeholders:
+            if ph.placeholder_format.type == PP_PLACEHOLDER.BODY:
+                body_ph = ph
+                break
 
-        if target_tf:
-            # remember original formatting
-            orig_run = target_tf.paragraphs[0].runs[0]
+        if body_ph:
+            tf = body_ph.text_frame
+            # 3) Remember original formatting
+            orig_run = tf.paragraphs[0].runs[0]
             fnt      = orig_run.font
 
-            # clear existing placeholder text
-            target_tf.clear()
+            # 4) Clear the placeholder text
+            tf.clear()
 
-            # split into sentences for bullets
+            # 5) Split into sentences
             bullets = [
                 s.strip()
                 for s in re.split(r'(?<=[\.!?])\s+', para_text)
                 if s.strip()
             ]
 
-            # write each sentence as its own bullet
+            # 6) Write each sentence as a bullet
             for i, sent in enumerate(bullets):
-                p = target_tf.paragraphs[0] if i == 0 else target_tf.add_paragraph()
+                p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
                 p.text  = sent
                 p.level = 0
-                # reapply formatting
+                # reapply the original font styling
                 run = p.runs[0]
                 run.font.name      = fnt.name
                 run.font.size      = fnt.size
@@ -2616,7 +2611,6 @@ def step17_export_to_ppt():
                 run.font.bold      = fnt.bold
                 run.font.italic    = fnt.italic
                 run.font.underline = fnt.underline
-
 
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
