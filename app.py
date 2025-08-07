@@ -151,8 +151,6 @@ with st.sidebar.expander("MPI Tools", expanded=False):
 
 st.sidebar.markdown('<div class="sidebar-section">Under Construction</div>', unsafe_allow_html=True)
 nav_button("Fund Scorecard Test", "fund_scorecard_test.py")
-nav_button("Writeup & Rec Test", "writeup_&_rec_test.py")
-nav_button("Writeup & Rec 3", "writeup&rec.py")
 
 
 # === Page router ===
