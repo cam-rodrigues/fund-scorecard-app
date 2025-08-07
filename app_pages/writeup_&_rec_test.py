@@ -2394,6 +2394,42 @@ def step17_export_to_ppt():
     from pptx.util import Pt
     import pandas as pd
 
+
+
+# ───── Stand Alone Helpers ────────────────────────────────────────────────────────────
+
+    def fill_bullet_points(slide, placeholder="[Bullet Point 1]", bullets=None):
+        """
+        Finds the first shape on `slide` whose text_frame contains `placeholder`,
+        clears it, and writes each item in `bullets` as a Cambria-11pt bullet.
+        Returns True if replacement occurred.
+        """
+        if bullets is None:
+            bullets = []
+        for shape in slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            tf = shape.text_frame
+            # look for the placeholder in any paragraph
+            if not any(placeholder in (p.text or "") for p in tf.paragraphs):
+                continue
+    
+            # clear out all existing paragraphs
+            for _ in range(len(tf.paragraphs)):
+                tf._p.remove(tf.paragraphs[0]._p)
+    
+            # write each string as its own bullet
+            for i, text in enumerate(bullets):
+                p = tf.add_paragraph()
+                p.text      = text
+                p.level     = 0
+                p.font.name = "Cambria"
+                p.font.size = Pt(11)
+            return True
+    
+        return False
+
+
     # ───── 1) Load template ────────────────────────────────────────────────────────────
     prs = Presentation("assets/writeup&rec_templates.pptx")
     selected = st.session_state.get("selected_fund", "")
@@ -2496,25 +2532,24 @@ def step17_export_to_ppt():
             break
 
     # ───── Proposal Slides: Replace Headings, Fill Bullets, Delete Extras ─────────────
-    from pptx.util import Pt
     import re
+    from pptx.enum.shapes import PP_PLACEHOLDER
     
-    # 0) Build your proposal list (up to 5) with fallback
+    # build proposal_names & overview_map
     confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
-    proposal_names = confirmed_df.get("Fund Scorecard Name", pd.Series()).dropna().tolist()
+    proposal_names = confirmed_df["Fund Scorecard Name"].dropna().tolist()
     if not proposal_names:
         ear_df = st.session_state.get("ear_table1_data", pd.DataFrame())
         if "Investment Manager" in ear_df.columns:
-            proposal_names = [nm.split(" (")[0] for nm in ear_df["Investment Manager"].iloc[1:]]
-    
-    # 1) Grab your overview lookup
+            proposal_names = [
+                nm.split(" (")[0]
+                for nm in ear_df["Investment Manager"].iloc[1:]
+            ]
     overview_map = st.session_state.get("step16_5_proposed_overview_lookup", {})
     
-    # 2) Loop through placeholders [Replacement 1]…[Replacement 5]
+    # Replace [Replacement 1]–[Replacement 5], fill bullets, delete extras
     to_delete = []
-
     for i in range(1, 6):
-        # 1) find the slide with "[Replacement i]"
         slide_idx = None
         slide_obj = None
         for idx, sl in enumerate(prs.slides):
@@ -2527,55 +2562,42 @@ def step17_export_to_ppt():
                     break
             if slide_obj:
                 break
-        if slide_obj is None:
-            continue  # no template slide for this index
+        if not slide_obj:
+            continue
     
-        # 2) if there's a fund for this slot, replace + fill; else mark for deletion
         if i <= len(proposal_names):
-            fund = proposal_names[i - 1]
-    
-            # 2a) replace the heading token
+            fund_name = proposal_names[i - 1]
+            # replace heading
             for shp in slide_obj.shapes:
                 if not shp.has_text_frame:
                     continue
                 txt = shp.text_frame.text or ""
                 if f"[Replacement {i}]" in txt:
-                    shp.text_frame.text = txt.replace(f"[Replacement {i}]", fund)
+                    shp.text_frame.text = txt.replace(f"[Replacement {i}]", fund_name)
                     break
     
-            # 2b) fill the BODY placeholder with overview bullets
-            overview = overview_map.get(fund, {}).get("Overview Paragraph", "")
-            if overview:
-                # split into sentences
-                bullets = [
-                    s.strip()
-                    for s in re.split(r'(?<=[.!?])\s+', overview)
-                    if s.strip()
-                ]
+            # extract bullets
+            para = overview_map.get(fund_name, {}).get("Overview Paragraph", "")
+            sentences = [
+                s.strip()
+                for s in re.split(r'(?<=[.!?])\s+', para)
+                if s.strip()
+            ][:3]
     
-                # target the content box (BODY placeholder under the title)
-                body_ph = next(
-                    (ph for ph in slide_obj.placeholders
-                        if ph.placeholder_format.type == PP_PLACEHOLDER.BODY),
-                    None
-                )
-                if body_ph:
-                    tf = body_ph.text_frame
-                    tf.clear()
-                    for j, line in enumerate(bullets):
-                        p = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
-                        p.text      = line
-                        p.level     = 0
-                        p.font.name = "Cambria"
-                        p.font.size = Pt(11)
-    
+            # fill bullets
+            fill_bullet_points(
+                slide_obj,
+                placeholder="[Bullet Point 1]",
+                bullets=sentences
+            )
         else:
             to_delete.append(slide_idx)
     
-    # 3) delete any leftover template slides (in reverse order)
+    # delete extra slides
     sldIdLst = prs.slides._sldIdLst
     for idx in sorted(to_delete, reverse=True):
         sldIdLst.remove(sldIdLst[idx])
+
 
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
