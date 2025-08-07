@@ -2430,7 +2430,131 @@ def step17_export_to_ppt():
     
         return False
 
+    def truncate_to_n_sentences(text, n=3):
+        sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+        if len(sentences) <= n:
+            return " ".join(sentences).strip()
+        return " ".join(sentences[:n]).strip()
 
+    def lookup_overview_paragraph(label, lookup_dict):
+        """
+        Given a proposed label like "Fund Name (TICK)" find best matching key in lookup_dict
+        (which was populated in step16_5_proposed_overview_lookup) using fuzzy matching,
+        then return the Overview Paragraph.
+        """
+        import re
+        from rapidfuzz import fuzz
+    
+        # canonicalize: strip ticker parenthesis and punctuation
+        base_name = re.sub(r"\s*\(.*\)$", "", label).strip()
+        def normalize(s):
+            return re.sub(r"[^A-Za-z0-9 ]+", "", s or "").strip().lower()
+    
+        target = normalize(base_name)
+        best_key = None
+        best_score = -1
+        for key in lookup_dict.keys():
+            score = fuzz.token_sort_ratio(target, normalize(key))
+            if score > best_score:
+                best_score = score
+                best_key = key
+    
+        if best_key and best_score >= 60:  # threshold you can tweak
+            return lookup_dict.get(best_key, {}).get("Overview Paragraph", "")
+        # fallback: try exact base_name
+        return lookup_dict.get(base_name, {}).get("Overview Paragraph", "")
+
+
+    
+    selected = st.session_state.get("selected_fund")
+    if not selected:
+        st.error("❌ No fund selected. Please select a fund in Step 15.")
+        return
+
+    # Get confirmed proposed funds (name + ticker)
+    confirmed_proposed_df = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    proposed = []
+    if not confirmed_proposed_df.empty:
+        for _, row in confirmed_proposed_df.iterrows():
+            name = row.get("Fund Scorecard Name", "")
+            ticker = row.get("Ticker", "")
+            label = f"{name} ({ticker})" if ticker else name
+            proposed.append(label)
+    proposed = proposed[:2]  # template supports up to two
+
+    template_path = "assets/writeup&rec_templates.pptx"
+    try:
+        prs = Presentation(template_path)
+    except Exception as e:
+        st.error(f"Could not load PowerPoint template: {e}")
+        return
+
+    def fill_table_with_styles(table, df_table, bold_row_idx=None, first_col_white=True):
+        for i in range(min(len(df_table), len(table.rows) - 1)):
+            for j in range(min(len(df_table.columns), len(table.columns))):
+                val = df_table.iloc[i, j]
+                cell = table.cell(i + 1, j)
+                cell.text = str(val) if val is not None else ""
+                cell.vertical_alignment = MSO_VERTICAL_ANCHOR.MIDDLE
+                for para in cell.text_frame.paragraphs:
+                    para.alignment = PP_ALIGN.CENTER
+                    for run in para.runs:
+                        run.font.name = "Cambria"
+                        run.font.size = Pt(11)
+                        if j == 0:
+                            run.font.color.rgb = RGBColor(255, 255, 255) if first_col_white else RGBColor(0, 0, 0)
+                        else:
+                            run.font.color.rgb = RGBColor(0, 0, 0)
+                        run.font.bold = (bold_row_idx is not None and i == bold_row_idx)
+
+    def fill_text_placeholder_preserving_format(slide, placeholder_text, replacement_text):
+        replaced = False
+        for shape in slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            for paragraph in shape.text_frame.paragraphs:
+                full_text = "".join(run.text for run in paragraph.runs)
+                if placeholder_text in full_text:
+                    new_text = full_text.replace(placeholder_text, replacement_text)
+                    runs = paragraph.runs
+                    if len(runs) == 1:
+                        runs[0].text = new_text
+                    else:
+                        for run in runs:
+                            run.text = ""
+                        avg_len = len(new_text) // len(runs)
+                        idx = 0
+                        for run in runs[:-1]:
+                            run.text = new_text[idx:idx+avg_len]
+                            idx += avg_len
+                        runs[-1].text = new_text[idx:]
+                    replaced = True
+        return replaced
+
+    def fill_bullet_points(slide, placeholder="[Bullet Point 1]", bullets=None):
+        if bullets is None:
+            bullets = st.session_state.get("bullet_points", [])
+        if not bullets:
+            bullets = ["Performance exceeded benchmark.", "No watch status.", "No action required."]
+        replaced = False
+        for shape in slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            tf = shape.text_frame
+            if any(placeholder in p.text for p in tf.paragraphs):
+                tf.clear()
+                for b in bullets:
+                    p_new = tf.add_paragraph()
+                    clean_text = b.replace("**", "")
+                    p_new.text = clean_text
+                    p_new.level = 0
+                    p_new.font.name = "Cambria"
+                    p_new.font.size = Pt(11)
+                    p_new.font.color.rgb = RGBColor(0, 0, 0)
+                    p_new.font.bold = False  # <-- no longer forcing bold
+                replaced = True
+                break
+        return replaced
     # ───── 1) Load template ────────────────────────────────────────────────────────────
     prs = Presentation("assets/writeup&rec_templates.pptx")
     selected = st.session_state.get("selected_fund", "")
