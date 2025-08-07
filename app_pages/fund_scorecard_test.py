@@ -1257,7 +1257,7 @@ def step15_populate_excel():
     Populates the Excel template with:
       - Prepared For (AB4), Quarter (AB5), Actual Date (AB6)
       - Category / Investment Option / Ticker / Expense Ratio
-      - IPS criteria 1..11 (handles compact "1"-"11" or full headers)
+      - IPS criteria 1..11
       - Current Quarter Status with coloring
       - Deletes extra rows after last used up to row 180
     """
@@ -1266,19 +1266,19 @@ def step15_populate_excel():
     from io import BytesIO
     import openpyxl
     from openpyxl.styles import PatternFill
-    from openpyxl.utils import get_column_letter
+    import pandas as pd
 
     # 1. Grab session data
     prepared_for  = st.session_state.get("prepared_for", "")
     report_date   = st.session_state.get("report_date", "")
-    df_icon       = st.session_state.get("ips_icon_table") or pd.DataFrame()
+    df_icon       = st.session_state.get("ips_icon_table", pd.DataFrame())
     facts         = st.session_state.get("step12_fund_facts_table", [])
-    expense_map   = {r["Fund Name"]: r["Expense Ratio"] for r in facts}
+    expense_map   = {r["Fund Name"]: r.get("Expense Ratio", "") for r in facts}
 
     # 2. Parse quarter & date
     quarter_str = ""
     actual_date = None
-    m = re.match(r"([1-4])[a-z]{2}\s+QTR,\s*(20\d{2})", report_date)
+    m = re.match(r"([1-4])[a-z]{2}\s+QTR,\s*(20\d{2})", report_date or "")
     if m:
         q, yr = int(m.group(1)), int(m.group(2))
         quarter_str = f"Q{q}"
@@ -1288,7 +1288,7 @@ def step15_populate_excel():
         actual_date = datetime.date.today()
     date_str = actual_date.strftime("%m/%d/%Y")
 
-    # 3. Locate template
+    # 3. Load template
     tpl = Path("assets")/"investment_metrics_template.xlsx"
     wb  = openpyxl.load_workbook(tpl)
     ws  = wb.active
@@ -1300,7 +1300,11 @@ def step15_populate_excel():
 
     # 5. Build header→col map from row 4
     header_row = 4
-    hdr2col = {str(c.value).strip(): c.column for c in ws[header_row] if c.value}
+    hdr2col = {
+        str(cell.value).strip(): cell.column
+        for cell in ws[header_row]
+        if cell.value
+    }
 
     # 6. Define fill colors
     FILL = {
@@ -1309,50 +1313,58 @@ def step15_populate_excel():
         "FW": PatternFill("solid", fgColor="F8D7DA"),
     }
 
-    # 7. Write table rows, starting at row 5
+    # 7. Write table rows, starting at row 5 (only if df_icon has data)
     start = 5
-    for i, row in df_icon.reset_index(drop=True).iterrows():
-        r = start + i
-        name   = row["Fund Name"]
-        ticker = row["Ticker"]
-        status = row["IPS Watch Status"]
+    if not df_icon.empty:
+        for i, row in df_icon.reset_index(drop=True).iterrows():
+            r = start + i
+            name   = row["Fund Name"]
+            ticker = row["Ticker"]
+            status = row["IPS Watch Status"]
 
-        # Category
-        if "Category" in hdr2col:
-            ws.cell(r, hdr2col["Category"],             row["Fund Type"])
-        # Investment Option
-        if "Investment Option" in hdr2col:
-            ws.cell(r, hdr2col["Investment Option"],    name)
-        # Ticker
-        if "Ticker" in hdr2col:
-            ws.cell(r, hdr2col["Ticker"],               ticker)
-        # Expense Ratio
-        if "Expense Ratio" in hdr2col:
-            ws.cell(r, hdr2col["Expense Ratio"],
-                    expense_map.get(name, ""))
+            # Category
+            if "Category" in hdr2col:
+                ws.cell(row=r, column=hdr2col["Category"], value=row.get("Fund Type", ""))
 
-        # IPS criteria columns 1..11
-        for idx in range(1,12):
-            key = str(idx)
-            if key in hdr2col and key in row:
-                ws.cell(r, hdr2col[key], row[key])
+            # Investment Option
+            if "Investment Option" in hdr2col:
+                ws.cell(row=r, column=hdr2col["Investment Option"], value=name)
 
-        # Current Quarter Status + color
-        if "Current Quarter Status" in hdr2col:
-            cell = ws.cell(r, hdr2col["Current Quarter Status"], status)
-            if status in FILL:
-                cell.fill = FILL[status]
+            # Ticker
+            if "Ticker" in hdr2col:
+                ws.cell(row=r, column=hdr2col["Ticker"], value=ticker)
 
-    # 8. Delete any blank rows down to 180
-    last = start + len(df_icon) - 1
-    if last < 180:
-        ws.delete_rows(last+1, 180 - last)
+            # Expense Ratio
+            if "Expense Ratio" in hdr2col:
+                ws.cell(
+                    row=r,
+                    column=hdr2col["Expense Ratio"],
+                    value=expense_map.get(name, "")
+                )
 
-    # 9. Return BytesIO for download button
+            # IPS criteria columns 1..11
+            for idx in range(1, 12):
+                key = str(idx)
+                if key in hdr2col and key in row:
+                    ws.cell(row=r, column=hdr2col[key], value=row[key])
+
+            # Current Quarter Status + color
+            if "Current Quarter Status" in hdr2col:
+                cell = ws.cell(row=r, column=hdr2col["Current Quarter Status"], value=status)
+                if status in FILL:
+                    cell.fill = FILL[status]
+
+        # 8. Delete any blank rows down to 180
+        last = start + len(df_icon) - 1
+        if last < 180:
+            ws.delete_rows(last + 1, 180 - last)
+
+    # 9. Return a BytesIO for your download button
     bio = BytesIO()
     wb.save(bio)
     bio.seek(0)
     return bio
+
 
 #───Main App──────────────────────────────────────────────────────────────────
 
