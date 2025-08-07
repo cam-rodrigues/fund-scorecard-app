@@ -2499,7 +2499,7 @@ def step17_export_to_ppt():
     from pptx.util import Pt
     import re
     
-    # 1) Gather your proposal names (with fallback)
+    # 1) Build your proposal names (fallback to ear_table1_data)
     confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
     proposal_names = confirmed_df.get("Fund Scorecard Name", pd.Series()).dropna().tolist()
     if not proposal_names:
@@ -2507,12 +2507,11 @@ def step17_export_to_ppt():
         if "Investment Manager" in ear_df.columns:
             proposal_names = [nm.split(" (")[0] for nm in ear_df["Investment Manager"].iloc[1:]]
     
-    # 2) Find the "[Replacement]" slide and its layout
+    # 2) Find the “[Replacement]” slide and grab its layout
     template_slide  = None
     template_layout = None
     for sl in prs.slides:
-        title_shape = getattr(sl.shapes, "title", None)
-        if title_shape and "[Replacement]" in (title_shape.text or ""):
+        if sl.shapes.title and "[Replacement]" in (sl.shapes.title.text or ""):
             template_slide  = sl
             template_layout = sl.slide_layout
             break
@@ -2520,33 +2519,25 @@ def step17_export_to_ppt():
     if not template_slide or not proposal_names:
         st.warning("No [Replacement] slide or no proposal funds.")
     else:
-        # pull your overview lookup
         overview_map = st.session_state.get("step16_5_proposed_overview_lookup", {})
     
-        # 3) Loop through each fund
+        # 3) For each fund, make a new slide from that layout
         for i, pf in enumerate(proposal_names):
-            if i == 0:
-                sl = template_slide
-            else:
-                # create a new slide from the same layout
-                sl = prs.slides.add_slide(template_layout)
+            sl = template_slide if i == 0 else prs.slides.add_slide(template_layout)
     
             # 3a) Set slide title
             sl.shapes.title.text = pf
     
-            # 3b) Fill the BODY placeholder with overview bullets
+            # 3b) Fill the BODY placeholder with the overview bullets
             para_text = overview_map.get(pf, {}).get("Overview Paragraph", "")
             if para_text:
                 # split into sentences
-                bullets = [
-                    s.strip()
-                    for s in re.split(r'(?<=[\.!?])\s+', para_text)
-                    if s.strip()
-                ]
-                # find the BODY placeholder
+                bullets = [s.strip() for s in re.split(r'(?<=[.!?])\s+', para_text) if s.strip()]
+    
+                # find the BODY placeholder (the content box under the title)
                 body_ph = next(
                     (ph for ph in sl.placeholders
-                     if ph.placeholder_format.type == PP_PLACEHOLDER.BODY),
+                        if ph.placeholder_format.type == PP_PLACEHOLDER.BODY),
                     None
                 )
                 if body_ph:
@@ -2558,6 +2549,7 @@ def step17_export_to_ppt():
                         p.level     = 0
                         p.font.name = "Cambria"
                         p.font.size = Pt(11)
+
 
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
