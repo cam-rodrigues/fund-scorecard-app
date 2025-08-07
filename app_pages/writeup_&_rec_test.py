@@ -2566,36 +2566,53 @@ def step17_export_to_ppt():
             # 1) Set the slide title
             set_title(sl, pf)
         
-            # 2) Now fill the overview bullets in the BODY placeholder
-            overview_map = st.session_state.get("step16_5_proposed_overview_lookup", {})
-            para_text    = overview_map.get(pf, {}).get("Overview Paragraph", "")
-            if para_text:
+            
+            # After you’ve created/replaced all “Replacement” slides and set their titles:
+            
+            # 1) Grab your overview lookup and proposal list
+            overview_map   = st.session_state.get("step16_5_proposed_overview_lookup", {})
+            confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+            proposal_names = confirmed_df.get("Fund Scorecard Name", pd.Series()).dropna().unique().tolist()
+            
+            # 2) Iterate every slide, find ones whose title matches a proposal fund, and fill bullets
+            for sl in prs.slides:
+                title_shape = getattr(sl.shapes, "title", None)
+                if not title_shape:
+                    continue
+            
+                fund_name = title_shape.text.strip()
+                if fund_name not in proposal_names:
+                    continue
+            
+                para_text = overview_map.get(fund_name, {}).get("Overview Paragraph", "")
+                if not para_text:
+                    continue
+            
                 # split into sentences
                 bullets = [
                     s.strip()
                     for s in re.split(r'(?<=[\.!?])\s+', para_text)
                     if s.strip()
                 ]
-        
-                # find the same placeholder box you used on Slide 1
+            
+                # find the same placeholder box used on slide 1 ([Bullet Point 1])
                 for shape in sl.shapes:
                     if not shape.has_text_frame:
                         continue
-                    if "[Bullet Point 1]" not in (shape.text_frame.text or ""):
-                        continue
-        
                     tf = shape.text_frame
-                    tf.text = ""  # clear the three “[Bullet Point …]” lines
-        
-                    for idx, line in enumerate(bullets):
-                        p = tf.paragraphs[0] if idx == 0 else tf.add_paragraph()
+                    if "[Bullet Point 1]" not in (tf.text or ""):
+                        continue
+            
+                    # clear placeholder and write bullets
+                    tf.text = ""
+                    for i, line in enumerate(bullets):
+                        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
                         p.text      = line
                         p.level     = 0
                         p.font.name = "Cambria"
                         p.font.size = Pt(11)
                     break
-        
-        # … then drop into your Expense & Return code …
+
 
 
 
