@@ -2565,52 +2565,40 @@ def step17_export_to_ppt():
             # Finally, set its title
             set_title(new_sl, pf)
 
-    from pptx.enum.shapes import PP_PLACEHOLDER
+    from pptx.util import Pt
     import re
-
-    # … after set_title(sl, pf) …
-
-    # 1) Grab the overview text
+    
+    # … inside your loop over proposal_names, after set_title(sl, pf) …
+    
+    # grab the overview text
     overview_map = st.session_state.get("step16_5_proposed_overview_lookup", {})
     para_text   = overview_map.get(pf, {}).get("Overview Paragraph", "")
-
+    
     if para_text:
-        # 2) Find the BODY placeholder (the text box under the title)
-        body_ph = None
-        for ph in sl.placeholders:
-            if ph.placeholder_format.type == PP_PLACEHOLDER.BODY:
-                body_ph = ph
+        # split into sentences (or however many bullets you want)
+        bullets = [
+            s.strip()
+            for s in re.split(r'(?<=[\.!?])\s+', para_text)
+            if s.strip()
+        ]
+    
+        # find the placeholder textbox just like on Slide 1
+        for shape in sl.shapes:
+            if not shape.has_text_frame:
+                continue
+            if "[Bullet Point 1]" in (shape.text_frame.text or ""):
+                tf = shape.text_frame
+                # clear out the placeholder text
+                tf.text = ""
+                # write each sentence as a bullet
+                for i, bp in enumerate(bullets):
+                    p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+                    p.text       = bp
+                    p.level      = 0
+                    p.font.name  = "Cambria"
+                    p.font.size  = Pt(11)
                 break
 
-        if body_ph:
-            tf = body_ph.text_frame
-            # 3) Remember original formatting
-            orig_run = tf.paragraphs[0].runs[0]
-            fnt      = orig_run.font
-
-            # 4) Clear the placeholder text
-            tf.clear()
-
-            # 5) Split into sentences
-            bullets = [
-                s.strip()
-                for s in re.split(r'(?<=[\.!?])\s+', para_text)
-                if s.strip()
-            ]
-
-            # 6) Write each sentence as a bullet
-            for i, sent in enumerate(bullets):
-                p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-                p.text  = sent
-                p.level = 0
-                # reapply the original font styling
-                run = p.runs[0]
-                run.font.name      = fnt.name
-                run.font.size      = fnt.size
-                run.font.color.rgb = fnt.color.rgb
-                run.font.bold      = fnt.bold
-                run.font.italic    = fnt.italic
-                run.font.underline = fnt.underline
 
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
