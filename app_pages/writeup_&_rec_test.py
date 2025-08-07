@@ -2397,13 +2397,15 @@ def step17_export_to_ppt():
 
 
 # ───── Stand Alone Helpers ────────────────────────────────────────────────────────────
-
+    
     def fill_bullet_points(slide, placeholder="[Bullet Point 1]", bullets=None):
         """
         Finds the first shape on `slide` whose text_frame contains `placeholder`,
         clears it, and writes each item in `bullets` as a Cambria-11pt bullet.
         Returns True if replacement occurred.
         """
+        from pptx.util import Pt
+    
         if bullets is None:
             bullets = []
         for shape in slide.shapes:
@@ -2414,12 +2416,11 @@ def step17_export_to_ppt():
             if not any(placeholder in (p.text or "") for p in tf.paragraphs):
                 continue
     
-            # clear out all existing paragraphs
-            for _ in range(len(tf.paragraphs)):
-                tf._p.remove(tf.paragraphs[0]._p)
+            # clear existing paragraphs by resetting .text
+            tf.text = ""
     
             # write each string as its own bullet
-            for i, text in enumerate(bullets):
+            for text in bullets:
                 p = tf.add_paragraph()
                 p.text      = text
                 p.level     = 0
