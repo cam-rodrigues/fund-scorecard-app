@@ -2496,91 +2496,69 @@ def step17_export_to_ppt():
             break
 
     # ───── Replacement Slides: clone & personalize ──────────────────────────────
-    # ───── Replacement Slides + Overview Bullets ────────────────────────────────────
-    from copy import deepcopy
+
+    from pptx.enum.shapes import PP_PLACEHOLDER
     from pptx.util import Pt
     import re
     
-    # 1) Build proposal fund list (with fallback)
+    # 1) Build proposal list (with fallback)
     confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
-    proposal_names = confirmed_df.get("Fund Scorecard Name", pd.Series()).dropna().unique().tolist()
+    proposal_names = confirmed_df.get("Fund Scorecard Name", pd.Series()).dropna().tolist()
     if not proposal_names:
         ear_df = st.session_state.get("ear_table1_data", pd.DataFrame())
         if "Investment Manager" in ear_df.columns:
             proposal_names = [nm.split(" (")[0] for nm in ear_df["Investment Manager"].iloc[1:]]
     
-    # 2) Locate the “[Replacement]” template slide, its index, and its layout
-    placeholder     = "[Replacement]"
+    # 2) Find the template slide (title contains “[Replacement]”) and grab its layout
     template_slide  = None
-    template_idx    = None
     template_layout = None
-    
-    for idx, sl in enumerate(prs.slides):
-        for shape in sl.shapes:
-            if shape.has_text_frame and placeholder in (shape.text_frame.text or ""):
-                template_slide  = sl
-                template_idx    = idx
-                template_layout = sl.slide_layout
-                break
-        if template_slide:
+    for sl in prs.slides:
+        title = sl.shapes.title
+        if title and "[Replacement]" in (title.text or ""):
+            template_slide  = sl
+            template_layout = sl.slide_layout
             break
     
-    if template_slide is None or not proposal_names:
+    if not template_slide or not proposal_names:
         st.warning("No [Replacement] slide found or no proposal funds.")
     else:
-        # 3) Loop over each proposal fund
+        overview_map = st.session_state.get("step16_5_proposed_overview_lookup", {})
+    
+        # 3) Loop and build each slide
         for i, pf in enumerate(proposal_names):
             if i == 0:
                 sl = template_slide
             else:
-                # clone a fresh slide from the same layout
                 sl = prs.slides.add_slide(template_layout)
-                # remove any default placeholders so we only have template shapes
-                for shp in list(sl.shapes):
-                    if shp.is_placeholder:
-                        sl.shapes._spTree.remove(shp.element)
-                # insert the [Replacement] slide's shapes XML
-                for orig in template_slide.shapes:
-                    sl.shapes._spTree.insert_element_before(deepcopy(orig.element), "p:extLst")
-                # move it immediately after slide 1
-                new_id = deepcopy(prs.slides._sldIdLst[template_idx])
-                prs.slides._sldIdLst.insert(1 + i, new_id)
     
-            # 4) Replace “[Replacement]” in any shape text with the fund name
-            for shape in sl.shapes:
-                if not shape.has_text_frame:
-                    continue
-                txt = shape.text_frame.text or ""
-                if placeholder in txt:
-                    shape.text_frame.text = txt.replace(placeholder, pf)
-                    break
+            # 3a) Set the title
+            sl.shapes.title.text = pf
     
-            # 5) Insert Investment Overview bullets into the same “[Bullet Point 1]” box
-            overview_map = st.session_state.get("step16_5_proposed_overview_lookup", {})
-            para_text    = overview_map.get(pf, {}).get("Overview Paragraph", "")
+            # 3b) Fill the overview bullets into the BODY placeholder
+            para_text = overview_map.get(pf, {}).get("Overview Paragraph", "")
             if para_text:
+                # split into sentences
                 bullets = [
-                    s.strip() for s in re.split(r'(?<=[\.!?])\s+', para_text) if s.strip()
+                    s.strip() for s in re.split(r'(?<=[.!?])\s+', para_text) if s.strip()
                 ]
-                for shape in sl.shapes:
-                    if not shape.has_text_frame:
-                        continue
-                    tf = shape.text_frame
-                    if "[Bullet Point 1]" not in (tf.text or ""):
-                        continue
-    
-                    # clear the placeholder text
-                    tf.text = ""
-                    # write each sentence as a bullet
-                    for idx, line in enumerate(bullets):
-                        p = tf.paragraphs[0] if idx == 0 else tf.add_paragraph()
+                # find the BODY placeholder
+                body_ph = None
+                for ph in sl.placeholders:
+                    if ph.placeholder_format.type == PP_PLACEHOLDER.BODY:
+                        body_ph = ph
+                        break
+                if body_ph:
+                    tf = body_ph.text_frame
+                    # clear placeholder text
+                    tf.clear()
+                    # write bullets
+                    for j, line in enumerate(bullets):
+                        p = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
                         p.text      = line
                         p.level     = 0
                         p.font.name = "Cambria"
                         p.font.size = Pt(11)
-                    break
-    
-    # ───── now continue with your Expense & Return tables … ─────────────────────────
+
 
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
