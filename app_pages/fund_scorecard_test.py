@@ -1269,51 +1269,53 @@ def step15_populate_excel():
     import pandas as pd
 
     # 1. Grab session data
-    prepared_for  = st.session_state.get("prepared_for", "")
-    report_date   = st.session_state.get("report_date", "")
-    df_icon       = st.session_state.get("ips_icon_table", pd.DataFrame())
-    facts         = st.session_state.get("step12_fund_facts_table", [])
-    # maps from Fund Name -> Category & Expense Ratio
-    category_map  = {r["Fund Name"]: r.get("Category", "") for r in facts}
-    expense_map   = {r["Fund Name"]: r.get("Expense Ratio", "") for r in facts}
+    prepared_for = st.session_state.get("prepared_for", "")
+    report_date  = st.session_state.get("report_date", "")
+    df_icon      = st.session_state.get("ips_icon_table", pd.DataFrame())
+
+    # **Pull your factsheet data here**:
+    facts = st.session_state.get("fund_factsheets_data", [])
+    # Map the *matched* fund name back to its Category & Expense Ratio
+    category_map = { r["Matched Fund Name"]: r.get("Category", "")    for r in facts }
+    expense_map  = { r["Matched Fund Name"]: r.get("Expense Ratio", "") for r in facts }
 
     # 2. Parse quarter & date
-    quarter_str = ""
     m = re.match(r"([1-4])[a-z]{2}\s+QTR,\s*(20\d{2})", report_date or "")
     if m:
         q, yr = int(m.group(1)), int(m.group(2))
-        quarter_str = f"Q{q}"
         mon, day = {1:(3,31),2:(6,30),3:(9,30),4:(12,31)}[q]
         actual_date = datetime.date(yr, mon, day)
+        quarter_str = f"Q{q}"
     else:
         actual_date = datetime.date.today()
+        quarter_str = ""
     date_str = actual_date.strftime("%m/%d/%Y")
 
-    # 3. Load template
+    # 3. Load your template
     tpl = Path("assets")/"investment_metrics_template.xlsx"
     wb  = openpyxl.load_workbook(tpl)
     ws  = wb.active
 
-    # 4. Fill header cells
+    # 4. Fill the header cells
     ws["AB4"] = prepared_for
     ws["AB5"] = quarter_str
     ws["AB6"] = date_str
 
-    # 5. Build header→col map from row 4
+    # 5. Build a map of header text → column index (row 4)
     hdr2col = {
         str(cell.value).strip(): cell.column
         for cell in ws[4]
         if cell.value
     }
 
-    # 6. Define fill colors
+    # 6. Define your status fill colors
     FILL = {
         "NW": PatternFill("solid", fgColor="C8EFD0"),
         "IW": PatternFill("solid", fgColor="FFE8B0"),
         "FW": PatternFill("solid", fgColor="F8D7DA"),
     }
 
-    # 7. Write table rows, starting at row 5
+    # 7. Write rows
     start = 5
     if not df_icon.empty:
         for i, row in df_icon.reset_index(drop=True).iterrows():
@@ -1322,7 +1324,7 @@ def step15_populate_excel():
             ticker = row["Ticker"]
             status = row["IPS Watch Status"]
 
-            # Category from factsheets
+            # Col A: Category from your factsheet map
             if "Category" in hdr2col:
                 ws.cell(row=r, column=hdr2col["Category"], value=category_map.get(name, ""))
 
@@ -1342,7 +1344,7 @@ def step15_populate_excel():
                     value=expense_map.get(name, "")
                 )
 
-            # IPS criteria columns 1..11
+            # IPS criteria 1..11
             for idx in range(1, 12):
                 key = str(idx)
                 if key in hdr2col and key in row:
@@ -1354,16 +1356,17 @@ def step15_populate_excel():
                 if status in FILL:
                     cell.fill = FILL[status]
 
-        # 8. Delete any blank rows down to 180
+        # 8. Trim any extra rows down to row 180
         last = start + len(df_icon) - 1
         if last < 180:
             ws.delete_rows(last + 1, 180 - last)
 
-    # 9. Return a BytesIO for download
+    # 9. Return workbook as BytesIO for download
     bio = BytesIO()
     wb.save(bio)
     bio.seek(0)
     return bio
+
 
 
 #───Main App──────────────────────────────────────────────────────────────────
@@ -1458,7 +1461,7 @@ def run():
         if st.button("Populate Excel"):
             excel_bytes = step15_populate_excel()
             if excel_bytes:
-                st.success("Excel template populated with 'Prepared For'.")
+                st.success("Excel template populated.")
                 st.download_button(
                     "Download Populated Excel",
                     data=excel_bytes,
