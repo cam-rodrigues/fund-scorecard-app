@@ -2495,17 +2495,21 @@ def step17_export_to_ppt():
                 p.font.size = Pt(11)
             break
 
+    from pptx.util import Pt
+    import re
+    
+    # 0) Pull your proposal list + overview lookup once
+    confirmed_df   = st.session_state.get("proposed_funds_confirmed_df", pd.DataFrame())
+    proposal_names = confirmed_df.get("Fund Scorecard Name", pd.Series()).dropna().tolist()
+    if not proposal_names:
+        ear_df = st.session_state.get("ear_table1_data", pd.DataFrame())
+        if "Investment Manager" in ear_df.columns:
+            proposal_names = [nm.split(" (")[0] for nm in ear_df["Investment Manager"].iloc[1:]]
+    overview_map = st.session_state.get("step16_5_proposed_overview_lookup", {})
+    
     # ───── Replace or Remove Replacement Slides ─────────────────────────────────────
-    from pptx import Presentation
-    
-    # 0) assume prs = Presentation(...) and proposal_names = [...] are defined
-    
-    # Build a map: placeholder → slide index
     placeholder_to_idx = {}
     for idx, sl in enumerate(prs.slides):
-        if not sl.shapes:
-            continue
-        # check every shape for a Replacement placeholder
         for shape in sl.shapes:
             if not shape.has_text_frame:
                 continue
@@ -2515,19 +2519,18 @@ def step17_export_to_ppt():
                 if token in txt:
                     placeholder_to_idx[i] = idx
                     break
-            if any(i in placeholder_to_idx for i in range(1,6)):
+            if idx in placeholder_to_idx.values():
                 break
     
-    # Now for each of the five positions:
     to_delete = []
     for i in range(1, 6):
         idx = placeholder_to_idx.get(i)
         if idx is None:
-            continue  # no such slide in template
+            continue
         sl = prs.slides[idx]
         if i <= len(proposal_names):
-            name = proposal_names[i-1]
-            # replace only the first occurrence
+            name = proposal_names[i - 1]
+            # replace only the first run that contains the token
             for shape in sl.shapes:
                 if not shape.has_text_frame:
                     continue
@@ -2539,17 +2542,46 @@ def step17_export_to_ppt():
                     continue
                 break
         else:
-            # mark this slide for deletion
             to_delete.append(idx)
     
-    # Delete marked slides in reverse order so indices don't shift mid-loop
+    # remove extra slides in reverse order
     sldIdLst = prs.slides._sldIdLst
     for idx in sorted(to_delete, reverse=True):
         sldId = sldIdLst[idx]
         sldIdLst.remove(sldId)
-
-
-
+    
+    # ───── Now fill in the bullets on each proposal slide ────────────────────────────
+    for sl in prs.slides:
+        title_shp = getattr(sl.shapes, "title", None)
+        if not title_shp:
+            continue
+        fund = title_shp.text.strip()
+        if fund not in proposal_names:
+            continue
+    
+        # find the textbox still containing “[Bullet Point 1]”
+        for shape in sl.shapes:
+            if not shape.has_text_frame:
+                continue
+            txt = shape.text_frame.text or ""
+            if "[Bullet Point 1]" not in txt:
+                continue
+    
+            tf = shape.text_frame
+            tf.text = ""  # clear placeholders
+    
+            para_text = overview_map.get(fund, {}).get("Overview Paragraph", "")
+            bullets   = [
+                s.strip() for s in re.split(r'(?<=[.!?])\s+', para_text) if s.strip()
+            ]
+    
+            for j, line in enumerate(bullets):
+                p = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
+                p.text      = line
+                p.level     = 0
+                p.font.name = "Cambria"
+                p.font.size = Pt(11)
+            break
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
     # Locate the slide by its placeholder
