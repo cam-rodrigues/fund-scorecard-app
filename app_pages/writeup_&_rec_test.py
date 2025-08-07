@@ -2498,7 +2498,6 @@ def step17_export_to_ppt():
     # ───── Replacement Slides: clone & personalize ──────────────────────────────
     # ───── Replacement Slides + Overview Bullets ────────────────────────────────────
     from copy import deepcopy
-    from pptx.enum.shapes import PP_PLACEHOLDER
     from pptx.util import Pt
     import re
     
@@ -2514,22 +2513,21 @@ def step17_export_to_ppt():
     placeholder     = "[Replacement]"
     template_slide  = None
     template_idx    = None
+    template_layout = None
+    
     for idx, sl in enumerate(prs.slides):
-        title_shape = getattr(sl.shapes, "title", None)
-        if title_shape and placeholder in (title_shape.text or ""):
-            template_slide = sl
-            template_idx   = idx
+        for shape in sl.shapes:
+            if shape.has_text_frame and placeholder in (shape.text_frame.text or ""):
+                template_slide  = sl
+                template_idx    = idx
+                template_layout = sl.slide_layout
+                break
+        if template_slide:
             break
     
     if template_slide is None or not proposal_names:
         st.warning("No [Replacement] slide found or no proposal funds.")
     else:
-        template_layout = template_slide.slide_layout
-    
-        # Helper to set the TITLE placeholder
-        def set_title(slide, text):
-            slide.shapes.title.text = text
-    
         # 3) Loop over each proposal fund
         for i, pf in enumerate(proposal_names):
             if i == 0:
@@ -2537,29 +2535,33 @@ def step17_export_to_ppt():
             else:
                 # clone a fresh slide from the same layout
                 sl = prs.slides.add_slide(template_layout)
-                # remove default placeholders
+                # remove any default placeholders so we only have template shapes
                 for shp in list(sl.shapes):
                     if shp.is_placeholder:
                         sl.shapes._spTree.remove(shp.element)
+                # insert the [Replacement] slide's shapes XML
+                for orig in template_slide.shapes:
+                    sl.shapes._spTree.insert_element_before(deepcopy(orig.element), "p:extLst")
                 # move it immediately after slide 1
                 new_id = deepcopy(prs.slides._sldIdLst[template_idx])
                 prs.slides._sldIdLst.insert(1 + i, new_id)
     
-            # 3a) Set the slide title
-            set_title(sl, pf)
+            # 4) Replace “[Replacement]” in any shape text with the fund name
+            for shape in sl.shapes:
+                if not shape.has_text_frame:
+                    continue
+                txt = shape.text_frame.text or ""
+                if placeholder in txt:
+                    shape.text_frame.text = txt.replace(placeholder, pf)
+                    break
     
-            # 3b) Insert Investment Overview bullets
+            # 5) Insert Investment Overview bullets into the same “[Bullet Point 1]” box
             overview_map = st.session_state.get("step16_5_proposed_overview_lookup", {})
             para_text    = overview_map.get(pf, {}).get("Overview Paragraph", "")
             if para_text:
-                # split into sentences
                 bullets = [
-                    s.strip()
-                    for s in re.split(r'(?<=[\.!?])\s+', para_text)
-                    if s.strip()
+                    s.strip() for s in re.split(r'(?<=[\.!?])\s+', para_text) if s.strip()
                 ]
-    
-                # find the same placeholder box used on Slide 1
                 for shape in sl.shapes:
                     if not shape.has_text_frame:
                         continue
@@ -2567,8 +2569,9 @@ def step17_export_to_ppt():
                     if "[Bullet Point 1]" not in (tf.text or ""):
                         continue
     
-                    # clear placeholder and write bullets
+                    # clear the placeholder text
                     tf.text = ""
+                    # write each sentence as a bullet
                     for idx, line in enumerate(bullets):
                         p = tf.paragraphs[0] if idx == 0 else tf.add_paragraph()
                         p.text      = line
@@ -2577,7 +2580,8 @@ def step17_export_to_ppt():
                         p.font.size = Pt(11)
                     break
     
-    # ───── then continue with Expense & Return logic … ───────────────────────────────
+    # ───── now continue with your Expense & Return tables … ─────────────────────────
+
 
     # ───── 6) EXPENSE & RETURN SLIDE: Table 1 ────────────────────────────────────────
     # Locate the slide by its placeholder
